@@ -9,6 +9,78 @@ use Inertia\Inertia;
 
 class QuotationController
 {
+    private array $columnCache = [];
+
+    private function resolveColumn(string $table, array $candidates, string $fallback): string
+    {
+        if (!isset($this->columnCache[$table])) {
+            $columns = DB::select('SHOW COLUMNS FROM '.$table);
+            $this->columnCache[$table] = array_map(
+                static fn ($column) => $column->Field ?? '',
+                $columns
+            );
+        }
+
+        foreach ($candidates as $candidate) {
+            foreach ($this->columnCache[$table] as $column) {
+                if ($column !== '' && strcasecmp($column, $candidate) === 0) {
+                    return $column;
+                }
+            }
+        }
+
+        return $fallback;
+    }
+
+    private function wrapColumn(string $column): string
+    {
+        return '`'.str_replace('`', '``', $column).'`';
+    }
+
+    public function details($noPenawaran)
+    {
+        $detailNo = trim((string) $noPenawaran);
+        $noPenawaranColumn = $this->resolveColumn(
+            'tb_penawarandetail',
+            ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
+            'No_penawaran'
+        );
+        $hargaColumn = $this->resolveColumn(
+            'tb_penawarandetail',
+            ['Harga', 'harga'],
+            'Harga'
+        );
+        $hargaModalColumn = $this->resolveColumn(
+            'tb_penawarandetail',
+            ['Harga_Modal', 'Harga_modal', 'harga_modal'],
+            'Harga_Modal'
+        );
+
+        $details = DB::table('tb_penawarandetail')
+            ->selectRaw(
+                'ID, '.
+                $this->wrapColumn($noPenawaranColumn).' as No_penawaran, '.
+                'Material, '.
+                'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                .' THEN '.$this->wrapColumn($hargaModalColumn)
+                .' ELSE '.$this->wrapColumn($hargaColumn).' END as Harga, '.
+                'Qty, '.
+                'Satuan, '.
+                'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                .' THEN '.$this->wrapColumn($hargaColumn)
+                .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as Harga_modal, '.
+                'Margin, '.
+                'Remark'
+            )
+            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [$detailNo])
+            ->orderBy('ID')
+            ->get();
+
+        return response()->json([
+            'details' => $details,
+        ]);
+    }
+
     public function index(Request $request)
     {
         $penawaran = DB::table('tb_penawaran')
@@ -34,22 +106,43 @@ class QuotationController
             ->orderBy('No_penawaran', 'desc')
             ->get();
 
-        $detailNo = $request->query('detail_no');
+        $detailNo = trim((string) $request->query('detail_no', ''));
+        $detailNo = $detailNo !== '' ? $detailNo : null;
         $penawaranDetail = collect();
         if ($detailNo) {
+            $noPenawaranColumn = $this->resolveColumn(
+                'tb_penawarandetail',
+                ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
+                'No_penawaran'
+            );
+            $hargaColumn = $this->resolveColumn(
+                'tb_penawarandetail',
+                ['Harga', 'harga'],
+                'Harga'
+            );
+            $hargaModalColumn = $this->resolveColumn(
+                'tb_penawarandetail',
+                ['Harga_Modal', 'Harga_modal', 'harga_modal'],
+                'Harga_Modal'
+            );
+
             $penawaranDetail = DB::table('tb_penawarandetail')
-                ->select(
-                    'ID',
-                    'No_penawaran',
-                    'Material',
-                    'Harga',
-                    'Qty',
-                    'Satuan',
-                    'Harga_modal',
-                    'Margin',
+                ->selectRaw(
+                    'ID, '.
+                    $this->wrapColumn($noPenawaranColumn).' as No_penawaran, '.
+                    'Material, '.
+                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                    .' THEN '.$this->wrapColumn($hargaModalColumn)
+                    .' ELSE '.$this->wrapColumn($hargaColumn).' END as Harga, '.
+                    'Qty, '.
+                    'Satuan, '.
+                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                    .' THEN '.$this->wrapColumn($hargaColumn)
+                    .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as Harga_modal, '.
+                    'Margin, '.
                     'Remark'
                 )
-                ->where('No_penawaran', $detailNo)
+                ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [$detailNo])
                 ->orderBy('ID')
                 ->get();
         }
@@ -122,20 +215,31 @@ class QuotationController
                 ->with('error', 'Data quotation tidak ditemukan.');
         }
 
+        $noPenawaranColumn = $this->resolveColumn(
+            'tb_penawarandetail',
+            ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
+            'No_penawaran'
+        );
+        $hargaModalColumn = $this->resolveColumn(
+            'tb_penawarandetail',
+            ['Harga_Modal', 'Harga_modal', 'harga_modal'],
+            'Harga_Modal'
+        );
+
         $quotationDetails = DB::table('tb_penawarandetail')
             ->select(
                 'ID',
-                'No_penawaran',
+                DB::raw($this->wrapColumn($noPenawaranColumn).' as No_penawaran'),
                 'Material',
                 'Harga',
                 'Qty',
                 'Satuan',
-                'Harga_modal',
+                DB::raw($this->wrapColumn($hargaModalColumn).' as Harga_modal'),
                 'Margin',
                 'Remark'
             )
-            ->where('No_penawaran', $noPenawaran)
-            ->orderBy('No_penawaran')
+            ->where($noPenawaranColumn, $noPenawaran)
+            ->orderBy($noPenawaranColumn)
             ->get();
 
         $customers = DB::table('tb_cs')
@@ -193,17 +297,38 @@ class QuotationController
                 ->with('error', 'Data quotation tidak ditemukan.');
         }
 
+        $noPenawaranColumn = $this->resolveColumn(
+            'tb_penawarandetail',
+            ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
+            'No_penawaran'
+        );
+        $hargaColumn = $this->resolveColumn(
+            'tb_penawarandetail',
+            ['Harga', 'harga'],
+            'Harga'
+        );
+        $hargaModalColumn = $this->resolveColumn(
+            'tb_penawarandetail',
+            ['Harga_Modal', 'Harga_modal', 'harga_modal'],
+            'Harga_Modal'
+        );
+
         $quotationDetails = DB::table('tb_penawarandetail')
-            ->select(
-                'ID',
-                'No_penawaran',
-                'Material',
-                'Harga',
-                'Qty',
-                'Satuan',
+            ->selectRaw(
+                'ID, '.
+                $this->wrapColumn($noPenawaranColumn).' as No_penawaran, '.
+                'Material, '.
+                'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                .' THEN '.$this->wrapColumn($hargaModalColumn)
+                .' ELSE '.$this->wrapColumn($hargaColumn).' END as Harga, '.
+                'Qty, '.
+                'Satuan, '.
+                'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                .' THEN '.$this->wrapColumn($hargaColumn)
+                .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as Harga_modal, '.
                 'Remark'
             )
-            ->where('No_penawaran', $noPenawaran)
+            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [$noPenawaran])
             ->orderBy('ID')
             ->get();
 
@@ -270,17 +395,27 @@ class QuotationController
                         'Note3' => $request->input('note3'),
                     ]);
 
+                $noPenawaranColumn = $this->resolveColumn(
+                    'tb_penawarandetail',
+                    ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
+                    'No_penawaran'
+                );
                 DB::table('tb_penawarandetail')
-                    ->where('No_penawaran', $noPenawaran)
+                    ->where($noPenawaranColumn, $noPenawaran)
                     ->delete();
 
                 foreach ($materials as $item) {
+                    $hargaModalColumn = $this->resolveColumn(
+                        'tb_penawarandetail',
+                        ['Harga_Modal', 'Harga_modal', 'harga_modal'],
+                        'Harga_Modal'
+                    );
                     DB::table('tb_penawarandetail')->insert([
-                        'No_penawaran' => $noPenawaran,
+                        $noPenawaranColumn => $noPenawaran,
                         'Material' => $item['material'] ?? null,
                         'Qty' => $item['quantity'] ?? null,
-                        'Harga' => $item['harga_modal'] ?? null,
-                        'Harga_modal' => $item['harga_penawaran'] ?? null,
+                        'Harga' => $item['harga_penawaran'] ?? null,
+                        $hargaModalColumn => $item['harga_modal'] ?? null,
                         'Satuan' => $item['satuan'] ?? null,
                         'Margin' => $item['margin'] ?? null,
                         'Remark' => $item['remark'] ?? null,
@@ -299,8 +434,13 @@ class QuotationController
 
     public function updateDetail(Request $request, $noPenawaran, $detailId)
     {
+        $noPenawaranColumn = $this->resolveColumn(
+            'tb_penawarandetail',
+            ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
+            'No_penawaran'
+        );
         $exists = DB::table('tb_penawarandetail')
-            ->where('No_penawaran', $noPenawaran)
+            ->where($noPenawaranColumn, $noPenawaran)
             ->where('ID', $detailId)
             ->exists();
 
@@ -308,14 +448,19 @@ class QuotationController
             return back()->with('error', 'Detail quotation tidak ditemukan.');
         }
 
+        $hargaModalColumn = $this->resolveColumn(
+            'tb_penawarandetail',
+            ['Harga_Modal', 'Harga_modal', 'harga_modal'],
+            'Harga_Modal'
+        );
         DB::table('tb_penawarandetail')
-            ->where('No_penawaran', $noPenawaran)
+            ->where($noPenawaranColumn, $noPenawaran)
             ->where('ID', $detailId)
             ->update([
                 'Material' => $request->input('material'),
                 'Qty' => $request->input('quantity'),
-                'Harga' => $request->input('harga_modal'),
-                'Harga_modal' => $request->input('harga_penawaran'),
+                'Harga' => $request->input('harga_penawaran'),
+                $hargaModalColumn => $request->input('harga_modal'),
                 'Satuan' => $request->input('satuan'),
                 'Margin' => $request->input('margin'),
                 'Remark' => $request->input('remark'),
@@ -326,8 +471,13 @@ class QuotationController
 
     public function destroyDetail($noPenawaran, $detailId)
     {
+        $noPenawaranColumn = $this->resolveColumn(
+            'tb_penawarandetail',
+            ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
+            'No_penawaran'
+        );
         $deleted = DB::table('tb_penawarandetail')
-            ->where('No_penawaran', $noPenawaran)
+            ->where($noPenawaranColumn, $noPenawaran)
             ->where('ID', $detailId)
             ->delete();
 
@@ -395,12 +545,22 @@ class QuotationController
                 ]);
 
                 foreach ($materials as $item) {
+                    $noPenawaranColumn = $this->resolveColumn(
+                        'tb_penawarandetail',
+                        ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
+                        'No_penawaran'
+                    );
+                    $hargaModalColumn = $this->resolveColumn(
+                        'tb_penawarandetail',
+                        ['Harga_Modal', 'Harga_modal', 'harga_modal'],
+                        'Harga_Modal'
+                    );
                     DB::table('tb_penawarandetail')->insert([
-                        'No_penawaran' => $noPenawaran,
+                        $noPenawaranColumn => $noPenawaran,
                         'Material' => $item['material'] ?? null,
                         'Qty' => $item['quantity'] ?? null,
-                        'Harga' => $item['harga_modal'] ?? null,
-                        'Harga_modal' => $item['harga_penawaran'] ?? null,
+                        'Harga' => $item['harga_penawaran'] ?? null,
+                        $hargaModalColumn => $item['harga_modal'] ?? null,
                         'Satuan' => $item['satuan'] ?? null,
                         'Margin' => $item['margin'] ?? null,
                         'Remark' => $item['remark'] ?? null,

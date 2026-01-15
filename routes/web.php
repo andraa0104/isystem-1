@@ -25,6 +25,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('marketing.quotation.create');
     Route::get('marketing/quotation/{noPenawaran}/edit', [QuotationController::class, 'edit'])
         ->name('marketing.quotation.edit');
+    Route::get('marketing/quotation/{noPenawaran}/details', [QuotationController::class, 'details'])
+        ->name('marketing.quotation.details');
     Route::get('marketing/quotation/{noPenawaran}/print', [QuotationController::class, 'print'])
         ->name('marketing.quotation.print');
     Route::put('marketing/quotation/{noPenawaran}', [QuotationController::class, 'update'])

@@ -37,6 +37,9 @@ export default function QuotationIndex({
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedPenawaran, setSelectedPenawaran] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [detailRows, setDetailRows] = useState([]);
+    const [detailRowsNo, setDetailRowsNo] = useState(null);
+    const [detailLoading, setDetailLoading] = useState(false);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(10);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
@@ -90,12 +93,17 @@ export default function QuotationIndex({
             return [];
         }
 
-        if (detailNo !== selectedPenawaran.No_penawaran) {
+        const selectedNo = String(selectedPenawaran.No_penawaran ?? '').trim();
+        const currentDetailNo = detailNo ? String(detailNo).trim() : '';
+        if (detailRowsNo === selectedNo && detailRows.length > 0) {
+            return detailRows;
+        }
+        if (!selectedNo || currentDetailNo !== selectedNo) {
             return [];
         }
 
         return penawaranDetail;
-    }, [detailNo, penawaranDetail, selectedPenawaran]);
+    }, [detailNo, detailRows, detailRowsNo, penawaranDetail, selectedPenawaran]);
 
     const filteredMaterialDetails = useMemo(() => {
         const term = materialSearchTerm.trim().toLowerCase();
@@ -145,16 +153,38 @@ export default function QuotationIndex({
         setSelectedPenawaran(item);
         setIsModalOpen(true);
 
-        if (detailNo !== item.No_penawaran) {
+        const selectedNo = String(item.No_penawaran ?? '').trim();
+        const currentDetailNo = detailNo ? String(detailNo).trim() : '';
+        if (selectedNo && (currentDetailNo !== selectedNo || penawaranDetail.length === 0)) {
             router.get(
                 '/marketing/quotation',
-                { detail_no: item.No_penawaran },
+                { detail_no: selectedNo },
                 {
                     preserveState: true,
                     preserveScroll: true,
                     only: ['penawaranDetail', 'detailNo'],
                 }
             );
+        }
+
+        if (selectedNo && detailRowsNo !== selectedNo) {
+            setDetailLoading(true);
+            setDetailRows([]);
+            setDetailRowsNo(selectedNo);
+            fetch(`/marketing/quotation/${encodeURIComponent(selectedNo)}/details`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then((response) => (response.ok ? response.json() : null))
+                .then((data) => {
+                    const details = Array.isArray(data?.details) ? data.details : [];
+                    setDetailRows(details);
+                })
+                .catch(() => {
+                    setDetailRows([]);
+                })
+                .finally(() => {
+                    setDetailLoading(false);
+                });
         }
     };
 
@@ -173,6 +203,10 @@ export default function QuotationIndex({
             setMaterialSearchTerm('');
             setMaterialPageSize(10);
             setMaterialCurrentPage(1);
+        } else {
+            setDetailRows([]);
+            setDetailRowsNo(null);
+            setDetailLoading(false);
         }
     }, [isModalOpen, selectedPenawaran]);
 
@@ -613,16 +647,18 @@ export default function QuotationIndex({
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {displayedMaterialDetails.length === 0 && (
-                                                    <tr>
-                                                        <td
-                                                            className="px-4 py-6 text-center text-muted-foreground"
-                                                            colSpan={8}
-                                                        >
-                                                            Belum ada data material.
-                                                        </td>
-                                                    </tr>
-                                                )}
+                                            {displayedMaterialDetails.length === 0 && (
+                                                <tr>
+                                                    <td
+                                                        className="px-4 py-6 text-center text-muted-foreground"
+                                                        colSpan={8}
+                                                    >
+                                                        {detailLoading
+                                                            ? 'Memuat data material...'
+                                                            : 'Belum ada data material.'}
+                                                    </td>
+                                                </tr>
+                                            )}
                                                 {displayedMaterialDetails.map(
                                                     (detail, index) => (
                                                     <tr
