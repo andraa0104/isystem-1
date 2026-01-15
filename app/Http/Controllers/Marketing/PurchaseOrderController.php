@@ -402,7 +402,7 @@ class PurchaseOrderController
         return back()->with('success', 'Detail PO berhasil diperbarui.');
     }
 
-    public function index()
+    public function index(Request $request)
     {
         $purchaseOrders = DB::table('tb_po as po')
             ->leftJoin(
@@ -435,18 +435,23 @@ class PurchaseOrderController
             ->orderBy('no_po', 'desc')
             ->get();
 
-        $purchaseOrderDetails = DB::table('tb_detailpo')
-            ->select(
-                'no_po',
-                'no',
-                'material',
-                'qty',
-                'unit',
-                'price',
-                'total_price'
-            )
-            ->orderBy('no_po')
-            ->get();
+        $detailNo = $request->query('detail_no');
+        $purchaseOrderDetails = collect();
+        if ($detailNo) {
+            $purchaseOrderDetails = DB::table('tb_detailpo')
+                ->select(
+                    'no_po',
+                    'no',
+                    'material',
+                    'qty',
+                    'unit',
+                    'price',
+                    'total_price'
+                )
+                ->where('no_po', $detailNo)
+                ->orderBy('no')
+                ->get();
+        }
 
         $outstandingCount = DB::table('tb_detailpo')
             ->where('gr_mat', '<>', 0)
@@ -462,6 +467,7 @@ class PurchaseOrderController
         return Inertia::render('marketing/purchase-order/index', [
             'purchaseOrders' => $purchaseOrders,
             'purchaseOrderDetails' => $purchaseOrderDetails,
+            'detailNo' => $detailNo,
             'outstandingCount' => $outstandingCount,
             'outstandingTotal' => $outstandingTotal,
             'realizedCount' => $realizedCount,

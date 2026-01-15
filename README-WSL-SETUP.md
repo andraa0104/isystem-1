@@ -99,6 +99,16 @@ wsl -d Ubuntu-22.04 -- bash -lc "cd /root/isystem && docker compose -f docker-co
 - App: `http://localhost:8080`
 - Vite dev server: `http://localhost:5173`
 
+## 11.1) Start again after PC restart
+1) Open Docker Desktop and wait until it shows "Running".
+2) Run from WSL:
+```
+wsl -d Ubuntu-22.04 -- bash -lc "cd /root/isystem && docker compose -f docker-compose.dev.yml up -d"
+```
+Tips:
+- Enable "Start Docker Desktop when you log in".
+- (Optional) Use Task Scheduler to run `docker compose ... up -d` after Docker Desktop is ready.
+
 ## 12) Common commands
 Check status:
 ```

@@ -27,7 +27,11 @@ const formatRupiah = (value) => {
 
 const renderValue = (value) => (value === null || value === undefined || value === '' ? '-' : value);
 
-export default function QuotationIndex({ penawaran = [], penawaranDetail = [] }) {
+export default function QuotationIndex({
+    penawaran = [],
+    penawaranDetail = [],
+    detailNo = null,
+}) {
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
@@ -86,10 +90,12 @@ export default function QuotationIndex({ penawaran = [], penawaranDetail = [] })
             return [];
         }
 
-        return penawaranDetail.filter(
-            (detail) => detail.No_penawaran === selectedPenawaran.No_penawaran
-        );
-    }, [penawaranDetail, selectedPenawaran]);
+        if (detailNo !== selectedPenawaran.No_penawaran) {
+            return [];
+        }
+
+        return penawaranDetail;
+    }, [detailNo, penawaranDetail, selectedPenawaran]);
 
     const filteredMaterialDetails = useMemo(() => {
         const term = materialSearchTerm.trim().toLowerCase();
@@ -138,6 +144,18 @@ export default function QuotationIndex({ penawaran = [], penawaranDetail = [] })
     const handleOpenModal = (item) => {
         setSelectedPenawaran(item);
         setIsModalOpen(true);
+
+        if (detailNo !== item.No_penawaran) {
+            router.get(
+                '/marketing/quotation',
+                { detail_no: item.No_penawaran },
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    only: ['penawaranDetail', 'detailNo'],
+                }
+            );
+        }
     };
 
     useEffect(() => {

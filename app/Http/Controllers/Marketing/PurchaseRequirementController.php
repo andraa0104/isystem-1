@@ -8,7 +8,7 @@ use Inertia\Inertia;
 
 class PurchaseRequirementController
 {
-    public function index()
+    public function index(Request $request)
     {
         $purchaseRequirements = DB::table('tb_pr as pr')
             ->leftJoin(
@@ -37,9 +37,24 @@ class PurchaseRequirementController
             ->orderBy('pr.no_pr', 'desc')
             ->get();
 
-        $purchaseRequirementDetails = DB::table('tb_detailpr')
-            ->orderBy('no_pr')
-            ->get();
+        $detailNo = $request->query('detail_no');
+        $purchaseRequirementDetails = collect();
+        if ($detailNo) {
+            $purchaseRequirementDetails = DB::table('tb_detailpr')
+                ->select(
+                    'no_pr',
+                    'no',
+                    'kd_material',
+                    'material',
+                    'qty',
+                    'unit',
+                    'sisa_pr',
+                    'renmark'
+                )
+                ->where('no_pr', $detailNo)
+                ->orderBy('no')
+                ->get();
+        }
 
         $outstandingCount = DB::table('tb_detailpr')
             ->select('no_pr', DB::raw('coalesce(sum(cast(sisa_pr as decimal(18,4))), 0) as pr_sisa'))
@@ -60,6 +75,7 @@ class PurchaseRequirementController
         return Inertia::render('marketing/purchase-requirement/index', [
             'purchaseRequirements' => $purchaseRequirements,
             'purchaseRequirementDetails' => $purchaseRequirementDetails,
+            'detailNo' => $detailNo,
             'outstandingCount' => $outstandingCount,
             'realizedCount' => $realizedCount,
             'outstandingTotal' => $outstandingTotal,

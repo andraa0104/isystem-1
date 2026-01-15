@@ -80,6 +80,7 @@ const isRealized = (item) => !isOutstanding(item);
 export default function PurchaseOrderIndex({
     purchaseOrders = [],
     purchaseOrderDetails = [],
+    detailNo = null,
     outstandingCount = 0,
     outstandingTotal = 0,
     realizedCount = 0,
@@ -220,12 +221,12 @@ export default function PurchaseOrderIndex({
             return [];
         }
 
-        const selectedNoPo = selectedPo.no_po;
-        return purchaseOrderDetails.filter((detail) => {
-            const detailNoPo = detail?.no_po ?? detail?.No_po ?? detail?.No_PO;
-            return detailNoPo === selectedNoPo;
-        });
-    }, [purchaseOrderDetails, selectedPo]);
+        if (detailNo !== selectedPo.no_po) {
+            return [];
+        }
+
+        return purchaseOrderDetails;
+    }, [detailNo, purchaseOrderDetails, selectedPo]);
 
     const selectedDetail = selectedDetails[0] ?? null;
 
@@ -237,6 +238,18 @@ export default function PurchaseOrderIndex({
     const handleOpenModal = (item) => {
         setSelectedPo(item);
         setIsModalOpen(true);
+
+        if (detailNo !== item.no_po) {
+            router.get(
+                '/marketing/purchase-order',
+                { detail_no: item.no_po },
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    only: ['purchaseOrderDetails', 'detailNo'],
+                }
+            );
+        }
     };
 
     useEffect(() => {

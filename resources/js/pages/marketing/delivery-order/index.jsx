@@ -13,7 +13,7 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -42,6 +42,7 @@ const getStatusValue = (item) => {
 export default function DeliveryOrderIndex({
     deliveryOrders = [],
     deliveryOrderDetails = [],
+    detailNo = null,
     customerAddresses = [],
     outstandingCount = 0,
     realizedCount = 0,
@@ -180,6 +181,18 @@ export default function DeliveryOrderIndex({
     const handleOpenDetailModal = (item) => {
         setSelectedDo(item);
         setIsDetailModalOpen(true);
+
+        if (detailNo !== item.no_do) {
+            router.get(
+                '/marketing/delivery-order',
+                { detail_no: item.no_do },
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    only: ['deliveryOrderDetails', 'detailNo'],
+                }
+            );
+        }
     };
 
     const selectedDetails = useMemo(() => {
@@ -187,11 +200,12 @@ export default function DeliveryOrderIndex({
             return [];
         }
 
-        return deliveryOrderDetails.filter((detail) => {
-            const noDo = detail?.no_do ?? detail?.No_do ?? detail?.No_DO;
-            return noDo === selectedDo.no_do;
-        });
-    }, [deliveryOrderDetails, selectedDo]);
+        if (detailNo !== selectedDo.no_do) {
+            return [];
+        }
+
+        return deliveryOrderDetails;
+    }, [detailNo, deliveryOrderDetails, selectedDo]);
 
     const selectedAddress = selectedDo
         ? addressLookup.get(selectedDo.nm_cs) || '-'

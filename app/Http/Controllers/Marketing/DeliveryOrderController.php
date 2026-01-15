@@ -8,7 +8,7 @@ use Inertia\Inertia;
 
 class DeliveryOrderController
 {
-    public function index()
+    public function index(Request $request)
     {
         $deliveryOrders = DB::table('tb_do')
             ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
@@ -17,21 +17,22 @@ class DeliveryOrderController
             ->orderBy('no_do', 'desc')
             ->get();
 
-        $deliveryOrderDetails = DB::table('tb_do')
-            ->select(
-                'no_do',
-                'date',
-                'ref_po',
-                'nm_cs',
-                'mat',
-                'qty',
-                'harga',
-                'total',
-                'remark',
-                'val_inv'
-            )
-            ->orderBy('no_do')
-            ->get();
+        $detailNo = $request->query('detail_no');
+        $deliveryOrderDetails = collect();
+        if ($detailNo) {
+            $deliveryOrderDetails = DB::table('tb_do')
+                ->select(
+                    'no_do',
+                    'mat',
+                    'qty',
+                    'harga',
+                    'total',
+                    'remark'
+                )
+                ->where('no_do', $detailNo)
+                ->orderBy('no_do')
+                ->get();
+        }
 
         $customerAddresses = DB::table('tb_cs')
             ->select('nm_cs', 'alamat_cs')
@@ -55,6 +56,7 @@ class DeliveryOrderController
         return Inertia::render('marketing/delivery-order/index', [
             'deliveryOrders' => $deliveryOrders,
             'deliveryOrderDetails' => $deliveryOrderDetails,
+            'detailNo' => $detailNo,
             'customerAddresses' => $customerAddresses,
             'outstandingCount' => $outstandingCount,
             'realizedCount' => $realizedCount,

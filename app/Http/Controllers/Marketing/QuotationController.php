@@ -9,7 +9,7 @@ use Inertia\Inertia;
 
 class QuotationController
 {
-    public function index()
+    public function index(Request $request)
     {
         $penawaran = DB::table('tb_penawaran')
             ->select(
@@ -34,24 +34,30 @@ class QuotationController
             ->orderBy('No_penawaran', 'desc')
             ->get();
 
-        $penawaranDetail = DB::table('tb_penawarandetail')
-            ->select(
-                'ID',
-                'No_penawaran',
-                'Material',
-                'Harga',
-                'Qty',
-                'Satuan',
-                'Harga_modal',
-                'Margin',
-                'Remark'
-            )
-            ->orderBy('No_penawaran')
-            ->get();
+        $detailNo = $request->query('detail_no');
+        $penawaranDetail = collect();
+        if ($detailNo) {
+            $penawaranDetail = DB::table('tb_penawarandetail')
+                ->select(
+                    'ID',
+                    'No_penawaran',
+                    'Material',
+                    'Harga',
+                    'Qty',
+                    'Satuan',
+                    'Harga_modal',
+                    'Margin',
+                    'Remark'
+                )
+                ->where('No_penawaran', $detailNo)
+                ->orderBy('ID')
+                ->get();
+        }
 
         return Inertia::render('marketing/quotation/index', [
             'penawaran' => $penawaran,
             'penawaranDetail' => $penawaranDetail,
+            'detailNo' => $detailNo,
         ]);
     }
 

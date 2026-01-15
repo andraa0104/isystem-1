@@ -40,6 +40,7 @@ const getValue = (source, keys) => {
 export default function PurchaseRequirementIndex({
     purchaseRequirements = [],
     purchaseRequirementDetails = [],
+    detailNo = null,
     outstandingCount = 0,
     realizedCount = 0,
     outstandingTotal = 0,
@@ -167,12 +168,12 @@ export default function PurchaseRequirementIndex({
             return [];
         }
 
-        const selectedNoPr = selectedPr.no_pr;
-        return purchaseRequirementDetails.filter((detail) => {
-            const detailNoPr = detail?.no_pr ?? detail?.No_pr ?? detail?.No_PR;
-            return detailNoPr === selectedNoPr;
-        });
-    }, [purchaseRequirementDetails, selectedPr]);
+        if (detailNo !== selectedPr.no_pr) {
+            return [];
+        }
+
+        return purchaseRequirementDetails;
+    }, [detailNo, purchaseRequirementDetails, selectedPr]);
 
     const filteredMaterialDetails = useMemo(() => {
         const term = materialSearchTerm.trim().toLowerCase();
@@ -223,6 +224,18 @@ export default function PurchaseRequirementIndex({
     const handleOpenModal = (item) => {
         setSelectedPr(item);
         setIsModalOpen(true);
+
+        if (detailNo !== item.no_pr) {
+            router.get(
+                '/marketing/purchase-requirement',
+                { detail_no: item.no_pr },
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    only: ['purchaseRequirementDetails', 'detailNo'],
+                }
+            );
+        }
     };
 
     useEffect(() => {
