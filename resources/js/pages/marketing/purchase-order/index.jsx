@@ -614,7 +614,6 @@ export default function PurchaseOrderIndex({
                                                 <span>
                                                     {getValue(selectedDetail, [
                                                         'del_time',
-                                                        'delivery_time',
                                                     ])}
                                                 </span>
                                             </div>
@@ -899,15 +898,15 @@ export default function PurchaseOrderIndex({
                                 <tbody>
                                     {displayedOutstandingPurchaseOrders.length ===
                                         0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={6}
-                                            >
-                                                Tidak ada PO outstanding.
-                                            </td>
-                                        </tr>
-                                    )}
+                                            <tr>
+                                                <td
+                                                    className="px-4 py-6 text-center text-muted-foreground"
+                                                    colSpan={6}
+                                                >
+                                                    Tidak ada PO outstanding.
+                                                </td>
+                                            </tr>
+                                        )}
                                     {displayedOutstandingPurchaseOrders.map(
                                         (item) => (
                                             <tr
@@ -976,14 +975,14 @@ export default function PurchaseOrderIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (outstandingCurrentPage - 1) *
-                                                outstandingPageSize +
-                                                1,
+                                            outstandingPageSize +
+                                            1,
                                             outstandingTotalItems
                                         )}
                                         -
                                         {Math.min(
                                             outstandingCurrentPage *
-                                                outstandingPageSize,
+                                            outstandingPageSize,
                                             outstandingTotalItems
                                         )}{' '}
                                         dari {outstandingTotalItems} data

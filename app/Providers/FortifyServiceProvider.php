@@ -32,6 +32,7 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \Illuminate\Support\Facades\Log::info('FortifyServiceProvider booting...');
         $this->configureActions();
         $this->configureAuthentication();
         $this->configureViews();
@@ -104,17 +105,29 @@ class FortifyServiceProvider extends ServiceProvider
             DB::purge($connection);
             DB::reconnect($connection);
 
+            $username = $request->input('pengguna');
+            $password = $request->input('password');
+
             $user = Pengguna::on($connection)
-                ->where('pengguna', $request->input('username'))
+                ->where('pengguna', $username)
                 ->first();
 
-            if ($user && $request->input('password') === $user->pass) {
-                \Illuminate\Support\Facades\Log::info('Login success for user: ' . $user->pengguna);
-                return $user;
+            if ($user) {
+                // User stated plaintext only.
+                // Using trim to avoid char/varchar padding issues.
+                if ((string) $password === trim($user->pass)) {
+                    \Illuminate\Support\Facades\Log::info("Login success for user: {$user->pengguna} on DB: {$database}");
+                    return $user;
+                }
+            }
+
+            \Illuminate\Support\Facades\Log::warning("Login failed for username: $username on DB: $database. User found: " . ($user ? 'YES' : 'NO'));
+            if ($user) {
+                 \Illuminate\Support\Facades\Log::warning("Password mismatch. Input: $password. stored: " . $user->pass);
             }
 
             throw ValidationException::withMessages([
-                'username' => __('Username atau password salah.'),
+                'pengguna' => __('Username atau password salah.'),
             ]);
         });
     }

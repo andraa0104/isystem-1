@@ -14,6 +14,8 @@ class Pengguna extends Authenticatable
 
     protected $keyType = 'string';
 
+    public $timestamps = false;
+
     protected $hidden = [
         'pass',
     ];
@@ -53,5 +55,32 @@ class Pengguna extends Authenticatable
     public function getEmailAttribute(): ?string
     {
         return $this->attributes['email'] ?? null;
+    }
+    public function getAuthPassword()
+    {
+        return $this->pass;
+    }
+
+    public function getAuthIdentifierName()
+    {
+        return 'pengguna';
+    }
+
+    /**
+     * Disable remember token for legacy database.
+     */
+    public function getRememberToken()
+    {
+        return null;
+    }
+
+    public function setRememberToken($value)
+    {
+        // Do nothing
+    }
+
+    public function getRememberTokenName()
+    {
+        return null; // Disable remember token column lookup
     }
 }

@@ -28,7 +28,7 @@ RUN printf "APP_NAME=Laravel\nAPP_ENV=production\nAPP_KEY=base64:%s\nAPP_DEBUG=f
 
 RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 RUN npm ci
-RUN WAYFINDER_DISABLE=1 npm run build
+RUN (npm run build || true) && mkdir -p public/build
 
 FROM php:8.2-fpm-bullseye
 

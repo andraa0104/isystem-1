@@ -9,8 +9,8 @@ services:
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
-      APP_URL: http://192.168.1.18:8080
-      ASSET_URL: http://192.168.1.18:8080
+      APP_URL: http://192.168.1.250:8080
+      ASSET_URL: http://192.168.1.250:8080
     ports:
       - "8080:80"
     volumes:
@@ -24,8 +24,8 @@ services:
     environment:
       APP_ENV: production
       APP_DEBUG: "false"
-      APP_URL: http://192.168.1.18:8080
-      ASSET_URL: http://192.168.1.18:8080
+      APP_URL: http://192.168.1.250:8080
+      ASSET_URL: http://192.168.1.250:8080
     command: ["php","artisan","queue:work","--tries=1"]
     volumes:
       - storage-data:/var/www/html/storage

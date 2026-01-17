@@ -446,7 +446,14 @@ class PurchaseOrderController
                     'qty',
                     'unit',
                     'price',
-                    'total_price'
+                    'total_price',
+                    'del_time',
+                    'payment_terms',
+                    'franco_loco',
+                    'ket1',
+                    'ket2',
+                    'ket3',
+                    'ket4'
                 )
                 ->where('no_po', $detailNo)
                 ->orderBy('no')
