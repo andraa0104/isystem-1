@@ -10,59 +10,10 @@ class PurchaseOrderController
 {
     public function create()
     {
-        $purchaseRequirements = DB::table('tb_pr as pr')
-            ->leftJoin(
-                DB::raw('(
-                    select
-                        no_pr,
-                        sum(case when sisa_pr <> 0 then 1 else 0 end) as outstanding_count
-                    from tb_detailpr
-                    group by no_pr
-                ) as detail'),
-                'pr.no_pr',
-                '=',
-                'detail.no_pr'
-            )
-            ->select(
-                'pr.no_pr',
-                'pr.date',
-                'pr.for_customer',
-                'pr.ref_po',
-                DB::raw('coalesce(detail.outstanding_count, 0) as outstanding_count')
-            )
-            ->where(DB::raw('coalesce(detail.outstanding_count, 0)'), '>', 0)
-            ->orderBy('pr.date', 'desc')
-            ->orderBy('pr.no_pr', 'desc')
-            ->get();
-
-        $purchaseRequirementDetails = DB::table('tb_detailpr')
-            ->select(
-                'no_pr',
-                'kd_material',
-                'material',
-                'qty',
-                'unit',
-                'renmark'
-            )
-            ->orderBy('no_pr')
-            ->get();
-
-        $vendors = DB::table('tb_vendor')
-            ->select(
-                'kd_vdr',
-                'nm_vdr',
-                'almt_vdr',
-                'telp_vdr',
-                'eml_vdr',
-                'attn_vdr'
-            )
-            ->orderBy('nm_vdr')
-            ->get();
-
         return Inertia::render('marketing/purchase-order/create', [
-            'purchaseRequirements' => $purchaseRequirements,
-            'purchaseRequirementDetails' => $purchaseRequirementDetails,
-            'vendors' => $vendors,
+            'purchaseRequirements' => [],
+            'purchaseRequirementDetails' => [],
+            'vendors' => [],
         ]);
     }
 
@@ -83,6 +34,17 @@ class PurchaseOrderController
             ->orderBy('no')
             ->get();
 
+        return Inertia::render('marketing/purchase-order/edit', [
+            'purchaseOrder' => $purchaseOrder,
+            'purchaseOrderDetails' => $purchaseOrderDetails,
+            'purchaseRequirements' => [],
+            'purchaseRequirementDetails' => [],
+            'vendors' => [],
+        ]);
+    }
+
+    public function outstandingPurchaseRequirements()
+    {
         $purchaseRequirements = DB::table('tb_pr as pr')
             ->leftJoin(
                 DB::raw('(
@@ -108,7 +70,14 @@ class PurchaseOrderController
             ->orderBy('pr.no_pr', 'desc')
             ->get();
 
-        $purchaseRequirementDetails = DB::table('tb_detailpr')
+        return response()->json([
+            'purchaseRequirements' => $purchaseRequirements,
+        ]);
+    }
+
+    public function purchaseRequirementDetails(Request $request)
+    {
+        $query = DB::table('tb_detailpr')
             ->select(
                 'no_pr',
                 'kd_material',
@@ -117,9 +86,20 @@ class PurchaseOrderController
                 'unit',
                 'renmark'
             )
-            ->orderBy('no_pr')
-            ->get();
+            ->orderBy('no_pr');
 
+        $noPr = $request->query('no_pr');
+        if ($noPr) {
+            $query->where('no_pr', $noPr);
+        }
+
+        return response()->json([
+            'purchaseRequirementDetails' => $query->get(),
+        ]);
+    }
+
+    public function vendors()
+    {
         $vendors = DB::table('tb_vendor')
             ->select(
                 'kd_vdr',
@@ -132,11 +112,7 @@ class PurchaseOrderController
             ->orderBy('nm_vdr')
             ->get();
 
-        return Inertia::render('marketing/purchase-order/edit', [
-            'purchaseOrder' => $purchaseOrder,
-            'purchaseOrderDetails' => $purchaseOrderDetails,
-            'purchaseRequirements' => $purchaseRequirements,
-            'purchaseRequirementDetails' => $purchaseRequirementDetails,
+        return response()->json([
             'vendors' => $vendors,
         ]);
     }
@@ -435,31 +411,6 @@ class PurchaseOrderController
             ->orderBy('no_po', 'desc')
             ->get();
 
-        $detailNo = $request->query('detail_no');
-        $purchaseOrderDetails = collect();
-        if ($detailNo) {
-            $purchaseOrderDetails = DB::table('tb_detailpo')
-                ->select(
-                    'no_po',
-                    'no',
-                    'material',
-                    'qty',
-                    'unit',
-                    'price',
-                    'total_price',
-                    'del_time',
-                    'payment_terms',
-                    'franco_loco',
-                    'ket1',
-                    'ket2',
-                    'ket3',
-                    'ket4'
-                )
-                ->where('no_po', $detailNo)
-                ->orderBy('no')
-                ->get();
-        }
-
         $outstandingCount = DB::table('tb_detailpo')
             ->where('gr_mat', '<>', 0)
             ->distinct('no_po')
@@ -473,11 +424,83 @@ class PurchaseOrderController
 
         return Inertia::render('marketing/purchase-order/index', [
             'purchaseOrders' => $purchaseOrders,
-            'purchaseOrderDetails' => $purchaseOrderDetails,
-            'detailNo' => $detailNo,
             'outstandingCount' => $outstandingCount,
             'outstandingTotal' => $outstandingTotal,
             'realizedCount' => $realizedCount,
+        ]);
+    }
+
+    public function details(Request $request)
+    {
+        $noPo = $request->query('no_po');
+        if (!$noPo) {
+            return response()->json([
+                'purchaseOrderDetails' => [],
+            ]);
+        }
+
+        $purchaseOrderDetails = DB::table('tb_detailpo')
+            ->select(
+                'no_po',
+                'no',
+                'material',
+                'qty',
+                'unit',
+                'price',
+                'total_price',
+                'del_time',
+                'payment_terms',
+                'franco_loco',
+                'ket1',
+                'ket2',
+                'ket3',
+                'ket4'
+            )
+            ->where('no_po', $noPo)
+            ->orderBy('no')
+            ->get();
+
+        return response()->json([
+            'purchaseOrderDetails' => $purchaseOrderDetails,
+        ]);
+    }
+
+    public function outstanding()
+    {
+        $purchaseOrders = DB::table('tb_po as po')
+            ->leftJoin(
+                DB::raw('(
+                    select
+                        no_po,
+                        max(case when gr_mat <> 0 then 1 else 0 end) as has_outstanding
+                    from tb_detailpo
+                    group by no_po
+                ) as detail'),
+                'po.no_po',
+                '=',
+                'detail.no_po'
+            )
+            ->select(
+                'po.no_po',
+                'po.tgl',
+                'po.for_cus',
+                'po.nm_vdr',
+                'po.g_total',
+                'po.ref_pr',
+                'po.ref_quota',
+                'po.ref_poin',
+                'po.ppn',
+                'po.s_total',
+                'po.h_ppn',
+                DB::raw('coalesce(detail.has_outstanding, 0) as has_outstanding')
+            )
+            ->where(DB::raw('coalesce(detail.has_outstanding, 0)'), '>', 0)
+            ->orderBy('tgl', 'desc')
+            ->orderBy('no_po', 'desc')
+            ->get();
+
+        return response()->json([
+            'purchaseOrders' => $purchaseOrders,
         ]);
     }
 

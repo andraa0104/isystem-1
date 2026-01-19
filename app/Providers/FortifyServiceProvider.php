@@ -117,11 +117,14 @@ class FortifyServiceProvider extends ServiceProvider
                 // Using trim to avoid char/varchar padding issues.
                 if ((string) $password === trim($user->pass)) {
                     \Illuminate\Support\Facades\Log::info("Login success for user: {$user->pengguna} on DB: {$database}");
+                    Cookie::queue('login_user', $user->pengguna, 60 * 24 * 30);
+                    Cookie::queue('login_user_name', $user->name, 60 * 24 * 30);
+                    Cookie::queue('login_last_online', (string) ($user->last_online ?? ''), 60 * 24 * 30);
                     return $user;
                 }
             }
 
-            \Illuminate\Support\Facades\Log::warning("Login failed for username: $username on DB: $database. User found: " . ($user ? 'YES' : 'NO'));
+            \Illuminate\Support\Facades\Log::warning("Login failed for username: $username on DB: {$database}. User found: " . ($user ? 'YES' : 'NO'));
             if ($user) {
                  \Illuminate\Support\Facades\Log::warning("Password mismatch. Input: $password. stored: " . $user->pass);
             }

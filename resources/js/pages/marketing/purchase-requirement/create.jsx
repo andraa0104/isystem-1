@@ -50,6 +50,9 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
     const [materialPageSize, setMaterialPageSize] = useState(10);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [materialList, setMaterialList] = useState(materials);
+    const [materialLoading, setMaterialLoading] = useState(false);
+    const [materialError, setMaterialError] = useState('');
 
     const [formData, setFormData] = useState({
         date: todayValue(),
@@ -74,16 +77,16 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
     const filteredMaterials = useMemo(() => {
         const term = materialSearchTerm.trim().toLowerCase();
         if (!term) {
-            return materials;
+            return materialList;
         }
 
-        return materials.filter((item) => {
+        return materialList.filter((item) => {
             const values = [item.kd_material, item.material];
             return values.some((value) =>
                 String(value ?? '').toLowerCase().includes(term)
             );
         });
-    }, [materialSearchTerm, materials]);
+    }, [materialSearchTerm, materialList]);
 
     const materialTotalItems = filteredMaterials.length;
     const materialTotalPages = useMemo(() => {
@@ -139,6 +142,28 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
             satuan: material.unit ?? '',
         }));
         setIsMaterialModalOpen(false);
+    };
+
+    const loadMaterials = async () => {
+        if (materialLoading || materialList.length > 0) {
+            return;
+        }
+        setMaterialLoading(true);
+        setMaterialError('');
+        try {
+            const response = await fetch('/marketing/purchase-requirement/materials', {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+            const data = await response.json();
+            setMaterialList(Array.isArray(data?.materials) ? data.materials : []);
+        } catch (error) {
+            setMaterialError('Gagal memuat data material.');
+        } finally {
+            setMaterialLoading(false);
+        }
     };
 
     const handleAddMaterial = () => {
@@ -330,9 +355,10 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
                                         <Button
                                             type="button"
                                             variant="outline"
-                                            onClick={() =>
-                                                setIsMaterialModalOpen(true)
-                                            }
+                                            onClick={() => {
+                                                setIsMaterialModalOpen(true);
+                                                loadMaterials();
+                                            }}
                                         >
                                             Cari Material
                                         </Button>
@@ -571,7 +597,9 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
                     open={isMaterialModalOpen}
                     onOpenChange={(open) => {
                         setIsMaterialModalOpen(open);
-                        if (!open) {
+                        if (open) {
+                            loadMaterials();
+                        } else {
                             setMaterialSearchTerm('');
                             setMaterialPageSize(10);
                             setMaterialCurrentPage(1);
@@ -652,7 +680,10 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
                                                 className="px-4 py-6 text-center text-muted-foreground"
                                                 colSpan={5}
                                             >
-                                                Tidak ada data material.
+                                                {materialLoading
+                                                    ? 'Memuat data material...'
+                                                    : materialError ||
+                                                      'Tidak ada data material.'}
                                             </td>
                                         </tr>
                                     )}

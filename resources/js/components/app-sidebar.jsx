@@ -322,21 +322,21 @@ export function AppSidebar() {
                                     <SidebarMenuSub>
                                         <SidebarMenuSubItem>
                                             <SidebarMenuSubButton asChild>
-                                                <Link href="#">
+                                                <Link href="/master-data/vendor">
                                                     <span>Vendor</span>
                                                 </Link>
                                             </SidebarMenuSubButton>
                                         </SidebarMenuSubItem>
                                         <SidebarMenuSubItem>
                                             <SidebarMenuSubButton asChild>
-                                                <Link href="#">
+                                                <Link href="/master-data/customer">
                                                     <span>Customer</span>
                                                 </Link>
                                             </SidebarMenuSubButton>
                                         </SidebarMenuSubItem>
                                         <SidebarMenuSubItem>
                                             <SidebarMenuSubButton asChild>
-                                                <Link href="#">
+                                                <Link href="/master-data/material">
                                                     <span>Material</span>
                                                 </Link>
                                             </SidebarMenuSubButton>
@@ -471,5 +471,3 @@ export function AppSidebar() {
         </Sidebar>
     );
 }
-
-

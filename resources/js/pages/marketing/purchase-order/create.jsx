@@ -50,6 +50,15 @@ export default function PurchaseOrderCreate({
     const [isPrModalOpen, setIsPrModalOpen] = useState(false);
     const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [prList, setPrList] = useState(purchaseRequirements);
+    const [prDetailList, setPrDetailList] = useState(purchaseRequirementDetails);
+    const [vendorList, setVendorList] = useState(vendors);
+    const [prLoading, setPrLoading] = useState(false);
+    const [prError, setPrError] = useState('');
+    const [prDetailLoading, setPrDetailLoading] = useState(false);
+    const [prDetailError, setPrDetailError] = useState('');
+    const [vendorLoading, setVendorLoading] = useState(false);
+    const [vendorError, setVendorError] = useState('');
 
     const [prSearchTerm, setPrSearchTerm] = useState('');
     const [prPageSize, setPrPageSize] = useState(10);
@@ -92,16 +101,16 @@ export default function PurchaseOrderCreate({
     const filteredPr = useMemo(() => {
         const term = prSearchTerm.trim().toLowerCase();
         if (!term) {
-            return purchaseRequirements;
+            return prList;
         }
 
-        return purchaseRequirements.filter((item) => {
+        return prList.filter((item) => {
             const values = [item.no_pr, item.ref_po, item.for_customer];
             return values.some((value) =>
                 String(value ?? '').toLowerCase().includes(term)
             );
         });
-    }, [prSearchTerm, purchaseRequirements]);
+    }, [prSearchTerm, prList]);
 
     const prTotalItems = filteredPr.length;
     const prTotalPages = useMemo(() => {
@@ -123,13 +132,13 @@ export default function PurchaseOrderCreate({
     const filteredVendors = useMemo(() => {
         const term = vendorSearchTerm.trim().toLowerCase();
         if (!term) {
-            return vendors;
+            return vendorList;
         }
 
-        return vendors.filter((item) =>
+        return vendorList.filter((item) =>
             String(item.nm_vdr ?? '').toLowerCase().includes(term)
         );
-    }, [vendorSearchTerm, vendors]);
+    }, [vendorSearchTerm, vendorList]);
 
     const vendorTotalItems = filteredVendors.length;
     const vendorTotalPages = useMemo(() => {
@@ -152,10 +161,10 @@ export default function PurchaseOrderCreate({
             return [];
         }
 
-        return purchaseRequirementDetails.filter(
+        return prDetailList.filter(
             (detail) => detail.no_pr === formData.refPr
         );
-    }, [formData.refPr, purchaseRequirementDetails]);
+    }, [formData.refPr, prDetailList]);
 
     const basePriceValue = parseNumber(materialForm.basePrice);
     const appliedPpn = includePpn ? parseNumber(formData.ppn) : 0;
@@ -185,6 +194,81 @@ export default function PurchaseOrderCreate({
             attended: item.attn_vdr ?? '',
         }));
         setIsVendorModalOpen(false);
+    };
+
+    const loadPrs = async () => {
+        if (prLoading || prList.length > 0) {
+            return;
+        }
+        setPrLoading(true);
+        setPrError('');
+        try {
+            const response = await fetch('/marketing/purchase-order/outstanding-pr', {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+            const data = await response.json();
+            setPrList(
+                Array.isArray(data?.purchaseRequirements)
+                    ? data.purchaseRequirements
+                    : []
+            );
+        } catch (error) {
+            setPrError('Gagal memuat data PR.');
+        } finally {
+            setPrLoading(false);
+        }
+    };
+
+    const loadPrDetails = async (noPr) => {
+        if (!noPr || prDetailLoading) {
+            return;
+        }
+        setPrDetailLoading(true);
+        setPrDetailError('');
+        try {
+            const response = await fetch(
+                `/marketing/purchase-order/pr-details?no_pr=${encodeURIComponent(noPr)}`,
+                { headers: { Accept: 'application/json' } }
+            );
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+            const data = await response.json();
+            setPrDetailList(
+                Array.isArray(data?.purchaseRequirementDetails)
+                    ? data.purchaseRequirementDetails
+                    : []
+            );
+        } catch (error) {
+            setPrDetailError('Gagal memuat detail PR.');
+        } finally {
+            setPrDetailLoading(false);
+        }
+    };
+
+    const loadVendors = async () => {
+        if (vendorLoading || vendorList.length > 0) {
+            return;
+        }
+        setVendorLoading(true);
+        setVendorError('');
+        try {
+            const response = await fetch('/marketing/purchase-order/vendors', {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+            const data = await response.json();
+            setVendorList(Array.isArray(data?.vendors) ? data.vendors : []);
+        } catch (error) {
+            setVendorError('Gagal memuat data vendor.');
+        } finally {
+            setVendorLoading(false);
+        }
     };
 
     const handleMaterialSelect = (item) => {
@@ -296,6 +380,14 @@ export default function PurchaseOrderCreate({
     }, [vendorCurrentPage, vendorTotalPages]);
 
     useEffect(() => {
+        if (formData.refPr) {
+            loadPrDetails(formData.refPr);
+        } else {
+            setPrDetailList([]);
+        }
+    }, [formData.refPr]);
+
+    useEffect(() => {
         if (includePpn) {
             setFormData((prev) => ({
                 ...prev,
@@ -312,11 +404,11 @@ export default function PurchaseOrderCreate({
                     <div>
                         <h1 className="text-xl font-semibold">Tambah PO</h1>
                         <p className="text-sm text-muted-foreground">
-                            Isi data PO dalam dua langkah
+                            Isi data PO dalam tiga langkah
                         </p>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                        Step {step} dari 2
+                        Step {step} dari 3
                     </div>
                 </div>
 
@@ -337,7 +429,16 @@ export default function PurchaseOrderCreate({
                                 : 'bg-muted text-muted-foreground'
                         }`}
                     >
-                        2. Data Material
+                        2. Data Vendor
+                    </span>
+                    <span
+                        className={`rounded-full px-3 py-1 ${
+                            step === 3
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground'
+                        }`}
+                    >
+                        3. Data Material
                     </span>
                 </div>
 
@@ -346,7 +447,22 @@ export default function PurchaseOrderCreate({
                         <CardHeader>
                             <CardTitle>Data PO</CardTitle>
                         </CardHeader>
-                        <CardContent className="grid gap-4 md:grid-cols-2">
+                        <CardContent className="grid gap-4 md:grid-cols-3">
+                            <label className="space-y-2 text-sm md:col-span-3">
+                                <span className="text-muted-foreground">
+                                    Cari PR Outstanding
+                                </span>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                        setIsPrModalOpen(true);
+                                        loadPrs();
+                                    }}
+                                >
+                                    Cari PR
+                                </Button>
+                            </label>
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">Date</span>
                                 <Input
@@ -360,35 +476,9 @@ export default function PurchaseOrderCreate({
                                     }
                                 />
                             </label>
-                            <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">
-                                    Cari PR Outstanding
-                                </span>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => setIsPrModalOpen(true)}
-                                >
-                                    Cari PR
-                                </Button>
-                            </label>
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">Ref PR</span>
                                 <Input value={formData.refPr} readOnly />
-                            </label>
-                            <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">
-                                    For Customer
-                                </span>
-                                <Input
-                                    value={formData.forCustomer}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            forCustomer: event.target.value,
-                                        }))
-                                    }
-                                />
                             </label>
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">
@@ -404,7 +494,35 @@ export default function PurchaseOrderCreate({
                                     }
                                 />
                             </label>
-                            
+                            <label className="space-y-2 text-sm md:col-span-3">
+                                <span className="text-muted-foreground">
+                                    For Customer
+                                </span>
+                                <Input
+                                    value={formData.forCustomer}
+                                    onChange={(event) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            forCustomer: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </label>
+                        </CardContent>
+                        <div className="flex justify-end gap-2 px-6 pb-6">
+                            <Button type="button" onClick={() => setStep(2)}>
+                                Lanjut
+                            </Button>
+                        </div>
+                    </Card>
+                )}
+
+                {step === 2 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Data Vendor</CardTitle>
+                        </CardHeader>
+                        <CardContent className="grid gap-4 md:grid-cols-2">
                             <label className="space-y-2 text-sm md:col-span-2">
                                 <span className="text-muted-foreground">
                                     Cari Vendor
@@ -412,7 +530,10 @@ export default function PurchaseOrderCreate({
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() => setIsVendorModalOpen(true)}
+                                    onClick={() => {
+                                        setIsVendorModalOpen(true);
+                                        loadVendors();
+                                    }}
                                 >
                                     Cari Vendor
                                 </Button>
@@ -546,28 +667,23 @@ export default function PurchaseOrderCreate({
                                     }
                                 />
                             </label>
-                            <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">Note 4</span>
-                                <Input
-                                    value={formData.note4}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            note4: event.target.value,
-                                        }))
-                                    }
-                                />
-                            </label>
                         </CardContent>
-                        <div className="flex justify-end gap-2 px-6 pb-6">
-                            <Button type="button" onClick={() => setStep(2)}>
+                        <div className="flex justify-between gap-2 px-6 pb-6">
+                            <Button
+                                variant="outline"
+                                type="button"
+                                onClick={() => setStep(1)}
+                            >
+                                Kembali
+                            </Button>
+                            <Button type="button" onClick={() => setStep(3)}>
                                 Lanjut
                             </Button>
                         </div>
                     </Card>
                 )}
 
-                {step === 2 && (
+                {step === 3 && (
                     <Card>
                         <CardHeader>
                             <CardTitle>Data Material</CardTitle>
@@ -601,7 +717,10 @@ export default function PurchaseOrderCreate({
                                                     className="px-4 py-6 text-center text-muted-foreground"
                                                     colSpan={5}
                                                 >
-                                                    Belum ada material PR.
+                                                    {prDetailLoading
+                                                        ? 'Memuat detail PR...'
+                                                        : prDetailError ||
+                                                          'Belum ada material PR.'}
                                                 </td>
                                             </tr>
                                         )}
@@ -827,7 +946,7 @@ export default function PurchaseOrderCreate({
                             <Button
                                 variant="outline"
                                 type="button"
-                                onClick={() => setStep(1)}
+                                onClick={() => setStep(2)}
                             >
                                 Kembali
                             </Button>
@@ -847,7 +966,9 @@ export default function PurchaseOrderCreate({
                     open={isPrModalOpen}
                     onOpenChange={(open) => {
                         setIsPrModalOpen(open);
-                        if (!open) {
+                        if (open) {
+                            loadPrs();
+                        } else {
                             setPrSearchTerm('');
                             setPrPageSize(10);
                             setPrCurrentPage(1);
@@ -920,7 +1041,10 @@ export default function PurchaseOrderCreate({
                                                 className="px-4 py-6 text-center text-muted-foreground"
                                                 colSpan={4}
                                             >
-                                                Tidak ada PR outstanding.
+                                                {prLoading
+                                                    ? 'Memuat data PR...'
+                                                    : prError ||
+                                                      'Tidak ada PR outstanding.'}
                                             </td>
                                         </tr>
                                     )}
@@ -1008,7 +1132,9 @@ export default function PurchaseOrderCreate({
                     open={isVendorModalOpen}
                     onOpenChange={(open) => {
                         setIsVendorModalOpen(open);
-                        if (!open) {
+                        if (open) {
+                            loadVendors();
+                        } else {
                             setVendorSearchTerm('');
                             setVendorPageSize(10);
                             setVendorCurrentPage(1);
@@ -1094,7 +1220,10 @@ export default function PurchaseOrderCreate({
                                                 className="px-4 py-6 text-center text-muted-foreground"
                                                 colSpan={7}
                                             >
-                                                Tidak ada data vendor.
+                                                {vendorLoading
+                                                    ? 'Memuat data vendor...'
+                                                    : vendorError ||
+                                                      'Tidak ada data vendor.'}
                                             </td>
                                         </tr>
                                     )}

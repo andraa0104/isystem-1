@@ -2,6 +2,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import laravel from 'laravel-vite-plugin';
+import path from 'path';
 import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
@@ -32,6 +33,11 @@ export default defineConfig(() => {
         ],
         esbuild: {
             jsx: 'automatic' as 'automatic',
+        },
+        resolve: {
+            alias: {
+                '@': path.resolve(__dirname, './resources/js'),
+            },
         },
         server: {
             host: '0.0.0.0',

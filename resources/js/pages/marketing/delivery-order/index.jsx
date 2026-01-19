@@ -13,7 +13,7 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { Eye, Pencil, Printer } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -41,9 +41,6 @@ const getStatusValue = (item) => {
 
 export default function DeliveryOrderIndex({
     deliveryOrders = [],
-    deliveryOrderDetails = [],
-    detailNo = null,
-    customerAddresses = [],
     outstandingCount = 0,
     realizedCount = 0,
     outstandingTotal = 0,
@@ -58,16 +55,13 @@ export default function DeliveryOrderIndex({
     const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
     const [outstandingPageSize, setOutstandingPageSize] = useState(10);
     const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
-
-    const addressLookup = useMemo(() => {
-        const lookup = new Map();
-        customerAddresses.forEach((item) => {
-            if (item?.nm_cs) {
-                lookup.set(item.nm_cs, item.alamat_cs);
-            }
-        });
-        return lookup;
-    }, [customerAddresses]);
+    const [selectedDetails, setSelectedDetails] = useState([]);
+    const [selectedAddress, setSelectedAddress] = useState('');
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [detailError, setDetailError] = useState('');
+    const [outstandingList, setOutstandingList] = useState([]);
+    const [outstandingLoading, setOutstandingLoading] = useState(false);
+    const [outstandingError, setOutstandingError] = useState('');
 
     const filteredDeliveryOrders = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -124,7 +118,7 @@ export default function DeliveryOrderIndex({
 
     const outstandingDeliveryOrders = useMemo(() => {
         const term = outstandingSearchTerm.trim().toLowerCase();
-        return deliveryOrders
+        return outstandingList
             .filter((item) => {
                 if (getStatusValue(item) !== 0) {
                     return false;
@@ -148,7 +142,7 @@ export default function DeliveryOrderIndex({
                 }
                 return String(b.no_do ?? '').localeCompare(String(a.no_do ?? ''));
             });
-    }, [deliveryOrders, outstandingSearchTerm]);
+    }, [outstandingList, outstandingSearchTerm]);
 
     const outstandingTotalItems = outstandingDeliveryOrders.length;
     const outstandingTotalPages = useMemo(() => {
@@ -181,35 +175,67 @@ export default function DeliveryOrderIndex({
     const handleOpenDetailModal = (item) => {
         setSelectedDo(item);
         setIsDetailModalOpen(true);
-
-        if (detailNo !== item.no_do) {
-            router.get(
-                '/marketing/delivery-order',
-                { detail_no: item.no_do },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    only: ['deliveryOrderDetails', 'detailNo'],
+        setSelectedDetails([]);
+        setSelectedAddress('');
+        setDetailError('');
+        setDetailLoading(true);
+        fetch(
+            `/marketing/delivery-order/details?no_do=${encodeURIComponent(
+                item.no_do
+            )}`,
+            { headers: { Accept: 'application/json' } }
+        )
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
                 }
-            );
-        }
+                return response.json();
+            })
+            .then((data) => {
+                setSelectedDetails(
+                    Array.isArray(data?.deliveryOrderDetails)
+                        ? data.deliveryOrderDetails
+                        : []
+                );
+                setSelectedAddress(data?.customerAddress ?? '');
+            })
+            .catch(() => {
+                setDetailError('Gagal memuat detail DO.');
+            })
+            .finally(() => {
+                setDetailLoading(false);
+            });
     };
 
-    const selectedDetails = useMemo(() => {
-        if (!selectedDo) {
-            return [];
+    const loadOutstanding = () => {
+        if (outstandingLoading || outstandingList.length > 0) {
+            return;
         }
-
-        if (detailNo !== selectedDo.no_do) {
-            return [];
-        }
-
-        return deliveryOrderDetails;
-    }, [detailNo, deliveryOrderDetails, selectedDo]);
-
-    const selectedAddress = selectedDo
-        ? addressLookup.get(selectedDo.nm_cs) || '-'
-        : '-';
+        setOutstandingLoading(true);
+        setOutstandingError('');
+        fetch('/marketing/delivery-order/outstanding', {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            })
+            .then((data) => {
+                setOutstandingList(
+                    Array.isArray(data?.deliveryOrders)
+                        ? data.deliveryOrders
+                        : []
+                );
+            })
+            .catch(() => {
+                setOutstandingError('Gagal memuat data DO outstanding.');
+            })
+            .finally(() => {
+                setOutstandingLoading(false);
+            });
+    };
 
     const selectedGrandTotal = useMemo(
         () =>
@@ -261,7 +287,10 @@ export default function DeliveryOrderIndex({
                 <div className="grid gap-4 md:grid-cols-2">
                     <button
                         type="button"
-                        onClick={() => setIsOutstandingModalOpen(true)}
+                        onClick={() => {
+                            setIsOutstandingModalOpen(true);
+                            loadOutstanding();
+                        }}
                         className="text-left"
                     >
                         <Card className="transition hover:border-primary/60 hover:shadow-md">
@@ -448,6 +477,10 @@ export default function DeliveryOrderIndex({
                         setIsDetailModalOpen(open);
                         if (!open) {
                             setSelectedDo(null);
+                            setSelectedDetails([]);
+                            setSelectedAddress('');
+                            setDetailError('');
+                            setDetailLoading(false);
                         }
                     }}
                 >
@@ -522,7 +555,10 @@ export default function DeliveryOrderIndex({
                                                         className="px-4 py-6 text-center text-muted-foreground"
                                                         colSpan={6}
                                                     >
-                                                        Tidak ada detail DO.
+                                                        {detailLoading
+                                                            ? 'Memuat detail DO...'
+                                                            : detailError ||
+                                                              'Tidak ada detail DO.'}
                                                     </td>
                                                 </tr>
                                             )}
@@ -570,7 +606,9 @@ export default function DeliveryOrderIndex({
                     open={isOutstandingModalOpen}
                     onOpenChange={(open) => {
                         setIsOutstandingModalOpen(open);
-                        if (!open) {
+                        if (open) {
+                            loadOutstanding();
+                        } else {
                             setOutstandingSearchTerm('');
                             setOutstandingPageSize(10);
                             setOutstandingCurrentPage(1);
@@ -651,7 +689,10 @@ export default function DeliveryOrderIndex({
                                                 className="px-4 py-6 text-center text-muted-foreground"
                                                 colSpan={5}
                                             >
-                                                Tidak ada DO outstanding.
+                                                {outstandingLoading
+                                                    ? 'Memuat data DO...'
+                                                    : outstandingError ||
+                                                      'Tidak ada DO outstanding.'}
                                             </td>
                                         </tr>
                                     )}
@@ -674,18 +715,19 @@ export default function DeliveryOrderIndex({
                                                     {item.nm_cs}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <button
-                                                        type="button"
+                                                    <Link
+                                                        href={`/marketing/delivery-order/${encodeURIComponent(
+                                                            item.no_do,
+                                                        )}/edit`}
                                                         className="text-muted-foreground transition hover:text-foreground"
                                                         aria-label="Edit"
                                                         title="Edit"
                                                         onClick={() => {
                                                             setIsOutstandingModalOpen(false);
-                                                            handleOpenDetailModal(item);
                                                         }}
                                                     >
                                                         <Pencil className="size-4" />
-                                                    </button>
+                                                    </Link>
                                                 </td>
                                             </tr>
                                         )

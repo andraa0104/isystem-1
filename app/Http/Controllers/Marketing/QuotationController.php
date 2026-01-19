@@ -156,6 +156,14 @@ class QuotationController
 
     public function create()
     {
+        return Inertia::render('marketing/quotation/create', [
+            'customers' => [],
+            'materials' => [],
+        ]);
+    }
+
+    public function customers()
+    {
         $customers = DB::table('tb_cs')
             ->select(
                 'kd_cs as kd_cs',
@@ -168,6 +176,13 @@ class QuotationController
             ->orderBy('nm_cs')
             ->get();
 
+        return response()->json([
+            'customers' => $customers,
+        ]);
+    }
+
+    public function materials()
+    {
         $materials = DB::table('tb_material')
             ->select(
                 'Material as material',
@@ -178,8 +193,7 @@ class QuotationController
             ->orderBy('Material')
             ->get();
 
-        return Inertia::render('marketing/quotation/create', [
-            'customers' => $customers,
+        return response()->json([
             'materials' => $materials,
         ]);
     }
@@ -242,33 +256,11 @@ class QuotationController
             ->orderBy($noPenawaranColumn)
             ->get();
 
-        $customers = DB::table('tb_cs')
-            ->select(
-                'kd_cs as kd_cs',
-                'nm_cs as nm_cs',
-                'Attnd as attnd',
-                'alamat_cs as alamat_cs',
-                'telp_cs as telp_cs',
-                'fax_cs as fax_cs'
-            )
-            ->orderBy('nm_cs')
-            ->get();
-
-        $materials = DB::table('tb_material')
-            ->select(
-                'Material as material',
-                'Unit as unit',
-                'Stok as stok',
-                'Remark as remark'
-            )
-            ->orderBy('Material')
-            ->get();
-
         return Inertia::render('marketing/quotation/edit', [
             'quotation' => $quotation,
             'quotationDetails' => $quotationDetails,
-            'customers' => $customers,
-            'materials' => $materials,
+            'customers' => [],
+            'materials' => [],
         ]);
     }
 

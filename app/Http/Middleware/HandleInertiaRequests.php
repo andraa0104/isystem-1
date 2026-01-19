@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
+use App\Models\Pengguna;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -42,13 +43,52 @@ class HandleInertiaRequests extends Middleware
         $databaseLabel = $database
             ? config("tenants.labels.$database", $database)
             : null;
+        $authUser = $request->user();
+        if (!$authUser) {
+            $username = $request->cookie('login_user');
+            if ($username && $database) {
+                $connection = config('tenants.connection', config('database.default'));
+                config(['database.default' => $connection]);
+                config(["database.connections.$connection.database" => $database]);
+                \Illuminate\Support\Facades\DB::setDefaultConnection($connection);
+                \Illuminate\Support\Facades\DB::purge($connection);
+                \Illuminate\Support\Facades\DB::reconnect($connection);
+                $authUser = Pengguna::on($connection)
+                    ->where('pengguna', $username)
+                    ->first();
+            }
+        }
+        $userData = null;
+        if ($authUser) {
+            $userData = [
+                'name' => $authUser->name ?? null,
+                'email' => $authUser->email ?? null,
+                'avatar' => $authUser->avatar ?? null,
+                'last_online' => $authUser->last_online ?? null,
+                'database' => $database,
+                'database_label' => $databaseLabel,
+            ];
+        } else {
+            $cookieName = $request->cookie('login_user_name');
+            $cookieLastOnline = $request->cookie('login_last_online');
+            if ($cookieName) {
+                $userData = [
+                    'name' => $cookieName,
+                    'email' => null,
+                    'avatar' => null,
+                    'last_online' => $cookieLastOnline ?: null,
+                    'database' => $database,
+                    'database_label' => $databaseLabel,
+                ];
+            }
+        }
 
         return [
             ...parent::share($request),
             'name' => config('app.name'),
             'quote' => ['message' => trim($message), 'author' => trim($author)],
             'auth' => [
-                'user' => $request->user(),
+                'user' => $userData,
             ],
             'tenant' => [
                 'database' => $database,

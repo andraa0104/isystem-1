@@ -9,19 +9,14 @@ services:
     environment:
       APP_ENV: local
       APP_DEBUG: "true"
-      APP_URL: http://localhost:8080
-      ASSET_URL: http://localhost:8080
-      DB_HOST: host.docker.internal
-      DB_PORT: "3306"
-      DB_DATABASE: dbsja
-      DB_USERNAME: root
-      DB_PASSWORD: ""
+      APP_URL: http://192.168.1.250:8080
+      ASSET_URL: http://192.168.1.250:8080
     ports:
       - "8080:80"
     volumes:
       - ./:/var/www/html:cached
       - storage-data:/var/www/html/storage
-    command: sh -c "php artisan optimize:clear && /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
+    command: sh -c "/usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf"
 
   vite:
     image: node:20-alpine

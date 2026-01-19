@@ -79,8 +79,6 @@ const isRealized = (item) => !isOutstanding(item);
 
 export default function PurchaseOrderIndex({
     purchaseOrders = [],
-    purchaseOrderDetails = [],
-    detailNo = null,
     outstandingCount = 0,
     outstandingTotal = 0,
     realizedCount = 0,
@@ -95,6 +93,12 @@ export default function PurchaseOrderIndex({
     const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
     const [outstandingPageSize, setOutstandingPageSize] = useState(10);
     const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
+    const [selectedDetails, setSelectedDetails] = useState([]);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [detailError, setDetailError] = useState('');
+    const [outstandingList, setOutstandingList] = useState([]);
+    const [outstandingLoading, setOutstandingLoading] = useState(false);
+    const [outstandingError, setOutstandingError] = useState('');
 
     const filteredPurchaseOrders = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -156,7 +160,7 @@ export default function PurchaseOrderIndex({
 
     const outstandingPurchaseOrders = useMemo(() => {
         const term = outstandingSearchTerm.trim().toLowerCase();
-        return purchaseOrders
+        return outstandingList
             .filter((item) => {
                 if (!isOutstanding(item)) {
                     return false;
@@ -189,7 +193,7 @@ export default function PurchaseOrderIndex({
             .sort((a, b) =>
                 String(b.no_po ?? '').localeCompare(String(a.no_po ?? ''))
             );
-    }, [outstandingSearchTerm, purchaseOrders]);
+    }, [outstandingList, outstandingSearchTerm]);
 
     const outstandingTotalItems = outstandingPurchaseOrders.length;
     const outstandingTotalPages = useMemo(() => {
@@ -216,18 +220,6 @@ export default function PurchaseOrderIndex({
         outstandingPurchaseOrders,
     ]);
 
-    const selectedDetails = useMemo(() => {
-        if (!selectedPo) {
-            return [];
-        }
-
-        if (detailNo !== selectedPo.no_po) {
-            return [];
-        }
-
-        return purchaseOrderDetails;
-    }, [detailNo, purchaseOrderDetails, selectedPo]);
-
     const selectedDetail = selectedDetails[0] ?? null;
 
     const handlePageSizeChange = (event) => {
@@ -238,18 +230,64 @@ export default function PurchaseOrderIndex({
     const handleOpenModal = (item) => {
         setSelectedPo(item);
         setIsModalOpen(true);
-
-        if (detailNo !== item.no_po) {
-            router.get(
-                '/marketing/purchase-order',
-                { detail_no: item.no_po },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    only: ['purchaseOrderDetails', 'detailNo'],
+        setSelectedDetails([]);
+        setDetailError('');
+        setDetailLoading(true);
+        fetch(
+            `/marketing/purchase-order/details?no_po=${encodeURIComponent(
+                item.no_po
+            )}`,
+            { headers: { Accept: 'application/json' } }
+        )
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
                 }
-            );
+                return response.json();
+            })
+            .then((data) => {
+                setSelectedDetails(
+                    Array.isArray(data?.purchaseOrderDetails)
+                        ? data.purchaseOrderDetails
+                        : []
+                );
+            })
+            .catch(() => {
+                setDetailError('Gagal memuat detail PO.');
+            })
+            .finally(() => {
+                setDetailLoading(false);
+            });
+    };
+
+    const loadOutstanding = () => {
+        if (outstandingLoading || outstandingList.length > 0) {
+            return;
         }
+        setOutstandingLoading(true);
+        setOutstandingError('');
+        fetch('/marketing/purchase-order/outstanding', {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            })
+            .then((data) => {
+                setOutstandingList(
+                    Array.isArray(data?.purchaseOrders)
+                        ? data.purchaseOrders
+                        : []
+                );
+            })
+            .catch(() => {
+                setOutstandingError('Gagal memuat data PO outstanding.');
+            })
+            .finally(() => {
+                setOutstandingLoading(false);
+            });
     };
 
     useEffect(() => {
@@ -294,7 +332,10 @@ export default function PurchaseOrderIndex({
                 <div className="grid gap-4 md:grid-cols-2">
                     <button
                         type="button"
-                        onClick={() => setIsOutstandingModalOpen(true)}
+                        onClick={() => {
+                            setIsOutstandingModalOpen(true);
+                            loadOutstanding();
+                        }}
                         className="text-left"
                     >
                         <Card className="transition hover:border-primary/60 hover:shadow-md">
@@ -499,6 +540,9 @@ export default function PurchaseOrderIndex({
                         setIsModalOpen(open);
                         if (!open) {
                             setSelectedPo(null);
+                            setSelectedDetails([]);
+                            setDetailError('');
+                            setDetailLoading(false);
                         }
                     }}
                 >
@@ -764,7 +808,10 @@ export default function PurchaseOrderIndex({
                                                             className="px-4 py-6 text-center text-muted-foreground"
                                                             colSpan={6}
                                                         >
-                                                            Tidak ada detail PO.
+                                                            {detailLoading
+                                                                ? 'Memuat detail PO...'
+                                                                : detailError ||
+                                                                  'Tidak ada detail PO.'}
                                                         </td>
                                                     </tr>
                                                 )}
@@ -825,7 +872,9 @@ export default function PurchaseOrderIndex({
                     open={isOutstandingModalOpen}
                     onOpenChange={(open) => {
                         setIsOutstandingModalOpen(open);
-                        if (!open) {
+                        if (open) {
+                            loadOutstanding();
+                        } else {
                             setOutstandingSearchTerm('');
                             setOutstandingPageSize(10);
                             setOutstandingCurrentPage(1);
@@ -903,7 +952,10 @@ export default function PurchaseOrderIndex({
                                                     className="px-4 py-6 text-center text-muted-foreground"
                                                     colSpan={6}
                                                 >
-                                                    Tidak ada PO outstanding.
+                                                    {outstandingLoading
+                                                        ? 'Memuat data PO...'
+                                                        : outstandingError ||
+                                                          'Tidak ada PO outstanding.'}
                                                 </td>
                                             </tr>
                                         )}

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class DeliveryOrderController
@@ -15,28 +16,6 @@ class DeliveryOrderController
             ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
             ->orderBy('date', 'desc')
             ->orderBy('no_do', 'desc')
-            ->get();
-
-        $detailNo = $request->query('detail_no');
-        $deliveryOrderDetails = collect();
-        if ($detailNo) {
-            $deliveryOrderDetails = DB::table('tb_do')
-                ->select(
-                    'no_do',
-                    'mat',
-                    'qty',
-                    'harga',
-                    'total',
-                    'remark'
-                )
-                ->where('no_do', $detailNo)
-                ->orderBy('no_do')
-                ->get();
-        }
-
-        $customerAddresses = DB::table('tb_cs')
-            ->select('nm_cs', 'alamat_cs')
-            ->orderBy('nm_cs')
             ->get();
 
         $outstandingCount = DB::table('tb_do')
@@ -55,12 +34,54 @@ class DeliveryOrderController
 
         return Inertia::render('marketing/delivery-order/index', [
             'deliveryOrders' => $deliveryOrders,
-            'deliveryOrderDetails' => $deliveryOrderDetails,
-            'detailNo' => $detailNo,
-            'customerAddresses' => $customerAddresses,
             'outstandingCount' => $outstandingCount,
             'realizedCount' => $realizedCount,
             'outstandingTotal' => $outstandingTotal,
+        ]);
+    }
+
+    public function details(Request $request)
+    {
+        $noDo = $request->query('no_do');
+        if (!$noDo) {
+            return response()->json([
+                'deliveryOrderDetails' => [],
+                'customerAddress' => null,
+            ]);
+        }
+
+        $deliveryOrderDetails = DB::table('tb_do')
+            ->select('no_do', 'mat', 'qty', 'harga', 'total', 'remark', 'nm_cs')
+            ->where('no_do', $noDo)
+            ->orderBy('no_do')
+            ->get();
+
+        $first = $deliveryOrderDetails->first();
+        $customerAddress = null;
+        if ($first?->nm_cs) {
+            $customerAddress = DB::table('tb_cs')
+                ->where('nm_cs', $first->nm_cs)
+                ->value('alamat_cs');
+        }
+
+        return response()->json([
+            'deliveryOrderDetails' => $deliveryOrderDetails,
+            'customerAddress' => $customerAddress,
+        ]);
+    }
+
+    public function outstanding()
+    {
+        $deliveryOrders = DB::table('tb_do')
+            ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
+            ->where('val_inv', 0)
+            ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
+            ->orderBy('date', 'desc')
+            ->orderBy('no_do', 'desc')
+            ->get();
+
+        return response()->json([
+            'deliveryOrders' => $deliveryOrders,
         ]);
     }
 
@@ -125,6 +146,329 @@ class DeliveryOrderController
     public function create()
     {
         return Inertia::render('marketing/delivery-order/create');
+    }
+
+    public function edit(Request $request, $noDo)
+    {
+        $items = DB::table('tb_do')
+            ->where('no_do', $noDo)
+            ->orderBy('no')
+            ->get();
+
+        $header = $items->first();
+        if (!$header) {
+            return redirect()
+                ->route('marketing.delivery-order.index')
+                ->with('error', 'Data DO tidak ditemukan.');
+        }
+
+        $refPr = null;
+        if (Schema::hasColumn('tb_do', 'ref_pr')) {
+            $refPr = $header->ref_pr ?? null;
+        }
+        if (!$refPr) {
+            $refPr = DB::table('tb_pr')
+                ->where('ref_po', $header->ref_po)
+                ->where('for_customer', $header->nm_cs)
+                ->orderBy('date', 'desc')
+                ->orderBy('no_pr', 'desc')
+                ->value('no_pr');
+        }
+
+        $prItems = collect();
+        if ($refPr) {
+            $rawItems = DB::table('tb_detailpr')
+                ->where('no_pr', $refPr)
+                ->get();
+
+            $prItems = $rawItems->map(function ($item) {
+                $kdMaterial = $item->kd_material
+                    ?? $item->kd_mat
+                    ?? $item->kd_mtrl
+                    ?? null;
+                $material = $item->material ?? $item->mat ?? $item->mtrl ?? null;
+                $unit = $item->unit ?? $item->satuan ?? $item->Unit ?? '';
+                $remark = $item->renmark ?? $item->remark ?? $item->keterangan ?? '';
+                $sisa = $item->sisa_pr ?? $item->Sisa_pr ?? null;
+                $qty = $sisa ?? $item->qty ?? $item->Qty ?? $item->quantity ?? null;
+
+                $lastStock = 0;
+                try {
+                    $lastStock = DB::table('tb_material')
+                        ->where('kd_material', $kdMaterial)
+                        ->value('stok');
+                } catch (\Throwable $exception) {
+                    $lastStock = 0;
+                }
+
+                return (object) [
+                    'kd_material' => $kdMaterial,
+                    'material' => $material,
+                    'qty' => $qty,
+                    'unit' => $unit,
+                    'remark' => $remark,
+                    'sisa_pr' => $sisa,
+                    'last_stock' => (float) $lastStock,
+                ];
+            });
+        }
+
+        $mappedItems = $items->map(function ($item) {
+            return [
+                'no' => $item->no,
+                'kd_material' => $item->kd_mat ?? null,
+                'material' => $item->mat ?? null,
+                'qty' => $item->qty ?? null,
+                'unit' => $item->unit ?? null,
+                'remark' => $item->remark ?? null,
+            ];
+        });
+
+        return Inertia::render('marketing/delivery-order/edit', [
+            'deliveryOrder' => [
+                'no_do' => $header->no_do,
+                'date' => $header->date,
+                'ref_po' => $header->ref_po,
+                'kd_cs' => $header->kd_cs,
+                'nm_cs' => $header->nm_cs,
+            ],
+            'items' => $mappedItems,
+            'refPr' => $refPr,
+            'prItems' => $prItems,
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $database = $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database');
+        $allowed = config('tenants.databases', []);
+        $rawPrefix = in_array($database, $allowed, true) ? $database : 'SJA';
+        $labelPrefix = config("tenants.labels.$rawPrefix");
+        $prefixSource = $labelPrefix ?: $rawPrefix;
+        $prefix = strtoupper(preg_replace('/[^A-Z0-9]/i', '', $prefixSource));
+        if (str_starts_with($prefix, 'DB')) {
+            $prefix = substr($prefix, 2);
+        }
+        if ($prefix === '') {
+            $prefix = 'SJA';
+        }
+        $prefix = $prefix.'.DO-';
+
+        $lastNumber = DB::table('tb_do')
+            ->where('no_do', 'like', $prefix.'%')
+            ->orderBy('no_do', 'desc')
+            ->value('no_do');
+
+        $sequence = 1;
+        if ($lastNumber) {
+            $suffix = substr($lastNumber, strlen($prefix));
+            $sequence = max(1, (int) $suffix + 1);
+        }
+
+        $noDo = $prefix.str_pad((string) $sequence, 8, '0', STR_PAD_LEFT);
+
+        $items = $request->input('items', []);
+        if (!is_array($items)) {
+            $items = [];
+        }
+
+        $refPr = $request->input('ref_pr');
+        $parseNumber = static function ($value) {
+            if ($value === null) {
+                return 0.0;
+            }
+            if (is_numeric($value)) {
+                return (float) $value;
+            }
+            $clean = str_replace(',', '', (string) $value);
+            return is_numeric($clean) ? (float) $clean : 0.0;
+        };
+
+        try {
+            DB::transaction(function () use ($request, $items, $noDo, $refPr, $parseNumber) {
+                foreach ($items as $index => $item) {
+                    $material = $item['material'] ?? null;
+                    $kdMaterial = $item['kd_material'] ?? null;
+
+                    $detailPr = null;
+                    if ($kdMaterial || $material) {
+                        $detailPrQuery = DB::table('tb_detailpr')
+                            ->where('no_pr', $refPr);
+                        if ($kdMaterial) {
+                            $detailPrQuery->where('kd_material', $kdMaterial);
+                        } else {
+                            $detailPrQuery->where('material', $material);
+                        }
+                        $detailPr = $detailPrQuery->first();
+                    }
+
+                    $resolvedKdMat = $kdMaterial
+                        ?: ($detailPr->kd_material ?? $detailPr->kd_mat ?? $detailPr->kd_mtrl ?? null);
+
+                    $price = 0;
+                    $total = 0;
+                    if ($resolvedKdMat || $material) {
+                        $detailPoQuery = DB::table('tb_detailpo')
+                            ->where('ref_pr', $refPr);
+                        if ($resolvedKdMat) {
+                            $detailPoQuery->where('kd_mat', $resolvedKdMat);
+                        } else {
+                            $detailPoQuery->where('material', $material);
+                        }
+                        $detailPo = $detailPoQuery
+                            ->select('price', 'total_price')
+                            ->first();
+                        if ($detailPo) {
+                            $price = $detailPo->price ?? 0;
+                            $total = $detailPo->total_price ?? 0;
+                        }
+                    }
+
+                    DB::table('tb_do')->insert([
+                        'no_do' => $noDo,
+                        'date' => $request->input('date'),
+                        'pos_tgl' => now()->toDateString(),
+                        'ref_po' => $request->input('ref_po'),
+                        'kd_cs' => $request->input('kd_cs'),
+                        'nm_cs' => $request->input('nm_cs'),
+                        'no' => $item['no'] ?? ($index + 1),
+                        'mat' => $material,
+                        'kd_mat' => $resolvedKdMat,
+                        'qty' => $item['qty'] ?? null,
+                        'unit' => $item['unit'] ?? null,
+                        'remark' => ($item['remark'] ?? null) === null ? ' ' : $item['remark'],
+                        'harga' => $price,
+                        'total' => $total,
+                        'val_inv' => 0,
+                        'inv' => ' ',
+                    ]);
+
+                    $stockNow = $item['stock_now'] ?? null;
+                    if ($resolvedKdMat && $stockNow !== null) {
+                        DB::table('tb_material')
+                            ->where('kd_material', $resolvedKdMat)
+                            ->update([
+                                'stok' => $stockNow,
+                                'rest_stock' => $stockNow,
+                            ]);
+                    }
+
+                    if ($detailPr && ($resolvedKdMat || $material)) {
+                        $currentSisa = $detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0;
+                        $newSisa = $parseNumber($currentSisa) - $parseNumber($item['qty'] ?? 0);
+                        if ($newSisa < 0) {
+                            $newSisa = 0;
+                        }
+
+                        $detailPrUpdate = DB::table('tb_detailpr')
+                            ->where('no_pr', $refPr);
+                        if ($resolvedKdMat) {
+                            $detailPrUpdate->where('kd_material', $resolvedKdMat);
+                        } elseif ($material) {
+                            $detailPrUpdate->where('material', $material);
+                        }
+                        $detailPrUpdate->update([
+                            'sisa_pr' => $newSisa,
+                        ]);
+                    }
+                }
+            });
+        } catch (\Throwable $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return redirect()
+            ->route('marketing.delivery-order.index')
+            ->with('success', 'Data DO berhasil disimpan.');
+    }
+
+    public function updateDetail(Request $request, $noDo, $lineNo)
+    {
+        $row = DB::table('tb_do')
+            ->where('no_do', $noDo)
+            ->where('no', $lineNo)
+            ->first();
+
+        if (!$row) {
+            return back()->with('error', 'Detail DO tidak ditemukan.');
+        }
+
+        $parseNumber = static function ($value) {
+            if ($value === null) {
+                return 0.0;
+            }
+            if (is_numeric($value)) {
+                return (float) $value;
+            }
+            $clean = str_replace(',', '', (string) $value);
+            return is_numeric($clean) ? (float) $clean : 0.0;
+        };
+
+        $newQtyInput = $request->input('qty');
+        $newQty = $parseNumber($newQtyInput);
+        $oldQty = $parseNumber($row->qty ?? 0);
+        $remarkInput = $request->input('remark');
+        $remarkValue = $remarkInput === null ? ' ' : $remarkInput;
+        $refPr = $request->input('ref_pr');
+
+        try {
+            DB::transaction(function () use (
+                $noDo,
+                $lineNo,
+                $row,
+                $newQtyInput,
+                $remarkValue,
+                $refPr,
+                $oldQty,
+                $newQty,
+                $parseNumber
+            ) {
+                DB::table('tb_do')
+                    ->where('no_do', $noDo)
+                    ->where('no', $lineNo)
+                    ->update([
+                        'qty' => $newQtyInput,
+                        'remark' => $remarkValue,
+                    ]);
+
+                if (!$refPr) {
+                    return;
+                }
+
+                $kdMat = $row->kd_mat ?? null;
+                $material = $row->mat ?? null;
+                if (!$kdMat && !$material) {
+                    return;
+                }
+
+                $detailPrQuery = DB::table('tb_detailpr')
+                    ->where('no_pr', $refPr);
+                if ($kdMat) {
+                    $detailPrQuery->where('kd_material', $kdMat);
+                } else {
+                    $detailPrQuery->where('material', $material);
+                }
+                $detailPr = $detailPrQuery->first();
+                if (!$detailPr) {
+                    return;
+                }
+
+                $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
+                $newSisa = $currentSisa + $oldQty - $newQty;
+                if ($newSisa < 0) {
+                    $newSisa = 0;
+                }
+
+                $detailPrQuery->update([
+                    'sisa_pr' => $newSisa,
+                ]);
+            });
+        } catch (\Throwable $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return back()->with('success', 'Data DO berhasil diperbarui.');
     }
 
     public function searchPr(Request $request)

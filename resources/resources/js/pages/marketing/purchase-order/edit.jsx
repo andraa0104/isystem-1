@@ -48,6 +48,9 @@ export default function PurchaseOrderEdit({
     const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [savingMaterialId, setSavingMaterialId] = useState(null);
+    const [vendorList, setVendorList] = useState(vendors);
+    const [vendorLoading, setVendorLoading] = useState(false);
+    const [vendorError, setVendorError] = useState('');
 
     const [prSearchTerm, setPrSearchTerm] = useState('');
     const [prPageSize, setPrPageSize] = useState(10);
@@ -121,13 +124,13 @@ export default function PurchaseOrderEdit({
     const filteredVendors = useMemo(() => {
         const term = vendorSearchTerm.trim().toLowerCase();
         if (!term) {
-            return vendors;
+            return vendorList;
         }
 
-        return vendors.filter((item) =>
+        return vendorList.filter((item) =>
             String(item.nm_vdr ?? '').toLowerCase().includes(term)
         );
-    }, [vendorSearchTerm, vendors]);
+    }, [vendorSearchTerm, vendorList]);
 
     const vendorTotalItems = filteredVendors.length;
     const vendorTotalPages = useMemo(() => {
@@ -173,6 +176,28 @@ export default function PurchaseOrderEdit({
             attended: item.attn_vdr ?? '',
         }));
         setIsVendorModalOpen(false);
+    };
+
+    const loadVendors = async () => {
+        if (vendorLoading || vendorList.length > 0) {
+            return;
+        }
+        setVendorLoading(true);
+        setVendorError('');
+        try {
+            const response = await fetch('/marketing/purchase-order/vendors', {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+            const data = await response.json();
+            setVendorList(Array.isArray(data?.vendors) ? data.vendors : []);
+        } catch (error) {
+            setVendorError('Gagal memuat data vendor.');
+        } finally {
+            setVendorLoading(false);
+        }
     };
 
     const handleEditMaterial = (item) => {
@@ -284,6 +309,10 @@ export default function PurchaseOrderEdit({
                 '',
             forCustomer: purchaseOrder.for_cus ?? '',
             refPoMasuk: purchaseOrder.ref_poin ?? purchaseOrder.ref_po ?? '',
+            kodeVendor:
+                purchaseOrderDetails[0]?.kd_vdr ??
+                purchaseOrder.kd_vdr ??
+                prev.kodeVendor,
             namaVendor: purchaseOrder.nm_vdr ?? '',
             ppn: parsedPpn ?? '',
             note1: purchaseOrderDetails[0]?.ket1 ?? '',
@@ -324,11 +353,11 @@ export default function PurchaseOrderEdit({
 
     useEffect(() => {
         const detailVendor = purchaseOrderDetails[0]?.kd_vdr;
-        if (!detailVendor || vendors.length === 0) {
+        if (!detailVendor || vendorList.length === 0) {
             return;
         }
 
-        const vendor = vendors.find((item) => item.kd_vdr === detailVendor);
+        const vendor = vendorList.find((item) => item.kd_vdr === detailVendor);
         if (!vendor) {
             return;
         }
@@ -339,7 +368,7 @@ export default function PurchaseOrderEdit({
             namaVendor: vendor.nm_vdr ?? prev.namaVendor,
             attended: vendor.attn_vdr ?? prev.attended,
         }));
-    }, [purchaseOrderDetails, vendors]);
+    }, [purchaseOrderDetails, vendorList]);
 
     const totalPriceSum = materialItems.reduce(
         (sum, item) =>
@@ -470,7 +499,10 @@ export default function PurchaseOrderEdit({
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() => setIsVendorModalOpen(true)}
+                                    onClick={() => {
+                                        setIsVendorModalOpen(true);
+                                        loadVendors();
+                                    }}
                                 >
                                     Cari Vendor
                                 </Button>
@@ -871,7 +903,9 @@ export default function PurchaseOrderEdit({
                     open={isVendorModalOpen}
                     onOpenChange={(open) => {
                         setIsVendorModalOpen(open);
-                        if (!open) {
+                        if (open) {
+                            loadVendors();
+                        } else {
                             setVendorSearchTerm('');
                             setVendorPageSize(10);
                             setVendorCurrentPage(1);
@@ -957,7 +991,10 @@ export default function PurchaseOrderEdit({
                                                 className="px-4 py-6 text-center text-muted-foreground"
                                                 colSpan={7}
                                             >
-                                                Tidak ada data vendor.
+                                                {vendorLoading
+                                                    ? 'Memuat data vendor...'
+                                                    : vendorError ||
+                                                      'Tidak ada data vendor.'}
                                             </td>
                                         </tr>
                                     )}

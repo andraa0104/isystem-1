@@ -39,8 +39,6 @@ const getValue = (source, keys) => {
 
 export default function PurchaseRequirementIndex({
     purchaseRequirements = [],
-    purchaseRequirementDetails = [],
-    detailNo = null,
     outstandingCount = 0,
     realizedCount = 0,
     outstandingTotal = 0,
@@ -58,6 +56,12 @@ export default function PurchaseRequirementIndex({
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(10);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
+    const [selectedDetails, setSelectedDetails] = useState([]);
+    const [detailLoading, setDetailLoading] = useState(false);
+    const [detailError, setDetailError] = useState('');
+    const [outstandingList, setOutstandingList] = useState([]);
+    const [outstandingLoading, setOutstandingLoading] = useState(false);
+    const [outstandingError, setOutstandingError] = useState('');
 
     const filteredPurchaseRequirements = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -114,7 +118,7 @@ export default function PurchaseRequirementIndex({
 
     const outstandingPurchaseRequirements = useMemo(() => {
         const term = outstandingSearchTerm.trim().toLowerCase();
-        return purchaseRequirements.filter((item) => {
+        return outstandingList.filter((item) => {
             const outstanding = Number(item.outstanding_count ?? 0) > 0;
             if (!outstanding) {
                 return false;
@@ -131,7 +135,7 @@ export default function PurchaseRequirementIndex({
         }).sort((a, b) =>
             String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? ''))
         );
-    }, [purchaseRequirements, outstandingSearchTerm]);
+    }, [outstandingList, outstandingSearchTerm]);
 
     const outstandingTotalItems = outstandingPurchaseRequirements.length;
     const outstandingTotalPages = useMemo(() => {
@@ -162,18 +166,6 @@ export default function PurchaseRequirementIndex({
         const value = event.target.value;
         setPageSize(value === 'all' ? Infinity : Number(value));
     };
-
-    const selectedDetails = useMemo(() => {
-        if (!selectedPr) {
-            return [];
-        }
-
-        if (detailNo !== selectedPr.no_pr) {
-            return [];
-        }
-
-        return purchaseRequirementDetails;
-    }, [detailNo, purchaseRequirementDetails, selectedPr]);
 
     const filteredMaterialDetails = useMemo(() => {
         const term = materialSearchTerm.trim().toLowerCase();
@@ -224,18 +216,64 @@ export default function PurchaseRequirementIndex({
     const handleOpenModal = (item) => {
         setSelectedPr(item);
         setIsModalOpen(true);
-
-        if (detailNo !== item.no_pr) {
-            router.get(
-                '/marketing/purchase-requirement',
-                { detail_no: item.no_pr },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    only: ['purchaseRequirementDetails', 'detailNo'],
+        setSelectedDetails([]);
+        setDetailError('');
+        setDetailLoading(true);
+        fetch(
+            `/marketing/purchase-requirement/details?no_pr=${encodeURIComponent(
+                item.no_pr
+            )}`,
+            { headers: { Accept: 'application/json' } }
+        )
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
                 }
-            );
+                return response.json();
+            })
+            .then((data) => {
+                setSelectedDetails(
+                    Array.isArray(data?.purchaseRequirementDetails)
+                        ? data.purchaseRequirementDetails
+                        : []
+                );
+            })
+            .catch(() => {
+                setDetailError('Gagal memuat detail PR.');
+            })
+            .finally(() => {
+                setDetailLoading(false);
+            });
+    };
+
+    const loadOutstanding = () => {
+        if (outstandingLoading || outstandingList.length > 0) {
+            return;
         }
+        setOutstandingLoading(true);
+        setOutstandingError('');
+        fetch('/marketing/purchase-requirement/outstanding', {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            })
+            .then((data) => {
+                setOutstandingList(
+                    Array.isArray(data?.purchaseRequirements)
+                        ? data.purchaseRequirements
+                        : []
+                );
+            })
+            .catch(() => {
+                setOutstandingError('Gagal memuat data PR outstanding.');
+            })
+            .finally(() => {
+                setOutstandingLoading(false);
+            });
     };
 
     useEffect(() => {
@@ -296,7 +334,10 @@ export default function PurchaseRequirementIndex({
                 <div className="grid gap-4 md:grid-cols-2">
                     <button
                         type="button"
-                        onClick={() => setIsOutstandingModalOpen(true)}
+                        onClick={() => {
+                            setIsOutstandingModalOpen(true);
+                            loadOutstanding();
+                        }}
                         className="text-left"
                     >
                         <Card className="transition hover:border-primary/60 hover:shadow-md">
@@ -484,6 +525,9 @@ export default function PurchaseRequirementIndex({
                         setIsModalOpen(open);
                         if (!open) {
                             setSelectedPr(null);
+                            setSelectedDetails([]);
+                            setDetailError('');
+                            setDetailLoading(false);
                         }
                     }}
                 >
@@ -615,7 +659,10 @@ export default function PurchaseRequirementIndex({
                                                             className="px-4 py-6 text-center text-muted-foreground"
                                                             colSpan={6}
                                                         >
-                                                            Belum ada data material.
+                                                            {detailLoading
+                                                                ? 'Memuat detail PR...'
+                                                                : detailError ||
+                                                                  'Belum ada data material.'}
                                                         </td>
                                                     </tr>
                                                 )}
@@ -752,7 +799,9 @@ export default function PurchaseRequirementIndex({
                     open={isOutstandingModalOpen}
                     onOpenChange={(open) => {
                         setIsOutstandingModalOpen(open);
-                        if (!open) {
+                        if (open) {
+                            loadOutstanding();
+                        } else {
                             setOutstandingSearchTerm('');
                             setOutstandingPageSize(10);
                             setOutstandingCurrentPage(1);
@@ -833,7 +882,10 @@ export default function PurchaseRequirementIndex({
                                                 className="px-4 py-6 text-center text-muted-foreground"
                                                 colSpan={5}
                                             >
-                                                Tidak ada PR outstanding.
+                                                {outstandingLoading
+                                                    ? 'Memuat data PR...'
+                                                    : outstandingError ||
+                                                      'Tidak ada PR outstanding.'}
                                             </td>
                                         </tr>
                                     )}

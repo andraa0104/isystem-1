@@ -37,25 +37,6 @@ class PurchaseRequirementController
             ->orderBy('pr.no_pr', 'desc')
             ->get();
 
-        $detailNo = $request->query('detail_no');
-        $purchaseRequirementDetails = collect();
-        if ($detailNo) {
-            $purchaseRequirementDetails = DB::table('tb_detailpr')
-                ->select(
-                    'no_pr',
-                    'no',
-                    'kd_material',
-                    'material',
-                    'qty',
-                    'unit',
-                    'sisa_pr',
-                    'renmark'
-                )
-                ->where('no_pr', $detailNo)
-                ->orderBy('no')
-                ->get();
-        }
-
         $outstandingCount = DB::table('tb_detailpr')
             ->select('no_pr', DB::raw('coalesce(sum(cast(sisa_pr as decimal(18,4))), 0) as pr_sisa'))
             ->groupBy('no_pr')
@@ -74,15 +55,84 @@ class PurchaseRequirementController
 
         return Inertia::render('marketing/purchase-requirement/index', [
             'purchaseRequirements' => $purchaseRequirements,
-            'purchaseRequirementDetails' => $purchaseRequirementDetails,
-            'detailNo' => $detailNo,
             'outstandingCount' => $outstandingCount,
             'realizedCount' => $realizedCount,
             'outstandingTotal' => $outstandingTotal,
         ]);
     }
 
+    public function details(Request $request)
+    {
+        $noPr = $request->query('no_pr');
+        if (!$noPr) {
+            return response()->json([
+                'purchaseRequirementDetails' => [],
+            ]);
+        }
+
+        $purchaseRequirementDetails = DB::table('tb_detailpr')
+            ->select(
+                'no_pr',
+                'no',
+                'kd_material',
+                'material',
+                'qty',
+                'unit',
+                'sisa_pr',
+                'renmark'
+            )
+            ->where('no_pr', $noPr)
+            ->orderBy('no')
+            ->get();
+
+        return response()->json([
+            'purchaseRequirementDetails' => $purchaseRequirementDetails,
+        ]);
+    }
+
+    public function outstanding()
+    {
+        $purchaseRequirements = DB::table('tb_pr as pr')
+            ->leftJoin(
+                DB::raw('(
+                    select
+                        no_pr,
+                        coalesce(sum(cast(sisa_pr as decimal(18,4))), 0) as pr_sisa
+                    from tb_detailpr
+                    group by no_pr
+                ) as detail'),
+                'pr.no_pr',
+                '=',
+                'detail.no_pr'
+            )
+            ->select(
+                'pr.no_pr',
+                'pr.date',
+                'pr.for_customer',
+                'pr.ref_po',
+                'pr.payment',
+                DB::raw('coalesce(detail.pr_sisa, 0) as sisa_pr'),
+                DB::raw('case when coalesce(detail.pr_sisa, 0) > 0 then 1 else 0 end as outstanding_count'),
+                DB::raw('case when coalesce(detail.pr_sisa, 0) = 0 then 1 else 0 end as realized_count')
+            )
+            ->where(DB::raw('coalesce(detail.pr_sisa, 0)'), '>', 0)
+            ->orderBy('pr.date', 'desc')
+            ->orderBy('pr.no_pr', 'desc')
+            ->get();
+
+        return response()->json([
+            'purchaseRequirements' => $purchaseRequirements,
+        ]);
+    }
+
     public function create()
+    {
+        return Inertia::render('marketing/purchase-requirement/create', [
+            'materials' => [],
+        ]);
+    }
+
+    public function materials()
     {
         $materials = DB::table('tb_material')
             ->select(
@@ -94,7 +144,7 @@ class PurchaseRequirementController
             ->orderBy('material')
             ->get();
 
-        return Inertia::render('marketing/purchase-requirement/create', [
+        return response()->json([
             'materials' => $materials,
         ]);
     }
@@ -117,20 +167,10 @@ class PurchaseRequirementController
             ->orderBy('no')
             ->get();
 
-        $materials = DB::table('tb_material')
-            ->select(
-                'kd_material',
-                'material',
-                'unit',
-                'stok'
-            )
-            ->orderBy('material')
-            ->get();
-
         return Inertia::render('marketing/purchase-requirement/edit', [
             'purchaseRequirement' => $purchaseRequirement,
             'purchaseRequirementDetails' => $purchaseRequirementDetails,
-            'materials' => $materials,
+            'materials' => [],
         ]);
     }
 

@@ -27,7 +27,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
 
     const submit = (e) => {
         e.preventDefault();
-        post('/login', {
+        post('/login-simple', {
             onFinish: () => reset('password'),
         });
     };

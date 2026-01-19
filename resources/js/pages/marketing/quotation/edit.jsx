@@ -97,6 +97,12 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [deletingMaterialId, setDeletingMaterialId] = useState(null);
     const [savingMaterialId, setSavingMaterialId] = useState(null);
+    const [customerList, setCustomerList] = useState(customers);
+    const [materialList, setMaterialList] = useState(materials);
+    const [customerLoading, setCustomerLoading] = useState(false);
+    const [materialLoading, setMaterialLoading] = useState(false);
+    const [customerError, setCustomerError] = useState('');
+    const [materialError, setMaterialError] = useState('');
 
     const [customerForm, setCustomerForm] = useState(() =>
         buildCustomerForm(quotation)
@@ -137,16 +143,16 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
     const filteredCustomers = useMemo(() => {
         const term = customerSearch.trim().toLowerCase();
         if (!term) {
-            return customers;
+            return customerList;
         }
 
-        return customers.filter((item) => {
+        return customerList.filter((item) => {
             const values = [item.kd_cs, item.nm_cs, item.attnd];
             return values.some((value) =>
                 String(value ?? '').toLowerCase().includes(term)
             );
         });
-    }, [customerSearch, customers]);
+    }, [customerSearch, customerList]);
 
     const customerTotalItems = filteredCustomers.length;
     const customerTotalPages = useMemo(() => {
@@ -169,16 +175,16 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
     const filteredMaterials = useMemo(() => {
         const term = materialSearch.trim().toLowerCase();
         if (!term) {
-            return materials;
+            return materialList;
         }
 
-        return materials.filter((item) => {
+        return materialList.filter((item) => {
             const values = [item.material, item.unit, item.remark];
             return values.some((value) =>
                 String(value ?? '').toLowerCase().includes(term)
             );
         });
-    }, [materialSearch, materials]);
+    }, [materialSearch, materialList]);
 
     const materialTotalItems = filteredMaterials.length;
     const materialTotalPages = useMemo(() => {
@@ -259,6 +265,50 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
             satuan: renderValue(item.unit),
         }));
         setMaterialModalOpen(false);
+    };
+
+    const loadCustomers = async () => {
+        if (customerLoading || customerList.length > 0) {
+            return;
+        }
+        setCustomerLoading(true);
+        setCustomerError('');
+        try {
+            const response = await fetch('/marketing/quotation/customers', {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+            const data = await response.json();
+            setCustomerList(Array.isArray(data?.customers) ? data.customers : []);
+        } catch (error) {
+            setCustomerError('Gagal memuat data customer.');
+        } finally {
+            setCustomerLoading(false);
+        }
+    };
+
+    const loadMaterials = async () => {
+        if (materialLoading || materialList.length > 0) {
+            return;
+        }
+        setMaterialLoading(true);
+        setMaterialError('');
+        try {
+            const response = await fetch('/marketing/quotation/materials', {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+            const data = await response.json();
+            setMaterialList(Array.isArray(data?.materials) ? data.materials : []);
+        } catch (error) {
+            setMaterialError('Gagal memuat data material.');
+        } finally {
+            setMaterialLoading(false);
+        }
     };
 
     const handleAddMaterial = () => {
@@ -518,9 +568,10 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                         <Button
                                             type="button"
                                             variant="outline"
-                                            onClick={() =>
-                                                setCustomerModalOpen(true)
-                                            }
+                                            onClick={() => {
+                                                setCustomerModalOpen(true);
+                                                loadCustomers();
+                                            }}
                                         >
                                             Cari Customer
                                         </Button>
@@ -734,9 +785,10 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                         <Button
                                             type="button"
                                             variant="outline"
-                                            onClick={() =>
-                                                setMaterialModalOpen(true)
-                                            }
+                                            onClick={() => {
+                                                setMaterialModalOpen(true);
+                                                loadMaterials();
+                                            }}
                                         >
                                             Cari Material
                                         </Button>
@@ -1118,6 +1170,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                 onOpenChange={(open) => {
                     setCustomerModalOpen(open);
                     if (open) {
+                        loadCustomers();
                         setCustomerSearch('');
                         setCustomerPageSize(10);
                         setCustomerPage(1);
@@ -1192,7 +1245,10 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                             className="px-4 py-6 text-center text-muted-foreground"
                                             colSpan={5}
                                         >
-                                            Data customer belum tersedia.
+                                            {customerLoading
+                                                ? 'Memuat data customer...'
+                                                : customerError ||
+                                                  'Data customer belum tersedia.'}
                                         </td>
                                     </tr>
                                 )}
@@ -1292,6 +1348,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                 onOpenChange={(open) => {
                     setMaterialModalOpen(open);
                     if (open) {
+                        loadMaterials();
                         setMaterialSearch('');
                         setMaterialPageSize(10);
                         setMaterialPage(1);
@@ -1365,7 +1422,10 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                             className="px-4 py-6 text-center text-muted-foreground"
                                             colSpan={6}
                                         >
-                                            Data material belum tersedia.
+                                            {materialLoading
+                                                ? 'Memuat data material...'
+                                                : materialError ||
+                                                  'Data material belum tersedia.'}
                                         </td>
                                     </tr>
                                 )}

@@ -18,7 +18,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import { ArrowLeft, ArrowRight, Plus, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -38,6 +38,7 @@ const renderValue = (value) =>
 export default function DeliveryOrderCreate() {
     const { auth } = usePage().props;
     const [step, setStep] = useState(1);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Form Data
     const [formData, setFormData] = useState({
@@ -186,9 +187,33 @@ export default function DeliveryOrderCreate() {
     const prevStep = () => setStep((s) => s - 1);
 
     const handleSubmit = () => {
-        // Implement save logic here (or just log for now as requested "buatkan halaman")
-        console.log('Submit', formData);
-        alert('Data siap disimpan (Implement logic store)');
+        if (!selectedPrNo || formData.items.length === 0) {
+            return;
+        }
+
+        router.post(
+            '/marketing/delivery-order',
+            {
+                date: formData.date,
+                ref_po: formData.ref_po,
+                kd_cs: formData.kd_cs,
+                nm_cs: formData.nm_cs,
+                ref_pr: selectedPrNo,
+                items: formData.items.map((item, index) => ({
+                    no: index + 1,
+                    kd_material: item.kd_material,
+                    material: item.material,
+                    qty: item.qty,
+                    unit: item.unit,
+                    remark: item.remark,
+                    stock_now: item.stock_now,
+                })),
+            },
+            {
+                onStart: () => setIsSubmitting(true),
+                onFinish: () => setIsSubmitting(false),
+            },
+        );
     };
 
     return (
@@ -227,9 +252,8 @@ export default function DeliveryOrderCreate() {
                                             className="w-full justify-start"
                                         >
                                             <Search className="mr-2 h-4 w-4" />
-                                            {selectedPrNo
-                                                ? `Selected PR: ${selectedPrNo}`
-                                                : 'Cari PR Outstanding...'}
+                                            {selectedPrNo ??
+                                                'Cari PR Outstanding...'}
                                         </Button>
                                     </div>
                                 </div>
@@ -506,7 +530,16 @@ export default function DeliveryOrderCreate() {
                             <Button variant="outline" onClick={prevStep}>
                                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
                             </Button>
-                            <Button onClick={handleSubmit}>Simpan DO</Button>
+                            <Button
+                                onClick={handleSubmit}
+                                disabled={
+                                    isSubmitting ||
+                                    !selectedPrNo ||
+                                    formData.items.length === 0
+                                }
+                            >
+                                {isSubmitting ? 'Menyimpan...' : 'Simpan DO'}
+                            </Button>
                         </div>
                     </div>
                 )}

@@ -1,7 +1,7 @@
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, } from '@/components/ui/dropdown-menu';
 import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
-import { login, logout } from '@/routes';
+import { login } from '@/routes';
 import { edit } from '@/routes/profile';
 import { Link, router } from '@inertiajs/react';
 import { LogOut, Settings } from 'lucide-react';
@@ -10,7 +10,7 @@ export function UserMenuContent({ user }) {
     const handleLogout = () => {
         cleanup();
         router.flushAll();
-        router.post(logout(), {}, { onFinish: () => router.visit(login()) });
+        router.post('/logout-simple', {}, { onFinish: () => router.visit(login()) });
     };
     return (<>
             <DropdownMenuLabel className="p-0 font-normal">
