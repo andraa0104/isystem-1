@@ -8,6 +8,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -29,15 +30,29 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $validated = $request->validated();
+        $user = $request->user();
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        if (!$user) {
+            return back()->with('error', 'User tidak ditemukan.');
         }
 
-        $request->user()->save();
+        $currentUsername = $user->pengguna;
 
-        return to_route('profile.edit');
+        \Illuminate\Support\Facades\DB::table('tb_pengguna')
+            ->where('pengguna', $currentUsername)
+            ->update([
+                'nm_user' => $validated['name'],
+                'no_hp' => $validated['phone'] ?? null,
+                'pengguna' => $validated['username'],
+            ]);
+
+        $user->pengguna = $validated['username'];
+        $user->nm_user = $validated['name'];
+        $user->no_hp = $validated['phone'] ?? null;
+
+        return to_route('profile.edit')
+            ->with('success', 'Profil berhasil diperbarui.');
     }
 
     /**
@@ -45,19 +60,29 @@ class ProfileController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
-        $request->validate([
-            'password' => ['required', 'current_password'],
-        ]);
-
+        $kdUser = $request->input('kd_user');
         $user = $request->user();
 
-        Auth::logout();
+        if (!$kdUser && $user) {
+            $kdUser = $user->kd_user ?? null;
+        }
 
-        $user->delete();
+        if ($kdUser) {
+            \Illuminate\Support\Facades\DB::table('tb_pengguna')
+                ->where('kd_user', $kdUser)
+                ->delete();
+        }
+
+        Auth::logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect('/login')
+            ->with('success', 'Akun berhasil dihapus.')
+            ->withCookie(Cookie::forget('login_user'))
+            ->withCookie(Cookie::forget('login_user_name'))
+            ->withCookie(Cookie::forget('login_last_online'))
+            ->withCookie(Cookie::forget('tenant_database'));
     }
 }

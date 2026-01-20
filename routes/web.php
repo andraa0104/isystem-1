@@ -5,6 +5,8 @@ use App\Http\Controllers\Marketing\QuotationController;
 use App\Http\Controllers\Marketing\PurchaseRequirementController;
 use App\Http\Controllers\Marketing\PurchaseOrderController;
 use App\Http\Controllers\Marketing\DeliveryOrderController;
+use App\Http\Controllers\Marketing\DeliveryOrderAddController;
+use App\Http\Controllers\Marketing\DeliveryOrderCostController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MasterData\MaterialController;
 use App\Http\Controllers\MasterData\VendorController;
@@ -219,5 +221,49 @@ Route::get('marketing/delivery-order', [DeliveryOrderController::class, 'index']
     ->name('marketing.delivery-order.index');
 Route::get('marketing/delivery-order/{noDo}/print', [DeliveryOrderController::class, 'print'])
     ->name('marketing.delivery-order.print');
+
+Route::get('marketing/delivery-order-add', [DeliveryOrderAddController::class, 'index'])
+    ->name('marketing.delivery-order-add.index');
+Route::get('marketing/delivery-order-add/create', [DeliveryOrderAddController::class, 'create'])
+    ->name('marketing.delivery-order-add.create');
+Route::get('marketing/delivery-order-add/{noDob}/edit', [DeliveryOrderAddController::class, 'edit'])
+    ->name('marketing.delivery-order-add.edit');
+Route::get('marketing/delivery-order-add/details', [DeliveryOrderAddController::class, 'details'])
+    ->name('marketing.delivery-order-add.details');
+Route::get('marketing/delivery-order-add/outstanding', [DeliveryOrderAddController::class, 'outstanding'])
+    ->name('marketing.delivery-order-add.outstanding');
+Route::get('marketing/delivery-order-add/outstanding-do', [DeliveryOrderAddController::class, 'outstandingDo'])
+    ->name('marketing.delivery-order-add.outstanding-do');
+Route::get('marketing/delivery-order-add/pr-materials', [DeliveryOrderAddController::class, 'prMaterials'])
+    ->name('marketing.delivery-order-add.pr-materials');
+Route::post('marketing/delivery-order-add', [DeliveryOrderAddController::class, 'store'])
+    ->name('marketing.delivery-order-add.store');
+Route::put('marketing/delivery-order-add/{noDob}/detail/{lineNo}', [DeliveryOrderAddController::class, 'updateDetail'])
+    ->name('marketing.delivery-order-add.detail.update');
+Route::get('marketing/delivery-order-add/{noDob}/print', [DeliveryOrderAddController::class, 'print'])
+    ->name('marketing.delivery-order-add.print');
+
+Route::get('marketing/delivery-order-cost', [DeliveryOrderCostController::class, 'index'])
+    ->name('marketing.delivery-order-cost.index');
+Route::get('marketing/delivery-order-cost/create', [DeliveryOrderCostController::class, 'create'])
+    ->name('marketing.delivery-order-cost.create');
+Route::get('marketing/delivery-order-cost/{noAlokasi}/edit', [DeliveryOrderCostController::class, 'edit'])
+    ->name('marketing.delivery-order-cost.edit');
+Route::get('marketing/delivery-order-cost/details', [DeliveryOrderCostController::class, 'details'])
+    ->name('marketing.delivery-order-cost.details');
+Route::get('marketing/delivery-order-cost/outstanding', [DeliveryOrderCostController::class, 'outstanding'])
+    ->name('marketing.delivery-order-cost.outstanding');
+Route::get('marketing/delivery-order-cost/materials', [DeliveryOrderCostController::class, 'materials'])
+    ->name('marketing.delivery-order-cost.materials');
+Route::post('marketing/delivery-order-cost', [DeliveryOrderCostController::class, 'store'])
+    ->name('marketing.delivery-order-cost.store');
+Route::post('marketing/delivery-order-cost/{noAlokasi}/detail', [DeliveryOrderCostController::class, 'storeDetail'])
+    ->name('marketing.delivery-order-cost.detail.store');
+Route::put('marketing/delivery-order-cost/{noAlokasi}/detail/{lineNo}', [DeliveryOrderCostController::class, 'updateDetail'])
+    ->name('marketing.delivery-order-cost.detail.update');
+Route::delete('marketing/delivery-order-cost/{noAlokasi}/detail/{lineNo}', [DeliveryOrderCostController::class, 'deleteDetail'])
+    ->name('marketing.delivery-order-cost.detail.delete');
+Route::put('marketing/delivery-order-cost/{noAlokasi}', [DeliveryOrderCostController::class, 'updateHeader'])
+    ->name('marketing.delivery-order-cost.update');
 
 require __DIR__.'/settings.php';

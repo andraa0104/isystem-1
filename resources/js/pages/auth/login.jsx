@@ -101,7 +101,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                         <InputError message={errors.password} />
                     </div>
 
-                    <div className="flex items-center space-x-3">
+                    {/* <div className="flex items-center space-x-3">
                         <Checkbox
                             id="remember"
                             name="remember"
@@ -111,7 +111,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                         // Assuming native-like behavior for now or ignoring if not implemented fully.
                         />
                         <Label htmlFor="remember">Remember me</Label>
-                    </div>
+                    </div> */}
 
                     <Button type="submit" className="mt-4 w-full" tabIndex={4} disabled={processing} data-test="login-button">
                         {processing && <Spinner />}

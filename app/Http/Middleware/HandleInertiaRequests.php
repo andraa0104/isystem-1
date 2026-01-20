@@ -63,6 +63,15 @@ class HandleInertiaRequests extends Middleware
             $userData = [
                 'name' => $authUser->name ?? null,
                 'email' => $authUser->email ?? null,
+                'phone' => $authUser->no_hp ?? null,
+                'username' => $authUser->pengguna ?? null,
+                'level' => $authUser->tingkat
+                    ?? $authUser->level
+                    ?? $authUser->Level
+                    ?? $authUser->lvl_user
+                    ?? $authUser->level_user
+                    ?? null,
+                'kd_user' => $authUser->kd_user ?? null,
                 'avatar' => $authUser->avatar ?? null,
                 'last_online' => $authUser->last_online ?? null,
                 'database' => $database,

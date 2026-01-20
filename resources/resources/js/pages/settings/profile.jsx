@@ -1,7 +1,6 @@
 import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
-import { send } from '@/routes/verification';
 import { Transition } from '@headlessui/react';
-import { Form, Head, Link, usePage } from '@inertiajs/react';
+import { Form, Head, usePage } from '@inertiajs/react';
 import DeleteUser from '@/components/delete-user';
 import HeadingSmall from '@/components/heading-small';
 import InputError from '@/components/input-error';
@@ -26,7 +25,7 @@ export default function Profile({ mustVerifyEmail, status, }) {
 
             <SettingsLayout>
                 <div className="space-y-6">
-                    <HeadingSmall title="Profile information" description="Update your name and email address"/>
+                    <HeadingSmall title="Profile information" description="Update your name and contact information"/>
 
                     <Form {...ProfileController.update.form()} options={{
             preserveScroll: true,
@@ -41,31 +40,25 @@ export default function Profile({ mustVerifyEmail, status, }) {
                                 </div>
 
                                 <div className="grid gap-2">
-                                    <Label htmlFor="email">Email address</Label>
+                                    <Label htmlFor="phone">Nomor HP</Label>
 
-                                    <Input id="email" type="email" className="mt-1 block w-full" defaultValue={auth.user.email} name="email" required autoComplete="username" placeholder="Email address"/>
+                                    <Input id="phone" className="mt-1 block w-full" defaultValue={auth.user.phone} name="phone" autoComplete="tel" placeholder="Nomor HP"/>
 
-                                    <InputError className="mt-2" message={errors.email}/>
+                                    <InputError className="mt-2" message={errors.phone}/>
                                 </div>
 
-                                {mustVerifyEmail &&
-                auth.user.email_verified_at === null && (<div>
-                                            <p className="-mt-4 text-sm text-muted-foreground">
-                                                Your email address is
-                                                unverified.{' '}
-                                                <Link href={send()} as="button" className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500">
-                                                    Click here to resend the
-                                                    verification email.
-                                                </Link>
-                                            </p>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="username">Username</Label>
 
-                                            {status ===
-                    'verification-link-sent' && (<div className="mt-2 text-sm font-medium text-green-600">
-                                                    A new verification link has
-                                                    been sent to your email
-                                                    address.
-                                                </div>)}
-                                        </div>)}
+                                    <Input id="username" className="mt-1 block w-full" defaultValue={auth.user.username} name="username" required autoComplete="username" placeholder="Username"/>
+
+                                    <InputError className="mt-2" message={errors.username}/>
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="level">Level User</Label>
+                                    <Input id="level" className="mt-1 block w-full" value={auth.user.level ?? '-'} readOnly/>
+                                </div>
 
                                 <div className="flex items-center gap-4">
                                     <Button disabled={processing} data-test="update-profile-button">

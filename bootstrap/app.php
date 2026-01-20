@@ -3,6 +3,7 @@
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetTenantDatabase;
+use App\Http\Middleware\AuthenticateFromCookie;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->web(append: [
             SetTenantDatabase::class,
+            AuthenticateFromCookie::class,
             HandleAppearance::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,

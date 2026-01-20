@@ -102,14 +102,14 @@ export function AppSidebar() {
                                         </SidebarMenuSubItem>
                                         <SidebarMenuSubItem>
                                             <SidebarMenuSubButton asChild>
-                                                <Link href="#">
+                                                <Link href="/marketing/delivery-order-add">
                                                     <span>Delivery Order Add (DOA)</span>
                                                 </Link>
                                             </SidebarMenuSubButton>
                                         </SidebarMenuSubItem>
                                         <SidebarMenuSubItem>
                                             <SidebarMenuSubButton asChild>
-                                                <Link href="#">
+                                                <Link href="/marketing/delivery-order-cost">
                                                     <span>Delivery Order Cost (DOB)</span>
                                                 </Link>
                                             </SidebarMenuSubButton>

@@ -32,7 +32,6 @@ export default function Password() {
             preserveScroll: true,
         }} resetOnError={[
             'password',
-            'password_confirmation',
             'current_password',
         ]} resetOnSuccess onError={(errors) => {
             var _a, _b;
@@ -62,16 +61,6 @@ export default function Password() {
                                     <Input id="password" ref={passwordInput} name="password" type="password" className="mt-1 block w-full" autoComplete="new-password" placeholder="New password"/>
 
                                     <InputError message={errors.password}/>
-                                </div>
-
-                                <div className="grid gap-2">
-                                    <Label htmlFor="password_confirmation">
-                                        Confirm password
-                                    </Label>
-
-                                    <Input id="password_confirmation" name="password_confirmation" type="password" className="mt-1 block w-full" autoComplete="new-password" placeholder="Confirm password"/>
-
-                                    <InputError message={errors.password_confirmation}/>
                                 </div>
 
                                 <div className="flex items-center gap-4">

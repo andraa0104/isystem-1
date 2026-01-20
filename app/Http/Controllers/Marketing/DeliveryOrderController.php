@@ -287,6 +287,15 @@ class DeliveryOrderController
 
         try {
             DB::transaction(function () use ($request, $items, $noDo, $refPr, $parseNumber) {
+                DB::table('tb_kddo')->insert([
+                    'no_do' => $noDo,
+                    'tgl' => $request->input('date'),
+                    'pos_tgl' => now()->toDateString(),
+                    'ref_po' => $request->input('ref_po'),
+                    'kd_cs' => $request->input('kd_cs'),
+                    'nm_cs' => $request->input('nm_cs'),
+                ]);
+
                 foreach ($items as $index => $item) {
                     $material = $item['material'] ?? null;
                     $kdMaterial = $item['kd_material'] ?? null;

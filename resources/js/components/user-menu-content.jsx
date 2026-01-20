@@ -2,7 +2,6 @@ import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSep
 import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { login } from '@/routes';
-import { edit } from '@/routes/profile';
 import { Link, router } from '@inertiajs/react';
 import { LogOut, Settings } from 'lucide-react';
 export function UserMenuContent({ user }) {
@@ -21,7 +20,7 @@ export function UserMenuContent({ user }) {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
-                    <Link className="block w-full" href={edit()} as="button" prefetch onClick={cleanup}>
+                    <Link className="block w-full" href="/settings" as="button" prefetch onClick={cleanup}>
                         <Settings className="mr-2"/>
                         Settings
                     </Link>

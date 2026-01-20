@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -25,14 +24,28 @@ class PasswordController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'current_password' => ['required', 'current_password'],
-            'password' => ['required', Password::defaults(), 'confirmed'],
+            'current_password' => ['required'],
+            'password' => ['required'],
         ]);
 
-        $request->user()->update([
-            'password' => $validated['password'],
-        ]);
+        $user = $request->user();
+        if (!$user) {
+            return back()->with('error', 'User tidak ditemukan.');
+        }
 
-        return back();
+        $current = trim((string) ($user->pass ?? ''));
+        if ($validated['current_password'] !== $current) {
+            return back()->withErrors([
+                'current_password' => 'Password saat ini tidak sesuai.',
+            ]);
+        }
+
+        \Illuminate\Support\Facades\DB::table('tb_pengguna')
+            ->where('pengguna', $user->pengguna)
+            ->update([
+                'pass' => $validated['password'],
+            ]);
+
+        return back()->with('success', 'Password berhasil diperbarui.');
     }
 }
