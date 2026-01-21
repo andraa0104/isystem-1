@@ -7,6 +7,7 @@ use App\Http\Controllers\Marketing\PurchaseOrderController;
 use App\Http\Controllers\Marketing\DeliveryOrderController;
 use App\Http\Controllers\Marketing\DeliveryOrderAddController;
 use App\Http\Controllers\Marketing\DeliveryOrderCostController;
+use App\Http\Controllers\Marketing\FakturPenjualanController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MasterData\MaterialController;
 use App\Http\Controllers\MasterData\VendorController;
@@ -180,30 +181,30 @@ Route::delete('marketing/purchase-requirement/{noPr}/detail/{detailNo}', [Purcha
 Route::get('marketing/purchase-requirement/{noPr}/print', [PurchaseRequirementController::class, 'print'])
     ->name('marketing.purchase-requirement.print');
 
-Route::get('marketing/purchase-order', [PurchaseOrderController::class, 'index'])
-    ->name('marketing.purchase-order.index');
-Route::get('marketing/purchase-order/outstanding-pr', [PurchaseOrderController::class, 'outstandingPurchaseRequirements'])
-    ->name('marketing.purchase-order.outstanding-pr');
-Route::get('marketing/purchase-order/pr-details', [PurchaseOrderController::class, 'purchaseRequirementDetails'])
-    ->name('marketing.purchase-order.pr-details');
-Route::get('marketing/purchase-order/vendors', [PurchaseOrderController::class, 'vendors'])
-    ->name('marketing.purchase-order.vendors');
-Route::get('marketing/purchase-order/details', [PurchaseOrderController::class, 'details'])
-    ->name('marketing.purchase-order.details');
-Route::get('marketing/purchase-order/outstanding', [PurchaseOrderController::class, 'outstanding'])
-    ->name('marketing.purchase-order.outstanding');
-Route::get('marketing/purchase-order/create', [PurchaseOrderController::class, 'create'])
-    ->name('marketing.purchase-order.create');
-Route::get('marketing/purchase-order/{noPo}/edit', [PurchaseOrderController::class, 'edit'])
-    ->name('marketing.purchase-order.edit');
-Route::get('marketing/purchase-order/{noPo}/print', [PurchaseOrderController::class, 'print'])
-    ->name('marketing.purchase-order.print');
-Route::post('marketing/purchase-order', [PurchaseOrderController::class, 'store'])
-    ->name('marketing.purchase-order.store');
-Route::put('marketing/purchase-order/{noPo}', [PurchaseOrderController::class, 'update'])
-    ->name('marketing.purchase-order.update');
-Route::put('marketing/purchase-order/{noPo}/detail/{detailId}', [PurchaseOrderController::class, 'updateDetail'])
-    ->name('marketing.purchase-order.detail.update');
+Route::get('pembelian/purchase-order', [PurchaseOrderController::class, 'index'])
+    ->name('pembelian.purchase-order.index');
+Route::get('pembelian/purchase-order/outstanding-pr', [PurchaseOrderController::class, 'outstandingPurchaseRequirements'])
+    ->name('pembelian.purchase-order.outstanding-pr');
+Route::get('pembelian/purchase-order/pr-details', [PurchaseOrderController::class, 'purchaseRequirementDetails'])
+    ->name('pembelian.purchase-order.pr-details');
+Route::get('pembelian/purchase-order/vendors', [PurchaseOrderController::class, 'vendors'])
+    ->name('pembelian.purchase-order.vendors');
+Route::get('pembelian/purchase-order/details', [PurchaseOrderController::class, 'details'])
+    ->name('pembelian.purchase-order.details');
+Route::get('pembelian/purchase-order/outstanding', [PurchaseOrderController::class, 'outstanding'])
+    ->name('pembelian.purchase-order.outstanding');
+Route::get('pembelian/purchase-order/create', [PurchaseOrderController::class, 'create'])
+    ->name('pembelian.purchase-order.create');
+Route::get('pembelian/purchase-order/{noPo}/edit', [PurchaseOrderController::class, 'edit'])
+    ->name('pembelian.purchase-order.edit');
+Route::get('pembelian/purchase-order/{noPo}/print', [PurchaseOrderController::class, 'print'])
+    ->name('pembelian.purchase-order.print');
+Route::post('pembelian/purchase-order', [PurchaseOrderController::class, 'store'])
+    ->name('pembelian.purchase-order.store');
+Route::put('pembelian/purchase-order/{noPo}', [PurchaseOrderController::class, 'update'])
+    ->name('pembelian.purchase-order.update');
+Route::put('pembelian/purchase-order/{noPo}/detail/{detailId}', [PurchaseOrderController::class, 'updateDetail'])
+    ->name('pembelian.purchase-order.detail.update');
 
 Route::get('marketing/delivery-order/create', [DeliveryOrderController::class, 'create'])
     ->name('marketing.delivery-order.create');
@@ -248,29 +249,32 @@ Route::put('marketing/delivery-order-add/{noDob}/detail/{lineNo}', [DeliveryOrde
 Route::get('marketing/delivery-order-add/{noDob}/print', [DeliveryOrderAddController::class, 'print'])
     ->name('marketing.delivery-order-add.print');
 
-Route::get('marketing/delivery-order-cost', [DeliveryOrderCostController::class, 'index'])
-    ->name('marketing.delivery-order-cost.index');
-Route::get('marketing/delivery-order-cost/create', [DeliveryOrderCostController::class, 'create'])
-    ->name('marketing.delivery-order-cost.create');
-Route::get('marketing/delivery-order-cost/{noAlokasi}/edit', [DeliveryOrderCostController::class, 'edit'])
-    ->name('marketing.delivery-order-cost.edit');
-Route::get('marketing/delivery-order-cost/details', [DeliveryOrderCostController::class, 'details'])
-    ->name('marketing.delivery-order-cost.details');
-Route::get('marketing/delivery-order-cost/outstanding', [DeliveryOrderCostController::class, 'outstanding'])
-    ->name('marketing.delivery-order-cost.outstanding');
-Route::get('marketing/delivery-order-cost/materials', [DeliveryOrderCostController::class, 'materials'])
-    ->name('marketing.delivery-order-cost.materials');
-Route::post('marketing/delivery-order-cost', [DeliveryOrderCostController::class, 'store'])
-    ->name('marketing.delivery-order-cost.store');
-Route::get('marketing/delivery-order-cost/{noAlokasi}/print', [DeliveryOrderCostController::class, 'print'])
-    ->name('marketing.delivery-order-cost.print');
-Route::post('marketing/delivery-order-cost/{noAlokasi}/detail', [DeliveryOrderCostController::class, 'storeDetail'])
-    ->name('marketing.delivery-order-cost.detail.store');
-Route::put('marketing/delivery-order-cost/{noAlokasi}/detail/{lineNo}', [DeliveryOrderCostController::class, 'updateDetail'])
-    ->name('marketing.delivery-order-cost.detail.update');
-Route::delete('marketing/delivery-order-cost/{noAlokasi}/detail/{lineNo}', [DeliveryOrderCostController::class, 'deleteDetail'])
-    ->name('marketing.delivery-order-cost.detail.delete');
-Route::put('marketing/delivery-order-cost/{noAlokasi}', [DeliveryOrderCostController::class, 'updateHeader'])
-    ->name('marketing.delivery-order-cost.update');
+Route::get('pembelian/delivery-order-cost', [DeliveryOrderCostController::class, 'index'])
+    ->name('pembelian.delivery-order-cost.index');
+Route::get('pembelian/delivery-order-cost/create', [DeliveryOrderCostController::class, 'create'])
+    ->name('pembelian.delivery-order-cost.create');
+Route::get('pembelian/delivery-order-cost/{noAlokasi}/edit', [DeliveryOrderCostController::class, 'edit'])
+    ->name('pembelian.delivery-order-cost.edit');
+Route::get('pembelian/delivery-order-cost/details', [DeliveryOrderCostController::class, 'details'])
+    ->name('pembelian.delivery-order-cost.details');
+Route::get('pembelian/delivery-order-cost/outstanding', [DeliveryOrderCostController::class, 'outstanding'])
+    ->name('pembelian.delivery-order-cost.outstanding');
+Route::get('pembelian/delivery-order-cost/materials', [DeliveryOrderCostController::class, 'materials'])
+    ->name('pembelian.delivery-order-cost.materials');
+Route::post('pembelian/delivery-order-cost', [DeliveryOrderCostController::class, 'store'])
+    ->name('pembelian.delivery-order-cost.store');
+Route::get('pembelian/delivery-order-cost/{noAlokasi}/print', [DeliveryOrderCostController::class, 'print'])
+    ->name('pembelian.delivery-order-cost.print');
+Route::post('pembelian/delivery-order-cost/{noAlokasi}/detail', [DeliveryOrderCostController::class, 'storeDetail'])
+    ->name('pembelian.delivery-order-cost.detail.store');
+Route::put('pembelian/delivery-order-cost/{noAlokasi}/detail/{lineNo}', [DeliveryOrderCostController::class, 'updateDetail'])
+    ->name('pembelian.delivery-order-cost.detail.update');
+Route::delete('pembelian/delivery-order-cost/{noAlokasi}/detail/{lineNo}', [DeliveryOrderCostController::class, 'deleteDetail'])
+    ->name('pembelian.delivery-order-cost.detail.delete');
+Route::put('pembelian/delivery-order-cost/{noAlokasi}', [DeliveryOrderCostController::class, 'updateHeader'])
+    ->name('pembelian.delivery-order-cost.update');
+
+Route::get('penjualan/faktur-penjualan', [FakturPenjualanController::class, 'index'])
+    ->name('penjualan.faktur-penjualan.index');
 
 require __DIR__.'/settings.php';

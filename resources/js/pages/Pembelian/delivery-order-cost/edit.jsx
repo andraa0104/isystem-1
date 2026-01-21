@@ -109,7 +109,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
     const fetchMaterials = (page = 1) => {
         setMaterialLoading(true);
         fetch(
-            `/marketing/delivery-order-cost/materials?search=${encodeURIComponent(
+            `/pembelian/delivery-order-cost/materials?search=${encodeURIComponent(
                 materialSearchTerm,
             )}&page=${page}&per_page=${encodeURIComponent(materialPageSize)}`,
             { headers: { Accept: 'application/json' } },
@@ -179,7 +179,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
         setIsSavingDetail(true);
         try {
             const response = await fetch(
-                `/marketing/delivery-order-cost/${encodeURIComponent(
+                `/pembelian/delivery-order-cost/${encodeURIComponent(
                     deliveryOrder.no_alokasi,
                 )}/detail`,
                 {
@@ -252,7 +252,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
         setIsSavingDetail(true);
         try {
             const response = await fetch(
-                `/marketing/delivery-order-cost/${encodeURIComponent(
+                `/pembelian/delivery-order-cost/${encodeURIComponent(
                     deliveryOrder.no_alokasi,
                 )}/detail/${encodeURIComponent(inputItem.no)}`,
                 {
@@ -311,7 +311,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
             setIsSavingDetail(true);
             try {
                 const response = await fetch(
-                    `/marketing/delivery-order-cost/${encodeURIComponent(
+                    `/pembelian/delivery-order-cost/${encodeURIComponent(
                         deliveryOrder.no_alokasi,
                     )}/detail/${encodeURIComponent(item.no)}`,
                     {
@@ -345,7 +345,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
 
     const handleSubmit = () => {
         router.put(
-            `/marketing/delivery-order-cost/${encodeURIComponent(
+            `/pembelian/delivery-order-cost/${encodeURIComponent(
                 deliveryOrder.no_alokasi,
             )}`,
             {
@@ -370,7 +370,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
         <AppLayout
             breadcrumbs={[
                 { title: 'Dashboard', href: '/dashboard' },
-                { title: 'Marketing', href: '/marketing/delivery-order-cost' },
+                { title: 'Pembelian', href: '/pembelian/delivery-order-cost' },
                 { title: 'Edit DO Biaya', href: '#' },
             ]}
         >

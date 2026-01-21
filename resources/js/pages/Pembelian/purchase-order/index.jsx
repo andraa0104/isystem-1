@@ -18,8 +18,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Marketing', href: '/marketing/purchase-order' },
-    { title: 'Purchase Order', href: '/marketing/purchase-order' },
+    { title: 'Pembelian', href: '/pembelian/purchase-order' },
+    { title: 'Purchase Order', href: '/pembelian/purchase-order' },
 ];
 
 const renderValue = (value) =>
@@ -234,7 +234,7 @@ export default function PurchaseOrderIndex({
         setDetailError('');
         setDetailLoading(true);
         fetch(
-            `/marketing/purchase-order/details?no_po=${encodeURIComponent(
+            `/pembelian/purchase-order/details?no_po=${encodeURIComponent(
                 item.no_po
             )}`,
             { headers: { Accept: 'application/json' } }
@@ -266,7 +266,7 @@ export default function PurchaseOrderIndex({
         }
         setOutstandingLoading(true);
         setOutstandingError('');
-        fetch('/marketing/purchase-order/outstanding', {
+        fetch('/pembelian/purchase-order/outstanding', {
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
@@ -323,7 +323,7 @@ export default function PurchaseOrderIndex({
                     </div>
                     <Button
                         type="button"
-                        onClick={() => router.visit('/marketing/purchase-order/create')}
+                        onClick={() => router.visit('/pembelian/purchase-order/create')}
                     >
                         Tambah PO
                     </Button>
@@ -477,7 +477,7 @@ export default function PurchaseOrderIndex({
                                                 <Eye className="size-4" />
                                             </button>
                                             <a
-                                                href={`/marketing/purchase-order/${encodeURIComponent(
+                                                href={`/pembelian/purchase-order/${encodeURIComponent(
                                                     item.no_po
                                                 )}/print`}
                                                 className="text-muted-foreground transition hover:text-foreground"
@@ -1003,7 +1003,7 @@ export default function PurchaseOrderIndex({
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <Link
-                                                        href={`/marketing/purchase-order/${encodeURIComponent(
+                                                        href={`/pembelian/purchase-order/${encodeURIComponent(
                                                             item.no_po
                                                         )}/edit`}
                                                         className="text-muted-foreground transition hover:text-foreground"

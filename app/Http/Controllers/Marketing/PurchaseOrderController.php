@@ -10,7 +10,7 @@ class PurchaseOrderController
 {
     public function create()
     {
-        return Inertia::render('marketing/purchase-order/create', [
+        return Inertia::render('Pembelian/purchase-order/create', [
             'purchaseRequirements' => [],
             'purchaseRequirementDetails' => [],
             'vendors' => [],
@@ -25,7 +25,7 @@ class PurchaseOrderController
 
         if (!$purchaseOrder) {
             return redirect()
-                ->route('marketing.purchase-order.index')
+                ->route('pembelian.purchase-order.index')
                 ->with('error', 'Data PO tidak ditemukan.');
         }
 
@@ -34,7 +34,7 @@ class PurchaseOrderController
             ->orderBy('no')
             ->get();
 
-        return Inertia::render('marketing/purchase-order/edit', [
+        return Inertia::render('Pembelian/purchase-order/edit', [
             'purchaseOrder' => $purchaseOrder,
             'purchaseOrderDetails' => $purchaseOrderDetails,
             'purchaseRequirements' => [],
@@ -249,7 +249,7 @@ class PurchaseOrderController
         }
 
         return redirect()
-            ->route('marketing.purchase-order.index')
+            ->route('pembelian.purchase-order.index')
             ->with('success', 'Data PO berhasil disimpan.');
     }
 
@@ -261,7 +261,7 @@ class PurchaseOrderController
 
         if (!$exists) {
             return redirect()
-                ->route('marketing.purchase-order.index')
+                ->route('pembelian.purchase-order.index')
                 ->with('error', 'Data PO tidak ditemukan.');
         }
 
@@ -333,7 +333,7 @@ class PurchaseOrderController
         }
 
         return redirect()
-            ->route('marketing.purchase-order.index')
+            ->route('pembelian.purchase-order.index')
             ->with('success', 'Data PO berhasil diperbarui.');
     }
 
@@ -422,7 +422,7 @@ class PurchaseOrderController
 
         $realizedCount = max(0, $purchaseOrders->count() - $outstandingCount);
 
-        return Inertia::render('marketing/purchase-order/index', [
+        return Inertia::render('Pembelian/purchase-order/index', [
             'purchaseOrders' => $purchaseOrders,
             'outstandingCount' => $outstandingCount,
             'outstandingTotal' => $outstandingTotal,
@@ -536,7 +536,7 @@ class PurchaseOrderController
 
         if (!$purchaseOrder) {
             return redirect()
-                ->route('marketing.purchase-order.index')
+                ->route('pembelian.purchase-order.index')
                 ->with('error', 'Data PO tidak ditemukan.');
         }
 
@@ -566,7 +566,7 @@ class PurchaseOrderController
             'email' => $companyConfig['email'] ?? '',
         ];
 
-        return Inertia::render('marketing/purchase-order/print', [
+        return Inertia::render('Pembelian/purchase-order/print', [
             'purchaseOrder' => $purchaseOrder,
             'purchaseOrderDetails' => $purchaseOrderDetails,
             'company' => $company,

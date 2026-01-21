@@ -67,7 +67,7 @@ export default function DeliveryOrderCostCreate() {
     const fetchMaterials = (page = 1) => {
         setMaterialLoading(true);
         fetch(
-            `/marketing/delivery-order-cost/materials?search=${encodeURIComponent(
+            `/pembelian/delivery-order-cost/materials?search=${encodeURIComponent(
                 materialSearchTerm,
             )}&page=${page}&per_page=${encodeURIComponent(materialPageSize)}`,
             { headers: { Accept: 'application/json' } },
@@ -169,7 +169,7 @@ export default function DeliveryOrderCostCreate() {
             return;
         }
         router.post(
-            '/marketing/delivery-order-cost',
+            '/pembelian/delivery-order-cost',
             {
                 date: formData.date,
                 ref_permintaan: formData.ref_permintaan,
@@ -202,7 +202,7 @@ export default function DeliveryOrderCostCreate() {
         <AppLayout
             breadcrumbs={[
                 { title: 'Dashboard', href: '/dashboard' },
-                { title: 'Marketing', href: '/marketing/delivery-order-cost' },
+                { title: 'Pembelian', href: '/pembelian/delivery-order-cost' },
                 { title: 'Create DO Biaya', href: '#' },
             ]}
         >

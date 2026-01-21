@@ -19,8 +19,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Marketing', href: '/marketing/delivery-order-cost' },
-    { title: 'Delivery Order Cost', href: '/marketing/delivery-order-cost' },
+    { title: 'Pembelian', href: '/pembelian/delivery-order-cost' },
+    { title: 'Delivery Order Cost', href: '/pembelian/delivery-order-cost' },
 ];
 
 const toNumber = (value) => {
@@ -201,7 +201,7 @@ export default function DeliveryOrderCostIndex({
         setDetailCurrentPage(1);
         setDetailLoading(true);
         fetch(
-            `/marketing/delivery-order-cost/details?no_alokasi=${encodeURIComponent(
+            `/pembelian/delivery-order-cost/details?no_alokasi=${encodeURIComponent(
                 item.no_alokasi,
             )}`,
             { headers: { Accept: 'application/json' } },
@@ -232,7 +232,7 @@ export default function DeliveryOrderCostIndex({
         }
         setOutstandingLoading(true);
         setOutstandingError('');
-        fetch('/marketing/delivery-order-cost/outstanding', {
+        fetch('/pembelian/delivery-order-cost/outstanding', {
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
@@ -300,7 +300,7 @@ export default function DeliveryOrderCostIndex({
                         </p>
                     </div>
                     <Button asChild type="button">
-                        <a href="/marketing/delivery-order-cost/create">
+                        <a href="/pembelian/delivery-order-cost/create">
                             Tambah DO Biaya
                         </a>
                     </Button>
@@ -484,7 +484,7 @@ export default function DeliveryOrderCostIndex({
                                                         className="text-muted-foreground transition hover:text-foreground"
                                                         aria-label="Cetak"
                                                         title="Cetak"
-                                                        href={`/marketing/delivery-order-cost/${encodeURIComponent(
+                                                        href={`/pembelian/delivery-order-cost/${encodeURIComponent(
                                                             item.no_alokasi,
                                                         )}/print`}
                                                         target="_blank"
@@ -913,7 +913,7 @@ export default function DeliveryOrderCostIndex({
                                             </td>
                                             <td className="px-4 py-3">
                                                 <a
-                                                    href={`/marketing/delivery-order-cost/${encodeURIComponent(
+                                                    href={`/pembelian/delivery-order-cost/${encodeURIComponent(
                                                         item.no_alokasi,
                                                     )}/edit`}
                                                     className="text-muted-foreground transition hover:text-foreground"

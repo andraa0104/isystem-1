@@ -1039,7 +1039,7 @@ export default function VendorIndex({ vendors = [], vendorCount = 0 }) {
                                                                     asChild
                                                                 >
                                                                     <a
-                                                                        href={`/marketing/purchase-order/${encodeURIComponent(
+                                                                        href={`/pembelian/purchase-order/${encodeURIComponent(
                                                                             item.no_po
                                                                         )}/print`}
                                                                         target="_blank"

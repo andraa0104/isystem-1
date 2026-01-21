@@ -15,8 +15,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Purchase Order', href: '/marketing/purchase-order' },
-    { title: 'Edit PO', href: '/marketing/purchase-order' },
+    { title: 'Purchase Order', href: '/pembelian/purchase-order' },
+    { title: 'Tambah PO', href: '/pembelian/purchase-order/create' },
 ];
 
 const renderValue = (value) =>
@@ -36,9 +36,12 @@ const formatRupiah = (value) => {
     return `Rp. ${new Intl.NumberFormat('id-ID').format(number)}`;
 };
 
-export default function PurchaseOrderEdit({
-    purchaseOrder = {},
-    purchaseOrderDetails = [],
+const todayValue = () => {
+    const date = new Date();
+    return date.toISOString().slice(0, 10);
+};
+
+export default function PurchaseOrderCreate({
     purchaseRequirements = [],
     purchaseRequirementDetails = [],
     vendors = [],
@@ -47,7 +50,15 @@ export default function PurchaseOrderEdit({
     const [isPrModalOpen, setIsPrModalOpen] = useState(false);
     const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [savingMaterialId, setSavingMaterialId] = useState(null);
+    const [prList, setPrList] = useState(purchaseRequirements);
+    const [prDetailList, setPrDetailList] = useState(purchaseRequirementDetails);
+    const [vendorList, setVendorList] = useState(vendors);
+    const [prLoading, setPrLoading] = useState(false);
+    const [prError, setPrError] = useState('');
+    const [prDetailLoading, setPrDetailLoading] = useState(false);
+    const [prDetailError, setPrDetailError] = useState('');
+    const [vendorLoading, setVendorLoading] = useState(false);
+    const [vendorError, setVendorError] = useState('');
 
     const [prSearchTerm, setPrSearchTerm] = useState('');
     const [prPageSize, setPrPageSize] = useState(10);
@@ -58,10 +69,11 @@ export default function PurchaseOrderEdit({
     const [vendorCurrentPage, setVendorCurrentPage] = useState(1);
 
     const [formData, setFormData] = useState({
+        date: todayValue(),
         refPr: '',
-        refQuota: '',
         forCustomer: '',
         refPoMasuk: '',
+        refQuota: '',
         kodeVendor: '',
         namaVendor: '',
         attended: '',
@@ -80,26 +92,25 @@ export default function PurchaseOrderEdit({
         material: '',
         qty: '',
         satuan: '',
-        price: '',
-        ppn: '',
+        basePrice: '',
     });
+
     const [includePpn, setIncludePpn] = useState(false);
-    const [editingMaterialId, setEditingMaterialId] = useState(null);
     const [materialItems, setMaterialItems] = useState([]);
 
     const filteredPr = useMemo(() => {
         const term = prSearchTerm.trim().toLowerCase();
         if (!term) {
-            return purchaseRequirements;
+            return prList;
         }
 
-        return purchaseRequirements.filter((item) => {
+        return prList.filter((item) => {
             const values = [item.no_pr, item.ref_po, item.for_customer];
             return values.some((value) =>
                 String(value ?? '').toLowerCase().includes(term)
             );
         });
-    }, [prSearchTerm, purchaseRequirements]);
+    }, [prSearchTerm, prList]);
 
     const prTotalItems = filteredPr.length;
     const prTotalPages = useMemo(() => {
@@ -121,13 +132,13 @@ export default function PurchaseOrderEdit({
     const filteredVendors = useMemo(() => {
         const term = vendorSearchTerm.trim().toLowerCase();
         if (!term) {
-            return vendors;
+            return vendorList;
         }
 
-        return vendors.filter((item) =>
+        return vendorList.filter((item) =>
             String(item.nm_vdr ?? '').toLowerCase().includes(term)
         );
-    }, [vendorSearchTerm, vendors]);
+    }, [vendorSearchTerm, vendorList]);
 
     const vendorTotalItems = filteredVendors.length;
     const vendorTotalPages = useMemo(() => {
@@ -145,15 +156,24 @@ export default function PurchaseOrderEdit({
         return filteredVendors.slice(startIndex, startIndex + vendorPageSize);
     }, [filteredVendors, vendorCurrentPage, vendorPageSize]);
 
-    const basePriceValue = parseNumber(materialForm.price);
+    const selectedPrMaterials = useMemo(() => {
+        if (!formData.refPr) {
+            return [];
+        }
+
+        return prDetailList.filter(
+            (detail) => detail.no_pr === formData.refPr
+        );
+    }, [formData.refPr, prDetailList]);
+
+    const basePriceValue = parseNumber(materialForm.basePrice);
     const appliedPpn = includePpn ? parseNumber(formData.ppn) : 0;
     const divisor = includePpn ? 1 + appliedPpn / 100 : 1;
     const netPrice = divisor ? basePriceValue / divisor : basePriceValue;
-    const ppnValue = includePpn ? basePriceValue - netPrice : parseNumber(materialForm.ppn);
-    const ppnTotal = parseNumber(materialForm.qty) * ppnValue;
+    const ppnValue = includePpn ? basePriceValue - netPrice : 0;
+    const priceWithPpn = includePpn ? netPrice : basePriceValue;
     const totalPriceValue =
-        parseNumber(materialForm.qty) * (includePpn ? basePriceValue : netPrice) +
-        (includePpn ? 0 : parseNumber(materialForm.ppn));
+        parseNumber(materialForm.qty) * (includePpn ? basePriceValue : netPrice);
 
     const handlePrSelect = (item) => {
         setFormData((prev) => ({
@@ -161,6 +181,7 @@ export default function PurchaseOrderEdit({
             refPr: item.no_pr ?? '',
             forCustomer: item.for_customer ?? '',
             refPoMasuk: item.ref_po ?? '',
+            refQuota: item.ref_quota ?? '',
         }));
         setIsPrModalOpen(false);
     };
@@ -175,72 +196,165 @@ export default function PurchaseOrderEdit({
         setIsVendorModalOpen(false);
     };
 
-    const handleEditMaterial = (item) => {
-        setEditingMaterialId(item.id);
-        setSavingMaterialId(null);
-        setMaterialForm({
-            kodeMaterial: item.kodeMaterial ?? '',
-            material: item.material ?? '',
-            qty: item.qty ?? '',
-            satuan: item.satuan ?? '',
-            price: item.price ?? '',
-            ppn: item.ppn ?? '',
-        });
-        setIncludePpn(false);
+    const loadPrs = async () => {
+        if (prLoading || prList.length > 0) {
+            return;
+        }
+        setPrLoading(true);
+        setPrError('');
+        try {
+            const response = await fetch('/pembelian/purchase-order/outstanding-pr', {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+            const data = await response.json();
+            setPrList(
+                Array.isArray(data?.purchaseRequirements)
+                    ? data.purchaseRequirements
+                    : []
+            );
+        } catch (error) {
+            setPrError('Gagal memuat data PR.');
+        } finally {
+            setPrLoading(false);
+        }
     };
 
-    const handleCancelEditMaterial = () => {
-        setEditingMaterialId(null);
-        setSavingMaterialId(null);
+    const loadPrDetails = async (noPr) => {
+        if (!noPr || prDetailLoading) {
+            return;
+        }
+        setPrDetailLoading(true);
+        setPrDetailError('');
+        try {
+            const response = await fetch(
+                `/pembelian/purchase-order/pr-details?no_pr=${encodeURIComponent(noPr)}`,
+                { headers: { Accept: 'application/json' } }
+            );
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+            const data = await response.json();
+            setPrDetailList(
+                Array.isArray(data?.purchaseRequirementDetails)
+                    ? data.purchaseRequirementDetails
+                    : []
+            );
+        } catch (error) {
+            setPrDetailError('Gagal memuat detail PR.');
+        } finally {
+            setPrDetailLoading(false);
+        }
+    };
+
+    const loadVendors = async () => {
+        if (vendorLoading || vendorList.length > 0) {
+            return;
+        }
+        setVendorLoading(true);
+        setVendorError('');
+        try {
+            const response = await fetch('/pembelian/purchase-order/vendors', {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+            const data = await response.json();
+            setVendorList(Array.isArray(data?.vendors) ? data.vendors : []);
+        } catch (error) {
+            setVendorError('Gagal memuat data vendor.');
+        } finally {
+            setVendorLoading(false);
+        }
+    };
+
+    const handleMaterialSelect = (item) => {
+        setMaterialForm((prev) => ({
+            ...prev,
+            kodeMaterial: item.kd_material ?? '',
+            material: item.material ?? '',
+            qty: item.qty ?? '',
+            satuan: item.unit ?? '',
+        }));
+    };
+
+    const handleAddMaterial = () => {
+        if (!materialForm.kodeMaterial || !materialForm.qty) {
+            return;
+        }
+
+        const newItem = {
+            id: `${Date.now()}-${Math.random()}`,
+            kodeMaterial: materialForm.kodeMaterial,
+            material: materialForm.material,
+            qty: materialForm.qty,
+            satuan: materialForm.satuan,
+            price: priceWithPpn,
+            ppn: ppnValue,
+            totalPrice: totalPriceValue,
+        };
+
+        setMaterialItems((prev) => [...prev, newItem]);
         setMaterialForm({
             kodeMaterial: '',
             material: '',
             qty: '',
             satuan: '',
-            price: '',
-            ppn: '',
+            basePrice: '',
         });
         setIncludePpn(false);
     };
 
-    const handleSaveMaterial = () => {
-        if (!editingMaterialId || !purchaseOrder?.no_po) {
-            return;
-        }
+    const totalPriceSum = materialItems.reduce(
+        (sum, item) =>
+            sum + parseNumber(item.qty) * parseNumber(item.price),
+        0
+    );
+    const totalPpnSum = materialItems.reduce(
+        (sum, item) => sum + parseNumber(item.qty) * parseNumber(item.ppn),
+        0
+    );
+    const grandTotalSum = totalPriceSum + totalPpnSum;
 
-        const payload = {
-            price: includePpn ? netPrice : materialForm.price,
-            ppn: includePpn ? ppnTotal : materialForm.ppn,
-            total_price: totalPriceValue,
-        };
-
-        router.put(
-            `/marketing/purchase-order/${encodeURIComponent(
-                purchaseOrder.no_po
-            )}/detail/${editingMaterialId}`,
-            payload,
+    const handleSubmit = () => {
+        router.post(
+            '/pembelian/purchase-order',
             {
-                preserveScroll: true,
-                preserveState: true,
-                onStart: () => setSavingMaterialId(editingMaterialId),
-                onFinish: () => setSavingMaterialId(null),
-                onSuccess: () => {
-                    setMaterialItems((prev) =>
-                        prev.map((item) =>
-                            item.id === editingMaterialId
-                                ? {
-                                      ...item,
-                                      price: payload.price,
-                                      ppn: payload.ppn,
-                                      totalPrice: payload.total_price,
-                                  }
-                                : item
-                        )
-                    );
-                    setSavingMaterialId(null);
-                    handleCancelEditMaterial();
-                },
-                onError: () => setSavingMaterialId(null),
+                date: formData.date,
+                ref_pr: formData.refPr,
+                ref_quota: formData.refQuota,
+                for_cus: formData.forCustomer,
+                ref_poin: formData.refPoMasuk,
+                ppn: formData.ppn,
+                nm_vdr: formData.namaVendor,
+                kd_vdr: formData.kodeVendor,
+                payment_terms: formData.paymentTerms,
+                del_time: formData.deliveryTime,
+                franco_loco: formData.francoLoco,
+                ket1: formData.note1,
+                ket2: formData.note2,
+                ket3: formData.note3,
+                ket4: formData.note4,
+                s_total: totalPriceSum,
+                h_ppn: totalPpnSum,
+                g_total: grandTotalSum,
+                materials: materialItems.map((item, index) => ({
+                    no: index + 1,
+                    kd_mat: item.kodeMaterial,
+                    material: item.material,
+                    qty: item.qty,
+                    unit: item.satuan,
+                    price: item.price,
+                    total_price: item.totalPrice,
+                    ppn: item.ppn,
+                })),
+            },
+            {
+                onStart: () => setIsSubmitting(true),
+                onFinish: () => setIsSubmitting(false),
             }
         );
     };
@@ -266,146 +380,35 @@ export default function PurchaseOrderEdit({
     }, [vendorCurrentPage, vendorTotalPages]);
 
     useEffect(() => {
-        if (!purchaseOrder) {
-            return;
+        if (formData.refPr) {
+            loadPrDetails(formData.refPr);
+        } else {
+            setPrDetailList([]);
         }
-
-        const rawPpn =
-            purchaseOrderDetails[0]?.ppn ?? purchaseOrder.ppn ?? '';
-        const parsedPpn =
-            typeof rawPpn === 'string' ? rawPpn.replace('%', '') : rawPpn;
-
-        setFormData((prev) => ({
-            ...prev,
-            refPr: purchaseOrder.ref_pr ?? '',
-            refQuota:
-                purchaseOrderDetails[0]?.ref_quota ??
-                purchaseOrder.ref_quota ??
-                '',
-            forCustomer: purchaseOrder.for_cus ?? '',
-            refPoMasuk: purchaseOrder.ref_poin ?? purchaseOrder.ref_po ?? '',
-            namaVendor: purchaseOrder.nm_vdr ?? '',
-            ppn: parsedPpn ?? '',
-            note1: purchaseOrderDetails[0]?.ket1 ?? '',
-            note2: purchaseOrderDetails[0]?.ket2 ?? '',
-            note3: purchaseOrderDetails[0]?.ket3 ?? '',
-            note4: purchaseOrderDetails[0]?.ket4 ?? '',
-            paymentTerms: purchaseOrderDetails[0]?.payment_terms ?? '',
-            deliveryTime: purchaseOrderDetails[0]?.del_time ?? '',
-            francoLoco: purchaseOrderDetails[0]?.franco_loco ?? '',
-        }));
-    }, [purchaseOrder, purchaseOrderDetails]);
+    }, [formData.refPr]);
 
     useEffect(() => {
-        if (!editingMaterialId) {
-            setSavingMaterialId(null);
+        if (includePpn) {
+            setFormData((prev) => ({
+                ...prev,
+                ppn: prev.ppn,
+            }));
         }
-    }, [editingMaterialId]);
-
-    useEffect(() => {
-        if (materialItems.length > 0 || purchaseOrderDetails.length === 0) {
-            return;
-        }
-
-        const mapped = purchaseOrderDetails.map((detail, index) => ({
-            id: detail.id ?? `${detail.no ?? index}-${Date.now()}`,
-            kodeMaterial: detail.kd_mat ?? detail.kd_material ?? '',
-            material: detail.material ?? '',
-            qty: detail.qty ?? '',
-            satuan: detail.unit ?? '',
-            price: detail.price ?? '',
-            ppn: detail.ppn ?? '',
-            totalPrice: detail.total_price ?? '',
-            kdVendor: detail.kd_vdr ?? '',
-        }));
-
-        setMaterialItems(mapped);
-    }, [materialItems.length, purchaseOrderDetails]);
-
-    useEffect(() => {
-        const detailVendor = purchaseOrderDetails[0]?.kd_vdr;
-        if (!detailVendor || vendors.length === 0) {
-            return;
-        }
-
-        const vendor = vendors.find((item) => item.kd_vdr === detailVendor);
-        if (!vendor) {
-            return;
-        }
-
-        setFormData((prev) => ({
-            ...prev,
-            kodeVendor: vendor.kd_vdr ?? prev.kodeVendor,
-            namaVendor: vendor.nm_vdr ?? prev.namaVendor,
-            attended: vendor.attn_vdr ?? prev.attended,
-        }));
-    }, [purchaseOrderDetails, vendors]);
-
-    const totalPriceSum = materialItems.reduce(
-        (sum, item) =>
-            sum + parseNumber(item.qty) * parseNumber(item.price),
-        0
-    );
-    const totalPpnSum = materialItems.reduce(
-        (sum, item) =>
-            sum +
-            (parseNumber(item.totalPrice) -
-                parseNumber(item.qty) * parseNumber(item.price)),
-        0
-    );
-    const grandTotalSum = totalPriceSum + totalPpnSum;
-
-    const handleSubmit = () => {
-        router.put(
-            `/marketing/purchase-order/${encodeURIComponent(
-                purchaseOrder?.no_po ?? ''
-            )}`,
-            {
-                ref_pr: formData.refPr,
-                ref_quota: formData.refQuota,
-                for_cus: formData.forCustomer,
-                ref_poin: formData.refPoMasuk,
-                ppn: formData.ppn,
-                nm_vdr: formData.namaVendor,
-                kd_vdr: formData.kodeVendor,
-                payment_terms: formData.paymentTerms,
-                del_time: formData.deliveryTime,
-                franco_loco: formData.francoLoco,
-                ket1: formData.note1,
-                ket2: formData.note2,
-                ket3: formData.note3,
-                ket4: formData.note4,
-                s_total: totalPriceSum,
-                h_ppn: totalPpnSum,
-                g_total: grandTotalSum,
-                materials: materialItems.map((item, index) => ({
-                    id: item.id,
-                    no: index + 1,
-                    price: item.price,
-                    ppn: item.ppn,
-                    total_price: item.totalPrice,
-                })),
-            },
-            {
-                onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
-            }
-        );
-    };
+    }, [includePpn]);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Edit PO" />
+            <Head title="Tambah PO" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-xl font-semibold">Edit PO</h1>
+                        <h1 className="text-xl font-semibold">Tambah PO</h1>
                         <p className="text-sm text-muted-foreground">
-                            Isi data PO dalam dua langkah
+                            Isi data PO dalam tiga langkah
                         </p>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                        Step {step} dari 2
+                        Step {step} dari 3
                     </div>
                 </div>
 
@@ -426,7 +429,16 @@ export default function PurchaseOrderEdit({
                                 : 'bg-muted text-muted-foreground'
                         }`}
                     >
-                        2. Data Material
+                        2. Data Vendor
+                    </span>
+                    <span
+                        className={`rounded-full px-3 py-1 ${
+                            step === 3
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground'
+                        }`}
+                    >
+                        3. Data Material
                     </span>
                 </div>
 
@@ -435,19 +447,38 @@ export default function PurchaseOrderEdit({
                         <CardHeader>
                             <CardTitle>Data PO</CardTitle>
                         </CardHeader>
-                        <CardContent className="grid gap-4 md:grid-cols-2">
-                            <label className="space-y-2 text-sm md:col-span-2">
+                        <CardContent className="grid gap-4 md:grid-cols-3">
+                            <label className="space-y-2 text-sm md:col-span-3">
                                 <span className="text-muted-foreground">
-                                    Ref PR
+                                    Cari PR Outstanding
                                 </span>
-                                <Input value={formData.refPr} readOnly />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                        setIsPrModalOpen(true);
+                                        loadPrs();
+                                    }}
+                                >
+                                    Cari PR
+                                </Button>
                             </label>
-                            
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">
-                                    For Customer
-                                </span>
-                                <Input value={formData.forCustomer} readOnly />
+                                <span className="text-muted-foreground">Date</span>
+                                <Input
+                                    type="date"
+                                    value={formData.date}
+                                    onChange={(event) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            date: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </label>
+                            <label className="space-y-2 text-sm">
+                                <span className="text-muted-foreground">Ref PR</span>
+                                <Input value={formData.refPr} readOnly />
                             </label>
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">
@@ -463,6 +494,35 @@ export default function PurchaseOrderEdit({
                                     }
                                 />
                             </label>
+                            <label className="space-y-2 text-sm md:col-span-3">
+                                <span className="text-muted-foreground">
+                                    For Customer
+                                </span>
+                                <Input
+                                    value={formData.forCustomer}
+                                    onChange={(event) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            forCustomer: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </label>
+                        </CardContent>
+                        <div className="flex justify-end gap-2 px-6 pb-6">
+                            <Button type="button" onClick={() => setStep(2)}>
+                                Lanjut
+                            </Button>
+                        </div>
+                    </Card>
+                )}
+
+                {step === 2 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Data Vendor</CardTitle>
+                        </CardHeader>
+                        <CardContent className="grid gap-4 md:grid-cols-2">
                             <label className="space-y-2 text-sm md:col-span-2">
                                 <span className="text-muted-foreground">
                                     Cari Vendor
@@ -470,7 +530,10 @@ export default function PurchaseOrderEdit({
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() => setIsVendorModalOpen(true)}
+                                    onClick={() => {
+                                        setIsVendorModalOpen(true);
+                                        loadVendors();
+                                    }}
                                 >
                                     Cari Vendor
                                 </Button>
@@ -486,20 +549,6 @@ export default function PurchaseOrderEdit({
                                     Nama Vendor
                                 </span>
                                 <Input value={formData.namaVendor} readOnly />
-                            </label>
-                            <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">
-                                    Ref Quota
-                                </span>
-                                <Input
-                                    value={formData.refQuota}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            refQuota: event.target.value,
-                                        }))
-                                    }
-                                />
                             </label>
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">Attended</span>
@@ -522,6 +571,20 @@ export default function PurchaseOrderEdit({
                                         setFormData((prev) => ({
                                             ...prev,
                                             ppn: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </label>
+                            <label className="space-y-2 text-sm">
+                                <span className="text-muted-foreground">
+                                    Ref Quota
+                                </span>
+                                <Input
+                                    value={formData.refQuota}
+                                    onChange={(event) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            refQuota: event.target.value,
                                         }))
                                     }
                                 />
@@ -604,33 +667,92 @@ export default function PurchaseOrderEdit({
                                     }
                                 />
                             </label>
-                            <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">Note 4</span>
-                                <Input
-                                    value={formData.note4}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            note4: event.target.value,
-                                        }))
-                                    }
-                                />
-                            </label>
                         </CardContent>
-                        <div className="flex justify-end gap-2 px-6 pb-6">
-                            <Button type="button" onClick={() => setStep(2)}>
+                        <div className="flex justify-between gap-2 px-6 pb-6">
+                            <Button
+                                variant="outline"
+                                type="button"
+                                onClick={() => setStep(1)}
+                            >
+                                Kembali
+                            </Button>
+                            <Button type="button" onClick={() => setStep(3)}>
                                 Lanjut
                             </Button>
                         </div>
                     </Card>
                 )}
 
-                {step === 2 && (
+                {step === 3 && (
                     <Card>
                         <CardHeader>
                             <CardTitle>Data Material</CardTitle>
                         </CardHeader>
                         <CardContent className="grid gap-4">
+                            <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-muted/50 text-muted-foreground">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left">
+                                                Kode Material
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Material
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Qty
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Satuan
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Remark
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {selectedPrMaterials.length === 0 && (
+                                            <tr>
+                                                <td
+                                                    className="px-4 py-6 text-center text-muted-foreground"
+                                                    colSpan={5}
+                                                >
+                                                    {prDetailLoading
+                                                        ? 'Memuat detail PR...'
+                                                        : prDetailError ||
+                                                          'Belum ada material PR.'}
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {selectedPrMaterials.map((item, index) => (
+                                            <tr
+                                                key={`${item.no_pr}-${index}`}
+                                                className="border-t border-sidebar-border/70 cursor-pointer"
+                                                onClick={() =>
+                                                    handleMaterialSelect(item)
+                                                }
+                                            >
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.kd_material)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.material)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.qty)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.unit)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.renmark)}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
                             <div className="grid gap-4 lg:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label>Kode Material</Label>
@@ -642,11 +764,27 @@ export default function PurchaseOrderEdit({
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Qty</Label>
-                                    <Input value={materialForm.qty} readOnly />
+                                    <Input
+                                        value={materialForm.qty}
+                                        onChange={(event) =>
+                                            setMaterialForm((prev) => ({
+                                                ...prev,
+                                                qty: event.target.value,
+                                            }))
+                                        }
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Satuan</Label>
-                                    <Input value={materialForm.satuan} readOnly />
+                                    <Input
+                                        value={materialForm.satuan}
+                                        onChange={(event) =>
+                                            setMaterialForm((prev) => ({
+                                                ...prev,
+                                                satuan: event.target.value,
+                                            }))
+                                        }
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Price</Label>
@@ -654,31 +792,24 @@ export default function PurchaseOrderEdit({
                                         type="number"
                                         value={
                                             includePpn
-                                                ? netPrice.toString()
-                                                : materialForm.price
+                                                ? priceWithPpn.toString()
+                                                : materialForm.basePrice
                                         }
+                                        readOnly={includePpn}
                                         onChange={(event) =>
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                price: event.target.value,
+                                                basePrice: event.target.value,
                                             }))
                                         }
-                                        disabled={!editingMaterialId || includePpn}
                                     />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>PPN</Label>
                                     <Input
                                         type="number"
-                                        value={includePpn ? ppnTotal : materialForm.ppn}
-                                        onChange={(event) =>
-                                            setMaterialForm((prev) => ({
-                                                ...prev,
-                                                ppn: event.target.value,
-                                            }))
-                                        }
+                                        value={includePpn ? ppnValue : 0}
                                         readOnly
-                                        disabled={!editingMaterialId}
                                     />
                                 </div>
                                 <div className="grid gap-2 lg:col-span-2">
@@ -689,7 +820,6 @@ export default function PurchaseOrderEdit({
                                             onChange={(event) =>
                                                 setIncludePpn(event.target.checked)
                                             }
-                                            disabled={!editingMaterialId}
                                         />
                                         Include PPN
                                     </label>
@@ -698,37 +828,17 @@ export default function PurchaseOrderEdit({
                                     <Label>Total Price</Label>
                                     <Input
                                         value={
-                                            editingMaterialId
-                                                ? totalPriceValue
+                                            totalPriceValue
+                                                ? totalPriceValue.toString()
                                                 : ''
                                         }
                                         readOnly
                                     />
                                 </div>
                                 <div className="grid gap-2 lg:col-span-2">
-                                    <div className="flex flex-wrap gap-2">
-                                        <Button
-                                            type="button"
-                                            onClick={handleSaveMaterial}
-                                            disabled={
-                                                !editingMaterialId ||
-                                                savingMaterialId ===
-                                                    editingMaterialId
-                                            }
-                                        >
-                                            {savingMaterialId === editingMaterialId
-                                                ? 'Menyimpan...'
-                                                : 'Simpan Data'}
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={handleCancelEditMaterial}
-                                            disabled={!editingMaterialId}
-                                        >
-                                            Batal
-                                        </Button>
-                                    </div>
+                                    <Button type="button" onClick={handleAddMaterial}>
+                                        Tambah Data
+                                    </Button>
                                 </div>
                             </div>
 
@@ -760,9 +870,6 @@ export default function PurchaseOrderEdit({
                                             <th className="px-4 py-3 text-left">
                                                 Total Price
                                             </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Action
-                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -770,7 +877,7 @@ export default function PurchaseOrderEdit({
                                             <tr>
                                                 <td
                                                     className="px-4 py-6 text-center text-muted-foreground"
-                                                    colSpan={9}
+                                                    colSpan={8}
                                                 >
                                                     Belum ada material ditambahkan.
                                                 </td>
@@ -805,19 +912,6 @@ export default function PurchaseOrderEdit({
                                                 <td className="px-4 py-3">
                                                     {renderValue(item.totalPrice)}
                                                 </td>
-                                                <td className="px-4 py-3">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        onClick={() =>
-                                                            handleEditMaterial(
-                                                                item
-                                                            )
-                                                        }
-                                                    >
-                                                        Edit
-                                                    </Button>
-                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -834,7 +928,10 @@ export default function PurchaseOrderEdit({
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Total PPN</Label>
-                                    <Input value={formatRupiah(totalPpnSum)} readOnly />
+                                    <Input
+                                        value={formatRupiah(totalPpnSum)}
+                                        readOnly
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Grand Total</Label>
@@ -849,7 +946,7 @@ export default function PurchaseOrderEdit({
                             <Button
                                 variant="outline"
                                 type="button"
-                                onClick={() => setStep(1)}
+                                onClick={() => setStep(2)}
                             >
                                 Kembali
                             </Button>
@@ -865,13 +962,179 @@ export default function PurchaseOrderEdit({
                     </Card>
                 )}
 
-                {/* PR modal intentionally removed on edit */}
+                <Dialog
+                    open={isPrModalOpen}
+                    onOpenChange={(open) => {
+                        setIsPrModalOpen(open);
+                        if (open) {
+                            loadPrs();
+                        } else {
+                            setPrSearchTerm('');
+                            setPrPageSize(10);
+                            setPrCurrentPage(1);
+                        }
+                    }}
+                >
+                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>PR Outstanding</DialogTitle>
+                        </DialogHeader>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <label>
+                                Tampilkan
+                                <select
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                    value={prPageSize === Infinity ? 'all' : prPageSize}
+                                    onChange={(event) => {
+                                        const value = event.target.value;
+                                        setPrPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value)
+                                        );
+                                        setPrCurrentPage(1);
+                                    }}
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </label>
+                            <label>
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                    placeholder="Cari no PR, ref PO, customer..."
+                                    value={prSearchTerm}
+                                    onChange={(event) =>
+                                        setPrSearchTerm(event.target.value)
+                                    }
+                                />
+                            </label>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left">
+                                            No PR
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Customer
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Ref PO
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Action
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {displayedPr.length === 0 && (
+                                        <tr>
+                                            <td
+                                                className="px-4 py-6 text-center text-muted-foreground"
+                                                colSpan={4}
+                                            >
+                                                {prLoading
+                                                    ? 'Memuat data PR...'
+                                                    : prError ||
+                                                      'Tidak ada PR outstanding.'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {displayedPr.map((item) => (
+                                        <tr
+                                            key={item.no_pr}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.no_pr)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.for_customer)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.ref_po)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() =>
+                                                        handlePrSelect(item)
+                                                    }
+                                                >
+                                                    Pilih
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {prPageSize !== Infinity && prTotalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (prCurrentPage - 1) * prPageSize + 1,
+                                        prTotalItems
+                                    )}
+                                    -
+                                    {Math.min(
+                                        prCurrentPage * prPageSize,
+                                        prTotalItems
+                                    )}{' '}
+                                    dari {prTotalItems} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setPrCurrentPage((page) =>
+                                                Math.max(1, page - 1)
+                                            )
+                                        }
+                                        disabled={prCurrentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {prCurrentPage} dari {prTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setPrCurrentPage((page) =>
+                                                Math.min(prTotalPages, page + 1)
+                                            )
+                                        }
+                                        disabled={prCurrentPage === prTotalPages}
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
 
                 <Dialog
                     open={isVendorModalOpen}
                     onOpenChange={(open) => {
                         setIsVendorModalOpen(open);
-                        if (!open) {
+                        if (open) {
+                            loadVendors();
+                        } else {
                             setVendorSearchTerm('');
                             setVendorPageSize(10);
                             setVendorCurrentPage(1);
@@ -957,7 +1220,10 @@ export default function PurchaseOrderEdit({
                                                 className="px-4 py-6 text-center text-muted-foreground"
                                                 colSpan={7}
                                             >
-                                                Tidak ada data vendor.
+                                                {vendorLoading
+                                                    ? 'Memuat data vendor...'
+                                                    : vendorError ||
+                                                      'Tidak ada data vendor.'}
                                             </td>
                                         </tr>
                                     )}

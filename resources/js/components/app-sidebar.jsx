@@ -57,8 +57,8 @@ const menuSections = [
         title: 'Pembelian',
         icon: ShoppingBagIcon,
         items: [
-            { title: 'Delivery Order Cost (APB)', href: '/marketing/delivery-order-cost' },
-            { title: 'Purchase Order', href: '/marketing/purchase-order' },
+            { title: 'Delivery Order Cost (APB)', href: '/pembelian/delivery-order-cost' },
+            { title: 'Purchase Order', href: '/pembelian/purchase-order' },
             { title: 'Invoice Masuk', href: '#' },
             { title: 'Permintaan Dana Operaisonal', href: '#' },
             { title: 'Permintaan Dana Biaya', href: '#' },
@@ -80,7 +80,7 @@ const menuSections = [
         title: 'Penjualan',
         icon: Truck,
         items: [
-            { title: 'Faktur Penjualan', href: '#' },
+            { title: 'Faktur Penjualan', href: '/penjualan/faktur-penjualan' },
             { title: 'Kwitansi', href: '#' },
             { title: 'Tanda Terima Invoice', href: '#' },
         ],
