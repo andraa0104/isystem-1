@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use App\Models\Pengguna;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Auth;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
@@ -67,7 +68,7 @@ Route::post('/login-simple', function (Request $request) {
         ->withCookie(cookie('login_last_online', (string) ($user->last_online ?? ''), 60 * 24 * 30));
 });
 
-Route::post('/logout-simple', function (Request $request) {
+Route::match(['get', 'post'], '/logout-simple', function (Request $request) {
     $database = $request->cookie('tenant_database');
     $username = $request->cookie('login_user');
     $allowed = config('tenants.databases', []);
@@ -84,9 +85,13 @@ Route::post('/logout-simple', function (Request $request) {
             $column = config('tenants.last_online_column', 'LastOnline');
             Pengguna::on($connection)
                 ->where('pengguna', $username)
-                ->update([$column => now()]);
+                ->update([$column => now('Asia/Singapore')]);
         }
     }
+
+    Auth::logout();
+    $request->session()->invalidate();
+    $request->session()->regenerateToken();
 
     return redirect('/login')
         ->withCookie(Cookie::forget('login_user'))

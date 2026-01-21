@@ -42,7 +42,7 @@ class AppServiceProvider extends ServiceProvider
             DB::connection($connection)
                 ->table('tb_pengguna')
                 ->where('pengguna', $event->user->getAuthIdentifier())
-                ->update([config('tenants.last_online_column', 'LastOnline') => now()]);
+                ->update([config('tenants.last_online_column', 'LastOnline') => now('Asia/Singapore')]);
         });
     }
 }

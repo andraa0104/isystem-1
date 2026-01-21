@@ -1,7 +1,6 @@
 import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, } from '@/components/ui/dropdown-menu';
 import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
-import { login } from '@/routes';
 import { Link, router } from '@inertiajs/react';
 import { LogOut, Settings } from 'lucide-react';
 export function UserMenuContent({ user }) {
@@ -9,7 +8,7 @@ export function UserMenuContent({ user }) {
     const handleLogout = () => {
         cleanup();
         router.flushAll();
-        router.post('/logout-simple', {}, { onFinish: () => router.visit(login()) });
+        router.post('/logout-simple', {}, { onSuccess: () => router.visit('/login') });
     };
     return (<>
             <DropdownMenuLabel className="p-0 font-normal">
@@ -27,11 +26,13 @@ export function UserMenuContent({ user }) {
                 </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-                <button className="block w-full" type="button" onClick={handleLogout} data-test="logout-button">
-                    <LogOut className="mr-2"/>
-                    Log out
-                </button>
+            <DropdownMenuItem
+                className="cursor-pointer"
+                onSelect={handleLogout}
+                data-test="logout-button"
+            >
+                <LogOut className="mr-2"/>
+                Log out
             </DropdownMenuItem>
         </>);
 }
