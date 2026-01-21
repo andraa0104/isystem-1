@@ -1,6 +1,7 @@
 import { NavFooter } from '@/components/nav-footer';
 import { NavUser } from '@/components/nav-user';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
     Sidebar,
     SidebarContent,
@@ -13,6 +14,7 @@ import {
     SidebarMenuSub,
     SidebarMenuSubButton,
     SidebarMenuSubItem,
+    useSidebar,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import { Link } from '@inertiajs/react';
@@ -37,7 +39,96 @@ const footerNavItems = [
         icon: BookOpen,
     },
 ];
+const menuTextWrapClass = 'h-auto items-start [&>span:last-child]:whitespace-normal [&>span:last-child]:break-words [&>span:last-child]:text-clip [&>span:last-child]:overflow-visible';
+const subMenuTextWrapClass = 'h-auto items-start [&>span:last-child]:whitespace-normal [&>span:last-child]:break-words [&>span:last-child]:text-clip [&>span:last-child]:overflow-visible';
+const dropdownItemWrapClass = 'h-auto items-start whitespace-normal [&_span]:whitespace-normal [&_span]:break-words';
+const menuSections = [
+    {
+        title: 'Marketing',
+        icon: WeightIcon,
+        items: [
+            { title: 'Quotation', href: '/marketing/quotation' },
+            { title: 'Purchase Requirement (PR)', href: '/marketing/purchase-requirement' },
+            { title: 'Delivery Order (DO)', href: '/marketing/delivery-order' },
+            { title: 'Delivery Order Add (DOA)', href: '/marketing/delivery-order-add' },
+        ],
+    },
+    {
+        title: 'Pembelian',
+        icon: ShoppingBagIcon,
+        items: [
+            { title: 'Delivery Order Cost (APB)', href: '/marketing/delivery-order-cost' },
+            { title: 'Purchase Order', href: '/marketing/purchase-order' },
+            { title: 'Invoice Masuk', href: '#' },
+            { title: 'Permintaan Dana Operaisonal', href: '#' },
+            { title: 'Permintaan Dana Biaya', href: '#' },
+            { title: 'Biaya Kirim Pembelian', href: '#' },
+            { title: 'Biaya Kirim Penjualan', href: '#' },
+            { title: 'Payment Cost', href: '#' },
+        ],
+    },
+    {
+        title: 'Inventory',
+        icon: Package,
+        items: [
+            { title: 'Data Material', href: '#' },
+            { title: 'Penerimaan Material', href: '#' },
+            { title: 'Transfer Material', href: '#' },
+        ],
+    },
+    {
+        title: 'Penjualan',
+        icon: Truck,
+        items: [
+            { title: 'Faktur Penjualan', href: '#' },
+            { title: 'Kwitansi', href: '#' },
+            { title: 'Tanda Terima Invoice', href: '#' },
+        ],
+    },
+    {
+        title: 'Keuangan',
+        icon: Banknote,
+        items: [
+            { title: 'Mutasi Kas', href: '#' },
+            { title: 'Input Pembelian', href: '#' },
+            { title: 'Input Penjualan', href: '#' },
+            { title: 'Penyesuaian', href: '#' },
+            { title: 'Jurnal Lainnya', href: '#' },
+        ],
+    },
+    {
+        title: 'Master Data',
+        icon: BookText,
+        items: [
+            { title: 'Vendor', href: '/master-data/vendor' },
+            { title: 'Customer', href: '/master-data/customer' },
+            { title: 'Material', href: '/master-data/material' },
+            { title: 'Biaya Kirim Pembelian', href: '#' },
+            { title: 'Biaya Kirim Penjualan', href: '#' },
+            { title: 'Pembayaran Biaya', href: '#' },
+            { title: 'Invoice Receipt (FI)', href: '#' },
+            { title: 'Faktur Penjualan', href: '#' },
+        ],
+    },
+    {
+        title: 'Laporan',
+        icon: FileText,
+        items: [
+            { title: 'Jurnal Umum', href: '#' },
+            { title: 'Jurnal Penyesuaian', href: '#' },
+            { title: 'Buku Besar', href: '#' },
+            { title: 'Buku Kas', href: '#' },
+            { title: 'Neraca Saldo', href: '#' },
+            { title: 'Neraca Lajur', href: '#' },
+            { title: 'Neraca Akhir', href: '#' },
+            { title: 'Rugi Laba', href: '#' },
+            { title: 'Perubahan Modal', href: '#' },
+        ],
+    },
+];
 export function AppSidebar() {
+    const { state } = useSidebar();
+    const isCollapsed = state === 'collapsed';
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -56,11 +147,11 @@ export function AppSidebar() {
                 <SidebarGroup>
                     <SidebarMenu>
                         <SidebarMenuItem>
-                            <SidebarMenuButton asChild>
+                            <SidebarMenuButton asChild className={menuTextWrapClass}>
                                 <Link
                                     href={dashboard()}
 
-                                    className="flex items-center gap-2"
+                                    className="flex items-start gap-2"
                                 >
                                     <LayoutDashboard />
                                     <span>Dashboard</span>
@@ -68,398 +159,59 @@ export function AppSidebar() {
                             </SidebarMenuButton>
                         </SidebarMenuItem>
 
-                        <Collapsible className="group/collapsible">
-                            <SidebarMenuItem>
-                                <CollapsibleTrigger asChild>
-                                    <SidebarMenuButton className="w-full">
-                                        <WeightIcon />
-                                        <span>Marketing</span>
-                                        <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                                    </SidebarMenuButton>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                    <SidebarMenuSub>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="/marketing/quotation">
-                                                    <span>Quotation</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="/marketing/purchase-requirement">
-                                                    <span>Purchase Requirement (PR)</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="/marketing/delivery-order">
-                                                    <span>Delivery Order (DO)</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="/marketing/delivery-order-add">
-                                                    <span>Delivery Order Add (DOA)</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="/marketing/delivery-order-cost">
-                                                    <span>Delivery Order Cost (DOB)</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                    </SidebarMenuSub>
-                                </CollapsibleContent>
-                            </SidebarMenuItem>
-                        </Collapsible>
-
-                        <Collapsible className="group/collapsible">
-                            <SidebarMenuItem>
-                                <CollapsibleTrigger asChild>
-                                    <SidebarMenuButton className="w-full">
-                                        <ShoppingBagIcon />
-                                        <span>Pembelian</span>
-                                        <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                                    </SidebarMenuButton>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                    <SidebarMenuSub>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="/marketing/purchase-order">
-                                                    <span>Purchase Order</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Invoice Masuk</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Permintaan Dana Operaisonal</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Permintaan Dana Biaya</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Biaya Kirim Pembelian</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Biaya Kirim Penjualan</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Payment Cost</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                    </SidebarMenuSub>
-                                </CollapsibleContent>
-                            </SidebarMenuItem>
-                        </Collapsible>
-
-                        <Collapsible className="group/collapsible">
-                            <SidebarMenuItem>
-                                <CollapsibleTrigger asChild>
-                                    <SidebarMenuButton className="w-full">
-                                        <Package />
-                                        <span>Inventory</span>
-                                        <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                                    </SidebarMenuButton>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                    <SidebarMenuSub>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Data Material</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Penerimaan Material</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Transfer Material</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                    </SidebarMenuSub>
-                                </CollapsibleContent>
-                            </SidebarMenuItem>
-                        </Collapsible>
-
-                        <Collapsible className="group/collapsible">
-                            <SidebarMenuItem>
-                                <CollapsibleTrigger asChild>
-                                    <SidebarMenuButton className="w-full">
-                                        <Truck />
-                                        <span>Penjualan</span>
-                                        <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                                    </SidebarMenuButton>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                    <SidebarMenuSub>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Faktur Penjualan</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Kwitansi</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Tanda Terima Invoice</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                    </SidebarMenuSub>
-                                </CollapsibleContent>
-                            </SidebarMenuItem>
-                        </Collapsible>
-
-                        <Collapsible className="group/collapsible">
-                            <SidebarMenuItem>
-                                <CollapsibleTrigger asChild>
-                                    <SidebarMenuButton className="w-full">
-                                        <Banknote />
-                                        <span>Keuangan</span>
-                                        <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                                    </SidebarMenuButton>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                    <SidebarMenuSub>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Mutasi Kas</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Input Pembelian</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Input Penjualan</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Penyesuaian</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Jurnal Lainnya</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                    </SidebarMenuSub>
-                                </CollapsibleContent>
-                            </SidebarMenuItem>
-                        </Collapsible>
-
-                        <Collapsible className="group/collapsible">
-                            <SidebarMenuItem>
-                                <CollapsibleTrigger asChild>
-                                    <SidebarMenuButton className="w-full">
-                                        <BookText />
-                                        <span>Master Data</span>
-                                        <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                                    </SidebarMenuButton>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                    <SidebarMenuSub>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="/master-data/vendor">
-                                                    <span>Vendor</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="/master-data/customer">
-                                                    <span>Customer</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="/master-data/material">
-                                                    <span>Material</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Biaya Kirim Pembelian</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Biaya Kirim Penjualan</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Pembayaran Biaya</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Invoice Receipt (FI)</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Faktur Penjualan</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        
-                                    </SidebarMenuSub>
-                                </CollapsibleContent>
-                            </SidebarMenuItem>
-                        </Collapsible>
-
-                        <Collapsible className="group/collapsible">
-                            <SidebarMenuItem>
-                                <CollapsibleTrigger asChild>
-                                    <SidebarMenuButton className="w-full">
-                                        <FileText />
-                                        <span>Laporan</span>
-                                        <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                                    </SidebarMenuButton>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent>
-                                    <SidebarMenuSub>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Jurnal Umum</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Jurnal Penyesuaian</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Buku Besar</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Buku Kas</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Neraca Saldo</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Neraca Lajur</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Neraca Akhir</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Rugi Laba</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton asChild>
-                                                <Link href="#">
-                                                    <span>Perubahan Modal</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                    </SidebarMenuSub>
-                                </CollapsibleContent>
-                            </SidebarMenuItem>
-                        </Collapsible>
+                        {menuSections.map((section) => {
+                            const SectionIcon = section.icon;
+                            return (
+                                isCollapsed ? (
+                                    <SidebarMenuItem key={section.title}>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <SidebarMenuButton className={`w-full ${menuTextWrapClass}`}>
+                                                    <SectionIcon />
+                                                    <span>{section.title}</span>
+                                                </SidebarMenuButton>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent side="right" align="start" className="min-w-56">
+                                                <DropdownMenuLabel>{section.title}</DropdownMenuLabel>
+                                                <DropdownMenuSeparator />
+                                                {section.items.map((item) => (
+                                                    <DropdownMenuItem key={item.title} asChild className={dropdownItemWrapClass}>
+                                                        <Link href={item.href}>
+                                                            <span>{item.title}</span>
+                                                        </Link>
+                                                    </DropdownMenuItem>
+                                                ))}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </SidebarMenuItem>
+                                ) : (
+                                    <Collapsible key={section.title} className="group/collapsible">
+                                        <SidebarMenuItem>
+                                            <CollapsibleTrigger asChild>
+                                                <SidebarMenuButton className={`w-full ${menuTextWrapClass}`}>
+                                                    <SectionIcon />
+                                                    <span>{section.title}</span>
+                                                    <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                                                </SidebarMenuButton>
+                                            </CollapsibleTrigger>
+                                            <CollapsibleContent>
+                                                <SidebarMenuSub>
+                                                    {section.items.map((item) => (
+                                                        <SidebarMenuSubItem key={item.title}>
+                                                            <SidebarMenuSubButton asChild className={subMenuTextWrapClass}>
+                                                                <Link href={item.href}>
+                                                                    <span>{item.title}</span>
+                                                                </Link>
+                                                            </SidebarMenuSubButton>
+                                                        </SidebarMenuSubItem>
+                                                    ))}
+                                                </SidebarMenuSub>
+                                            </CollapsibleContent>
+                                        </SidebarMenuItem>
+                                    </Collapsible>
+                                )
+                            );
+                        })}
                     </SidebarMenu>
                 </SidebarGroup>
             </SidebarContent>

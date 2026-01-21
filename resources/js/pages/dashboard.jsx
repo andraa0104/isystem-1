@@ -62,7 +62,7 @@ export default function Dashboard({ quotationStats = [] }) {
                                         >
                                             <div className="flex h-28 w-full items-end">
                                                 <div
-                                                    className="flex w-full items-end justify-center rounded-md bg-emerald-500/80 text-[10px] font-semibold text-white"
+                                                    className="flex w-full items-end justify-center rounded-md bg-emerald-500/80 text-[15px] font-extrabold text-black dark:text-white"
                                                     style={{ height: `${Math.max(height, 8)}%` }}
                                                 >
                                                     <span className="pb-1">
