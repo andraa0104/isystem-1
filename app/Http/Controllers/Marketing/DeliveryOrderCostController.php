@@ -354,4 +354,70 @@ class DeliveryOrderCostController
 
         return back()->with('success', 'Data DO biaya berhasil diperbarui.');
     }
+
+    public function print(Request $request, $noAlokasi)
+    {
+        $header = DB::table('tb_kddobi')
+            ->where('no_alokasi', $noAlokasi)
+            ->first();
+
+        $details = DB::table('tb_dobi')
+            ->where('no_alokasi', $noAlokasi)
+            ->orderBy('no')
+            ->get();
+
+        if (!$header) {
+            $header = $details->first();
+        }
+
+        if (!$header) {
+            return redirect()
+                ->route('marketing.delivery-order-cost.index')
+                ->with('error', 'Data DO biaya tidak ditemukan.');
+        }
+
+        $grandTotal = $details->reduce(function ($total, $detail) {
+            $value = is_numeric($detail->total ?? null)
+                ? (float) $detail->total
+                : 0.0;
+
+            return $total + $value;
+        }, 0.0);
+
+        $customerAddress = null;
+        if ($header?->nm_cs) {
+            $customerAddress = DB::table('tb_cs')
+                ->where('nm_cs', $header->nm_cs)
+                ->value('alamat_cs');
+        }
+
+        $database = $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database');
+        $lookupKey = $database;
+        if (is_string($lookupKey) && str_starts_with($lookupKey, 'DB')) {
+            $lookupKey = substr($lookupKey, 2);
+        }
+        $companyConfig = $lookupKey
+            ? config("tenants.companies.$lookupKey", [])
+            : [];
+        $fallbackName = $lookupKey
+            ? config("tenants.labels.$lookupKey", $lookupKey)
+            : config('app.name');
+
+        $company = [
+            'name' => $companyConfig['name'] ?? $fallbackName,
+            'address' => $companyConfig['address'] ?? '',
+            'phone' => $companyConfig['phone'] ?? '',
+            'kota' => $companyConfig['kota'] ?? '',
+            'email' => $companyConfig['email'] ?? '',
+        ];
+
+        return Inertia::render('marketing/delivery-order-cost/print', [
+            'header' => $header,
+            'details' => $details,
+            'grandTotal' => $grandTotal,
+            'customerAddress' => $customerAddress,
+            'company' => $company,
+        ]);
+    }
 }

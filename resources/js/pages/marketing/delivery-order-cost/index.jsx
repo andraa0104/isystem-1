@@ -480,14 +480,18 @@ export default function DeliveryOrderCostIndex({
                                                     >
                                                         <Eye className="size-4" />
                                                     </button>
-                                                    <button
-                                                        type="button"
+                                                    <a
                                                         className="text-muted-foreground transition hover:text-foreground"
                                                         aria-label="Cetak"
                                                         title="Cetak"
+                                                        href={`/marketing/delivery-order-cost/${encodeURIComponent(
+                                                            item.no_alokasi,
+                                                        )}/print`}
+                                                        target="_blank"
+                                                        rel="noreferrer"
                                                     >
                                                         <Printer className="size-4" />
-                                                    </button>
+                                                    </a>
                                                 </div>
                                             </td>
                                         </tr>

@@ -262,6 +262,8 @@ Route::get('marketing/delivery-order-cost/materials', [DeliveryOrderCostControll
     ->name('marketing.delivery-order-cost.materials');
 Route::post('marketing/delivery-order-cost', [DeliveryOrderCostController::class, 'store'])
     ->name('marketing.delivery-order-cost.store');
+Route::get('marketing/delivery-order-cost/{noAlokasi}/print', [DeliveryOrderCostController::class, 'print'])
+    ->name('marketing.delivery-order-cost.print');
 Route::post('marketing/delivery-order-cost/{noAlokasi}/detail', [DeliveryOrderCostController::class, 'storeDetail'])
     ->name('marketing.delivery-order-cost.detail.store');
 Route::put('marketing/delivery-order-cost/{noAlokasi}/detail/{lineNo}', [DeliveryOrderCostController::class, 'updateDetail'])
