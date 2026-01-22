@@ -496,27 +496,36 @@ class QuotationController
             $prefix = 'SJA';
         }
 
-        $lastNumber = DB::table('tb_penawaran')
-            ->where('No_penawaran', 'like', $prefix.'%')
-            ->orderBy('No_penawaran', 'desc')
-            ->value('No_penawaran');
-
-        $sequence = 1;
-        if ($lastNumber) {
-            $suffix = substr($lastNumber, strlen($prefix));
-            $sequence = max(1, (int) $suffix + 1);
-        }
-
-        $noPenawaran = $prefix.str_pad((string) $sequence, 7, '0', STR_PAD_LEFT);
-
         $materials = $request->input('materials', []);
         if (!is_array($materials)) {
             $materials = [];
         }
 
-        try {
-            DB::transaction(function () use ($request, $materials, $noPenawaran) {
-                DB::table('tb_penawaran')->insert([
+        $maxAttempts = 3;
+        $attempt = 0;
+
+        while (true) {
+            try {
+                DB::transaction(function () use ($request, $materials, $prefix) {
+                    $lastNumber = DB::table('tb_penawaran')
+                        ->where('No_penawaran', 'like', $prefix.'%')
+                        ->orderBy('No_penawaran', 'desc')
+                        ->lockForUpdate()
+                        ->value('No_penawaran');
+
+                    $sequence = 1;
+                    if ($lastNumber) {
+                        $suffix = substr($lastNumber, strlen($prefix));
+                        $sequence = max(1, (int) $suffix + 1);
+                    }
+
+                    $noPenawaran = $prefix.str_pad((string) $sequence, 7, '0', STR_PAD_LEFT);
+
+                    if (DB::table('tb_penawaran')->where('No_penawaran', $noPenawaran)->exists()) {
+                        throw new \RuntimeException('duplicate_no_penawaran');
+                    }
+
+                    DB::table('tb_penawaran')->insert([
                     'No_penawaran' => $noPenawaran,
                     'Tgl_penawaran' => $request->input('tgl_penawaran')
                         ?? Carbon::today()->toDateString(),
@@ -558,9 +567,22 @@ class QuotationController
                         'Remark' => $item['remark'] ?? null,
                     ]);
                 }
-            });
-        } catch (\Throwable $exception) {
-            return back()->with('error', $exception->getMessage());
+                });
+                break;
+            } catch (\Throwable $exception) {
+                $attempt++;
+                $message = strtolower($exception->getMessage());
+                $isDuplicate = str_contains($message, 'duplicate_no_penawaran')
+                    || str_contains($message, 'duplicate')
+                    || ($exception instanceof \Illuminate\Database\QueryException
+                        && $exception->getCode() === '23000');
+
+                if ($attempt < $maxAttempts && $isDuplicate) {
+                    continue;
+                }
+
+                return back()->with('error', $exception->getMessage());
+            }
         }
 
         return redirect()

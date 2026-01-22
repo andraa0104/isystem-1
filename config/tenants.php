@@ -19,7 +19,8 @@ return [
     'companies' => [
         'dbsja' => [
             'name' => 'CV. SEMESTA JAYA ABADI',
-            'address' => 'Jl. Sentosa RT. 72 No. 36C, Samarinda',
+            'address' => 'Jalan Sentosa No 31B RT. 35 Kel. Sungai Pinang Dalam Kec. Sungai Pinang ',
+            'kota' => 'Kota Samarinda Provinsi Kalimantan Timur',
             'phone' => '0541-771571',
             'email' => 'cs_sja@yahoo.com',
         ],

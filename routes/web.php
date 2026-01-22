@@ -276,5 +276,21 @@ Route::put('pembelian/delivery-order-cost/{noAlokasi}', [DeliveryOrderCostContro
 
 Route::get('penjualan/faktur-penjualan', [FakturPenjualanController::class, 'index'])
     ->name('penjualan.faktur-penjualan.index');
+Route::get('penjualan/faktur-penjualan/create', [FakturPenjualanController::class, 'create'])
+    ->name('penjualan.faktur-penjualan.create');
+Route::post('penjualan/faktur-penjualan', [FakturPenjualanController::class, 'store'])
+    ->name('penjualan.faktur-penjualan.store');
+Route::post('penjualan/faktur-penjualan/upload-faktur-pajak', [FakturPenjualanController::class, 'uploadFakturPajak'])
+    ->name('penjualan.faktur-penjualan.upload-faktur-pajak');
+Route::get('penjualan/faktur-penjualan/{noFaktur}/details', [FakturPenjualanController::class, 'details'])
+    ->name('penjualan.faktur-penjualan.details');
+Route::get('penjualan/faktur-penjualan/{noFaktur}/print', [FakturPenjualanController::class, 'print'])
+    ->name('penjualan.faktur-penjualan.print');
+Route::get('penjualan/faktur-penjualan/outstanding-do', [FakturPenjualanController::class, 'outstandingDo'])
+    ->name('penjualan.faktur-penjualan.outstanding-do');
+Route::get('penjualan/faktur-penjualan/do-materials', [FakturPenjualanController::class, 'doMaterials'])
+    ->name('penjualan.faktur-penjualan.do-materials');
+Route::get('penjualan/faktur-penjualan/do-add-materials', [FakturPenjualanController::class, 'doAddMaterials'])
+    ->name('penjualan.faktur-penjualan.do-add-materials');
 
 require __DIR__.'/settings.php';

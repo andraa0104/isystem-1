@@ -70,7 +70,7 @@ export default function DeliveryOrderPrint({
                 </div>
 
                 <div className="mb-3">
-                    <table className="w-auto text-[12px]">
+                    <table className="no-border w-auto text-[12px]">
                         <tbody>
                             <tr>
                                 <td className="w-[80px]">No. DO</td>
@@ -92,7 +92,7 @@ export default function DeliveryOrderPrint({
                 </div>
 
                 <div className="border border-black">
-                    <table className="w-full border-collapse text-[12px]">
+                    <table className="w-full border-collapse text-[12px] no-row-lines">
                         <colgroup>
                             <col className="w-[4%]" />
                             <col className="w-[10%]" />
@@ -116,34 +116,33 @@ export default function DeliveryOrderPrint({
                             </tr>
                         </thead>
                         <tbody>
-                            {deliveryOrderDetails.map((item, index) => (
+                            {deliveryOrderDetails.map((item, index) => {
+                                const isLast =
+                                    index === deliveryOrderDetails.length - 1;
+                                const cellClass = 'border-r border-black';
+                                const lastCellClass = '';
+
+                                return (
                                 <tr
                                     key={index}
                                     className="align-top"
                                 >
-                                    <td className="border-r border-black py-[2px] text-center leading-tight">
+                                    <td className={`${cellClass} py-[2px] text-center leading-tight`}>
                                         {index + 1}
                                     </td>
-                                    <td className="border-r border-black px-2 py-[2px] text-right leading-tight">
+                                    <td className={`${cellClass} px-2 py-[2px] text-right leading-tight`}>
                                         {formatNumber(item.qty)}{' '}
                                         {renderValue(item.unit)}
                                     </td>
-                                    <td className="border-r border-black py-[2px] pl-2 leading-tight">
+                                    <td className={`${cellClass} py-[2px] pl-2 leading-tight`}>
                                         {renderValue(item.mat)}
                                     </td>
-                                    <td className="py-[2px] pl-2 leading-tight">
+                                    <td className={`${lastCellClass} py-[2px] pl-2 leading-tight`}>
                                         {renderValue(item.remark)}
                                     </td>
                                 </tr>
-                            ))}
-                            {deliveryOrderDetails.length > 0 && (
-                                <tr className="align-top h-[30px]">
-                                    <td className="border-r border-black">&nbsp;</td>
-                                    <td className="border-r border-black">&nbsp;</td>
-                                    <td className="border-r border-black">&nbsp;</td>
-                                    <td>&nbsp;</td>
-                                </tr>
-                            )}
+                            );
+                            })}
                             {deliveryOrderDetails.length === 0 && (
                                 <tr>
                                     <td
@@ -154,11 +153,19 @@ export default function DeliveryOrderPrint({
                                     </td>
                                 </tr>
                             )}
+                            {deliveryOrderDetails.length > 0 && (
+                                <tr className="h-[20px]">
+                                    <td className="border-r border-black">&nbsp;</td>
+                                    <td className="border-r border-black">&nbsp;</td>
+                                    <td className="border-r border-black">&nbsp;</td>
+                                    <td>&nbsp;</td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
 
-                <div className="border-x border-b border-black">
+                <div className="mt-4 border-x border-b border-black">
                     <table className="w-full border-collapse text-[11px]">
                         <colgroup>
                             <col className="w-[20%]" />
@@ -211,8 +218,32 @@ export default function DeliveryOrderPrint({
                         size: 9.5in 11in;
                         margin: 0.5in;
                     }
+                    * {
+                        -webkit-print-color-adjust: economy;
+                        print-color-adjust: economy;
+                    }
                     body {
-                        -webkit-print-color-adjust: exact;
+                        font-family: "Courier New", Courier, monospace;
+                    }
+                    table {
+                        border-collapse: collapse !important;
+                        border: 0.2px solid #000 !important;
+                    }
+                    th, td {
+                        border: 0.2px solid #000 !important;
+                    }
+                    table.no-border,
+                    table.no-border th,
+                    table.no-border td {
+                        border: none !important;
+                    }
+                    table.no-row-lines tbody td {
+                        border-top: 0 !important;
+                        border-bottom: 0 !important;
+                    }
+                    table.no-row-lines thead th {
+                        border-top: 0 !important;
+                        border-bottom: 0.2px solid #000 !important;
                     }
                 }
             `}</style>

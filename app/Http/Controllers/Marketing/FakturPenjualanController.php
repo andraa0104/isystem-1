@@ -2,13 +2,31 @@
 
 namespace App\Http\Controllers\Marketing;
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class FakturPenjualanController
 {
     public function index()
     {
+        $invoices = DB::table('tb_kdfakturpenjualan')
+            ->select(
+                'no_fakturpenjualan',
+                'tgl_doc',
+                'nm_cs',
+                'ref_po',
+                'g_total',
+                'total_bayaran',
+                'tgl_terimainv',
+                'no_kwitansi',
+                'jth_tempo',
+                'trx_jurnal',
+            )
+            ->orderBy('no_fakturpenjualan', 'desc')
+            ->get();
+
         $unpaidCount = DB::table('tb_kdfakturpenjualan')
             ->where('total_bayaran', 0)
             ->count();
@@ -44,12 +62,444 @@ class FakturPenjualanController
             ->sum(DB::raw('coalesce(cast(g_total as decimal(18,4)), 0)'));
 
         return Inertia::render('Penjualan/faktur-penjualan/index', [
+            'invoices' => $invoices,
             'unpaidCount' => $unpaidCount,
             'unpaidTotal' => $unpaidTotal,
             'noReceiptCount' => $noReceiptCount,
             'noReceiptTotal' => $noReceiptTotal,
             'dueCount' => $dueCount,
             'dueTotal' => $dueTotal,
+        ]);
+    }
+
+    public function create()
+    {
+        return Inertia::render('Penjualan/faktur-penjualan/create');
+    }
+
+    public function store(Request $request)
+    {
+        $date = $request->input('date');
+        $dueDate = $request->input('due_date');
+        $refPoIn = $request->input('ref_po_in');
+        $kdCs = $request->input('kd_cs');
+        $nmCs = $request->input('nm_cs');
+        $ppn = $request->input('ppn');
+        $noFakturPajak = $request->input('no_fakturpajak');
+        $materialRows = $request->input('materials', []);
+        $grandTotalPrice = $request->input('grand_total_price', 0);
+        $totalPpn = $request->input('total_ppn', 0);
+        $grandTotalHpp = $request->input('grand_total_hpp', 0);
+        $grandTotalWithPpn = $request->input('grand_total_with_ppn', 0);
+
+        $database = $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database');
+        $prefix = 'GEN';
+        if (is_string($database) && $database !== '') {
+            $lookup = $database;
+            if (Str::startsWith(Str::lower($lookup), 'db')) {
+                $lookup = substr($lookup, 2);
+            }
+            $prefix = strtoupper($lookup);
+        }
+
+        $invoicePrefix = $prefix.'INV-';
+        $startIndex = strlen($invoicePrefix) + 1;
+        $lastNumber = DB::table('tb_kdfakturpenjualan')
+            ->where('no_fakturpenjualan', 'like', $invoicePrefix.'%')
+            ->select(DB::raw("max(cast(substring(no_fakturpenjualan, $startIndex) as unsigned)) as max_no"))
+            ->value('max_no');
+        $nextNumber = ((int) $lastNumber) + 1;
+        $noFakturPenjualan = $invoicePrefix.str_pad((string) $nextNumber, 7, '0', STR_PAD_LEFT);
+
+        $tglDoc = $date
+            ? \Carbon\Carbon::createFromFormat('Y-m-d', $date)->format('d.m.Y')
+            : null;
+        $tglPos = \Carbon\Carbon::now()->format('d.m.Y');
+        $monthReport = \Carbon\Carbon::now()->startOfMonth()->format('Y-m-d');
+
+        $ppnWithSymbol = trim((string) $ppn);
+        if ($ppnWithSymbol !== '' && !str_ends_with($ppnWithSymbol, '%')) {
+            $ppnWithSymbol .= '%';
+        }
+
+        DB::transaction(function () use (
+            $materialRows,
+            $refPoIn,
+            $kdCs,
+            $nmCs,
+            $ppnWithSymbol,
+            $noFakturPajak,
+            $tglDoc,
+            $dueDate,
+            $tglPos,
+            $noFakturPenjualan,
+            $grandTotalPrice,
+            $totalPpn,
+            $grandTotalWithPpn,
+            $grandTotalHpp,
+            $monthReport
+        ) {
+            $totalHppDo = 0;
+            $totalHppDot = 0;
+
+            foreach ($materialRows as $index => $row) {
+                $noRef = $row['no_ref'] ?? '';
+                $kdMaterial = $row['kd_material'] ?? '';
+                $material = $row['material'] ?? '';
+                $qty = $row['qty'] ?? 0;
+                $unit = $row['unit'] ?? '';
+                $price = $row['price'] ?? 0;
+                $total = $row['total'] ?? 0;
+                $hpp = $row['hpp'] ?? 0;
+                $totalHpp = $row['total_hpp'] ?? (float) $qty * (float) $hpp;
+                $sourceType = $row['source_type'] ?? 'do';
+
+                $idDo = null;
+                if ($sourceType === 'dot') {
+                    $idDo = DB::table('tb_dob')
+                        ->where('no_dob', $noRef)
+                        ->value('id');
+                } else {
+                    $idDo = DB::table('tb_do')
+                        ->where('no_do', $noRef)
+                        ->value('id');
+                }
+
+                DB::table('tb_fakturpenjualan')->insert([
+                    'no' => $index + 1,
+                    'no_do' => $noRef,
+                    'kd_mat' => $kdMaterial,
+                    'material' => $material,
+                    'qty' => $qty,
+                    'unit' => $unit,
+                    'price' => $price,
+                    'ttl_price' => $total,
+                    'id_do' => $idDo,
+                    'tgl_doc' => $tglDoc,
+                    'jth_tempo' => $dueDate,
+                    'ref_po' => $refPoIn,
+                    'kd_cs' => $kdCs,
+                    'nm_cs' => $nmCs,
+                    'ppn' => $ppnWithSymbol,
+                    'no_fakturpajak' => $noFakturPajak,
+                    'no_fakturpenjualan' => $noFakturPenjualan,
+                    'tgl_pos' => $tglPos,
+                    'jurnal' => ' ',
+                    'tgl_terimainv' => ' ',
+                ]);
+
+                if ($sourceType === 'dot') {
+                    $totalHppDot += (float) $totalHpp;
+                    DB::table('tb_dob')
+                        ->where('no_dob', $noRef)
+                        ->where('kd_mat', $kdMaterial)
+                        ->update(['status' => 1]);
+                } else {
+                    $totalHppDo += (float) $totalHpp;
+                    DB::table('tb_do')
+                        ->where('no_do', $noRef)
+                        ->where('kd_mat', $kdMaterial)
+                        ->update([
+                            'val_inv' => 1,
+                            'inv' => $noFakturPenjualan,
+                        ]);
+                }
+            }
+
+            DB::table('tb_kdfakturpenjualan')->insert([
+                'tgl_doc' => $tglDoc,
+                'jth_tempo' => $dueDate,
+                'ref_po' => $refPoIn,
+                'kd_cs' => $kdCs,
+                'nm_cs' => $nmCs,
+                'ppn' => $ppnWithSymbol,
+                'no_fakturpajak' => $noFakturPajak,
+                'harga' => $grandTotalPrice,
+                'h_ppn' => $totalPpn,
+                'g_total' => $grandTotalWithPpn,
+                'no_kwitansi' => ' ',
+                'umur_oncst' => 0,
+                'umur_tglinv' => 0,
+                'saldo_piutang' => $grandTotalWithPpn,
+                'total_bayaran' => 0,
+                'Month_Report' => $monthReport,
+                'trx_jurnal' => '1109AD',
+                'HPP' => (float) $grandTotalHpp - (float) $totalHppDot,
+                'HPPDOT' => (float) $grandTotalHpp - (float) $totalHppDo,
+                'tgl_pos' => $tglPos,
+                'no_fakturpenjualan' => $noFakturPenjualan,
+            ]);
+        });
+
+        return redirect()
+            ->route('penjualan.faktur-penjualan.index')
+            ->with('success', 'Invoice berhasil ditambahkan.');
+    }
+
+    public function details(Request $request, string $noFaktur)
+    {
+        $header = DB::table('tb_kdfakturpenjualan')
+            ->where('no_fakturpenjualan', $noFaktur)
+            ->first();
+
+        $items = DB::table('tb_fakturpenjualan')
+            ->select('no_do', 'material', 'qty', 'unit', 'ttl_price')
+            ->where('no_fakturpenjualan', $noFaktur)
+            ->orderBy('no')
+            ->get();
+
+        return response()->json([
+            'invoice' => $header,
+            'items' => $items,
+        ]);
+    }
+
+    public function print(Request $request, string $noFaktur)
+    {
+        $invoice = DB::table('tb_kdfakturpenjualan')
+            ->where('no_fakturpenjualan', $noFaktur)
+            ->first();
+
+        if (!$invoice) {
+            return redirect()
+                ->route('penjualan.faktur-penjualan.index')
+                ->with('error', 'Data invoice tidak ditemukan.');
+        }
+
+        $details = DB::table('tb_fakturpenjualan')
+            ->select('no_do', 'material', 'qty', 'unit', 'price', 'ttl_price')
+            ->where('no_fakturpenjualan', $noFaktur)
+            ->orderBy('no')
+            ->get();
+
+        $customer = null;
+        if (!empty($invoice->nm_cs)) {
+            $customer = DB::table('tb_cs')
+                ->select('alamat_cs', 'kota_cs')
+                ->where('nm_cs', $invoice->nm_cs)
+                ->first();
+        }
+
+        $database = $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database');
+        $lookupKey = is_string($database) ? $database : null;
+        $companyConfig = $lookupKey
+            ? config("tenants.companies.$lookupKey", [])
+            : [];
+        if (!$companyConfig && is_string($lookupKey) && str_starts_with(strtolower($lookupKey), 'db')) {
+            $altKey = substr($lookupKey, 2);
+            $companyConfig = config("tenants.companies.$altKey", []);
+            $lookupKey = $companyConfig ? $altKey : $lookupKey;
+        }
+        $fallbackName = $lookupKey
+            ? config("tenants.labels.$lookupKey", strtoupper($lookupKey))
+            : config('app.name');
+
+        $company = [
+            'name' => $companyConfig['name'] ?? $fallbackName,
+            'address' => $companyConfig['address'] ?? '',
+            'phone' => $companyConfig['phone'] ?? '',
+            'kota' => $companyConfig['kota'] ?? '',
+            'email' => $companyConfig['email'] ?? '',
+        ];
+
+        $cityLabel = 'Samarinda';
+        if (is_string($database) && strtolower($database) === 'dbstg') {
+            $cityLabel = 'Banjarmasin';
+        }
+
+        return Inertia::render('Penjualan/faktur-penjualan/print', [
+            'invoice' => $invoice,
+            'details' => $details,
+            'customer' => $customer,
+            'company' => $company,
+            'cityLabel' => $cityLabel,
+        ]);
+    }
+
+    public function uploadFakturPajak(Request $request)
+    {
+        $items = $request->input('items', []);
+        if (!is_array($items)) {
+            return response()->json([
+                'message' => 'Format data tidak valid.',
+            ], 422);
+        }
+
+        $updated = 0;
+        DB::transaction(function () use ($items, &$updated) {
+            foreach ($items as $item) {
+                $invoiceNo = $item['no_fakturpenjualan'] ?? null;
+                $noFakturPajak = $item['no_fakturpajak'] ?? null;
+                if (!$invoiceNo || !$noFakturPajak) {
+                    continue;
+                }
+
+                $affectedHeader = DB::table('tb_kdfakturpenjualan')
+                    ->where('no_fakturpenjualan', $invoiceNo)
+                    ->update(['no_fakturpajak' => $noFakturPajak]);
+
+                $affectedDetail = DB::table('tb_fakturpenjualan')
+                    ->where('no_fakturpenjualan', $invoiceNo)
+                    ->update(['no_fakturpajak' => $noFakturPajak]);
+
+                if ($affectedHeader || $affectedDetail) {
+                    $updated++;
+                }
+            }
+        });
+
+        return response()->json([
+            'updated' => $updated,
+        ]);
+    }
+
+    public function outstandingDo()
+    {
+        $deliveryOrders = DB::table('tb_do')
+            ->select('no_do', 'ref_po', 'kd_cs', 'nm_cs')
+            ->whereRaw("ltrim(rtrim(coalesce(inv, ''))) = ''")
+            ->groupBy('no_do', 'ref_po', 'kd_cs', 'nm_cs')
+            ->orderBy('no_do', 'desc')
+            ->get();
+
+        return response()->json([
+            'deliveryOrders' => $deliveryOrders,
+        ]);
+    }
+
+    public function doMaterials(Request $request)
+    {
+        $noDo = $request->query('no_do');
+        $refPoIn = $request->query('ref_po_in');
+
+        if (!$refPoIn) {
+            return response()->json([
+                'items' => [],
+            ]);
+        }
+
+        $items = DB::table('tb_do as do')
+            ->leftJoin('tb_material as m', 'm.material', '=', 'do.mat')
+            ->select(
+                'do.no_do',
+                'do.mat',
+                'do.qty',
+                'do.unit',
+                'do.harga',
+                'do.total',
+                'm.kd_material as kd_material',
+            )
+            ->where('do.ref_po', $refPoIn)
+            ->orderBy('do.no_do')
+            ->orderBy('do.mat')
+            ->get();
+
+        $hppMap = collect();
+        if ($refPoIn) {
+            $hppMap = DB::table('tb_detailpo')
+                ->select(
+                    'material',
+                    DB::raw('coalesce(max(cast(price as decimal(18,4))), 0) as hpp'),
+                )
+                ->where('ref_poin', $refPoIn)
+                ->groupBy('material')
+                ->get()
+                ->keyBy('material');
+        }
+
+        $items = $items->map(function ($item) use ($hppMap) {
+            $hpp = 0;
+            $totalHpp = 0;
+            if ($hppMap->has($item->mat)) {
+                $hppRow = $hppMap->get($item->mat);
+                $hpp = (float) ($hppRow->hpp ?? 0);
+                $totalHpp = (float) ($hppRow->total_hpp ?? 0);
+            }
+
+            return [
+                'no_do' => $item->no_do,
+                'mat' => $item->mat,
+                'kd_material' => $item->kd_material,
+                'qty' => $item->qty,
+                'unit' => $item->unit,
+                'harga' => $item->harga,
+                'total' => $item->total,
+                'hpp' => $hpp,
+                'total_hpp' => $totalHpp,
+            ];
+        });
+
+        return response()->json([
+            'items' => $items,
+        ]);
+    }
+
+    public function doAddMaterials(Request $request)
+    {
+        $noDo = $request->query('no_do');
+        $refPoIn = $request->query('ref_po_in');
+
+        if (!$noDo) {
+            return response()->json([
+                'items' => [],
+            ]);
+        }
+
+        $items = DB::table('tb_dob as dob')
+            ->leftJoin('tb_material as m', 'm.material', '=', 'dob.mat')
+            ->select(
+                'dob.no_dob',
+                'dob.mat',
+                'dob.qty',
+                'dob.unit',
+                'dob.harga',
+                'dob.total',
+                'm.kd_material as kd_material',
+            )
+            ->where('dob.ref_do', $noDo)
+            ->orderBy('dob.no_dob')
+            ->orderBy('dob.mat')
+            ->get();
+
+        $hppMap = collect();
+        if ($refPoIn) {
+            $hppMap = DB::table('tb_detailpo')
+                ->select(
+                    'material',
+                    DB::raw('coalesce(max(cast(price as decimal(18,4))), 0) as hpp'),
+                )
+                ->where('ref_poin', $refPoIn)
+                ->groupBy('material')
+                ->get()
+                ->keyBy('material');
+        }
+
+        $items = $items->map(function ($item) use ($hppMap) {
+            $hpp = 0;
+            $totalHpp = 0;
+            if ($hppMap->has($item->mat)) {
+                $hppRow = $hppMap->get($item->mat);
+                $hpp = (float) ($hppRow->hpp ?? 0);
+                $totalHpp = (float) ($hppRow->total_hpp ?? 0);
+            }
+
+            return [
+                'no_dob' => $item->no_dob,
+                'mat' => $item->mat,
+                'kd_material' => $item->kd_material,
+                'qty' => $item->qty,
+                'unit' => $item->unit,
+                'harga' => $item->harga,
+                'total' => $item->total,
+                'hpp' => $hpp,
+                'total_hpp' => $totalHpp,
+            ];
+        });
+
+        return response()->json([
+            'items' => $items,
         ]);
     }
 }

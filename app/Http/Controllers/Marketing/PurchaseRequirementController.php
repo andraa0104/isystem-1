@@ -191,59 +191,81 @@ class PurchaseRequirementController
         }
         $prefix = $prefix.'.PR-';
 
-        $lastNumber = DB::table('tb_pr')
-            ->where('no_pr', 'like', $prefix.'%')
-            ->orderBy('no_pr', 'desc')
-            ->value('no_pr');
-
-        $sequence = 1;
-        if ($lastNumber) {
-            $suffix = substr($lastNumber, strlen($prefix));
-            $sequence = max(1, (int) $suffix + 1);
-        }
-
-        $noPr = $prefix.str_pad((string) $sequence, 8, '0', STR_PAD_LEFT);
-
         $materials = $request->input('materials', []);
         if (!is_array($materials)) {
             $materials = [];
         }
 
-        try {
-            DB::transaction(function () use ($request, $materials, $noPr) {
-                DB::table('tb_pr')->insert([
-                    'no_pr' => $noPr,
-                    'date' => $request->input('date'),
-                    'payment' => $request->input('payment'),
-                    'for_customer' => $request->input('for_customer'),
-                    'ref_po' => $request->input('ref_po'),
-                ]);
+        $maxAttempts = 3;
+        $attempt = 0;
 
-                foreach ($materials as $index => $item) {
-                    DB::table('tb_detailpr')->insert([
+        while (true) {
+            try {
+                DB::transaction(function () use ($request, $materials, $prefix) {
+                    $lastNumber = DB::table('tb_pr')
+                        ->where('no_pr', 'like', $prefix.'%')
+                        ->orderBy('no_pr', 'desc')
+                        ->lockForUpdate()
+                        ->value('no_pr');
+
+                    $sequence = 1;
+                    if ($lastNumber) {
+                        $suffix = substr($lastNumber, strlen($prefix));
+                        $sequence = max(1, (int) $suffix + 1);
+                    }
+
+                    $noPr = $prefix.str_pad((string) $sequence, 8, '0', STR_PAD_LEFT);
+
+                    if (DB::table('tb_pr')->where('no_pr', $noPr)->exists()) {
+                        throw new \RuntimeException('duplicate_no_pr');
+                    }
+
+                    DB::table('tb_pr')->insert([
+                        'no_pr' => $noPr,
                         'date' => $request->input('date'),
                         'payment' => $request->input('payment'),
                         'for_customer' => $request->input('for_customer'),
                         'ref_po' => $request->input('ref_po'),
-                        'no' => $item['no'] ?? ($index + 1),
-                        'no_pr' => $noPr,
-                        'kd_material' => $item['kd_material'] ?? null,
-                        'material' => $item['material'] ?? null,
-                        'qty' => $item['qty'] ?? null,
-                        'unit' => $item['unit'] ?? null,
-                        'stok' => $item['stok'] ?? null,
-                        'unit_price' => $item['unit_price'] ?? null,
-                        'total_price' => $item['total_price'] ?? null,
-                        'price_po' => $item['price_po'] ?? null,
-                        'margin' => $item['margin'] ?? null,
-                        'renmark' => $item['renmark'] ?? null,
-                        'qty_po' => 0,
-                        'sisa_pr' => $item['qty'] ?? null,
                     ]);
+
+                    foreach ($materials as $index => $item) {
+                        DB::table('tb_detailpr')->insert([
+                            'date' => $request->input('date'),
+                            'payment' => $request->input('payment'),
+                            'for_customer' => $request->input('for_customer'),
+                            'ref_po' => $request->input('ref_po'),
+                            'no' => $item['no'] ?? ($index + 1),
+                            'no_pr' => $noPr,
+                            'kd_material' => $item['kd_material'] ?? null,
+                            'material' => $item['material'] ?? null,
+                            'qty' => $item['qty'] ?? null,
+                            'unit' => $item['unit'] ?? null,
+                            'stok' => $item['stok'] ?? null,
+                            'unit_price' => $item['unit_price'] ?? null,
+                            'total_price' => $item['total_price'] ?? null,
+                            'price_po' => $item['price_po'] ?? null,
+                            'margin' => $item['margin'] ?? null,
+                            'renmark' => $item['renmark'] ?? null,
+                            'qty_po' => 0,
+                            'sisa_pr' => $item['qty'] ?? null,
+                        ]);
+                    }
+                });
+                break;
+            } catch (\Throwable $exception) {
+                $attempt++;
+                $message = strtolower($exception->getMessage());
+                $isDuplicate = str_contains($message, 'duplicate_no_pr')
+                    || str_contains($message, 'duplicate')
+                    || ($exception instanceof \Illuminate\Database\QueryException
+                        && $exception->getCode() === '23000');
+
+                if ($attempt < $maxAttempts && $isDuplicate) {
+                    continue;
                 }
-            });
-        } catch (\Throwable $exception) {
-            return back()->with('error', $exception->getMessage());
+
+                return back()->with('error', $exception->getMessage());
+            }
         }
 
         return redirect()

@@ -71,7 +71,7 @@ export default function DeliveryOrderAddPrint({
                 </div>
 
                 <div className="mb-4">
-                    <table className="w-auto">
+                    <table className="no-border w-auto">
                         <tbody>
                             <tr>
                                 <td className="w-[80px]">No. DOB</td>
@@ -93,7 +93,7 @@ export default function DeliveryOrderAddPrint({
                 </div>
 
                 <div className="mb-4">
-                    <table className="w-full border-collapse border border-black">
+                    <table className="w-full border-collapse border border-black no-row-lines">
                         <colgroup>
                             <col className="w-[50px]" />
                             <col className="w-[80px]" />
@@ -126,17 +126,11 @@ export default function DeliveryOrderAddPrint({
                         </thead>
                         <tbody className="align-top">
                             {deliveryOrderDetails.map((item, index) => {
-                                const isLast =
-                                    index === deliveryOrderDetails.length - 1;
-                                const cellClass = isLast
-                                    ? 'border-x border-t border-black py-2'
-                                    : 'border border-black py-2';
-                                const cellClassRight = isLast
-                                    ? 'border-x border-t border-black py-2 pr-2 text-right'
-                                    : 'border border-black py-2 pr-2 text-right';
-                                const cellClassLeft = isLast
-                                    ? 'border-x border-t border-black py-2 pl-2'
-                                    : 'border border-black py-2 pl-2';
+                                const cellClass = 'border-x border-black py-2';
+                                const cellClassRight =
+                                    'border-x border-black py-2 pr-2 text-right';
+                                const cellClassLeft =
+                                    'border-x border-black py-2 pl-2';
 
                                 return (
                                     <tr key={index} className="align-top">
@@ -175,7 +169,7 @@ export default function DeliveryOrderAddPrint({
                                 {Array.from({ length: 6 }).map((_, idx) => (
                                     <td
                                         key={idx}
-                                        className="border-x border-b border-black h-[20px]"
+                                        className="border-x border-black !border-b-0 h-[20px]"
                                     />
                                 ))}
                             </tr>
@@ -220,8 +214,35 @@ export default function DeliveryOrderAddPrint({
                         size: 9.5in 11in;
                         margin: 0.5in;
                     }
+                    * {
+                        -webkit-print-color-adjust: economy;
+                        print-color-adjust: economy;
+                    }
                     body {
-                        -webkit-print-color-adjust: exact;
+                        font-family: "Courier New", Courier, monospace;
+                    }
+                    table {
+                        border-collapse: collapse !important;
+                        border: 0.2px solid #000 !important;
+                    }
+                    th, td {
+                        border: 0.2px solid #000 !important;
+                    }
+                    table.no-border,
+                    table.no-border th,
+                    table.no-border td {
+                        border: none !important;
+                    }
+                    .border-b-0 {
+                        border-bottom: 0 !important;
+                    }
+                    table.no-row-lines tbody td {
+                        border-top: 0 !important;
+                        border-bottom: 0 !important;
+                    }
+                    table.no-row-lines thead th {
+                        border-top: 0 !important;
+                        border-bottom: 0.2px solid #000 !important;
                     }
                 }
             `}</style>

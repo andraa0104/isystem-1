@@ -134,19 +134,6 @@ class PurchaseOrderController
         }
         $prefix = $prefix.'.PO-';
 
-        $lastNumber = DB::table('tb_po')
-            ->where('no_po', 'like', $prefix.'%')
-            ->orderBy('no_po', 'desc')
-            ->value('no_po');
-
-        $sequence = 1;
-        if ($lastNumber) {
-            $suffix = substr($lastNumber, strlen($prefix));
-            $sequence = max(1, (int) $suffix + 1);
-        }
-
-        $noPo = $prefix.str_pad((string) $sequence, 8, '0', STR_PAD_LEFT);
-
         $materials = $request->input('materials', []);
         if (!is_array($materials)) {
             $materials = [];
@@ -161,91 +148,126 @@ class PurchaseOrderController
 
         $maxId = (int) (DB::table('tb_detailpo')->max('id') ?? 0);
 
-        try {
-            DB::transaction(function () use (
-                $request,
-                $materials,
-                $noPo,
-                $ppnValue,
-                $sTotal,
-                $hPpn,
-                $gTotal,
-                &$maxId
-            ) {
-                DB::table('tb_po')->insert([
-                    'no_po' => $noPo,
-                    'tgl' => $request->input('date'),
-                    'ref_pr' => $request->input('ref_pr'),
-                    'ref_quota' => $request->input('ref_quota'),
-                    'for_cus' => $request->input('for_cus'),
-                    'ref_poin' => $request->input('ref_poin'),
-                    'total_harga' => 0,
-                    'qty_po' => 0,
-                    'ppn' => $ppnValue,
-                    'nm_vdr' => $request->input('nm_vdr'),
-                    's_total' => $sTotal,
-                    'h_ppn' => $hPpn,
-                    'g_total' => $gTotal,
-                ]);
+        $maxAttempts = 3;
+        $attempt = 0;
 
-                foreach ($materials as $index => $item) {
-                    $maxId += 1;
+        while (true) {
+            try {
+                DB::transaction(function () use (
+                    $request,
+                    $materials,
+                    $prefix,
+                    $ppnValue,
+                    $sTotal,
+                    $hPpn,
+                    $gTotal,
+                    &$maxId
+                ) {
+                    $lastNumber = DB::table('tb_po')
+                        ->where('no_po', 'like', $prefix.'%')
+                        ->orderBy('no_po', 'desc')
+                        ->lockForUpdate()
+                        ->value('no_po');
 
-                    $noPr = $request->input('ref_pr');
-                    $kdMat = $item['kd_mat'] ?? null;
-                    $qty = (float) ($item['qty'] ?? 0);
+                    $sequence = 1;
+                    if ($lastNumber) {
+                        $suffix = substr($lastNumber, strlen($prefix));
+                        $sequence = max(1, (int) $suffix + 1);
+                    }
 
-                    $prQty = (float) DB::table('tb_detailpr')
-                        ->where('no_pr', $noPr)
-                        ->where('kd_material', $kdMat)
-                        ->value('qty');
+                    $noPo = $prefix.str_pad((string) $sequence, 8, '0', STR_PAD_LEFT);
 
-                    $usedQty = (float) DB::table('tb_detailpo')
-                        ->where('ref_pr', $noPr)
-                        ->where('kd_mat', $kdMat)
-                        ->sum('qty');
+                    if (DB::table('tb_po')->where('no_po', $noPo)->exists()) {
+                        throw new \RuntimeException('duplicate_no_po');
+                    }
 
-                    $sisaPr = $prQty - ($usedQty + $qty);
-
-                    DB::table('tb_detailpo')->insert([
-                        'id' => $maxId,
+                    DB::table('tb_po')->insert([
                         'no_po' => $noPo,
                         'tgl' => $request->input('date'),
                         'ref_pr' => $request->input('ref_pr'),
                         'ref_quota' => $request->input('ref_quota'),
                         'for_cus' => $request->input('for_cus'),
                         'ref_poin' => $request->input('ref_poin'),
-                        'kd_vdr' => $request->input('kd_vdr'),
+                        'total_harga' => 0,
+                        'qty_po' => 0,
+                        'ppn' => $ppnValue,
                         'nm_vdr' => $request->input('nm_vdr'),
-                        'payment_terms' => $request->input('payment_terms'),
-                        'del_time' => $request->input('del_time'),
-                        'franco_loco' => $request->input('franco_loco'),
-                        'no' => $item['no'] ?? ($index + 1),
-                        'kd_mat' => $kdMat,
-                        'material' => $item['material'] ?? null,
-                        'qty' => $qty,
-                        'qty_po' => $qty,
-                        'gr_mat' => $qty,
-                        'unit' => $item['unit'] ?? null,
-                        'price' => $item['price'] ?? 0,
-                        'total_price' => $item['total_price'] ?? 0,
-                        'gr_price' => $item['total_price'] ?? 0,
-                        'ket1' => $request->input('ket1'),
-                        'ket2' => $request->input('ket2'),
-                        'ket3' => $request->input('ket3'),
-                        'ket4' => $request->input('ket4'),
-                        'ir_mat' => 0,
-                        'ir_price' => 0,
-                        'end_fl' => 0,
-                        'qtybiayakirim' => 0,
-                        'no_gudang' => 0,
-                        'end_gr' => 0,
-                        'sisa_pr' => $sisaPr,
+                        's_total' => $sTotal,
+                        'h_ppn' => $hPpn,
+                        'g_total' => $gTotal,
                     ]);
+
+                    foreach ($materials as $index => $item) {
+                        $maxId += 1;
+
+                        $noPr = $request->input('ref_pr');
+                        $kdMat = $item['kd_mat'] ?? null;
+                        $qty = (float) ($item['qty'] ?? 0);
+
+                        $prQty = (float) DB::table('tb_detailpr')
+                            ->where('no_pr', $noPr)
+                            ->where('kd_material', $kdMat)
+                            ->value('qty');
+
+                        $usedQty = (float) DB::table('tb_detailpo')
+                            ->where('ref_pr', $noPr)
+                            ->where('kd_mat', $kdMat)
+                            ->sum('qty');
+
+                        $sisaPr = $prQty - ($usedQty + $qty);
+
+                        DB::table('tb_detailpo')->insert([
+                            'id' => $maxId,
+                            'no_po' => $noPo,
+                            'tgl' => $request->input('date'),
+                            'ref_pr' => $request->input('ref_pr'),
+                            'ref_quota' => $request->input('ref_quota'),
+                            'for_cus' => $request->input('for_cus'),
+                            'ref_poin' => $request->input('ref_poin'),
+                            'kd_vdr' => $request->input('kd_vdr'),
+                            'nm_vdr' => $request->input('nm_vdr'),
+                            'payment_terms' => $request->input('payment_terms'),
+                            'del_time' => $request->input('del_time'),
+                            'franco_loco' => $request->input('franco_loco'),
+                            'no' => $item['no'] ?? ($index + 1),
+                            'kd_mat' => $kdMat,
+                            'material' => $item['material'] ?? null,
+                            'qty' => $qty,
+                            'qty_po' => $qty,
+                            'gr_mat' => $qty,
+                            'unit' => $item['unit'] ?? null,
+                            'price' => $item['price'] ?? 0,
+                            'total_price' => $item['total_price'] ?? 0,
+                            'gr_price' => $item['total_price'] ?? 0,
+                            'ket1' => $request->input('ket1'),
+                            'ket2' => $request->input('ket2'),
+                            'ket3' => $request->input('ket3'),
+                            'ket4' => $request->input('ket4'),
+                            'ir_mat' => 0,
+                            'ir_price' => 0,
+                            'end_fl' => 0,
+                            'qtybiayakirim' => 0,
+                            'no_gudang' => 0,
+                            'end_gr' => 0,
+                            'sisa_pr' => $sisaPr,
+                        ]);
+                    }
+                });
+                break;
+            } catch (\Throwable $exception) {
+                $attempt++;
+                $message = strtolower($exception->getMessage());
+                $isDuplicate = str_contains($message, 'duplicate_no_po')
+                    || str_contains($message, 'duplicate')
+                    || ($exception instanceof \Illuminate\Database\QueryException
+                        && $exception->getCode() === '23000');
+
+                if ($attempt < $maxAttempts && $isDuplicate) {
+                    continue;
                 }
-            });
-        } catch (\Throwable $exception) {
-            return back()->with('error', $exception->getMessage());
+
+                return back()->with('error', $exception->getMessage());
+            }
         }
 
         return redirect()
