@@ -69,8 +69,14 @@ export default function TandaTerimaInvoiceIndex() {
     const [detailHeader, setDetailHeader] = useState(null);
     const [detailItems, setDetailItems] = useState([]);
     const [detailGrandTotal, setDetailGrandTotal] = useState(0);
+    const [detailSearch, setDetailSearch] = useState('');
+    const [detailPageSize, setDetailPageSize] = useState(5);
+    const [detailCurrentPage, setDetailCurrentPage] = useState(1);
 
     const [isPendingOpen, setIsPendingOpen] = useState(false);
+    const [pendingSearch, setPendingSearch] = useState('');
+    const [pendingPageSize, setPendingPageSize] = useState(5);
+    const [pendingCurrentPage, setPendingCurrentPage] = useState(1);
 
     const [isReceiveOpen, setIsReceiveOpen] = useState(false);
     const [receiveLoading, setReceiveLoading] = useState(false);
@@ -109,6 +115,72 @@ export default function TandaTerimaInvoiceIndex() {
     const pendingCount = useMemo(() => {
         return rows.filter((row) => isBlank(row.nm_penerima)).length;
     }, [rows]);
+
+    const filteredDetailItems = useMemo(() => {
+        const term = detailSearch.trim().toLowerCase();
+        if (!term) return detailItems;
+        return detailItems.filter((item) => {
+            const noInv = String(item.no_inv || '').toLowerCase();
+            const refPo = String(item.ref_po || '').toLowerCase();
+            return noInv.includes(term) || refPo.includes(term);
+        });
+    }, [detailItems, detailSearch]);
+
+    const detailTotalItems = filteredDetailItems.length;
+    const detailTotalPages = useMemo(() => {
+        if (detailPageSize === Infinity) return 1;
+        return Math.max(1, Math.ceil(detailTotalItems / detailPageSize));
+    }, [detailPageSize, detailTotalItems]);
+
+    const displayedDetailItems = useMemo(() => {
+        if (detailPageSize === Infinity) return filteredDetailItems;
+        const startIndex = (detailCurrentPage - 1) * detailPageSize;
+        return filteredDetailItems.slice(startIndex, startIndex + detailPageSize);
+    }, [filteredDetailItems, detailCurrentPage, detailPageSize]);
+
+    useEffect(() => {
+        setDetailCurrentPage(1);
+    }, [detailPageSize, detailSearch, isDetailOpen]);
+
+    useEffect(() => {
+        if (detailCurrentPage > detailTotalPages) {
+            setDetailCurrentPage(detailTotalPages);
+        }
+    }, [detailCurrentPage, detailTotalPages]);
+
+    const pendingRows = useMemo(() => {
+        return rows.filter((row) => isBlank(row.nm_penerima));
+    }, [rows]);
+
+    const filteredPendingRows = useMemo(() => {
+        const term = pendingSearch.trim().toLowerCase();
+        if (!term) return pendingRows;
+        return pendingRows.filter((row) =>
+            String(row.no_ttinv || '').toLowerCase().includes(term),
+        );
+    }, [pendingRows, pendingSearch]);
+
+    const pendingTotalItems = filteredPendingRows.length;
+    const pendingTotalPages = useMemo(() => {
+        if (pendingPageSize === Infinity) return 1;
+        return Math.max(1, Math.ceil(pendingTotalItems / pendingPageSize));
+    }, [pendingPageSize, pendingTotalItems]);
+
+    const displayedPendingRows = useMemo(() => {
+        if (pendingPageSize === Infinity) return filteredPendingRows;
+        const startIndex = (pendingCurrentPage - 1) * pendingPageSize;
+        return filteredPendingRows.slice(startIndex, startIndex + pendingPageSize);
+    }, [filteredPendingRows, pendingCurrentPage, pendingPageSize]);
+
+    useEffect(() => {
+        setPendingCurrentPage(1);
+    }, [pendingPageSize, pendingSearch]);
+
+    useEffect(() => {
+        if (pendingCurrentPage > pendingTotalPages) {
+            setPendingCurrentPage(pendingTotalPages);
+        }
+    }, [pendingCurrentPage, pendingTotalPages]);
 
     const filteredRows = useMemo(() => {
         let filtered = rows;
@@ -481,6 +553,30 @@ export default function TandaTerimaInvoiceIndex() {
 
                             <div className="space-y-2">
                                 <div className="text-sm font-medium">Data Invoice</div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <select
+                                        className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
+                                        value={detailPageSize === Infinity ? 'all' : detailPageSize}
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            setDetailPageSize(
+                                                value === 'all' ? Infinity : Number(value),
+                                            );
+                                        }}
+                                    >
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                        <option value="all">Semua</option>
+                                    </select>
+                                    <Input
+                                        placeholder="Cari no invoice atau ref po..."
+                                        value={detailSearch}
+                                        onChange={(event) => setDetailSearch(event.target.value)}
+                                        className="min-w-[220px]"
+                                    />
+                                </div>
                                 <div className="rounded-md border">
                                     <Table>
                                         <TableHeader>
@@ -493,14 +589,14 @@ export default function TandaTerimaInvoiceIndex() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {detailItems.length === 0 && (
+                                            {detailTotalItems === 0 && (
                                                 <TableRow>
                                                     <TableCell colSpan={5}>
                                                         Tidak ada data invoice.
                                                     </TableCell>
                                                 </TableRow>
                                             )}
-                                            {detailItems.map((item) => (
+                                            {displayedDetailItems.map((item) => (
                                                 <TableRow key={`${item.no_inv}-${item.ref_po}`}>
                                                     <TableCell>{item.no_inv}</TableCell>
                                                     <TableCell>{item.no_faktur}</TableCell>
@@ -512,6 +608,46 @@ export default function TandaTerimaInvoiceIndex() {
                                         </TableBody>
                                     </Table>
                                 </div>
+                                {detailPageSize !== Infinity && detailTotalItems > 0 && (
+                                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                        <span>
+                                            Menampilkan{' '}
+                                            {(detailCurrentPage - 1) * detailPageSize + 1} -{' '}
+                                            {Math.min(
+                                                detailCurrentPage * detailPageSize,
+                                                detailTotalItems,
+                                            )}{' '}
+                                            dari {detailTotalItems} data
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    setDetailCurrentPage((page) => Math.max(1, page - 1))
+                                                }
+                                                disabled={detailCurrentPage === 1}
+                                            >
+                                                Sebelumnya
+                                            </Button>
+                                            <span>
+                                                Halaman {detailCurrentPage} dari {detailTotalPages}
+                                            </span>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    setDetailCurrentPage((page) =>
+                                                        Math.min(detailTotalPages, page + 1),
+                                                    )
+                                                }
+                                                disabled={detailCurrentPage === detailTotalPages}
+                                            >
+                                                Berikutnya
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ) : (
@@ -526,6 +662,28 @@ export default function TandaTerimaInvoiceIndex() {
                         <DialogTitle>Invoice Belum Diterima</DialogTitle>
                         <DialogDescription>Daftar invoice yang belum diterima.</DialogDescription>
                     </DialogHeader>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <select
+                            className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
+                            value={pendingPageSize === Infinity ? 'all' : pendingPageSize}
+                            onChange={(event) => {
+                                const value = event.target.value;
+                                setPendingPageSize(value === 'all' ? Infinity : Number(value));
+                            }}
+                        >
+                            <option value={5}>5</option>
+                            <option value={10}>10</option>
+                            <option value={25}>25</option>
+                            <option value={50}>50</option>
+                            <option value="all">Semua</option>
+                        </select>
+                        <Input
+                            placeholder="Cari nomor tanda terima..."
+                            value={pendingSearch}
+                            onChange={(event) => setPendingSearch(event.target.value)}
+                            className="min-w-[220px]"
+                        />
+                    </div>
                     <div className="rounded-md border">
                         <Table>
                             <TableHeader>
@@ -537,14 +695,12 @@ export default function TandaTerimaInvoiceIndex() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {pendingCount === 0 && (
+                                {pendingTotalItems === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={5}>Tidak ada data.</TableCell>
                                     </TableRow>
                                 )}
-                                {rows
-                                    .filter((row) => isBlank(row.nm_penerima))
-                                    .map((row, index) => (
+                                {displayedPendingRows.map((row, index) => (
                                         <TableRow
                                             key={`pending-${row.no_ttinv}-${row.tgl}-${row.nm_cs}-${index}`}
                                         >
@@ -577,6 +733,45 @@ export default function TandaTerimaInvoiceIndex() {
                             </TableBody>
                         </Table>
                     </div>
+                    {pendingPageSize !== Infinity && pendingTotalItems > 0 && (
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <span>
+                                Menampilkan {(pendingCurrentPage - 1) * pendingPageSize + 1} -{' '}
+                                {Math.min(
+                                    pendingCurrentPage * pendingPageSize,
+                                    pendingTotalItems,
+                                )}{' '}
+                                dari {pendingTotalItems} data
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        setPendingCurrentPage((page) => Math.max(1, page - 1))
+                                    }
+                                    disabled={pendingCurrentPage === 1}
+                                >
+                                    Sebelumnya
+                                </Button>
+                                <span>
+                                    Halaman {pendingCurrentPage} dari {pendingTotalPages}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        setPendingCurrentPage((page) =>
+                                            Math.min(pendingTotalPages, page + 1),
+                                        )
+                                    }
+                                    disabled={pendingCurrentPage === pendingTotalPages}
+                                >
+                                    Berikutnya
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
 
