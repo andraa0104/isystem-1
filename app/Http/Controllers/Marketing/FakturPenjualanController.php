@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -11,22 +12,6 @@ class FakturPenjualanController
 {
     public function index()
     {
-        $invoices = DB::table('tb_kdfakturpenjualan')
-            ->select(
-                'no_fakturpenjualan',
-                'tgl_doc',
-                'nm_cs',
-                'ref_po',
-                'g_total',
-                'total_bayaran',
-                'tgl_terimainv',
-                'no_kwitansi',
-                'jth_tempo',
-                'trx_jurnal',
-            )
-            ->orderBy('no_fakturpenjualan', 'desc')
-            ->get();
-
         $unpaidCount = DB::table('tb_kdfakturpenjualan')
             ->where('total_bayaran', 0)
             ->count();
@@ -62,7 +47,6 @@ class FakturPenjualanController
             ->sum(DB::raw('coalesce(cast(g_total as decimal(18,4)), 0)'));
 
         return Inertia::render('Penjualan/faktur-penjualan/index', [
-            'invoices' => $invoices,
             'unpaidCount' => $unpaidCount,
             'unpaidTotal' => $unpaidTotal,
             'noReceiptCount' => $noReceiptCount,
@@ -72,9 +56,90 @@ class FakturPenjualanController
         ]);
     }
 
+    public function listInvoices()
+    {
+        $invoices = DB::table('tb_kdfakturpenjualan')
+            ->select(
+                'no_fakturpenjualan',
+                'tgl_doc',
+                'nm_cs',
+                'ref_po',
+                'g_total',
+                'total_bayaran',
+                'tgl_terimainv',
+                'no_kwitansi',
+                'jth_tempo',
+                'trx_jurnal',
+            )
+            ->orderBy('no_fakturpenjualan', 'desc')
+            ->get();
+
+        return response()->json([
+            'data' => $invoices,
+        ]);
+    }
+
+
     public function create()
     {
         return Inertia::render('Penjualan/faktur-penjualan/create');
+    }
+
+    public function edit(string $noFaktur)
+    {
+        $invoice = DB::table('tb_kdfakturpenjualan')
+            ->where('no_fakturpenjualan', $noFaktur)
+            ->first();
+
+        if (!$invoice) {
+            return redirect()
+                ->route('penjualan.faktur-penjualan.index')
+                ->with('error', 'Data invoice tidak ditemukan.');
+        }
+
+        $items = DB::table('tb_fakturpenjualan')
+            ->select('no_do', 'kd_mat', 'material', 'qty', 'unit', 'price', 'ttl_price')
+            ->where('no_fakturpenjualan', $noFaktur)
+            ->orderBy('no')
+            ->get();
+
+        $hppMap = collect();
+        if (!empty($invoice->ref_po)) {
+            $hppMap = DB::table('tb_detailpo')
+                ->select('material', DB::raw('coalesce(max(cast(price as decimal(18,4))), 0) as hpp'))
+                ->where('ref_poin', $invoice->ref_po)
+                ->groupBy('material')
+                ->get()
+                ->keyBy('material');
+        }
+
+        $items = $items->map(function ($item) use ($hppMap) {
+            $hpp = 0;
+            if ($hppMap->has($item->material)) {
+                $hpp = (float) ($hppMap->get($item->material)->hpp ?? 0);
+            }
+            $sourceType = str_contains((string) $item->no_do, 'DOT-')
+                ? 'dot'
+                : 'do';
+
+            return [
+                'no_ref' => $item->no_do,
+                'kd_material' => $item->kd_mat,
+                'material' => $item->material,
+                'qty' => $item->qty,
+                'unit' => $item->unit,
+                'price' => $item->price,
+                'total' => $item->ttl_price,
+                'hpp' => $hpp,
+                'total_hpp' => (float) $item->qty * (float) $hpp,
+                'source_type' => $sourceType,
+            ];
+        });
+
+        return Inertia::render('Penjualan/faktur-penjualan/edit', [
+            'invoice' => $invoice,
+            'materialRows' => $items,
+        ]);
     }
 
     public function store(Request $request)
@@ -352,6 +417,207 @@ class FakturPenjualanController
 
         return response()->json([
             'updated' => $updated,
+        ]);
+    }
+
+    public function storeKwitansi(Request $request)
+    {
+        $refFaktur = $request->input('ref_faktur');
+        $date = $request->input('date');
+        $customer = $request->input('customer');
+        $totalPrice = $request->input('total_price', 0);
+
+        if (!$refFaktur) {
+            return response()->json([
+                'message' => 'No invoice wajib diisi.',
+            ], 422);
+        }
+
+        $database = $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database');
+        $prefix = 'GEN';
+        if (is_string($database) && $database !== '') {
+            $lookup = $database;
+            if (Str::startsWith(Str::lower($lookup), 'db')) {
+                $lookup = substr($lookup, 2);
+            }
+            $prefix = strtoupper($lookup);
+        }
+
+        $kwitansiPrefix = $prefix.'.KWT-';
+        $startIndex = strlen($kwitansiPrefix) + 1;
+        $lastNumber = DB::table('tb_kwitansi')
+            ->where('no_kwitansi', 'like', $kwitansiPrefix.'%')
+            ->select(DB::raw("max(cast(substring(no_kwitansi, $startIndex) as unsigned)) as max_no"))
+            ->value('max_no');
+        $nextNumber = ((int) $lastNumber) + 1;
+        $noKwitansi = $kwitansiPrefix.str_pad((string) $nextNumber, 7, '0', STR_PAD_LEFT);
+
+        $tgl = $date
+            ? \Carbon\Carbon::createFromFormat('Y-m-d', $date)->format('d.m.Y')
+            : null;
+
+        try {
+            DB::transaction(function () use (
+                $refFaktur,
+                $tgl,
+                $customer,
+                $totalPrice,
+                $noKwitansi
+            ) {
+                DB::table('tb_kwitansi')->insert([
+                    'ref_faktur' => $refFaktur,
+                    'tgl' => $tgl,
+                    'cs' => $customer,
+                    'ttl_faktur' => $totalPrice,
+                    'no_kwitansi' => $noKwitansi,
+                ]);
+
+                DB::table('tb_kdfakturpenjualan')
+                    ->where('no_fakturpenjualan', $refFaktur)
+                    ->update(['no_kwitansi' => $noKwitansi]);
+
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Gagal menyimpan kwitansi: '.$e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'no_kwitansi' => $noKwitansi,
+        ]);
+    }
+
+    public function update(Request $request, string $noFaktur)
+    {
+        $ppn = $request->input('ppn');
+        $noFakturPajak = $request->input('no_fakturpajak');
+        $materials = $request->input('materials', []);
+        $totalPpn = $request->input('h_ppn', 0);
+        $harga = $request->input('harga', 0);
+        $grandTotal = $request->input('g_total', 0);
+
+        if (!is_array($materials)) {
+            return response()->json([
+                'message' => 'Format data tidak valid.',
+            ], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($noFaktur, $ppn, $noFakturPajak, $materials) {
+                $updateHeader = [
+                    'no_fakturpajak' => $noFakturPajak,
+                ];
+                if (Schema::hasColumn('tb_kdfakturpenjualan', 'no_ppn')) {
+                    $updateHeader['no_ppn'] = $ppn;
+                }
+                if (Schema::hasColumn('tb_kdfakturpenjualan', 'ppn')) {
+                    $updateHeader['ppn'] = $ppn;
+                }
+
+                DB::table('tb_kdfakturpenjualan')
+                    ->where('no_fakturpenjualan', $noFaktur)
+                    ->update(array_merge($updateHeader, [
+                        'h_ppn' => $totalPpn,
+                        'harga' => $harga,
+                        'g_total' => $grandTotal,
+                    ]));
+
+                if (Schema::hasColumn('tb_fakturpenjualan', 'no_fakturpajak')) {
+                    DB::table('tb_fakturpenjualan')
+                        ->where('no_fakturpenjualan', $noFaktur)
+                        ->update(['no_fakturpajak' => $noFakturPajak]);
+                }
+                if (Schema::hasColumn('tb_fakturpenjualan', 'no_ppn')) {
+                    DB::table('tb_fakturpenjualan')
+                        ->where('no_fakturpenjualan', $noFaktur)
+                        ->update(['no_ppn' => $ppn]);
+                }
+
+                $keep = collect($materials)->map(function ($row) {
+                    return [
+                        'no_do' => $row['no_ref'] ?? '',
+                        'kd_mat' => $row['kd_material'] ?? '',
+                    ];
+                })->filter(function ($row) {
+                    return $row['no_do'] !== '' && $row['kd_mat'] !== '';
+                })->values();
+
+                if ($keep->isNotEmpty()) {
+                    DB::table('tb_fakturpenjualan')
+                        ->where('no_fakturpenjualan', $noFaktur)
+                        ->whereNotIn(DB::raw("concat(no_do, ':', kd_mat)"), $keep->map(function ($row) {
+                            return $row['no_do'].':'.$row['kd_mat'];
+                        }))
+                        ->delete();
+                }
+
+                $hppDo = 0;
+                $hppDot = 0;
+
+                foreach ($materials as $index => $row) {
+                    $noRef = $row['no_ref'] ?? '';
+                    $kdMat = $row['kd_material'] ?? '';
+                    $material = $row['material'] ?? '';
+                    $qty = $row['qty'] ?? 0;
+                    $unit = $row['unit'] ?? '';
+                    $price = $row['price'] ?? 0;
+                    $total = $row['total'] ?? 0;
+                    $hpp = $row['hpp'] ?? 0;
+                    $totalHpp = (float) $qty * (float) $hpp;
+
+                    if (str_contains((string) $noRef, 'DOT-')) {
+                        $hppDot += $totalHpp;
+                    } else {
+                        $hppDo += $totalHpp;
+                    }
+
+                    $existing = DB::table('tb_fakturpenjualan')
+                        ->where('no_fakturpenjualan', $noFaktur)
+                        ->where('no_do', $noRef)
+                        ->where('kd_mat', $kdMat)
+                        ->exists();
+
+                    $payload = [
+                        'qty' => $qty,
+                        'unit' => $unit,
+                        'price' => $price,
+                        'ttl_price' => $total,
+                        'material' => $material,
+                    ];
+
+                    if ($existing) {
+                        DB::table('tb_fakturpenjualan')
+                            ->where('no_fakturpenjualan', $noFaktur)
+                            ->where('no_do', $noRef)
+                            ->where('kd_mat', $kdMat)
+                            ->update($payload);
+                    } else {
+                        DB::table('tb_fakturpenjualan')->insert(array_merge($payload, [
+                            'no_fakturpenjualan' => $noFaktur,
+                            'no' => $index + 1,
+                            'no_do' => $noRef,
+                            'kd_mat' => $kdMat,
+                        ]));
+                    }
+                }
+
+                DB::table('tb_kdfakturpenjualan')
+                    ->where('no_fakturpenjualan', $noFaktur)
+                    ->update([
+                        'HPP' => $hppDo,
+                        'HPPDOT' => $hppDot,
+                    ]);
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Gagal menyimpan perubahan: '.$e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => 'OK',
         ]);
     }
 

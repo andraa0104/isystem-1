@@ -81,7 +81,7 @@ const menuSections = [
         icon: Truck,
         items: [
             { title: 'Faktur Penjualan', href: '/penjualan/faktur-penjualan' },
-            { title: 'Kwitansi', href: '#' },
+            { title: 'Kwitansi', href: '/penjualan/faktur-penjualan/kwitansi' },
             { title: 'Tanda Terima Invoice', href: '#' },
         ],
     },

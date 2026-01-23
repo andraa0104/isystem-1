@@ -8,6 +8,7 @@ use App\Http\Controllers\Marketing\DeliveryOrderController;
 use App\Http\Controllers\Marketing\DeliveryOrderAddController;
 use App\Http\Controllers\Marketing\DeliveryOrderCostController;
 use App\Http\Controllers\Marketing\FakturPenjualanController;
+use App\Http\Controllers\Marketing\KwitansiPenjualanController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MasterData\MaterialController;
 use App\Http\Controllers\MasterData\VendorController;
@@ -276,12 +277,28 @@ Route::put('pembelian/delivery-order-cost/{noAlokasi}', [DeliveryOrderCostContro
 
 Route::get('penjualan/faktur-penjualan', [FakturPenjualanController::class, 'index'])
     ->name('penjualan.faktur-penjualan.index');
+Route::get('penjualan/faktur-penjualan/data', [FakturPenjualanController::class, 'listInvoices'])
+    ->name('penjualan.faktur-penjualan.data');
+Route::get('penjualan/faktur-penjualan/kwitansi', [KwitansiPenjualanController::class, 'index'])
+    ->name('penjualan.faktur-penjualan.kwitansi.index');
+Route::get('penjualan/faktur-penjualan/kwitansi/data', [KwitansiPenjualanController::class, 'listKwitansi'])
+    ->name('penjualan.faktur-penjualan.kwitansi.data');
+Route::get('penjualan/faktur-penjualan/kwitansi/no-receipt', [KwitansiPenjualanController::class, 'listNoReceiptInvoices'])
+    ->name('penjualan.faktur-penjualan.kwitansi.no-receipt');
+Route::get('penjualan/faktur-penjualan/kwitansi/{noKwitansi}/print', [KwitansiPenjualanController::class, 'print'])
+    ->name('penjualan.faktur-penjualan.kwitansi.print');
 Route::get('penjualan/faktur-penjualan/create', [FakturPenjualanController::class, 'create'])
     ->name('penjualan.faktur-penjualan.create');
+Route::get('penjualan/faktur-penjualan/{noFaktur}/edit', [FakturPenjualanController::class, 'edit'])
+    ->name('penjualan.faktur-penjualan.edit');
 Route::post('penjualan/faktur-penjualan', [FakturPenjualanController::class, 'store'])
     ->name('penjualan.faktur-penjualan.store');
+Route::put('penjualan/faktur-penjualan/{noFaktur}', [FakturPenjualanController::class, 'update'])
+    ->name('penjualan.faktur-penjualan.update');
 Route::post('penjualan/faktur-penjualan/upload-faktur-pajak', [FakturPenjualanController::class, 'uploadFakturPajak'])
     ->name('penjualan.faktur-penjualan.upload-faktur-pajak');
+Route::post('penjualan/faktur-penjualan/kwitansi', [FakturPenjualanController::class, 'storeKwitansi'])
+    ->name('penjualan.faktur-penjualan.kwitansi');
 Route::get('penjualan/faktur-penjualan/{noFaktur}/details', [FakturPenjualanController::class, 'details'])
     ->name('penjualan.faktur-penjualan.details');
 Route::get('penjualan/faktur-penjualan/{noFaktur}/print', [FakturPenjualanController::class, 'print'])

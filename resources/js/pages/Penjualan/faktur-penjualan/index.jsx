@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -23,7 +24,7 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link } from '@inertiajs/react';
-import { Eye, Pencil, Printer } from 'lucide-react';
+import { Eye, Pencil, Printer, ReceiptText } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -101,7 +102,6 @@ const parseInvoiceDate = (value) => {
 };
 
 export default function FakturPenjualanIndex({
-    invoices = [],
     unpaidCount = 0,
     unpaidTotal = 0,
     noReceiptCount = 0,
@@ -109,6 +109,9 @@ export default function FakturPenjualanIndex({
     dueCount = 0,
     dueTotal = 0,
 }) {
+    const [invoicesData, setInvoicesData] = useState([]);
+    const [invoicesLoading, setInvoicesLoading] = useState(false);
+    const [invoicesError, setInvoicesError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
@@ -133,10 +136,43 @@ export default function FakturPenjualanIndex({
     const [uploadItems, setUploadItems] = useState([]);
     const [uploadFileName, setUploadFileName] = useState('');
     const [uploadSaving, setUploadSaving] = useState(false);
+    const [isKwitansiOpen, setIsKwitansiOpen] = useState(false);
+    const [kwitansiSaving, setKwitansiSaving] = useState(false);
+    const [kwitansiForm, setKwitansiForm] = useState({
+        date: new Date().toISOString().slice(0, 10),
+        ref_faktur: '',
+        customer: '',
+        total_price: 0,
+    });
+
+    const fetchInvoices = () => {
+        setInvoicesLoading(true);
+        setInvoicesError('');
+        fetch('/penjualan/faktur-penjualan/data', {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            })
+            .then((data) => {
+                setInvoicesData(Array.isArray(data?.data) ? data.data : []);
+            })
+            .catch(() => {
+                setInvoicesError('Gagal memuat data faktur.');
+            })
+            .finally(() => setInvoicesLoading(false));
+    };
+
+    useEffect(() => {
+        fetchInvoices();
+    }, []);
 
     const filteredInvoices = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
-        let filtered = invoices.filter((item) => {
+        let filtered = invoicesData.filter((item) => {
             if (statusFilter === 'unpaid') {
                 return Number(item.total_bayaran ?? 0) === 0;
             }
@@ -192,7 +228,7 @@ export default function FakturPenjualanIndex({
         }
 
         return filtered;
-    }, [invoices, searchTerm, statusFilter]);
+    }, [invoicesData, searchTerm, statusFilter]);
 
     const totalItems = filteredInvoices.length;
     const totalPages = useMemo(() => {
@@ -443,6 +479,60 @@ export default function FakturPenjualanIndex({
             .finally(() => setUploadSaving(false));
     };
 
+    const openKwitansiModal = (item) => {
+        setKwitansiForm({
+            date: new Date().toISOString().slice(0, 10),
+            ref_faktur: item.no_fakturpenjualan ?? '',
+            customer: item.nm_cs ?? '',
+            total_price: item.g_total ?? 0,
+        });
+        setIsKwitansiOpen(true);
+    };
+
+    const handleSaveKwitansi = () => {
+        if (kwitansiSaving) return;
+        setKwitansiSaving(true);
+        fetch('/penjualan/faktur-penjualan/kwitansi', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify(kwitansiForm),
+        })
+            .then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw new Error(data?.message || 'Request failed');
+                }
+                return data;
+            })
+            .then(() => {
+                setIsKwitansiOpen(false);
+                fetchInvoices();
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Kwitansi berhasil disimpan.',
+                    showConfirmButton: false,
+                    timer: 3000,
+                });
+            })
+            .catch((error) => {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'error',
+                    title: error?.message || 'Gagal menyimpan kwitansi.',
+                    showConfirmButton: false,
+                    timer: 3500,
+                });
+            })
+            .finally(() => setKwitansiSaving(false));
+    };
+
     const noReceiptSummary = useMemo(() => {
         const now = new Date();
         now.setHours(0, 0, 0, 0);
@@ -470,7 +560,7 @@ export default function FakturPenjualanIndex({
             return true;
         };
 
-        const filtered = invoices.filter(
+        const filtered = invoicesData.filter(
             (item) => isNoReceipt(item) && isInRange(item.tgl_doc),
         );
 
@@ -482,7 +572,7 @@ export default function FakturPenjualanIndex({
             ),
             items: filtered,
         };
-    }, [invoices, noReceiptRange]);
+    }, [invoicesData, noReceiptRange]);
 
     const filteredNoReceiptItems = useMemo(() => {
         const term = noReceiptSearch.trim().toLowerCase();
@@ -707,14 +797,32 @@ export default function FakturPenjualanIndex({
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {displayedInvoices.length === 0 && (
+                                    {invoicesLoading && (
+                                        <TableRow>
+                                            <TableCell colSpan={5}>
+                                                Memuat data invoice...
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                    {!invoicesLoading && invoicesError && (
+                                        <TableRow>
+                                            <TableCell colSpan={5}>
+                                                {invoicesError}
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                    {!invoicesLoading &&
+                                        !invoicesError &&
+                                        displayedInvoices.length === 0 && (
                                         <TableRow>
                                             <TableCell colSpan={5}>
                                                 Tidak ada data invoice.
                                             </TableCell>
                                         </TableRow>
                                     )}
-                                    {displayedInvoices.map((item) => (
+                                    {!invoicesLoading &&
+                                        !invoicesError &&
+                                        displayedInvoices.map((item) => (
                                         <TableRow
                                             key={`inv-${item.no_fakturpenjualan}`}
                                         >
@@ -804,6 +912,9 @@ export default function FakturPenjualanIndex({
                 <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
                     <DialogHeader className="px-6 pt-6">
                         <DialogTitle>Detail Invoice</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Detail invoice dan daftar DO.
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="flex flex-col gap-6 px-6 pb-6">
                         {detailLoading && (
@@ -1049,6 +1160,9 @@ export default function FakturPenjualanIndex({
                 <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
                     <DialogHeader className="px-6 pt-6">
                         <DialogTitle>Invoice Belum Bikin Kwitansi</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Daftar invoice tanpa kwitansi.
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="flex flex-col gap-6 px-6 pb-6">
                         <div className="flex flex-wrap items-center gap-3">
@@ -1087,6 +1201,7 @@ export default function FakturPenjualanIndex({
                                         <TableHead>Date</TableHead>
                                         <TableHead>Customer</TableHead>
                                         <TableHead>Ref PO</TableHead>
+                                        <TableHead>Total Price</TableHead>
                                         <TableHead className="text-right">
                                             Aksi
                                         </TableHead>
@@ -1095,7 +1210,7 @@ export default function FakturPenjualanIndex({
                                 <TableBody>
                                     {displayedNoReceiptItems.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={5}>
+                                            <TableCell colSpan={6}>
                                                 Tidak ada data invoice.
                                             </TableCell>
                                         </TableRow>
@@ -1110,14 +1225,39 @@ export default function FakturPenjualanIndex({
                                             <TableCell>{item.tgl_doc}</TableCell>
                                             <TableCell>{item.nm_cs}</TableCell>
                                             <TableCell>{item.ref_po}</TableCell>
+                                            <TableCell>
+                                                {formatRupiah(item.g_total)}
+                                            </TableCell>
                                             <TableCell className="text-right">
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
+                                                <div className="inline-flex items-center justify-end gap-2">
+                                                    <Link
+                                                        href={`/penjualan/faktur-penjualan/${encodeURIComponent(
+                                                            item.no_fakturpenjualan ?? '',
+                                                        )}/edit`}
+                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:text-foreground"
+                                                        aria-label="Edit INV"
+                                                        title="Edit INV"
+                                                        onClick={() => {
+                                                            setIsNoReceiptOpen(false);
+                                                            setIsKwitansiOpen(false);
+                                                        }}
+                                                    >
+                                                        <Pencil className="size-4" />
+                                                    </Link>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8"
+                                                        onClick={() =>
+                                                            openKwitansiModal(item)
+                                                        }
+                                                        aria-label="Buat Kwitansi"
+                                                        title="Buat Kwitansi"
+                                                    >
+                                                        <ReceiptText className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     ))}
@@ -1187,6 +1327,9 @@ export default function FakturPenjualanIndex({
                 <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
                     <DialogHeader className="px-6 pt-6">
                         <DialogTitle>Upload Faktur Pajak</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Unggah CSV faktur pajak untuk diperbarui.
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="flex flex-col gap-6 px-6 pb-6">
                         <div className="text-sm text-muted-foreground">
@@ -1247,6 +1390,60 @@ export default function FakturPenjualanIndex({
                                 </div>
                             </div>
                         )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isKwitansiOpen} onOpenChange={setIsKwitansiOpen}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Buat Kwitansi</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Form pembuatan kwitansi dari invoice.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <label className="space-y-2 text-sm">
+                            <span className="text-muted-foreground">Date</span>
+                            <Input
+                                type="date"
+                                value={kwitansiForm.date}
+                                onChange={(event) =>
+                                    setKwitansiForm((prev) => ({
+                                        ...prev,
+                                        date: event.target.value,
+                                    }))
+                                }
+                            />
+                        </label>
+                        <label className="space-y-2 text-sm">
+                            <span className="text-muted-foreground">
+                                No Invoice
+                            </span>
+                            <Input value={kwitansiForm.ref_faktur} readOnly />
+                        </label>
+                        <label className="space-y-2 text-sm">
+                            <span className="text-muted-foreground">Customer</span>
+                            <Input value={kwitansiForm.customer} readOnly />
+                        </label>
+                        <label className="space-y-2 text-sm">
+                            <span className="text-muted-foreground">
+                                Total Price
+                            </span>
+                            <Input
+                                value={formatRupiah(kwitansiForm.total_price)}
+                                readOnly
+                            />
+                        </label>
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                onClick={handleSaveKwitansi}
+                                disabled={kwitansiSaving}
+                            >
+                                {kwitansiSaving ? 'Menyimpan...' : 'Simpan'}
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>
