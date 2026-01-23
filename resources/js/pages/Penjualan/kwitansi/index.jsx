@@ -239,6 +239,17 @@ export default function KwitansiIndex() {
         return ((detailTotalPrice - detailHargaPokok) / detailTotalPrice) * 100;
     }, [detailTotalPrice, detailHargaPokok]);
 
+    const detailSaldoPiutang = useMemo(() => {
+        if (!detailInvoice) return 0;
+        return toNumber(detailInvoice.saldo_piutang);
+    }, [detailInvoice]);
+
+    const detailTotalBayar = useMemo(() => {
+        if (!detailInvoice) return 0;
+        return toNumber(detailInvoice.total_bayaran);
+    }, [detailInvoice]);
+
+
     const openKwitansiModal = () => {
         setKwitansiForm({
             date: new Date().toISOString().slice(0, 10),
@@ -607,6 +618,18 @@ export default function KwitansiIndex() {
                                         <span>Jatuh Tempo</span>
                                         <span className="font-medium">
                                             {detailInvoice.jth_tempo}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between gap-3">
+                                        <span>Saldo Piutang/Sisa Bayar</span>
+                                        <span className="font-medium">
+                                            {formatRupiah(detailSaldoPiutang)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between gap-3">
+                                        <span>Total Bayar</span>
+                                        <span className="font-medium">
+                                            {formatRupiah(detailTotalBayar)}
                                         </span>
                                     </div>
                                     <div className="flex justify-between gap-3">

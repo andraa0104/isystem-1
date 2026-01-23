@@ -65,6 +65,7 @@ class FakturPenjualanController
                 'nm_cs',
                 'ref_po',
                 'g_total',
+                'saldo_piutang',
                 'total_bayaran',
                 'tgl_terimainv',
                 'no_kwitansi',
@@ -305,6 +306,11 @@ class FakturPenjualanController
     public function details(Request $request, string $noFaktur)
     {
         $header = DB::table('tb_kdfakturpenjualan')
+            ->select(
+                '*',
+                'saldo_piutang',
+                'total_bayaran',
+            )
             ->where('no_fakturpenjualan', $noFaktur)
             ->first();
 
@@ -369,10 +375,8 @@ class FakturPenjualanController
             'email' => $companyConfig['email'] ?? '',
         ];
 
-        $cityLabel = 'Samarinda';
-        if (is_string($database) && strtolower($database) === 'dbstg') {
-            $cityLabel = 'Banjarmasin';
-        }
+        $isStg = is_string($database) && strtolower($database) === 'dbstg';
+        $cityLabel = $isStg ? 'Banjarmasin' : 'Samarinda';
 
         return Inertia::render('Penjualan/faktur-penjualan/print', [
             'invoice' => $invoice,
@@ -380,6 +384,7 @@ class FakturPenjualanController
             'customer' => $customer,
             'company' => $company,
             'cityLabel' => $cityLabel,
+            'isStg' => $isStg,
         ]);
     }
 

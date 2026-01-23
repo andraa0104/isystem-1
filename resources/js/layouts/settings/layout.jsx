@@ -6,26 +6,44 @@ import { useActiveUrl } from '@/hooks/use-active-url';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit } from '@/routes/profile';
 import { edit as editPassword } from '@/routes/user-password';
-import { Link } from '@inertiajs/react';
-const sidebarNavItems = [
-    {
-        title: 'Profile',
-        href: edit(),
-        icon: null,
-    },
-    {
-        title: 'Password',
-        href: editPassword(),
-        icon: null,
-    },
-    {
-        title: 'Appearance',
-        href: editAppearance(),
-        icon: null,
-    },
-];
-export default function SettingsLayout({ children }) {
+import { Link, usePage } from '@inertiajs/react';
+export default function SettingsLayout({ children, wide = false }) {
     const { urlIsActive } = useActiveUrl();
+    const { auth } = usePage().props;
+    const userLevel = auth?.user?.level;
+    const isAdmin =
+        typeof userLevel === 'string' && userLevel.toLowerCase() === 'admin';
+    const sidebarNavItems = [
+        {
+            title: 'Profile',
+            href: edit(),
+            icon: null,
+        },
+        {
+            title: 'Password',
+            href: editPassword(),
+            icon: null,
+        },
+        {
+            title: 'Appearance',
+            href: editAppearance(),
+            icon: null,
+        },
+        ...(isAdmin
+            ? [
+                  {
+                      title: 'Manage User',
+                      href: '/settings/add-user',
+                      icon: null,
+                  },
+                  {
+                      title: 'Privilege Access',
+                      href: '/settings/privilege-access',
+                      icon: null,
+                  },
+              ]
+            : []),
+    ];
     // When server-side rendering, we only render the layout on the client...
     if (typeof window === 'undefined') {
         return null;
@@ -49,8 +67,8 @@ export default function SettingsLayout({ children }) {
 
                 <Separator className="my-6 lg:hidden"/>
 
-                <div className="flex-1 md:max-w-2xl">
-                    <section className="max-w-xl space-y-12">
+                <div className={cn('flex-1', wide ? 'w-full' : 'md:max-w-2xl')}>
+                    <section className={cn('space-y-12', wide ? 'max-w-none' : 'max-w-xl')}>
                         {children}
                     </section>
                 </div>

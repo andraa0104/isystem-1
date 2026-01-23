@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use App\Models\Pengguna;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -59,7 +60,23 @@ class HandleInertiaRequests extends Middleware
             }
         }
         $userData = null;
+        $menuAccess = null;
+        $hasPrivileges = false;
         if ($authUser) {
+            $kdUser = $authUser->kd_user ?? null;
+            if ($kdUser) {
+                $path = 'privileges.json';
+                if (Storage::disk('local')->exists($path)) {
+                    $raw = Storage::disk('local')->get($path);
+                    $decoded = json_decode($raw, true);
+                    if (is_array($decoded)
+                        && isset($decoded['users'][$kdUser]['menus'])
+                        && is_array($decoded['users'][$kdUser]['menus'])) {
+                        $menuAccess = $decoded['users'][$kdUser]['menus'];
+                        $hasPrivileges = true;
+                    }
+                }
+            }
             $userData = [
                 'name' => $authUser->name ?? null,
                 'email' => $authUser->email ?? null,
@@ -76,6 +93,8 @@ class HandleInertiaRequests extends Middleware
                 'last_online' => $authUser->last_online ?? null,
                 'database' => $database,
                 'database_label' => $databaseLabel,
+                'menu_access' => $menuAccess,
+                'has_privileges' => $hasPrivileges,
             ];
         } else {
             $cookieName = $request->cookie('login_user_name');

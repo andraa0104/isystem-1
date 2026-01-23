@@ -16,126 +16,41 @@ import {
     SidebarMenuSubItem,
     useSidebar,
 } from '@/components/ui/sidebar';
-import { dashboard } from '@/routes';
-import { Link } from '@inertiajs/react';
-import { Banknote, BookOpen, ChevronRight, Folder, LayoutDashboard, LayoutGrid, Package, ShoppingBagIcon, Truck, WeightIcon, BookText, FileText } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import { ChevronRight, LayoutDashboard } from 'lucide-react';
+import {
+    footerNavItems,
+    getMainItemKey,
+    getSectionItemKey,
+    mainMenuItems,
+    menuSections,
+} from '@/data/menu-sections';
 import AppLogo from './app-logo';
-const mainNavItems = [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-];
-const footerNavItems = [
-    {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
-    },
-];
 const menuTextWrapClass = 'h-auto items-start [&>span:last-child]:whitespace-normal [&>span:last-child]:break-words [&>span:last-child]:text-clip [&>span:last-child]:overflow-visible';
 const subMenuTextWrapClass = 'h-auto items-start [&>span:last-child]:whitespace-normal [&>span:last-child]:break-words [&>span:last-child]:text-clip [&>span:last-child]:overflow-visible';
 const dropdownItemWrapClass = 'h-auto items-start whitespace-normal [&_span]:whitespace-normal [&_span]:break-words';
-const menuSections = [
-    {
-        title: 'Marketing',
-        icon: WeightIcon,
-        items: [
-            { title: 'Quotation', href: '/marketing/quotation' },
-            { title: 'Purchase Requirement (PR)', href: '/marketing/purchase-requirement' },
-            { title: 'Delivery Order (DO)', href: '/marketing/delivery-order' },
-            { title: 'Delivery Order Add (DOA)', href: '/marketing/delivery-order-add' },
-        ],
-    },
-    {
-        title: 'Pembelian',
-        icon: ShoppingBagIcon,
-        items: [
-            { title: 'Delivery Order Cost (APB)', href: '/pembelian/delivery-order-cost' },
-            { title: 'Purchase Order', href: '/pembelian/purchase-order' },
-            { title: 'Invoice Masuk', href: '#' },
-            { title: 'Permintaan Dana Operaisonal', href: '#' },
-            { title: 'Permintaan Dana Biaya', href: '#' },
-            { title: 'Biaya Kirim Pembelian', href: '#' },
-            { title: 'Biaya Kirim Penjualan', href: '#' },
-            { title: 'Payment Cost', href: '#' },
-        ],
-    },
-    {
-        title: 'Inventory',
-        icon: Package,
-        items: [
-            { title: 'Data Material', href: '#' },
-            { title: 'Penerimaan Material', href: '#' },
-            { title: 'Transfer Material', href: '#' },
-        ],
-    },
-    {
-        title: 'Penjualan',
-        icon: Truck,
-        items: [
-            { title: 'Faktur Penjualan', href: '/penjualan/faktur-penjualan' },
-            { title: 'Kwitansi', href: '/penjualan/faktur-penjualan/kwitansi' },
-            { title: 'Tanda Terima Invoice', href: '#' },
-        ],
-    },
-    {
-        title: 'Keuangan',
-        icon: Banknote,
-        items: [
-            { title: 'Mutasi Kas', href: '#' },
-            { title: 'Input Pembelian', href: '#' },
-            { title: 'Input Penjualan', href: '#' },
-            { title: 'Penyesuaian', href: '#' },
-            { title: 'Jurnal Lainnya', href: '#' },
-        ],
-    },
-    {
-        title: 'Master Data',
-        icon: BookText,
-        items: [
-            { title: 'Vendor', href: '/master-data/vendor' },
-            { title: 'Customer', href: '/master-data/customer' },
-            { title: 'Material', href: '/master-data/material' },
-            { title: 'Biaya Kirim Pembelian', href: '#' },
-            { title: 'Biaya Kirim Penjualan', href: '#' },
-            { title: 'Pembayaran Biaya', href: '#' },
-            { title: 'Invoice Receipt (FI)', href: '#' },
-            { title: 'Faktur Penjualan', href: '#' },
-        ],
-    },
-    {
-        title: 'Laporan',
-        icon: FileText,
-        items: [
-            { title: 'Jurnal Umum', href: '#' },
-            { title: 'Jurnal Penyesuaian', href: '#' },
-            { title: 'Buku Besar', href: '#' },
-            { title: 'Buku Kas', href: '#' },
-            { title: 'Neraca Saldo', href: '#' },
-            { title: 'Neraca Lajur', href: '#' },
-            { title: 'Neraca Akhir', href: '#' },
-            { title: 'Rugi Laba', href: '#' },
-            { title: 'Perubahan Modal', href: '#' },
-        ],
-    },
-];
 export function AppSidebar() {
     const { state } = useSidebar();
     const isCollapsed = state === 'collapsed';
+    const { auth } = usePage().props;
+    const menuAccess = auth?.user?.menu_access ?? null;
+    const hasPrivileges = auth?.user?.has_privileges ?? false;
+    const userLevel = auth?.user?.level;
+    const isAdmin =
+        typeof userLevel === 'string' && userLevel.toLowerCase() === 'admin';
+
+    const isAllowed = (key) => {
+        if (isAdmin) return true;
+        if (!hasPrivileges) return false;
+        return !!menuAccess?.[key];
+    };
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()}>
+                            <Link href={mainMenuItems[0]?.href ?? '/dashboard'}>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
@@ -146,21 +61,39 @@ export function AppSidebar() {
             <SidebarContent>
                 <SidebarGroup>
                     <SidebarMenu>
-                        <SidebarMenuItem>
-                            <SidebarMenuButton asChild className={menuTextWrapClass}>
-                                <Link
-                                    href={dashboard()}
-
-                                    className="flex items-start gap-2"
-                                >
-                                    <LayoutDashboard />
-                                    <span>Dashboard</span>
-                                </Link>
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                        {mainMenuItems
+                            .filter((item) => isAllowed(getMainItemKey(item.title)))
+                            .map((item) => (
+                                <SidebarMenuItem key={item.title}>
+                                    <SidebarMenuButton
+                                        asChild
+                                        className={menuTextWrapClass}
+                                    >
+                                        <Link
+                                            href={item.href}
+                                            className="flex items-start gap-2"
+                                        >
+                                            {item.icon ? (
+                                                <item.icon />
+                                            ) : (
+                                                <LayoutDashboard />
+                                            )}
+                                            <span>{item.title}</span>
+                                        </Link>
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                            ))}
 
                         {menuSections.map((section) => {
                             const SectionIcon = section.icon;
+                            const allowedItems = section.items.filter((item) =>
+                                isAllowed(
+                                    getSectionItemKey(section.title, item.title)
+                                )
+                            );
+                            if (allowedItems.length === 0) {
+                                return null;
+                            }
                             return (
                                 isCollapsed ? (
                                     <SidebarMenuItem key={section.title}>
@@ -174,7 +107,7 @@ export function AppSidebar() {
                                             <DropdownMenuContent side="right" align="start" className="min-w-56">
                                                 <DropdownMenuLabel>{section.title}</DropdownMenuLabel>
                                                 <DropdownMenuSeparator />
-                                                {section.items.map((item) => (
+                                                {allowedItems.map((item) => (
                                                     <DropdownMenuItem key={item.title} asChild className={dropdownItemWrapClass}>
                                                         <Link href={item.href}>
                                                             <span>{item.title}</span>
@@ -196,7 +129,7 @@ export function AppSidebar() {
                                             </CollapsibleTrigger>
                                             <CollapsibleContent>
                                                 <SidebarMenuSub>
-                                                    {section.items.map((item) => (
+                                                    {allowedItems.map((item) => (
                                                         <SidebarMenuSubItem key={item.title}>
                                                             <SidebarMenuSubButton asChild className={subMenuTextWrapClass}>
                                                                 <Link href={item.href}>

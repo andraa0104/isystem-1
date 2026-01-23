@@ -106,8 +106,6 @@ export default function FakturPenjualanIndex({
     unpaidTotal = 0,
     noReceiptCount = 0,
     noReceiptTotal = 0,
-    dueCount = 0,
-    dueTotal = 0,
 }) {
     const [invoicesData, setInvoicesData] = useState([]);
     const [invoicesLoading, setInvoicesLoading] = useState(false);
@@ -193,6 +191,12 @@ export default function FakturPenjualanIndex({
             }
             if (statusFilter === 'not-posted') {
                 return String(item.trx_jurnal ?? '') === '1109AD';
+            }
+            if (statusFilter === 'unpaid-balance') {
+                return (
+                    toNumber(item.saldo_piutang) > 0 &&
+                    toNumber(item.total_bayaran) > 0
+                );
             }
             return true;
         });
@@ -339,6 +343,17 @@ export default function FakturPenjualanIndex({
         if (!detailTotalPrice) return 0;
         return ((detailTotalPrice - detailHargaPokok) / detailTotalPrice) * 100;
     }, [detailTotalPrice, detailHargaPokok]);
+
+    const detailSaldoPiutang = useMemo(() => {
+        if (!detailInvoice) return 0;
+        return toNumber(detailInvoice.saldo_piutang);
+    }, [detailInvoice]);
+
+    const detailTotalBayar = useMemo(() => {
+        if (!detailInvoice) return 0;
+        return toNumber(detailInvoice.total_bayaran);
+    }, [detailInvoice]);
+
 
     const parseCsvLine = (line, delimiter) => {
         const result = [];
@@ -654,15 +669,15 @@ export default function FakturPenjualanIndex({
                         </Button>
                     </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-3">
-                    <Card className="transition hover:border-primary/60 hover:shadow-md">
-                        <CardHeader className="space-y-2">
+                <div className="grid gap-4 md:grid-cols-2">
+                    <Card className="flex flex-col transition hover:border-primary/60 hover:shadow-md">
+                        <CardHeader className="space-y-1 pb-2">
                             <CardTitle>Invoice Belum Dibayar</CardTitle>
                             <CardDescription>
                                 Total invoice dengan pembayaran 0.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-1">
+                        <CardContent className="space-y-1 pt-2">
                             <p className="text-3xl font-semibold">
                                 {formatNumber(unpaidCount)} Invoice
                             </p>
@@ -672,10 +687,10 @@ export default function FakturPenjualanIndex({
                         </CardContent>
                     </Card>
                     <Card
-                        className="cursor-pointer transition hover:border-primary/60 hover:shadow-md"
+                        className="flex cursor-pointer flex-col transition hover:border-primary/60 hover:shadow-md"
                         onClick={() => setIsNoReceiptOpen(true)}
                     >
-                        <CardHeader className="space-y-2">
+                        <CardHeader className="space-y-1 pb-2">
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <CardTitle>Invoice Belum Bikin Kwitansi</CardTitle>
                                 <select
@@ -697,28 +712,12 @@ export default function FakturPenjualanIndex({
                                 Invoice tanpa nomor kwitansi.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-1">
+                        <CardContent className="space-y-1 pt-2">
                             <p className="text-3xl font-semibold">
                                 {formatNumber(noReceiptSummary.count)} Invoice
                             </p>
                             <p className="text-sm text-muted-foreground">
                                 Grand Total: {formatRupiah(noReceiptSummary.total)}
-                            </p>
-                        </CardContent>
-                    </Card>
-                    <Card className="transition hover:border-primary/60 hover:shadow-md">
-                        <CardHeader className="space-y-2">
-                            <CardTitle>Invoice Jatuh Tempo</CardTitle>
-                            <CardDescription>
-                                Jatuh tempo hari ini atau lebih lama
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-1">
-                            <p className="text-3xl font-semibold">
-                                {formatNumber(dueCount)} Invoice
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                                Grand Total: {formatRupiah(dueTotal)}
                             </p>
                         </CardContent>
                     </Card>
@@ -768,9 +767,11 @@ export default function FakturPenjualanIndex({
                                 <option value="no-receipt">
                                     Invoice belum dibikin kwitansi
                                 </option>
-                                <option value="due">Invoice jatuh tempo</option>
                                 <option value="not-posted">
                                     Invoice belum dibukukan
+                                </option>
+                                <option value="unpaid-balance">
+                                    Invoice belum lunas
                                 </option>
                                 <option value="all">Semua invoice</option>
                             </select>
@@ -1013,6 +1014,20 @@ export default function FakturPenjualanIndex({
                                             Jatuh Tempo
                                         </span>
                                         <span>{detailInvoice.jth_tempo}</span>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">
+                                            Saldo Piutang/Sisa Bayar
+                                        </span>
+                                        <span>
+                                            {formatRupiah(detailSaldoPiutang)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between gap-4">
+                                        <span className="text-muted-foreground">
+                                            Total Bayar
+                                        </span>
+                                        <span>{formatRupiah(detailTotalBayar)}</span>
                                     </div>
                                     <div className="flex justify-between gap-4">
                                         <span className="text-muted-foreground">

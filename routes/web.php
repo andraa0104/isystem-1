@@ -9,6 +9,7 @@ use App\Http\Controllers\Marketing\DeliveryOrderAddController;
 use App\Http\Controllers\Marketing\DeliveryOrderCostController;
 use App\Http\Controllers\Marketing\FakturPenjualanController;
 use App\Http\Controllers\Marketing\KwitansiPenjualanController;
+use App\Http\Controllers\Marketing\TandaTerimaInvoiceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MasterData\MaterialController;
 use App\Http\Controllers\MasterData\VendorController;
@@ -287,6 +288,44 @@ Route::get('penjualan/faktur-penjualan/kwitansi/no-receipt', [KwitansiPenjualanC
     ->name('penjualan.faktur-penjualan.kwitansi.no-receipt');
 Route::get('penjualan/faktur-penjualan/kwitansi/{noKwitansi}/print', [KwitansiPenjualanController::class, 'print'])
     ->name('penjualan.faktur-penjualan.kwitansi.print');
+Route::get('penjualan/tanda-terima-invoice', [TandaTerimaInvoiceController::class, 'index'])
+    ->name('penjualan.tanda-terima-invoice.index');
+Route::get('penjualan/tanda-terima-invoice/create', [TandaTerimaInvoiceController::class, 'create'])
+    ->name('penjualan.tanda-terima-invoice.create');
+Route::get('penjualan/tanda-terima-invoice/edit', [TandaTerimaInvoiceController::class, 'edit'])
+    ->name('penjualan.tanda-terima-invoice.edit');
+Route::get('penjualan/tanda-terima-invoice/data', [TandaTerimaInvoiceController::class, 'listData'])
+    ->name('penjualan.tanda-terima-invoice.data');
+Route::get('penjualan/tanda-terima-invoice/invoices', [TandaTerimaInvoiceController::class, 'listInvoices'])
+    ->name('penjualan.tanda-terima-invoice.invoices');
+Route::get('penjualan/tanda-terima-invoice/edit-data', [TandaTerimaInvoiceController::class, 'editData'])
+    ->name('penjualan.tanda-terima-invoice.edit-data');
+Route::get('penjualan/tanda-terima-invoice/{noTtInv}/details', [TandaTerimaInvoiceController::class, 'details'])
+    ->name('penjualan.tanda-terima-invoice.details');
+Route::get('penjualan/tanda-terima-invoice/details', [TandaTerimaInvoiceController::class, 'details'])
+    ->name('penjualan.tanda-terima-invoice.details.query');
+Route::get('penjualan/tanda-terima-invoice/{noTtInv}/receive', [TandaTerimaInvoiceController::class, 'receiveInfo'])
+    ->name('penjualan.tanda-terima-invoice.receive');
+Route::get('penjualan/tanda-terima-invoice/receive', [TandaTerimaInvoiceController::class, 'receiveInfo'])
+    ->name('penjualan.tanda-terima-invoice.receive.query');
+Route::post('penjualan/tanda-terima-invoice/receive', [TandaTerimaInvoiceController::class, 'storeReceive'])
+    ->name('penjualan.tanda-terima-invoice.receive.store');
+Route::post('penjualan/tanda-terima-invoice', [TandaTerimaInvoiceController::class, 'store'])
+    ->name('penjualan.tanda-terima-invoice.store');
+Route::post('penjualan/tanda-terima-invoice/update', [TandaTerimaInvoiceController::class, 'update'])
+    ->name('penjualan.tanda-terima-invoice.update');
+Route::post('penjualan/tanda-terima-invoice/update-remark', [TandaTerimaInvoiceController::class, 'updateRemark'])
+    ->name('penjualan.tanda-terima-invoice.update-remark');
+Route::post('penjualan/tanda-terima-invoice/delete-item', [TandaTerimaInvoiceController::class, 'deleteItem'])
+    ->name('penjualan.tanda-terima-invoice.delete-item');
+Route::post('penjualan/tanda-terima-invoice/add-item', [TandaTerimaInvoiceController::class, 'addItem'])
+    ->name('penjualan.tanda-terima-invoice.add-item');
+Route::post('penjualan/tanda-terima-invoice/delete', [TandaTerimaInvoiceController::class, 'deleteHeader'])
+    ->name('penjualan.tanda-terima-invoice.delete');
+Route::get('penjualan/tanda-terima-invoice/{noTtInv}/print', [TandaTerimaInvoiceController::class, 'print'])
+    ->name('penjualan.tanda-terima-invoice.print');
+Route::get('penjualan/tanda-terima-invoice/print', [TandaTerimaInvoiceController::class, 'print'])
+    ->name('penjualan.tanda-terima-invoice.print.query');
 Route::get('penjualan/faktur-penjualan/create', [FakturPenjualanController::class, 'create'])
     ->name('penjualan.faktur-penjualan.create');
 Route::get('penjualan/faktur-penjualan/{noFaktur}/edit', [FakturPenjualanController::class, 'edit'])

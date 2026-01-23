@@ -122,6 +122,7 @@ export default function FakturPenjualanPrint({
     company = {},
     customer,
     cityLabel,
+    isStg = false,
 }) {
     const printMarginTop = '0.2in';
     const printMarginRight = '0.4in';
@@ -304,13 +305,22 @@ export default function FakturPenjualanPrint({
                             TRANSFER PEMBAYARAN KE :
                         </div>
                         <div>{company.name}</div>
-                        <div>BANK BCA - CABANG A. YANI, SAMARINDA</div>
-                        <div>NO. REKENING : 7935229995</div>
+                        <div>
+                            BANK BCA - CABANG{' '}
+                            {isStg ? 'BANJARMASIN' : 'A. YANI, SAMARINDA'}
+                        </div>
+                        <div>
+                            NO. REKENING : {isStg ? '0511908883' : '7935229995'}
+                        </div>
                     </div>
                     <div className="space-y-1">
                         <div>Untuk pertanyaan lebih lanjut</div>
                         <div>dapat menghubungi:</div>
-                        <div>0821 5628 6588 a/n Maya Astuti</div>
+                        <div>
+                            {isStg
+                                ? '082251644645 a/n Mira Erliana'
+                                : '0821 5628 6588 a/n Maya Astuti'}
+                        </div>
                     </div>
                     <div className="text-right">
                         <div>
