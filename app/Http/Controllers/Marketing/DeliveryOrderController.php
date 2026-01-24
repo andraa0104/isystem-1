@@ -50,11 +50,16 @@ class DeliveryOrderController
             ]);
         }
 
-        $deliveryOrderDetails = DB::table('tb_do')
+        $query = DB::table('tb_do')
             ->select('no_do', 'mat', 'qty', 'harga', 'total', 'remark', 'nm_cs')
-            ->where('no_do', $noDo)
-            ->orderBy('no_do')
-            ->get();
+            ->where('no_do', $noDo);
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where('mat', 'like', "%{$search}%");
+        }
+
+        $deliveryOrderDetails = $query->orderBy('no_do')->get();
 
         $first = $deliveryOrderDetails->first();
         $customerAddress = null;

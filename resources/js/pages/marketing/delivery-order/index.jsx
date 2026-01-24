@@ -59,6 +59,10 @@ export default function DeliveryOrderIndex({
     const [selectedAddress, setSelectedAddress] = useState('');
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState('');
+    const [detailPageSize, setDetailPageSize] = useState(5);
+    const [detailCurrentPage, setDetailCurrentPage] = useState(1);
+    const [detailSearch, setDetailSearch] = useState('');
+    const [debouncedDetailSearch, setDebouncedDetailSearch] = useState('');
     const [outstandingList, setOutstandingList] = useState([]);
     const [outstandingLoading, setOutstandingLoading] = useState(false);
     const [outstandingError, setOutstandingError] = useState('');
@@ -178,6 +182,10 @@ export default function DeliveryOrderIndex({
         setSelectedDetails([]);
         setSelectedAddress('');
         setDetailError('');
+        setDetailSearch('');
+        setDebouncedDetailSearch('');
+        setDetailPageSize(5);
+        setDetailCurrentPage(1);
         setDetailLoading(true);
         fetch(
             `/marketing/delivery-order/details?no_do=${encodeURIComponent(
@@ -245,6 +253,21 @@ export default function DeliveryOrderIndex({
             }, 0),
         [selectedDetails]
     );
+    const detailTotalItems = selectedDetails.length;
+    const detailTotalPages = useMemo(() => {
+        if (detailPageSize === Infinity) {
+            return 1;
+        }
+        return Math.max(1, Math.ceil(detailTotalItems / detailPageSize));
+    }, [detailPageSize, detailTotalItems]);
+
+    const displayedDetailItems = useMemo(() => {
+        if (detailPageSize === Infinity) {
+            return selectedDetails;
+        }
+        const startIndex = (detailCurrentPage - 1) * detailPageSize;
+        return selectedDetails.slice(startIndex, startIndex + detailPageSize);
+    }, [detailCurrentPage, detailPageSize, selectedDetails]);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -253,6 +276,54 @@ export default function DeliveryOrderIndex({
     useEffect(() => {
         setOutstandingCurrentPage(1);
     }, [outstandingPageSize, outstandingSearchTerm]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedDetailSearch(detailSearch);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [detailSearch]);
+
+    useEffect(() => {
+        if (!selectedDo || !isDetailModalOpen) return;
+        setDetailLoading(true);
+        const params = new URLSearchParams({
+            no_do: selectedDo.no_do,
+        });
+        if (debouncedDetailSearch) {
+            params.append('search', debouncedDetailSearch);
+        }
+        fetch(`/marketing/delivery-order/details?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            })
+            .then((data) => {
+                setSelectedDetails(
+                    Array.isArray(data?.deliveryOrderDetails)
+                        ? data.deliveryOrderDetails
+                        : []
+                );
+                setSelectedAddress(data?.customerAddress ?? '');
+                setDetailCurrentPage(1);
+            })
+            .catch(() => {
+                setDetailError('Gagal memuat detail DO.');
+            })
+            .finally(() => {
+                setDetailLoading(false);
+            });
+    }, [debouncedDetailSearch, isDetailModalOpen, selectedDo]);
+
+    useEffect(() => {
+        if (detailCurrentPage > detailTotalPages) {
+            setDetailCurrentPage(detailTotalPages);
+        }
+    }, [detailCurrentPage, detailTotalPages]);
 
     useEffect(() => {
         if (currentPage > totalPages) {
@@ -525,6 +596,46 @@ export default function DeliveryOrderIndex({
                                 </div>
 
                                 <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                                    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm text-muted-foreground">
+                                        <div className="flex items-center gap-2">
+                                            <span>Tampilkan</span>
+                                            <select
+                                                className="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm"
+                                                value={
+                                                    detailPageSize === Infinity
+                                                        ? 'all'
+                                                        : detailPageSize
+                                                }
+                                                onChange={(event) => {
+                                                    const value = event.target.value;
+                                                    setDetailPageSize(
+                                                        value === 'all'
+                                                            ? Infinity
+                                                            : Number(value)
+                                                    );
+                                                    setDetailCurrentPage(1);
+                                                }}
+                                            >
+                                                <option value={5}>5</option>
+                                                <option value={10}>10</option>
+                                                <option value={25}>25</option>
+                                                <option value={50}>50</option>
+                                                <option value="all">Semua</option>
+                                            </select>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span>Cari</span>
+                                            <input
+                                                type="text"
+                                                placeholder="Cari material..."
+                                                className="h-8 rounded-md border border-input bg-background px-3 text-xs shadow-sm w-44"
+                                                value={detailSearch}
+                                                onChange={(event) =>
+                                                    setDetailSearch(event.target.value)
+                                                }
+                                            />
+                                        </div>
+                                    </div>
                                     <table className="w-full text-sm">
                                         <thead className="bg-muted/50 text-muted-foreground">
                                             <tr>
@@ -549,26 +660,42 @@ export default function DeliveryOrderIndex({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {selectedDetails.length === 0 && (
+                                            {detailLoading && (
                                                 <tr>
                                                     <td
                                                         className="px-4 py-6 text-center text-muted-foreground"
                                                         colSpan={6}
                                                     >
-                                                        {detailLoading
-                                                            ? 'Memuat detail DO...'
-                                                            : detailError ||
-                                                              'Tidak ada detail DO.'}
+                                                        Memuat detail DO...
                                                     </td>
                                                 </tr>
                                             )}
-                                            {selectedDetails.map((detail, index) => (
+                                            {!detailLoading &&
+                                                displayedDetailItems.length === 0 && (
+                                                <tr>
+                                                    <td
+                                                        className="px-4 py-6 text-center text-muted-foreground"
+                                                        colSpan={6}
+                                                    >
+                                                        {detailError ||
+                                                            'Tidak ada detail DO.'}
+                                                    </td>
+                                                </tr>
+                                                )}
+                                            {!detailLoading &&
+                                                displayedDetailItems.map(
+                                                    (detail, index) => (
                                                 <tr
                                                     key={`${detail.no_do}-${index}`}
                                                     className="border-t border-sidebar-border/70"
                                                 >
                                                     <td className="px-4 py-3">
-                                                        {index + 1}
+                                                        {detailPageSize === Infinity
+                                                            ? index + 1
+                                                            : (detailCurrentPage - 1) *
+                                                                  detailPageSize +
+                                                              index +
+                                                              1}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {renderValue(detail.mat)}
@@ -586,10 +713,69 @@ export default function DeliveryOrderIndex({
                                                         {renderValue(detail.remark)}
                                                     </td>
                                                 </tr>
-                                            ))}
+                                                    )
+                                                )}
                                         </tbody>
                                     </table>
                                 </div>
+
+                                {!detailLoading &&
+                                    detailPageSize !== Infinity &&
+                                    detailTotalItems > 0 && (
+                                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                            <span>
+                                                Menampilkan{' '}
+                                                {Math.min(
+                                                    (detailCurrentPage - 1) *
+                                                        detailPageSize +
+                                                        1,
+                                                    detailTotalItems
+                                                )}
+                                                -
+                                                {Math.min(
+                                                    detailCurrentPage * detailPageSize,
+                                                    detailTotalItems
+                                                )}{' '}
+                                                dari {detailTotalItems} data
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setDetailCurrentPage((page) =>
+                                                            Math.max(1, page - 1)
+                                                        )
+                                                    }
+                                                    disabled={detailCurrentPage === 1}
+                                                >
+                                                    Sebelumnya
+                                                </Button>
+                                                <span className="text-sm text-muted-foreground">
+                                                    Halaman {detailCurrentPage} dari{' '}
+                                                    {detailTotalPages}
+                                                </span>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setDetailCurrentPage((page) =>
+                                                            Math.min(
+                                                                detailTotalPages,
+                                                                page + 1
+                                                            )
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        detailCurrentPage ===
+                                                        detailTotalPages
+                                                    }
+                                                >
+                                                    Berikutnya
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
 
                                 <div className="text-right text-sm text-muted-foreground">
                                     Grand Total:{' '}

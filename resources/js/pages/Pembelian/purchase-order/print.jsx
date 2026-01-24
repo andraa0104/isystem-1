@@ -129,6 +129,15 @@ export default function PurchaseOrderPrint({
         : 'PPN';
     const terbilang = formatTerbilang(purchaseOrder?.g_total);
 
+    const sortedDetails = [...purchaseOrderDetails].sort((a, b) => {
+        const aNo = Number(a?.no ?? 0);
+        const bNo = Number(b?.no ?? 0);
+        if (!Number.isNaN(aNo) && !Number.isNaN(bNo)) {
+            return aNo - bNo;
+        }
+        return String(a?.no ?? '').localeCompare(String(b?.no ?? ''));
+    });
+
     return (
         <div className="min-h-screen bg-white text-black">
             <Head title={`Print PO ${purchaseOrder?.no_po ?? ''}`} />
@@ -266,7 +275,7 @@ export default function PurchaseOrderPrint({
                             </tr>
                         </thead>
                         <tbody>
-                            {purchaseOrderDetails.length === 0 && (
+                            {sortedDetails.length === 0 && (
                                 <tr className="border-t border-black">
                                     <td
                                         className="px-2 py-2 text-center"
@@ -276,13 +285,13 @@ export default function PurchaseOrderPrint({
                                     </td>
                                 </tr>
                             )}
-                            {purchaseOrderDetails.map((row, index) => (
+                            {sortedDetails.map((row, index) => (
                                 <tr
                                     key={`${row.no ?? index}`}
                                     className="border-t border-black"
                                 >
                                     <td className="border-r border-black px-2 py-2">
-                                        {renderValue(row.no ?? index + 1)}
+                                        {index + 1}
                                     </td>
                                     <td className="border-r border-black px-2 py-2">
                                         {getValue(row, ['kd_material', 'kd_mat'])}

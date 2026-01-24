@@ -461,7 +461,7 @@ class PurchaseOrderController
             ]);
         }
 
-        $purchaseOrderDetails = DB::table('tb_detailpo')
+        $query = DB::table('tb_detailpo')
             ->select(
                 'no_po',
                 'no',
@@ -478,9 +478,14 @@ class PurchaseOrderController
                 'ket3',
                 'ket4'
             )
-            ->where('no_po', $noPo)
-            ->orderBy('no')
-            ->get();
+            ->where('no_po', $noPo);
+
+        if ($request->filled('search')) {
+            $search = $request->input('search');
+            $query->where('material', 'like', "%{$search}%");
+        }
+
+        $purchaseOrderDetails = $query->orderBy('no')->get();
 
         return response()->json([
             'purchaseOrderDetails' => $purchaseOrderDetails,

@@ -99,6 +99,10 @@ export default function PurchaseOrderIndex({
     const [outstandingList, setOutstandingList] = useState([]);
     const [outstandingLoading, setOutstandingLoading] = useState(false);
     const [outstandingError, setOutstandingError] = useState('');
+    const [detailPageSize, setDetailPageSize] = useState(5);
+    const [detailCurrentPage, setDetailCurrentPage] = useState(1);
+    const [detailSearch, setDetailSearch] = useState('');
+    const [debouncedDetailSearch, setDebouncedDetailSearch] = useState('');
 
     const filteredPurchaseOrders = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -221,6 +225,21 @@ export default function PurchaseOrderIndex({
     ]);
 
     const selectedDetail = selectedDetails[0] ?? null;
+    const detailTotalItems = selectedDetails.length;
+    const detailTotalPages = useMemo(() => {
+        if (detailPageSize === Infinity) {
+            return 1;
+        }
+        return Math.max(1, Math.ceil(detailTotalItems / detailPageSize));
+    }, [detailPageSize, detailTotalItems]);
+
+    const displayedDetailItems = useMemo(() => {
+        if (detailPageSize === Infinity) {
+            return selectedDetails;
+        }
+        const startIndex = (detailCurrentPage - 1) * detailPageSize;
+        return selectedDetails.slice(startIndex, startIndex + detailPageSize);
+    }, [detailCurrentPage, detailPageSize, selectedDetails]);
 
     const handlePageSizeChange = (event) => {
         const value = event.target.value;
@@ -232,13 +251,35 @@ export default function PurchaseOrderIndex({
         setIsModalOpen(true);
         setSelectedDetails([]);
         setDetailError('');
+        setDetailSearch('');
+        setDebouncedDetailSearch('');
+        setDetailPageSize(5);
+        setDetailCurrentPage(1);
         setDetailLoading(true);
-        fetch(
-            `/pembelian/purchase-order/details?no_po=${encodeURIComponent(
-                item.no_po
-            )}`,
-            { headers: { Accept: 'application/json' } }
-        )
+    };
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedDetailSearch(detailSearch);
+        }, 500);
+        return () => clearTimeout(handler);
+    }, [detailSearch]);
+
+    useEffect(() => {
+        if (!selectedPo || !isModalOpen) {
+            return;
+        }
+        setDetailError('');
+        setDetailLoading(true);
+        const params = new URLSearchParams({
+            no_po: selectedPo.no_po,
+        });
+        if (debouncedDetailSearch) {
+            params.append('search', debouncedDetailSearch);
+        }
+        fetch(`/pembelian/purchase-order/details?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
             .then((response) => {
                 if (!response.ok) {
                     throw new Error('Request failed');
@@ -251,6 +292,7 @@ export default function PurchaseOrderIndex({
                         ? data.purchaseOrderDetails
                         : []
                 );
+                setDetailCurrentPage(1);
             })
             .catch(() => {
                 setDetailError('Gagal memuat detail PO.');
@@ -258,7 +300,7 @@ export default function PurchaseOrderIndex({
             .finally(() => {
                 setDetailLoading(false);
             });
-    };
+    }, [debouncedDetailSearch, isModalOpen, selectedPo]);
 
     const loadOutstanding = () => {
         if (outstandingLoading || outstandingList.length > 0) {
@@ -303,6 +345,12 @@ export default function PurchaseOrderIndex({
             setCurrentPage(totalPages);
         }
     }, [currentPage, totalPages]);
+
+    useEffect(() => {
+        if (detailCurrentPage > detailTotalPages) {
+            setDetailCurrentPage(detailTotalPages);
+        }
+    }, [detailCurrentPage, detailTotalPages]);
 
     useEffect(() => {
         if (outstandingCurrentPage > outstandingTotalPages) {
@@ -774,9 +822,45 @@ export default function PurchaseOrderIndex({
                                 </div>
 
                                 <div className="space-y-3">
-                                    <h3 className="text-base font-semibold">
-                                        Data Material
-                                    </h3>
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <h3 className="text-base font-semibold">
+                                            Data Material
+                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                            <select
+                                                className="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm"
+                                                value={
+                                                    detailPageSize === Infinity
+                                                        ? 'all'
+                                                        : detailPageSize
+                                                }
+                                                onChange={(event) => {
+                                                    const value = event.target.value;
+                                                    setDetailPageSize(
+                                                        value === 'all'
+                                                            ? Infinity
+                                                            : Number(value)
+                                                    );
+                                                    setDetailCurrentPage(1);
+                                                }}
+                                            >
+                                                <option value={5}>5</option>
+                                                <option value={10}>10</option>
+                                                <option value={25}>25</option>
+                                                <option value={50}>50</option>
+                                                <option value="all">Semua</option>
+                                            </select>
+                                            <input
+                                                type="text"
+                                                placeholder="Cari material..."
+                                                className="h-8 rounded-md border border-input bg-background px-3 text-xs shadow-sm w-40"
+                                                value={detailSearch}
+                                                onChange={(event) =>
+                                                    setDetailSearch(event.target.value)
+                                                }
+                                            />
+                                        </div>
+                                    </div>
                                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
                                         <table className="w-full text-sm">
                                             <thead className="bg-muted/50 text-muted-foreground">
@@ -802,66 +886,135 @@ export default function PurchaseOrderIndex({
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {selectedDetails.length === 0 && (
+                                                {detailLoading && (
                                                     <tr>
                                                         <td
                                                             className="px-4 py-6 text-center text-muted-foreground"
                                                             colSpan={6}
                                                         >
-                                                            {detailLoading
-                                                                ? 'Memuat detail PO...'
-                                                                : detailError ||
-                                                                  'Tidak ada detail PO.'}
+                                                            Memuat detail PO...
                                                         </td>
                                                     </tr>
                                                 )}
-                                                {selectedDetails.map((detail, index) => (
-                                                    <tr
-                                                        key={`${detail.no ?? index}`}
-                                                        className="border-t border-sidebar-border/70"
-                                                    >
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(detail.no ?? index + 1)}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {getValue(detail, [
-                                                                'material',
-                                                                'Material',
-                                                            ])}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {getValue(detail, [
-                                                                'qty',
-                                                                'Qty',
-                                                            ])}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {getValue(detail, [
-                                                                'unit',
-                                                                'Unit',
-                                                            ])}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {formatRupiah(
-                                                                getRawValue(detail, [
-                                                                    'price',
-                                                                    'Price',
-                                                                ])
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {formatRupiah(
-                                                                getRawValue(detail, [
-                                                                    'total_price',
-                                                                    'Total_price',
-                                                                ])
-                                                            )}
+                                                {!detailLoading &&
+                                                    displayedDetailItems.length === 0 && (
+                                                    <tr>
+                                                        <td
+                                                            className="px-4 py-6 text-center text-muted-foreground"
+                                                            colSpan={6}
+                                                        >
+                                                            {detailError ||
+                                                                'Tidak ada detail PO.'}
                                                         </td>
                                                     </tr>
-                                                ))}
+                                                    )}
+                                                {!detailLoading &&
+                                                    displayedDetailItems.map((detail) => (
+                                                        <tr
+                                                            key={detail.no}
+                                                            className="border-t border-sidebar-border/70"
+                                                        >
+                                                            <td className="px-4 py-3">
+                                                                {renderValue(detail.no)}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {getValue(detail, [
+                                                                    'material',
+                                                                    'Material',
+                                                                ])}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {getValue(detail, [
+                                                                    'qty',
+                                                                    'Qty',
+                                                                ])}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {getValue(detail, [
+                                                                    'unit',
+                                                                    'Unit',
+                                                                ])}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {formatRupiah(
+                                                                    getRawValue(detail, [
+                                                                        'price',
+                                                                        'Price',
+                                                                    ])
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {formatRupiah(
+                                                                    getRawValue(detail, [
+                                                                        'total_price',
+                                                                        'Total_price',
+                                                                    ])
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
                                             </tbody>
                                         </table>
                                     </div>
+
+                                    {!detailLoading &&
+                                        detailPageSize !== Infinity &&
+                                        detailTotalItems > 0 && (
+                                            <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                                                <span>
+                                                    Menampilkan{' '}
+                                                    {Math.min(
+                                                        (detailCurrentPage - 1) *
+                                                            detailPageSize +
+                                                            1,
+                                                        detailTotalItems
+                                                    )}
+                                                    -
+                                                    {Math.min(
+                                                        detailCurrentPage *
+                                                            detailPageSize,
+                                                        detailTotalItems
+                                                    )}{' '}
+                                                    dari {detailTotalItems}
+                                                </span>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setDetailCurrentPage((page) =>
+                                                                Math.max(1, page - 1)
+                                                            )
+                                                        }
+                                                        disabled={detailCurrentPage === 1}
+                                                    >
+                                                        Sebelumnya
+                                                    </Button>
+                                                    <span className="text-sm text-muted-foreground">
+                                                        Halaman {detailCurrentPage} dari{' '}
+                                                        {detailTotalPages}
+                                                    </span>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setDetailCurrentPage((page) =>
+                                                                Math.min(
+                                                                    detailTotalPages,
+                                                                    page + 1
+                                                                )
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            detailCurrentPage ===
+                                                            detailTotalPages
+                                                        }
+                                                    >
+                                                        Berikutnya
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        )}
                                 </div>
                             </div>
                         )}
