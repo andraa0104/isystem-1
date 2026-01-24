@@ -552,6 +552,44 @@ class PurchaseOrderController
         ]);
     }
 
+    public function data()
+    {
+        $purchaseOrders = DB::table('tb_po as po')
+            ->leftJoin(
+                DB::raw('(
+                    select
+                        no_po,
+                        max(case when gr_mat <> 0 then 1 else 0 end) as has_outstanding
+                    from tb_detailpo
+                    group by no_po
+                ) as detail'),
+                'po.no_po',
+                '=',
+                'detail.no_po'
+            )
+            ->select(
+                'po.no_po',
+                'po.tgl',
+                'po.for_cus',
+                'po.nm_vdr',
+                'po.g_total',
+                'po.ref_pr',
+                'po.ref_quota',
+                'po.ref_poin',
+                'po.ppn',
+                'po.s_total',
+                'po.h_ppn',
+                DB::raw('coalesce(detail.has_outstanding, 0) as has_outstanding')
+            )
+            ->orderBy('tgl', 'desc')
+            ->orderBy('no_po', 'desc')
+            ->get();
+
+        return response()->json([
+            'purchaseOrders' => $purchaseOrders,
+        ]);
+    }
+
     public function details(Request $request)
     {
         $noPo = $request->query('no_po');

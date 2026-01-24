@@ -249,6 +249,8 @@ Route::get('marketing/purchase-requirement/{noPr}/print', [PurchaseRequirementCo
 
 Route::get('pembelian/purchase-order', [PurchaseOrderController::class, 'index'])
     ->name('pembelian.purchase-order.index');
+Route::get('pembelian/purchase-order/data', [PurchaseOrderController::class, 'data'])
+    ->name('pembelian.purchase-order.data');
 Route::get('pembelian/purchase-order/outstanding-pr', [PurchaseOrderController::class, 'outstandingPurchaseRequirements'])
     ->name('pembelian.purchase-order.outstanding-pr');
 Route::get('pembelian/purchase-order/pr-details', [PurchaseOrderController::class, 'purchaseRequirementDetails'])

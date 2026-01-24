@@ -86,6 +86,9 @@ export default function PurchaseOrderIndex({
     period = 'today',
 }) {
     const [searchTerm, setSearchTerm] = useState('');
+    const [poData, setPoData] = useState(purchaseOrders);
+    const [poLoading, setPoLoading] = useState(false);
+    const [poError, setPoError] = useState('');
     const [statusFilter, setStatusFilter] = useState('outstanding');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
@@ -120,7 +123,7 @@ export default function PurchaseOrderIndex({
 
     const filteredPurchaseOrders = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
-        const filtered = purchaseOrders.filter((item) => {
+        const filtered = poData.filter((item) => {
             if (statusFilter === 'outstanding' && !isOutstanding(item)) {
                 return false;
             }
@@ -317,6 +320,41 @@ export default function PurchaseOrderIndex({
         }, 500);
         return () => clearTimeout(handler);
     }, [detailSearch]);
+
+    useEffect(() => {
+        let isMounted = true;
+        setPoLoading(true);
+        setPoError('');
+        fetch('/pembelian/purchase-order/data', {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            })
+            .then((data) => {
+                if (!isMounted) return;
+                setPoData(
+                    Array.isArray(data?.purchaseOrders)
+                        ? data.purchaseOrders
+                        : []
+                );
+            })
+            .catch(() => {
+                if (!isMounted) return;
+                setPoError('Gagal memuat data purchase order.');
+            })
+            .finally(() => {
+                if (!isMounted) return;
+                setPoLoading(false);
+            });
+
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     useEffect(() => {
         if (!selectedPo || !isModalOpen) {
@@ -625,14 +663,25 @@ export default function PurchaseOrderIndex({
                             </tr>
                         </thead>
                         <tbody>
-                            {displayedPurchaseOrders.length === 0 && (
+                            {/* Saat loading, tetap biarkan baris data sebelumnya tampil agar tidak muncul pesan tengah tabel */}
+                            {poError && (
                                 <tr>
                                     <td
                                         className="px-4 py-6 text-center text-muted-foreground"
                                         colSpan={6}
                                     >
-                                        Belum ada data PO.
+                                        {poError}
                                     </td>
+                                </tr>
+                            )}
+                            {!poError && displayedPurchaseOrders.length === 0 && (
+                                    <tr>
+                                        <td
+                                            className="px-4 py-6 text-center text-muted-foreground"
+                                            colSpan={6}
+                                        >
+                                            Belum ada data PO.
+                                        </td>
                                 </tr>
                             )}
                             {displayedPurchaseOrders.map((item) => (
