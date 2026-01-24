@@ -10,6 +10,8 @@ class PurchaseRequirementController
 {
     public function index(Request $request)
     {
+        $period = $request->query('period', 'today');
+
         $purchaseRequirements = DB::table('tb_pr as pr')
             ->leftJoin(
                 DB::raw('(
@@ -53,11 +55,42 @@ class PurchaseRequirementController
             ->whereRaw('cast(sisa_pr as decimal(18,4)) > 0')
             ->sum(DB::raw('coalesce(total_price, 0)'));
 
+        // Realized: tb_pr.ref_po = tb_do.ref_po filtered by tb_do.pos_tgl
+        $docDateExpr = "coalesce(date(d.pos_tgl), str_to_date(d.pos_tgl, '%Y-%m-%d'), str_to_date(d.pos_tgl, '%Y/%m/%d'), str_to_date(d.pos_tgl, '%d/%m/%Y'), str_to_date(d.pos_tgl, '%d-%m-%Y'), str_to_date(d.pos_tgl, '%d.%m.%Y'))";
+
+        $realizedQuery = DB::table('tb_pr as pr')
+            ->join('tb_do as d', function ($join) {
+                $join->on(DB::raw('lower(trim(pr.ref_po))'), '=', DB::raw('lower(trim(d.ref_po))'));
+            });
+
+        $now = now();
+        if ($period === 'today') {
+            $realizedQuery->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
+        } elseif ($period === 'this_week') {
+            $realizedQuery->whereRaw("{$docDateExpr} between ? and ?", [
+                $now->startOfWeek()->toDateString(),
+                $now->endOfWeek()->toDateString(),
+            ]);
+        } elseif ($period === 'this_month') {
+            $realizedQuery->whereRaw("month({$docDateExpr}) = ?", [$now->month])
+                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        } elseif ($period === 'this_year') {
+            $realizedQuery->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        }
+
+        $realizedPrNos = $realizedQuery->distinct('pr.no_pr')->pluck('pr.no_pr');
+        $realizedCount = $realizedPrNos->count();
+        $realizedTotal = DB::table('tb_detailpr')
+            ->whereIn('no_pr', $realizedPrNos)
+            ->sum(DB::raw('coalesce(total_price,0)'));
+
         return Inertia::render('marketing/purchase-requirement/index', [
             'purchaseRequirements' => $purchaseRequirements,
             'outstandingCount' => $outstandingCount,
             'realizedCount' => $realizedCount,
             'outstandingTotal' => $outstandingTotal,
+            'realizedTotal' => (float) $realizedTotal,
+            'period' => $period,
         ]);
     }
 
@@ -70,7 +103,7 @@ class PurchaseRequirementController
             ]);
         }
 
-        $purchaseRequirementDetails = DB::table('tb_detailpr')
+        $query = DB::table('tb_detailpr')
             ->select(
                 'no_pr',
                 'no',
@@ -81,9 +114,17 @@ class PurchaseRequirementController
                 'sisa_pr',
                 'renmark'
             )
-            ->where('no_pr', $noPr)
-            ->orderBy('no')
-            ->get();
+            ->where('no_pr', $noPr);
+
+        if ($request->boolean('realized_only')) {
+            $query->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('tb_do')
+                    ->whereColumn(DB::raw('lower(trim(tb_do.ref_po))'), '=', DB::raw('lower(trim(tb_detailpr.ref_po))'));
+            });
+        }
+
+        $purchaseRequirementDetails = $query->orderBy('no')->get();
 
         return response()->json([
             'purchaseRequirementDetails' => $purchaseRequirementDetails,
@@ -122,6 +163,57 @@ class PurchaseRequirementController
 
         return response()->json([
             'purchaseRequirements' => $purchaseRequirements,
+        ]);
+    }
+
+    public function realized(Request $request)
+    {
+        $period = $request->query('period', 'today');
+
+        $docDateExpr = "coalesce(date(d.pos_tgl), str_to_date(d.pos_tgl, '%Y-%m-%d'), str_to_date(d.pos_tgl, '%Y/%m/%d'), str_to_date(d.pos_tgl, '%d/%m/%Y'), str_to_date(d.pos_tgl, '%d-%m-%Y'), str_to_date(d.pos_tgl, '%d.%m.%Y'))";
+
+        $query = DB::table('tb_pr as pr')
+            ->join('tb_do as d', function ($join) {
+                $join->on(DB::raw('lower(trim(pr.ref_po))'), '=', DB::raw('lower(trim(d.ref_po))'));
+            })
+            ->select(
+                'pr.no_pr',
+                DB::raw('coalesce(d.pos_tgl, pr.date) as date'),
+                'pr.for_customer',
+                'pr.ref_po',
+                'pr.payment',
+                DB::raw('0 as outstanding_count'),
+                DB::raw('1 as realized_count')
+            )
+            ->distinct();
+
+        $now = now();
+        if ($period === 'today') {
+            $query->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
+        } elseif ($period === 'this_week') {
+            $query->whereRaw("{$docDateExpr} between ? and ?", [
+                $now->startOfWeek()->toDateString(),
+                $now->endOfWeek()->toDateString(),
+            ]);
+        } elseif ($period === 'this_month') {
+            $query->whereRaw("month({$docDateExpr}) = ?", [$now->month])
+                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        } elseif ($period === 'this_year') {
+            $query->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        }
+
+        $purchaseRequirements = $query
+            ->orderByRaw('coalesce(d.pos_tgl, pr.date) desc')
+            ->orderBy('pr.no_pr', 'desc')
+            ->get();
+
+        $realizedTotal = DB::table('tb_detailpr')
+            ->whereIn('no_pr', $purchaseRequirements->pluck('no_pr'))
+            ->sum(DB::raw('coalesce(total_price,0)'));
+
+        return response()->json([
+            'purchaseRequirements' => $purchaseRequirements,
+            'realizedTotal' => (float) $realizedTotal,
         ]);
     }
 

@@ -653,6 +653,10 @@ class FakturPenjualanController
 
         $items = DB::table('tb_do as do')
             ->leftJoin('tb_material as m', 'm.material', '=', 'do.mat')
+            ->leftJoin('tb_detailpr as pr', function ($join) {
+                $join->on('pr.ref_po', '=', 'do.ref_po')
+                    ->on('pr.material', '=', 'do.mat');
+            })
             ->select(
                 'do.no_do',
                 'do.mat',
@@ -660,6 +664,9 @@ class FakturPenjualanController
                 'do.unit',
                 'do.harga',
                 'do.total',
+                'do.ref_po',
+                'm.harga as harga_material',
+                'pr.price_po as price_po',
                 'm.kd_material as kd_material',
             )
             ->where('do.ref_po', $refPoIn)
@@ -681,12 +688,32 @@ class FakturPenjualanController
         }
 
         $items = $items->map(function ($item) use ($hppMap) {
-            $hpp = 0;
-            $totalHpp = 0;
+            $priceFromMaterial = is_numeric($item->harga_material ?? null)
+                ? (float) $item->harga_material
+                : null;
+            $priceFromDo = is_numeric($item->harga ?? null)
+                ? (float) $item->harga
+                : null;
+            $priceFromPr = is_numeric($item->price_po ?? null)
+                ? (float) $item->price_po
+                : null;
+
+            // price untuk form: ambil price_po (tb_detailpr) jika ada, fallback harga material, lalu harga DO
+            $price = $priceFromPr ?? $priceFromMaterial ?? $priceFromDo ?? 0;
+
+            // HPP diisi dari harga DO (jika ada), else dari harga material; dibulatkan
+            $hpp = $priceFromDo ?? $priceFromMaterial ?? 0;
+            $hpp = round($hpp, 0);
+
+            $qty = is_numeric($item->qty ?? null) ? (float) $item->qty : 0;
+            $total = $price * $qty;
+            $totalHpp = $hpp * $qty;
+
+            // Jika ada mapping HPP dari detail PO, gunakan itu sebagai fallback (tidak override utama)
             if ($hppMap->has($item->mat)) {
                 $hppRow = $hppMap->get($item->mat);
-                $hpp = (float) ($hppRow->hpp ?? 0);
-                $totalHpp = (float) ($hppRow->total_hpp ?? 0);
+                $hpp = $hpp ?: (float) ($hppRow->hpp ?? 0);
+                $totalHpp = $totalHpp ?: ((float) ($hppRow->hpp ?? 0) * $qty);
             }
 
             return [
@@ -695,8 +722,8 @@ class FakturPenjualanController
                 'kd_material' => $item->kd_material,
                 'qty' => $item->qty,
                 'unit' => $item->unit,
-                'harga' => $item->harga,
-                'total' => $item->total,
+                'harga' => $price,
+                'total' => $total,
                 'hpp' => $hpp,
                 'total_hpp' => $totalHpp,
             ];
@@ -727,6 +754,7 @@ class FakturPenjualanController
                 'dob.unit',
                 'dob.harga',
                 'dob.total',
+                'm.harga as harga_material',
                 'm.kd_material as kd_material',
             )
             ->where('dob.ref_do', $noDo)
@@ -748,12 +776,26 @@ class FakturPenjualanController
         }
 
         $items = $items->map(function ($item) use ($hppMap) {
-            $hpp = 0;
-            $totalHpp = 0;
+            $priceFromMaterial = is_numeric($item->harga_material ?? null)
+                ? (float) $item->harga_material
+                : null;
+            $priceFromDo = is_numeric($item->harga ?? null)
+                ? (float) $item->harga
+                : null;
+
+            $price = $priceFromMaterial ?? $priceFromDo ?? 0;
+
+            $hpp = $priceFromDo ?? $priceFromMaterial ?? 0;
+            $hpp = round($hpp, 0);
+
+            $qty = is_numeric($item->qty ?? null) ? (float) $item->qty : 0;
+            $total = $price * $qty;
+            $totalHpp = $hpp * $qty;
+
             if ($hppMap->has($item->mat)) {
                 $hppRow = $hppMap->get($item->mat);
-                $hpp = (float) ($hppRow->hpp ?? 0);
-                $totalHpp = (float) ($hppRow->total_hpp ?? 0);
+                $hpp = $hpp ?: (float) ($hppRow->hpp ?? 0);
+                $totalHpp = $totalHpp ?: ((float) ($hppRow->hpp ?? 0) * $qty);
             }
 
             return [
@@ -762,8 +804,8 @@ class FakturPenjualanController
                 'kd_material' => $item->kd_material,
                 'qty' => $item->qty,
                 'unit' => $item->unit,
-                'harga' => $item->harga,
-                'total' => $item->total,
+                'harga' => $price,
+                'total' => $total,
                 'hpp' => $hpp,
                 'total_hpp' => $totalHpp,
             ];

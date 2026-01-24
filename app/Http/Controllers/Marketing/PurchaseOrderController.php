@@ -402,6 +402,8 @@ class PurchaseOrderController
 
     public function index(Request $request)
     {
+        $period = $request->query('period', 'today');
+
         $purchaseOrders = DB::table('tb_po as po')
             ->leftJoin(
                 DB::raw('(
@@ -442,13 +444,111 @@ class PurchaseOrderController
             ->where('gr_mat', '<>', 0)
             ->sum('total_price');
 
-        $realizedCount = max(0, $purchaseOrders->count() - $outstandingCount);
+        // Realized Count berdasarkan tb_kdmi.ref_pr = tb_po.no_po dan filter doc_tgl
+        $docDateExpr = "coalesce(date(k.doc_tgl), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%d.%m.%Y'))";
+
+        $realizedQuery = DB::table('tb_po')
+            ->join('tb_kdmi as k', function ($join) {
+                $join->on(
+                    DB::raw('lower(trim(tb_po.no_po))'),
+                    '=',
+                    DB::raw('lower(trim(k.ref_pr))')
+                );
+            });
+
+        $now = now();
+        if ($period === 'today') {
+            $realizedQuery->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
+        } elseif ($period === 'this_week') {
+            $realizedQuery->whereRaw("{$docDateExpr} between ? and ?", [
+                $now->startOfWeek()->toDateString(),
+                $now->endOfWeek()->toDateString(),
+            ]);
+        } elseif ($period === 'this_month') {
+            $realizedQuery
+                ->whereRaw("month({$docDateExpr}) = ?", [$now->month])
+                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        } elseif ($period === 'this_year') {
+            $realizedQuery->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        }
+
+        $realizedPoNos = $realizedQuery->distinct('tb_po.no_po')->pluck('tb_po.no_po');
+        $realizedCount = $realizedPoNos->count();
+        $realizedTotal = DB::table('tb_po')
+            ->whereIn('no_po', $realizedPoNos)
+            ->sum('g_total');
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'realizedCount' => $realizedCount,
+                'realizedTotal' => (float) $realizedTotal,
+                'period' => $period,
+            ]);
+        }
 
         return Inertia::render('Pembelian/purchase-order/index', [
             'purchaseOrders' => $purchaseOrders,
             'outstandingCount' => $outstandingCount,
             'outstandingTotal' => $outstandingTotal,
             'realizedCount' => $realizedCount,
+            'realizedTotal' => (float) $realizedTotal,
+            'period' => $period,
+        ]);
+    }
+
+    public function realized(Request $request)
+    {
+        $period = $request->query('period', 'today');
+
+        $docDateExpr = "coalesce(date(k.doc_tgl), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%d.%m.%Y'))";
+
+        $query = DB::table('tb_po as po')
+            ->join('tb_kdmi as k', function ($join) {
+                $join->on(DB::raw('lower(trim(po.no_po))'), '=', DB::raw('lower(trim(k.ref_pr))'));
+            })
+            ->select(
+                'po.no_po',
+                'po.tgl',
+                'po.for_cus',
+                'po.nm_vdr',
+                'po.g_total',
+                'po.ref_pr',
+                'po.ref_quota',
+                'po.ref_poin',
+                'po.ppn',
+                'po.s_total',
+                'po.h_ppn',
+                DB::raw('0 as has_outstanding')
+            )
+            ->distinct();
+
+        $now = now();
+        if ($period === 'today') {
+            $query->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
+        } elseif ($period === 'this_week') {
+            $query->whereRaw("{$docDateExpr} between ? and ?", [
+                $now->startOfWeek()->toDateString(),
+                $now->endOfWeek()->toDateString(),
+            ]);
+        } elseif ($period === 'this_month') {
+            $query->whereRaw("month({$docDateExpr}) = ?", [$now->month])
+                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        } elseif ($period === 'this_year') {
+            $query->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        }
+
+        $purchaseOrders = $query
+            ->orderBy('po.tgl', 'desc')
+            ->orderBy('po.no_po', 'desc')
+            ->get();
+
+        $realizedTotal = $purchaseOrders->sum(function ($item) {
+            return (float) ($item->g_total ?? 0);
+        });
+
+        return response()->json([
+            'purchaseOrders' => $purchaseOrders,
+            'realizedTotal' => (float) $realizedTotal,
         ]);
     }
 
@@ -479,6 +579,11 @@ class PurchaseOrderController
                 'ket4'
             )
             ->where('no_po', $noPo);
+
+        if ($request->boolean('realized_only')) {
+            // only tampilkan detail yang sudah masuk gudang (no_gudang != 0 / kosong)
+            $query->whereRaw("coalesce(nullif(no_gudang, ''), '0') <> '0'");
+        }
 
         if ($request->filled('search')) {
             $search = $request->input('search');

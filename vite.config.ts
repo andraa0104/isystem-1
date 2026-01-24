@@ -32,7 +32,7 @@ export default defineConfig(() => {
                 : []),
         ],
         esbuild: {
-            jsx: 'automatic' as 'automatic',
+            jsx: 'automatic' as const,
         },
         resolve: {
             alias: {

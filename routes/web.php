@@ -168,6 +168,8 @@ Route::get('marketing/purchase-requirement/details', [PurchaseRequirementControl
     ->name('marketing.purchase-requirement.details');
 Route::get('marketing/purchase-requirement/outstanding', [PurchaseRequirementController::class, 'outstanding'])
     ->name('marketing.purchase-requirement.outstanding');
+Route::get('marketing/purchase-requirement/realized', [PurchaseRequirementController::class, 'realized'])
+    ->name('marketing.purchase-requirement.realized');
 Route::get('marketing/purchase-requirement/create', [PurchaseRequirementController::class, 'create'])
     ->name('marketing.purchase-requirement.create');
 Route::get('marketing/purchase-requirement/{noPr}/edit', [PurchaseRequirementController::class, 'edit'])
@@ -195,6 +197,10 @@ Route::get('pembelian/purchase-order/details', [PurchaseOrderController::class, 
     ->name('pembelian.purchase-order.details');
 Route::get('pembelian/purchase-order/outstanding', [PurchaseOrderController::class, 'outstanding'])
     ->name('pembelian.purchase-order.outstanding');
+Route::get('pembelian/purchase-order/realized', [PurchaseOrderController::class, 'realized'])
+    ->name('pembelian.purchase-order.realized');
+Route::get('pembelian/purchase-order/realized', [PurchaseOrderController::class, 'realized'])
+    ->name('pembelian.purchase-order.realized');
 Route::get('pembelian/purchase-order/create', [PurchaseOrderController::class, 'create'])
     ->name('pembelian.purchase-order.create');
 Route::get('pembelian/purchase-order/{noPo}/edit', [PurchaseOrderController::class, 'edit'])
@@ -220,6 +226,8 @@ Route::get('marketing/delivery-order/details', [DeliveryOrderController::class, 
     ->name('marketing.delivery-order.details');
 Route::get('marketing/delivery-order/outstanding', [DeliveryOrderController::class, 'outstanding'])
     ->name('marketing.delivery-order.outstanding');
+Route::get('marketing/delivery-order/realized', [DeliveryOrderController::class, 'realized'])
+    ->name('marketing.delivery-order.realized');
 Route::post('marketing/delivery-order', [DeliveryOrderController::class, 'store'])
     ->name('marketing.delivery-order.store');
 Route::put('marketing/delivery-order/{noDo}/detail/{lineNo}', [DeliveryOrderController::class, 'updateDetail'])
@@ -244,6 +252,8 @@ Route::get('marketing/delivery-order-add/outstanding-do', [DeliveryOrderAddContr
     ->name('marketing.delivery-order-add.outstanding-do');
 Route::get('marketing/delivery-order-add/pr-materials', [DeliveryOrderAddController::class, 'prMaterials'])
     ->name('marketing.delivery-order-add.pr-materials');
+Route::get('marketing/delivery-order-add/realized', [DeliveryOrderAddController::class, 'realized'])
+    ->name('marketing.delivery-order-add.realized');
 Route::post('marketing/delivery-order-add', [DeliveryOrderAddController::class, 'store'])
     ->name('marketing.delivery-order-add.store');
 Route::put('marketing/delivery-order-add/{noDob}/detail/{lineNo}', [DeliveryOrderAddController::class, 'updateDetail'])

@@ -11,6 +11,8 @@ class DeliveryOrderController
 {
     public function index(Request $request)
     {
+        $period = $request->query('period', 'today');
+
         $deliveryOrders = DB::table('tb_do')
             ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
             ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
@@ -23,10 +25,35 @@ class DeliveryOrderController
             ->distinct('no_do')
             ->count('no_do');
 
-        $realizedCount = DB::table('tb_do')
-            ->where('val_inv', 1)
-            ->distinct('no_do')
-            ->count('no_do');
+        // Realized DO: tb_fakturpenjualan.no_do = tb_kddo.no_do, filter tgl_pos
+        $docDateExpr = "coalesce(date(f.tgl_pos), str_to_date(f.tgl_pos, '%Y-%m-%d'), str_to_date(f.tgl_pos, '%Y/%m/%d'), str_to_date(f.tgl_pos, '%d/%m/%Y'), str_to_date(f.tgl_pos, '%d-%m-%Y'), str_to_date(f.tgl_pos, '%d.%m.%Y'))";
+
+        $realizedQuery = DB::table('tb_kddo as k')
+            ->join('tb_fakturpenjualan as f', function ($join) {
+                $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
+            });
+
+        $now = now();
+        if ($period === 'today') {
+            $realizedQuery->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
+        } elseif ($period === 'this_week') {
+            $realizedQuery->whereRaw("{$docDateExpr} between ? and ?", [
+                $now->startOfWeek()->toDateString(),
+                $now->endOfWeek()->toDateString(),
+            ]);
+        } elseif ($period === 'this_month') {
+            $realizedQuery->whereRaw("month({$docDateExpr}) = ?", [$now->month])
+                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        } elseif ($period === 'this_year') {
+            $realizedQuery->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        }
+
+        $realizedNos = $realizedQuery->distinct('k.no_do')->pluck('k.no_do');
+        $realizedCount = $realizedNos->count();
+        // total diambil dari tb_do.total untuk no_do yang terealisasi
+        $realizedTotal = DB::table('tb_do')
+            ->whereIn(DB::raw('lower(trim(no_do))'), $realizedNos->map(fn ($n) => strtolower(trim($n))))
+            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
 
         $outstandingTotal = DB::table('tb_do')
             ->where('val_inv', 0)
@@ -37,6 +64,8 @@ class DeliveryOrderController
             'outstandingCount' => $outstandingCount,
             'realizedCount' => $realizedCount,
             'outstandingTotal' => $outstandingTotal,
+            'realizedTotal' => (float) $realizedTotal,
+            'period' => $period,
         ]);
     }
 
@@ -51,12 +80,21 @@ class DeliveryOrderController
         }
 
         $query = DB::table('tb_do')
-            ->select('no_do', 'mat', 'qty', 'harga', 'total', 'remark', 'nm_cs')
+            ->select('no_do', 'mat', 'qty', 'harga', 'total', 'remark', 'nm_cs', 'ref_po')
             ->where('no_do', $noDo);
 
         if ($request->filled('search')) {
             $search = $request->input('search');
             $query->where('mat', 'like', "%{$search}%");
+        }
+
+        if ($request->boolean('realized_only')) {
+            $query->whereIn(
+                DB::raw('lower(trim(ref_po))'),
+                DB::table('tb_fakturpenjualan')
+                    ->selectRaw('lower(trim(ref_po))')
+                    ->whereRaw('lower(trim(no_do)) = ?', [strtolower(trim($noDo))])
+            );
         }
 
         $deliveryOrderDetails = $query->orderBy('no_do')->get();
@@ -87,6 +125,54 @@ class DeliveryOrderController
 
         return response()->json([
             'deliveryOrders' => $deliveryOrders,
+        ]);
+    }
+
+    public function realized(Request $request)
+    {
+        $period = $request->query('period', 'today');
+
+        $docDateExpr = "coalesce(date(f.tgl_pos), str_to_date(f.tgl_pos, '%Y-%m-%d'), str_to_date(f.tgl_pos, '%Y/%m/%d'), str_to_date(f.tgl_pos, '%d/%m/%Y'), str_to_date(f.tgl_pos, '%d-%m-%Y'), str_to_date(f.tgl_pos, '%d.%m.%Y'))";
+
+        $query = DB::table('tb_kddo as k')
+            ->join('tb_fakturpenjualan as f', function ($join) {
+                $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
+            })
+            ->select(
+                'k.no_do',
+                'k.pos_tgl as date',
+                'k.ref_po',
+                'f.nm_cs'
+            )
+            ->distinct();
+
+        $now = now();
+        if ($period === 'today') {
+            $query->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
+        } elseif ($period === 'this_week') {
+            $query->whereRaw("{$docDateExpr} between ? and ?", [
+                $now->startOfWeek()->toDateString(),
+                $now->endOfWeek()->toDateString(),
+            ]);
+        } elseif ($period === 'this_month') {
+            $query->whereRaw("month({$docDateExpr}) = ?", [$now->month])
+                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        } elseif ($period === 'this_year') {
+            $query->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        }
+
+        $deliveryOrders = $query
+            ->orderBy('k.pos_tgl', 'desc')
+            ->orderBy('k.no_do', 'desc')
+            ->get();
+
+        $realizedTotal = DB::table('tb_do')
+            ->whereIn(DB::raw('lower(trim(no_do))'), $deliveryOrders->pluck('no_do')->map(fn ($n) => strtolower(trim($n))))
+            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
+
+        return response()->json([
+            'deliveryOrders' => $deliveryOrders,
+            'realizedTotal' => (float) $realizedTotal,
         ]);
     }
 

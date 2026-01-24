@@ -37,22 +37,40 @@ const getValue = (source, keys) => {
     return '-';
 };
 
+const formatRupiah = (value) => {
+    const number = Number(
+        typeof value === 'string' ? value.replace(/,/g, '').trim() : value
+    );
+    if (Number.isNaN(number)) return '-';
+    return `Rp. ${new Intl.NumberFormat('id-ID').format(number)}`;
+};
+
 export default function PurchaseRequirementIndex({
     purchaseRequirements = [],
     outstandingCount = 0,
     realizedCount = 0,
     outstandingTotal = 0,
+    realizedTotal = 0,
+    period = 'today',
 }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('outstanding');
+    const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
+    const [realizedCountState, setRealizedCountState] = useState(realizedCount);
+    const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
+    const [isRealizedLoading, setIsRealizedLoading] = useState(false);
     const [pageSize, setPageSize] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedPr, setSelectedPr] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isOutstandingModalOpen, setIsOutstandingModalOpen] = useState(false);
+    const [isRealizedModalOpen, setIsRealizedModalOpen] = useState(false);
     const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
     const [outstandingPageSize, setOutstandingPageSize] = useState(10);
     const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
+    const [realizedSearchTerm, setRealizedSearchTerm] = useState('');
+    const [realizedPageSize, setRealizedPageSize] = useState(10);
+    const [realizedCurrentPage, setRealizedCurrentPage] = useState(1);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(10);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
@@ -62,6 +80,9 @@ export default function PurchaseRequirementIndex({
     const [outstandingList, setOutstandingList] = useState([]);
     const [outstandingLoading, setOutstandingLoading] = useState(false);
     const [outstandingError, setOutstandingError] = useState('');
+    const [realizedList, setRealizedList] = useState([]);
+    const [realizedLoading, setRealizedLoading] = useState(false);
+    const [realizedError, setRealizedError] = useState('');
 
     const filteredPurchaseRequirements = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -162,6 +183,58 @@ export default function PurchaseRequirementIndex({
         outstandingPurchaseRequirements,
     ]);
 
+    const realizedPurchaseRequirements = useMemo(() => {
+        const term = realizedSearchTerm.trim().toLowerCase();
+        return realizedList
+            .filter((item) => {
+                if (!term) {
+                    return true;
+                }
+
+                const values = [
+                    item.no_pr,
+                    item.date,
+                    item.for_customer,
+                    item.ref_po,
+                ];
+
+                return values.some((value) =>
+                    String(value ?? '').toLowerCase().includes(term)
+                );
+            })
+            .sort((a, b) =>
+                String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? ''))
+            );
+    }, [realizedList, realizedSearchTerm]);
+
+    const realizedTotalItems = realizedPurchaseRequirements.length;
+    const realizedTotalPages = useMemo(() => {
+        if (realizedPageSize === Infinity) {
+            return 1;
+        }
+
+        return Math.max(
+            1,
+            Math.ceil(realizedTotalItems / realizedPageSize)
+        );
+    }, [realizedPageSize, realizedTotalItems]);
+
+    const displayedRealizedPurchaseRequirements = useMemo(() => {
+        if (realizedPageSize === Infinity) {
+            return realizedPurchaseRequirements;
+        }
+
+        const startIndex = (realizedCurrentPage - 1) * realizedPageSize;
+        return realizedPurchaseRequirements.slice(
+            startIndex,
+            startIndex + realizedPageSize
+        );
+    }, [
+        realizedCurrentPage,
+        realizedPageSize,
+        realizedPurchaseRequirements,
+    ]);
+
     const handlePageSizeChange = (event) => {
         const value = event.target.value;
         setPageSize(value === 'all' ? Infinity : Number(value));
@@ -213,18 +286,22 @@ export default function PurchaseRequirementIndex({
             startIndex + materialPageSize
         );
     }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
-    const handleOpenModal = (item) => {
+    const handleOpenModal = (item, realizedOnly = false) => {
         setSelectedPr(item);
         setIsModalOpen(true);
         setSelectedDetails([]);
         setDetailError('');
         setDetailLoading(true);
-        fetch(
-            `/marketing/purchase-requirement/details?no_pr=${encodeURIComponent(
-                item.no_pr
-            )}`,
-            { headers: { Accept: 'application/json' } }
-        )
+        setMaterialSearchTerm('');
+        setMaterialPageSize(10);
+        setMaterialCurrentPage(1);
+        const params = new URLSearchParams({ no_pr: item.no_pr });
+        if (realizedOnly) {
+            params.append('realized_only', '1');
+        }
+        fetch(`/marketing/purchase-requirement/details?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
             .then((response) => {
                 if (!response.ok) {
                     throw new Error('Request failed');
@@ -276,6 +353,45 @@ export default function PurchaseRequirementIndex({
             });
     };
 
+    const loadRealized = (customPeriod, force = false) => {
+        const targetPeriod = customPeriod ?? periodFilter;
+        if (realizedLoading) {
+            return;
+        }
+        if (!force && realizedList.length > 0 && periodFilter === targetPeriod) {
+            return;
+        }
+        setIsRealizedLoading(true);
+        setRealizedLoading(true);
+        setRealizedError('');
+        const params = new URLSearchParams({ period: targetPeriod });
+        fetch(`/marketing/purchase-requirement/realized?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            })
+            .then((data) => {
+                const list = Array.isArray(data?.purchaseRequirements)
+                    ? data.purchaseRequirements
+                    : [];
+                setRealizedList(list);
+                setRealizedCountState(list.length);
+                setRealizedTotalState(data?.realizedTotal ?? 0);
+                setPeriodFilter(targetPeriod);
+            })
+            .catch(() => {
+                setRealizedError('Gagal memuat data PR terealisasi.');
+            })
+            .finally(() => {
+                setRealizedLoading(false);
+                setIsRealizedLoading(false);
+            });
+    };
+
     useEffect(() => {
         setCurrentPage(1);
     }, [pageSize, searchTerm, statusFilter]);
@@ -283,6 +399,10 @@ export default function PurchaseRequirementIndex({
     useEffect(() => {
         setOutstandingCurrentPage(1);
     }, [outstandingPageSize, outstandingSearchTerm]);
+
+    useEffect(() => {
+        setRealizedCurrentPage(1);
+    }, [realizedPageSize, realizedSearchTerm]);
 
     useEffect(() => {
         if (currentPage > totalPages) {
@@ -295,6 +415,12 @@ export default function PurchaseRequirementIndex({
             setOutstandingCurrentPage(outstandingTotalPages);
         }
     }, [outstandingCurrentPage, outstandingTotalPages]);
+
+    useEffect(() => {
+        if (realizedCurrentPage > realizedTotalPages) {
+            setRealizedCurrentPage(realizedTotalPages);
+        }
+    }, [realizedCurrentPage, realizedTotalPages]);
 
     useEffect(() => {
         if (isModalOpen) {
@@ -360,12 +486,49 @@ export default function PurchaseRequirementIndex({
                             </CardContent>
                         </Card>
                     </button>
-                    <Card>
+                    <Card className="transition hover:border-primary/60 hover:shadow-md">
                         <CardHeader className="pb-2">
-                            <CardDescription>PR Terealisasi</CardDescription>
-                            <CardTitle className="text-2xl">
-                                {realizedCount}
-                            </CardTitle>
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <CardDescription>PR Terealisasi</CardDescription>
+                                    <CardTitle className="text-2xl">
+                                        {isRealizedLoading ? '...' : realizedCountState}
+                                    </CardTitle>
+                                    <div className="text-sm text-muted-foreground">
+                                        {isRealizedLoading
+                                            ? '...'
+                                            : formatRupiah(realizedTotalState)}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs shadow-sm"
+                                        value={periodFilter}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            setPeriodFilter(val);
+                                            loadRealized(val, true);
+                                        }}
+                                    >
+                                        <option value="today">Hari Ini</option>
+                                        <option value="this_week">Minggu Ini</option>
+                                        <option value="this_month">Bulan Ini</option>
+                                        <option value="this_year">Tahun Ini</option>
+                                    </select>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        onClick={() => {
+                                            setIsRealizedModalOpen(true);
+                                            loadRealized(periodFilter, true);
+                                        }}
+                                        title="Lihat daftar PR terealisasi"
+                                    >
+                                        <Eye className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
                         </CardHeader>
                     </Card>
                 </div>
@@ -976,6 +1139,205 @@ export default function PurchaseRequirementIndex({
                                             disabled={
                                                 outstandingCurrentPage ===
                                                 outstandingTotalPages
+                                            }
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={isRealizedModalOpen}
+                    onOpenChange={(open) => {
+                        setIsRealizedModalOpen(open);
+                        if (open) {
+                            loadRealized(periodFilter, true);
+                        } else {
+                            setRealizedSearchTerm('');
+                            setRealizedPageSize(10);
+                            setRealizedCurrentPage(1);
+                        }
+                    }}
+                >
+                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>PR Terealisasi</DialogTitle>
+                        </DialogHeader>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <label>
+                                Tampilkan
+                                <select
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                    value={
+                                        realizedPageSize === Infinity
+                                            ? 'all'
+                                            : realizedPageSize
+                                    }
+                                    onChange={(event) => {
+                                        const value = event.target.value;
+                                        setRealizedPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value)
+                                        );
+                                        setRealizedCurrentPage(1);
+                                    }}
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </label>
+                            <label>
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                    placeholder="Cari no PR, customer, ref PO..."
+                                    value={realizedSearchTerm}
+                                    onChange={(event) =>
+                                        setRealizedSearchTerm(event.target.value)
+                                    }
+                                />
+                            </label>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left">
+                                            No PR
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Date
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Customer
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Ref PO
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Payment
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Action
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {displayedRealizedPurchaseRequirements.length ===
+                                        0 && (
+                                        <tr>
+                                            <td
+                                                className="px-4 py-6 text-center text-muted-foreground"
+                                                colSpan={6}
+                                            >
+                                                {realizedLoading
+                                                    ? 'Memuat data PR...'
+                                                    : realizedError ||
+                                                      'Tidak ada PR terealisasi.'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {displayedRealizedPurchaseRequirements.map(
+                                        (item) => (
+                                            <tr
+                                                key={`realized-${item.no_pr}`}
+                                                className="border-t border-sidebar-border/70"
+                                            >
+                                                <td className="px-4 py-3">
+                                                    {item.no_pr}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {getValue(item, ['date', 'tgl'])}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {getValue(item, ['for_customer'])}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {item.ref_po}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {item.payment}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <button
+                                                        type="button"
+                                                        className="text-muted-foreground transition hover:text-foreground"
+                                                        aria-label="Lihat"
+                                                        title="Lihat"
+                                                        onClick={() => {
+                                                            setIsRealizedModalOpen(false);
+                                                            handleOpenModal(item, true);
+                                                        }}
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        )
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {realizedPageSize !== Infinity &&
+                            realizedTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                    <span>
+                                        Menampilkan{' '}
+                                        {Math.min(
+                                            (realizedCurrentPage - 1) *
+                                                realizedPageSize +
+                                                1,
+                                            realizedTotalItems
+                                        )}
+                                        -
+                                        {Math.min(
+                                            realizedCurrentPage *
+                                                realizedPageSize,
+                                            realizedTotalItems
+                                        )}{' '}
+                                        dari {realizedTotalItems} data
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setRealizedCurrentPage((page) =>
+                                                    Math.max(1, page - 1)
+                                                )
+                                            }
+                                            disabled={realizedCurrentPage === 1}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground">
+                                            Halaman {realizedCurrentPage} dari{' '}
+                                            {realizedTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setRealizedCurrentPage((page) =>
+                                                    Math.min(
+                                                        realizedTotalPages,
+                                                        page + 1
+                                                    )
+                                                )
+                                            }
+                                            disabled={
+                                                realizedCurrentPage ===
+                                                realizedTotalPages
                                             }
                                         >
                                             Berikutnya

@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
-import { Search } from 'lucide-react';
+import { Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
@@ -567,6 +567,7 @@ export default function FakturPenjualanCreate() {
                                             <TableHead>Satuan</TableHead>
                                             <TableHead>Price</TableHead>
                                             <TableHead>Total</TableHead>
+                                            <TableHead>Aksi</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -606,6 +607,20 @@ export default function FakturPenjualanCreate() {
                                                 </TableCell>
                                                 <TableCell>
                                                     {formatRupiah(item.total)}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <button
+                                                        type="button"
+                                                        className="text-destructive hover:text-destructive/80"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setDoAddMaterials((prev) =>
+                                                                prev.filter((_, i) => i !== index),
+                                                            );
+                                                        }}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -716,6 +731,7 @@ export default function FakturPenjualanCreate() {
                                             <TableHead>Total Price</TableHead>
                                             <TableHead>Hpp</TableHead>
                                             <TableHead>Total Hpp</TableHead>
+                                            <TableHead>Aksi</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -749,6 +765,19 @@ export default function FakturPenjualanCreate() {
                                                 </TableCell>
                                                 <TableCell>
                                                     {formatRupiah(item.total_hpp)}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <button
+                                                        type="button"
+                                                        className="text-destructive hover:text-destructive/80"
+                                                        onClick={() =>
+                                                            setMaterialRows((prev) =>
+                                                                prev.filter((_, i) => i !== index),
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
                                                 </TableCell>
                                             </TableRow>
                                         ))}

@@ -44,17 +44,27 @@ export default function DeliveryOrderIndex({
     outstandingCount = 0,
     realizedCount = 0,
     outstandingTotal = 0,
+    realizedTotal = 0,
+    period = 'today',
 }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('outstanding');
+    const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
+    const [realizedCountState, setRealizedCountState] = useState(realizedCount);
+    const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
+    const [isRealizedLoading, setIsRealizedLoading] = useState(false);
     const [pageSize, setPageSize] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedDo, setSelectedDo] = useState(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [isOutstandingModalOpen, setIsOutstandingModalOpen] = useState(false);
+    const [isRealizedModalOpen, setIsRealizedModalOpen] = useState(false);
     const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
     const [outstandingPageSize, setOutstandingPageSize] = useState(10);
     const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
+    const [realizedSearchTerm, setRealizedSearchTerm] = useState('');
+    const [realizedPageSize, setRealizedPageSize] = useState(10);
+    const [realizedCurrentPage, setRealizedCurrentPage] = useState(1);
     const [selectedDetails, setSelectedDetails] = useState([]);
     const [selectedAddress, setSelectedAddress] = useState('');
     const [detailLoading, setDetailLoading] = useState(false);
@@ -66,6 +76,9 @@ export default function DeliveryOrderIndex({
     const [outstandingList, setOutstandingList] = useState([]);
     const [outstandingLoading, setOutstandingLoading] = useState(false);
     const [outstandingError, setOutstandingError] = useState('');
+    const [realizedList, setRealizedList] = useState([]);
+    const [realizedLoading, setRealizedLoading] = useState(false);
+    const [realizedError, setRealizedError] = useState('');
 
     const filteredDeliveryOrders = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -176,8 +189,54 @@ export default function DeliveryOrderIndex({
         outstandingPageSize,
     ]);
 
-    const handleOpenDetailModal = (item) => {
-        setSelectedDo(item);
+    const realizedDeliveryOrders = useMemo(() => {
+        const term = realizedSearchTerm.trim().toLowerCase();
+        return realizedList
+            .filter((item) => {
+                if (!term) return true;
+                const values = [item.no_do, item.ref_po, item.nm_cs];
+                return values.some((value) =>
+                    String(value ?? '').toLowerCase().includes(term)
+                );
+            })
+            .sort((a, b) => {
+                const dateCompare = String(b.date ?? '').localeCompare(
+                    String(a.date ?? '')
+                );
+                if (dateCompare !== 0) {
+                    return dateCompare;
+                }
+                return String(b.no_do ?? '').localeCompare(String(a.no_do ?? ''));
+            });
+    }, [realizedList, realizedSearchTerm]);
+
+    const realizedTotalItems = realizedDeliveryOrders.length;
+    const realizedTotalPages = useMemo(() => {
+        if (realizedPageSize === Infinity) {
+            return 1;
+        }
+
+        return Math.max(1, Math.ceil(realizedTotalItems / realizedPageSize));
+    }, [realizedPageSize, realizedTotalItems]);
+
+    const displayedRealizedDeliveryOrders = useMemo(() => {
+        if (realizedPageSize === Infinity) {
+            return realizedDeliveryOrders;
+        }
+
+        const startIndex = (realizedCurrentPage - 1) * realizedPageSize;
+        return realizedDeliveryOrders.slice(
+            startIndex,
+            startIndex + realizedPageSize
+        );
+    }, [
+        realizedCurrentPage,
+        realizedPageSize,
+        realizedDeliveryOrders,
+    ]);
+
+    const handleOpenDetailModal = (item, realizedOnly = false) => {
+        setSelectedDo({ ...item, realizedOnly });
         setIsDetailModalOpen(true);
         setSelectedDetails([]);
         setSelectedAddress('');
@@ -187,12 +246,13 @@ export default function DeliveryOrderIndex({
         setDetailPageSize(5);
         setDetailCurrentPage(1);
         setDetailLoading(true);
-        fetch(
-            `/marketing/delivery-order/details?no_do=${encodeURIComponent(
-                item.no_do
-            )}`,
-            { headers: { Accept: 'application/json' } }
-        )
+        const params = new URLSearchParams({ no_do: item.no_do });
+        if (realizedOnly) {
+            params.append('realized_only', '1');
+        }
+        fetch(`/marketing/delivery-order/details?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
             .then((response) => {
                 if (!response.ok) {
                     throw new Error('Request failed');
@@ -245,6 +305,45 @@ export default function DeliveryOrderIndex({
             });
     };
 
+    const loadRealized = (customPeriod, force = false) => {
+        const targetPeriod = customPeriod ?? periodFilter;
+        if (realizedLoading) {
+            return;
+        }
+        if (!force && realizedList.length > 0 && periodFilter === targetPeriod) {
+            return;
+        }
+        setIsRealizedLoading(true);
+        setRealizedLoading(true);
+        setRealizedError('');
+        const params = new URLSearchParams({ period: targetPeriod });
+        fetch(`/marketing/delivery-order/realized?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            })
+            .then((data) => {
+                const list = Array.isArray(data?.deliveryOrders)
+                    ? data.deliveryOrders
+                    : [];
+                setRealizedList(list);
+                setRealizedCountState(list.length);
+                setRealizedTotalState(data?.realizedTotal ?? 0);
+                setPeriodFilter(targetPeriod);
+            })
+            .catch(() => {
+                setRealizedError('Gagal memuat data DO terealisasi.');
+            })
+            .finally(() => {
+                setRealizedLoading(false);
+                setIsRealizedLoading(false);
+            });
+    };
+
     const selectedGrandTotal = useMemo(
         () =>
             selectedDetails.reduce((total, detail) => {
@@ -278,6 +377,10 @@ export default function DeliveryOrderIndex({
     }, [outstandingPageSize, outstandingSearchTerm]);
 
     useEffect(() => {
+        setRealizedCurrentPage(1);
+    }, [realizedPageSize, realizedSearchTerm]);
+
+    useEffect(() => {
         const handler = setTimeout(() => {
             setDebouncedDetailSearch(detailSearch);
         }, 500);
@@ -292,6 +395,9 @@ export default function DeliveryOrderIndex({
         });
         if (debouncedDetailSearch) {
             params.append('search', debouncedDetailSearch);
+        }
+        if (selectedDo?.realizedOnly) {
+            params.append('realized_only', '1');
         }
         fetch(`/marketing/delivery-order/details?${params.toString()}`, {
             headers: { Accept: 'application/json' },
@@ -337,6 +443,12 @@ export default function DeliveryOrderIndex({
         }
     }, [outstandingCurrentPage, outstandingTotalPages]);
 
+    useEffect(() => {
+        if (realizedCurrentPage > realizedTotalPages) {
+            setRealizedCurrentPage(realizedTotalPages);
+        }
+    }, [realizedCurrentPage, realizedTotalPages]);
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Delivery Order" />
@@ -381,15 +493,52 @@ export default function DeliveryOrderIndex({
                             </CardContent>
                         </Card>
                     </button>
-                    <Card>
-                        <CardHeader className="pb-2">
-                            <CardDescription>DO Terealisasi</CardDescription>
-                            <CardTitle className="text-2xl">
-                                {realizedCount}
-                            </CardTitle>
-                        </CardHeader>
-                    </Card>
-                </div>
+                    <Card className="transition hover:border-primary/60 hover:shadow-md">
+                    <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <CardDescription>DO Terealisasi</CardDescription>
+                                <CardTitle className="text-2xl">
+                                    {isRealizedLoading ? '...' : realizedCountState}
+                                </CardTitle>
+                                <div className="text-sm text-muted-foreground">
+                                    {isRealizedLoading
+                                        ? '...'
+                                        : `Rp ${formatNumber(realizedTotalState)}`}
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <select
+                                    className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs shadow-sm"
+                                    value={periodFilter}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setPeriodFilter(val);
+                                        loadRealized(val, true);
+                                    }}
+                                >
+                                    <option value="today">Hari Ini</option>
+                                    <option value="this_week">Minggu Ini</option>
+                                    <option value="this_month">Bulan Ini</option>
+                                    <option value="this_year">Tahun Ini</option>
+                                </select>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={() => {
+                                        setIsRealizedModalOpen(true);
+                                        loadRealized(periodFilter, true);
+                                    }}
+                                    title="Lihat daftar DO terealisasi"
+                                >
+                                    <Eye className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    </CardHeader>
+                </Card>
+            </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
@@ -979,6 +1128,169 @@ export default function DeliveryOrderIndex({
                                     </div>
                                 </div>
                             )}
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={isRealizedModalOpen}
+                    onOpenChange={(open) => {
+                        setIsRealizedModalOpen(open);
+                        if (open) {
+                            loadRealized(periodFilter, true);
+                        } else {
+                            setRealizedSearchTerm('');
+                            setRealizedPageSize(10);
+                            setRealizedCurrentPage(1);
+                        }
+                    }}
+                >
+                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>DO Terealisasi</DialogTitle>
+                        </DialogHeader>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <label>
+                                Tampilkan
+                                <select
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                    value={
+                                        realizedPageSize === Infinity ? 'all' : realizedPageSize
+                                    }
+                                    onChange={(event) => {
+                                        const value = event.target.value;
+                                        setRealizedPageSize(
+                                            value === 'all' ? Infinity : Number(value)
+                                        );
+                                        setRealizedCurrentPage(1);
+                                    }}
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </label>
+                            <label>
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                    placeholder="Cari nomor DO, ref PO, customer..."
+                                    value={realizedSearchTerm}
+                                    onChange={(event) =>
+                                        setRealizedSearchTerm(event.target.value)
+                                    }
+                                />
+                            </label>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left">No DO</th>
+                                        <th className="px-4 py-3 text-left">Date</th>
+                                        <th className="px-4 py-3 text-left">Ref PO</th>
+                                        <th className="px-4 py-3 text-left">Customer</th>
+                                        <th className="px-4 py-3 text-left">Total</th>
+                                        <th className="px-4 py-3 text-left">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {displayedRealizedDeliveryOrders.length === 0 && (
+                                        <tr>
+                                            <td
+                                                className="px-4 py-6 text-center text-muted-foreground"
+                                                colSpan={6}
+                                            >
+                                                {realizedLoading
+                                                    ? 'Memuat data DO...'
+                                                    : realizedError || 'Tidak ada DO terealisasi.'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {displayedRealizedDeliveryOrders.map((item) => (
+                                        <tr
+                                            key={`realized-${item.no_do}`}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="px-4 py-3">{item.no_do}</td>
+                                            <td className="px-4 py-3">{item.date}</td>
+                                            <td className="px-4 py-3">{item.ref_po}</td>
+                                            <td className="px-4 py-3">{item.nm_cs}</td>
+                                            <td className="px-4 py-3">
+                                                {formatNumber(item.g_total ?? item.total ?? 0)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <button
+                                                    type="button"
+                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                    aria-label="Lihat"
+                                                    title="Lihat"
+                                                    onClick={() => {
+                                                        setIsRealizedModalOpen(false);
+                                                        handleOpenDetailModal(
+                                                            { ...item, realizedOnly: true },
+                                                            true
+                                                        );
+                                                    }}
+                                                >
+                                                    <Eye className="size-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {realizedPageSize !== Infinity && realizedTotalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (realizedCurrentPage - 1) * realizedPageSize + 1,
+                                        realizedTotalItems
+                                    )}
+                                    -
+                                    {Math.min(
+                                        realizedCurrentPage * realizedPageSize,
+                                        realizedTotalItems
+                                    )}{' '}
+                                    dari {realizedTotalItems} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setRealizedCurrentPage((page) =>
+                                                Math.max(1, page - 1)
+                                            )
+                                        }
+                                        disabled={realizedCurrentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {realizedCurrentPage} dari {realizedTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setRealizedCurrentPage((page) =>
+                                                Math.min(realizedTotalPages, page + 1)
+                                            )
+                                        }
+                                        disabled={realizedCurrentPage === realizedTotalPages}
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </DialogContent>
                 </Dialog>
             </div>

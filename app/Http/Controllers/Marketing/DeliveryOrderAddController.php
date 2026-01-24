@@ -69,8 +69,10 @@ class DeliveryOrderAddController
         ]);
     }
 
-    public function index()
+    public function index(Request $request)
     {
+        $period = $request->query('period', 'today');
+
         $deliveryOrders = DB::table('tb_dob')
             ->select('no_dob', 'ref_do', 'nm_cs', 'status')
             ->groupBy('no_dob', 'ref_do', 'nm_cs', 'status')
@@ -86,16 +88,42 @@ class DeliveryOrderAddController
             ->where('status', 0)
             ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
 
-        $realizedCount = DB::table('tb_dob')
-            ->where('status', 1)
-            ->distinct('no_dob')
-            ->count('no_dob');
+        // DOT terealisasi: tb_fakturpenjualan.no_do = tb_kddob.no_dob, filter tgl_pos
+        $docDateExpr = "coalesce(date(f.tgl_pos), str_to_date(f.tgl_pos, '%Y-%m-%d'), str_to_date(f.tgl_pos, '%Y/%m/%d'), str_to_date(f.tgl_pos, '%d/%m/%Y'), str_to_date(f.tgl_pos, '%d-%m-%Y'), str_to_date(f.tgl_pos, '%d.%m.%Y'))";
+
+        $realizedQuery = DB::table('tb_kddob as k')
+            ->join('tb_fakturpenjualan as f', function ($join) {
+                $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_dob))'));
+            });
+
+        $now = now();
+        if ($period === 'today') {
+            $realizedQuery->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
+        } elseif ($period === 'this_week') {
+            $realizedQuery->whereRaw("{$docDateExpr} between ? and ?", [
+                $now->startOfWeek()->toDateString(),
+                $now->endOfWeek()->toDateString(),
+            ]);
+        } elseif ($period === 'this_month') {
+            $realizedQuery->whereRaw("month({$docDateExpr}) = ?", [$now->month])
+                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        } elseif ($period === 'this_year') {
+            $realizedQuery->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        }
+
+        $realizedNos = $realizedQuery->distinct('k.no_dob')->pluck('k.no_dob');
+        $realizedCount = $realizedNos->count();
+        $realizedTotal = DB::table('tb_dob')
+            ->whereIn(DB::raw('lower(trim(no_dob))'), $realizedNos->map(fn ($n) => strtolower(trim($n))))
+            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
 
         return Inertia::render('marketing/delivery-order-add/index', [
             'deliveryOrders' => $deliveryOrders,
             'outstandingCount' => $outstandingCount,
             'outstandingTotal' => $outstandingTotal,
             'realizedCount' => $realizedCount,
+            'realizedTotal' => (float) $realizedTotal,
+            'period' => $period,
         ]);
     }
 
@@ -109,12 +137,32 @@ class DeliveryOrderAddController
             ]);
         }
 
-        $details = DB::table('tb_dob')
-            ->where('no_dob', $noDob)
+        $detailsQuery = DB::table('tb_dob')->where('no_dob', $noDob);
+        $details = $detailsQuery
             ->orderBy('no_dob')
             ->get();
 
         $header = $details->first();
+
+        if ($request->boolean('realized_only') && $header?->ref_do) {
+            $refPo = DB::table('tb_do')
+                ->where(DB::raw('lower(trim(no_do))'), strtolower(trim($header->ref_do)))
+                ->value('ref_po');
+
+            if ($refPo) {
+                $details = DB::table('tb_dob')
+                    ->where('no_dob', $noDob)
+                    ->whereExists(function ($q) use ($refPo) {
+                        $q->select(DB::raw(1))
+                            ->from('tb_kdfakturpenjualan')
+                            ->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($refPo))]);
+                    })
+                    ->orderBy('no_dob')
+                    ->get();
+            } else {
+                $details = collect();
+            }
+        }
 
         return response()->json([
             'details' => $details,
@@ -199,6 +247,58 @@ class DeliveryOrderAddController
 
         return response()->json([
             'deliveryOrders' => $deliveryOrders,
+        ]);
+    }
+
+    public function realized(Request $request)
+    {
+        $period = $request->query('period', 'today');
+
+        $docDateExpr = "coalesce(date(f.tgl_pos), str_to_date(f.tgl_pos, '%Y-%m-%d'), str_to_date(f.tgl_pos, '%Y/%m/%d'), str_to_date(f.tgl_pos, '%d/%m/%Y'), str_to_date(f.tgl_pos, '%d-%m-%Y'), str_to_date(f.tgl_pos, '%d.%m.%Y'))";
+
+        $query = DB::table('tb_kddob as k')
+            ->join('tb_fakturpenjualan as f', function ($join) {
+                $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_dob))'));
+            })
+            ->leftJoin('tb_dob as d', function ($join) {
+                $join->on(DB::raw('lower(trim(d.no_dob))'), '=', DB::raw('lower(trim(k.no_dob))'));
+            })
+            ->select(
+                'k.no_dob',
+                'k.no_do as ref_do',
+                'f.nm_cs',
+                DB::raw("coalesce(f.tgl_pos, k.pos_tgl) as date"),
+                DB::raw('coalesce(cast(d.total as decimal(18,4)), 0) as total')
+            )
+            ->distinct();
+
+        $now = now();
+        if ($period === 'today') {
+            $query->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
+        } elseif ($period === 'this_week') {
+            $query->whereRaw("{$docDateExpr} between ? and ?", [
+                $now->startOfWeek()->toDateString(),
+                $now->endOfWeek()->toDateString(),
+            ]);
+        } elseif ($period === 'this_month') {
+            $query->whereRaw("month({$docDateExpr}) = ?", [$now->month])
+                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        } elseif ($period === 'this_year') {
+            $query->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+        }
+
+        $deliveryOrders = $query
+            ->orderBy('k.pos_tgl', 'desc')
+            ->orderBy('k.no_dob', 'desc')
+            ->get();
+
+        $realizedTotal = DB::table('tb_dob')
+            ->whereIn(DB::raw('lower(trim(no_dob))'), $deliveryOrders->pluck('no_dob')->map(fn ($n) => strtolower(trim($n))))
+            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
+
+        return response()->json([
+            'deliveryOrders' => $deliveryOrders,
+            'realizedTotal' => (float) $realizedTotal,
         ]);
     }
 
