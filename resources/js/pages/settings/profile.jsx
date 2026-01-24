@@ -13,7 +13,7 @@ import { edit } from '@/routes/profile';
 const breadcrumbs = [
     {
         title: 'Profile settings',
-        href: edit().url,
+        href: edit(),
     },
 ];
 export default function Profile({ mustVerifyEmail, status, }) {
