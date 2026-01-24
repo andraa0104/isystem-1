@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\Pengguna;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
@@ -64,11 +65,19 @@ Route::post('/login-simple', function (Request $request) {
         ]);
     }
 
+    // Set session flag to Y on successful login
+    Pengguna::on($connection)
+        ->where('pengguna', $user->pengguna)
+        ->update(['Sesi' => 'Y']);
+
+    // Gunakan session-cookie (expires saat browser ditutup) supaya perlu login ulang jika browser ditutup
+    $sessionCookieMinutes = 0; // 0 = session cookie
+
     return redirect('/dashboard')
-        ->withCookie(cookie('tenant_database', $database, 60 * 24 * 30))
-        ->withCookie(cookie('login_user', $user->pengguna, 60 * 24 * 30))
-        ->withCookie(cookie('login_user_name', $user->name, 60 * 24 * 30))
-        ->withCookie(cookie('login_last_online', (string) ($user->last_online ?? ''), 60 * 24 * 30));
+        ->withCookie(cookie('tenant_database', $database, $sessionCookieMinutes))
+        ->withCookie(cookie('login_user', $user->pengguna, $sessionCookieMinutes))
+        ->withCookie(cookie('login_user_name', $user->name, $sessionCookieMinutes))
+        ->withCookie(cookie('login_last_online', (string) ($user->last_online ?? ''), $sessionCookieMinutes));
 });
 
 Route::match(['get', 'post'], '/logout-simple', function (Request $request) {
@@ -88,7 +97,10 @@ Route::match(['get', 'post'], '/logout-simple', function (Request $request) {
             $column = config('tenants.last_online_column', 'LastOnline');
             Pengguna::on($connection)
                 ->where('pengguna', $username)
-                ->update([$column => now('Asia/Singapore')]);
+                ->update([
+                    $column => now('Asia/Singapore'),
+                    'Sesi' => 'T',
+                ]);
         }
     }
 
@@ -101,6 +113,56 @@ Route::match(['get', 'post'], '/logout-simple', function (Request $request) {
         ->withCookie(Cookie::forget('login_user_name'))
         ->withCookie(Cookie::forget('login_last_online'))
         ->withCookie(Cookie::forget('tenant_database'));
+});
+
+Route::get('/online-users', function (Request $request) {
+    $database = $request->cookie('tenant_database');
+    $allowed = config('tenants.databases', []);
+
+    if (!$database || !in_array($database, $allowed, true)) {
+        return response()->json(['count' => 0, 'users' => []]);
+    }
+
+    $connection = config('tenants.connection', config('database.default'));
+    config(['database.default' => $connection]);
+    DB::setDefaultConnection($connection);
+    config(["database.connections.$connection.database" => $database]);
+    DB::purge($connection);
+    DB::reconnect($connection);
+
+    $users = DB::table('tb_pengguna')
+        ->whereRaw("upper(trim(coalesce(Sesi,''))) = 'Y'")
+        ->orderBy('nm_user')
+        ->pluck('nm_user')
+        ->map(fn ($name) => $name ?? '')
+        ->values();
+
+    return response()->json([
+        'count' => $users->count(),
+        'users' => $users,
+    ]);
+});
+
+Route::get('/ping-db', function (Request $request) {
+    $database = $request->cookie('tenant_database');
+    $allowed = config('tenants.databases', []);
+
+    if (!$database || !in_array($database, $allowed, true)) {
+        return response()->json(['ping_ms' => null], 400);
+    }
+
+    $connection = config('tenants.connection', config('database.default'));
+    config(['database.default' => $connection]);
+    DB::setDefaultConnection($connection);
+    config(["database.connections.$connection.database" => $database]);
+    DB::purge($connection);
+    DB::reconnect($connection);
+
+    $start = microtime(true);
+    DB::select('select 1');
+    $ping = round((microtime(true) - $start) * 1000, 2);
+
+    return response()->json(['ping_ms' => $ping]);
 });
 
 Route::get('dashboard', [DashboardController::class, 'index'])

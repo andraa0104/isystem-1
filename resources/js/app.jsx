@@ -4,6 +4,18 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { initializeTheme } from './hooks/use-appearance';
+
+// Ensure session cleared on browser/tab close
+if (typeof window !== 'undefined') {
+    const logoutOnClose = () => {
+        try {
+            navigator.sendBeacon('/logout-simple');
+        } catch (e) {
+            // noop
+        }
+    };
+    window.addEventListener('unload', logoutOnClose);
+}
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

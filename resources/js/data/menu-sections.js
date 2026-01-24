@@ -113,18 +113,7 @@ export const menuSections = [
     },
 ];
 
-export const footerNavItems = [
-    {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
-    },
-];
+export const footerNavItems = [];
 
 export const getMainItemKey = (title) => `main:${title}`;
 
