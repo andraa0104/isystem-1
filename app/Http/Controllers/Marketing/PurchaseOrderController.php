@@ -10,10 +10,22 @@ class PurchaseOrderController
 {
     public function create()
     {
+        $vendors = DB::table('tb_vendor')
+            ->select(
+                'kd_vdr',
+                'nm_vdr',
+                'almt_vdr',
+                'telp_vdr',
+                'eml_vdr',
+                'attn_vdr'
+            )
+            ->orderBy('nm_vdr')
+            ->get();
+
         return Inertia::render('Pembelian/purchase-order/create', [
             'purchaseRequirements' => [],
             'purchaseRequirementDetails' => [],
-            'vendors' => [],
+            'vendors' => $vendors,
         ]);
     }
 
@@ -34,12 +46,24 @@ class PurchaseOrderController
             ->orderBy('no')
             ->get();
 
+        $vendors = DB::table('tb_vendor')
+            ->select(
+                'kd_vdr',
+                'nm_vdr',
+                'almt_vdr',
+                'telp_vdr',
+                'eml_vdr',
+                'attn_vdr'
+            )
+            ->orderBy('nm_vdr')
+            ->get();
+
         return Inertia::render('Pembelian/purchase-order/edit', [
             'purchaseOrder' => $purchaseOrder,
             'purchaseOrderDetails' => $purchaseOrderDetails,
             'purchaseRequirements' => [],
             'purchaseRequirementDetails' => [],
-            'vendors' => [],
+            'vendors' => $vendors,
         ]);
     }
 
@@ -141,6 +165,14 @@ class PurchaseOrderController
 
         $ppnRaw = $request->input('ppn');
         $ppnValue = $ppnRaw === null || $ppnRaw === '' ? '' : $ppnRaw.'%';
+        $dateInput = $request->input('date');
+        $dateFormatted = null;
+        try {
+            $parsedDate = $dateInput ? \Carbon\Carbon::parse($dateInput) : null;
+            $dateFormatted = $parsedDate ? $parsedDate->format('d.m.Y') : null;
+        } catch (\Throwable $e) {
+            $dateFormatted = $dateInput; // fallback
+        }
 
         $sTotal = (float) $request->input('s_total', 0);
         $hPpn = (float) $request->input('h_ppn', 0);
@@ -183,7 +215,7 @@ class PurchaseOrderController
 
                     DB::table('tb_po')->insert([
                         'no_po' => $noPo,
-                        'tgl' => $request->input('date'),
+                        'tgl' => $dateFormatted,
                         'ref_pr' => $request->input('ref_pr'),
                         'ref_quota' => $request->input('ref_quota'),
                         'for_cus' => $request->input('for_cus'),
@@ -219,7 +251,7 @@ class PurchaseOrderController
                         DB::table('tb_detailpo')->insert([
                             'id' => $maxId,
                             'no_po' => $noPo,
-                            'tgl' => $request->input('date'),
+                            'tgl' => $dateFormatted,
                             'ref_pr' => $request->input('ref_pr'),
                             'ref_quota' => $request->input('ref_quota'),
                             'for_cus' => $request->input('for_cus'),
@@ -298,6 +330,14 @@ class PurchaseOrderController
         $sTotal = (float) $request->input('s_total', 0);
         $hPpn = (float) $request->input('h_ppn', 0);
         $gTotal = (float) $request->input('g_total', 0);
+        $dateInput = $request->input('date');
+        $dateFormatted = null;
+        try {
+            $parsedDate = $dateInput ? \Carbon\Carbon::parse($dateInput) : null;
+            $dateFormatted = $parsedDate ? $parsedDate->format('d.m.Y') : null;
+        } catch (\Throwable $e) {
+            $dateFormatted = $dateInput; // fallback
+        }
 
         try {
             DB::transaction(function () use (
@@ -307,11 +347,13 @@ class PurchaseOrderController
                 $ppnValue,
                 $sTotal,
                 $hPpn,
-                $gTotal
+                $gTotal,
+                $dateFormatted
             ) {
                 DB::table('tb_po')
                     ->where('no_po', $noPo)
                     ->update([
+                        'tgl' => $dateFormatted,
                         'ref_pr' => $request->input('ref_pr'),
                         'ref_quota' => $request->input('ref_quota'),
                         'for_cus' => $request->input('for_cus'),
@@ -323,20 +365,88 @@ class PurchaseOrderController
                         'g_total' => $gTotal,
                     ]);
 
+                $nowStamp = now()->format('m/d/Y h:i:s A');
+
                 foreach ($materials as $item) {
                     $id = $item['id'] ?? null;
-                    if (!$id) {
+                    $kdMat = $item['kd_mat'] ?? null;
+                    if (!$id && !$kdMat) {
                         continue;
                     }
 
-                    DB::table('tb_detailpo')
-                        ->where('id', $id)
-                        ->where('no_po', $noPo)
-                        ->update([
-                            'price' => $item['price'] ?? 0,
-                            'total_price' => $item['total_price'] ?? 0,
-                            'gr_price' => $item['total_price'] ?? 0,
+                    $priceRaw = $item['price'] ?? null;
+                    $isPriceEmpty = $priceRaw === '' || $priceRaw === null;
+                    $priceValue = $isPriceEmpty ? '' : $priceRaw;
+                    $totalPriceRaw = $item['total_price'] ?? null;
+                    $totalPriceValue = $isPriceEmpty ? '' : ($totalPriceRaw ?? '');
+                    $qtyValue = $item['qty'] ?? 0;
+
+                    $detailQuery = DB::table('tb_detailpo')->where('no_po', $noPo);
+                    if ($kdMat) {
+                        $detailQuery->where('kd_mat', $kdMat);
+                    } else {
+                        $detailQuery->where('id', $id);
+                    }
+
+                    $detailQuery->update([
+                        'tgl' => $dateFormatted,
+                        'qty' => $qtyValue,
+                        'price' => $priceValue,
+                        'total_price' => $totalPriceValue,
+                        'gr_price' => $totalPriceValue,
+                        'ppn' => $ppnValue,
+                    ]);
+
+                    if ($kdMat) {
+                        $detailRow = DB::table('tb_detailpo')
+                            ->where('no_po', $noPo)
+                            ->where('kd_mat', $kdMat)
+                            ->first();
+
+                        $idPo = $detailRow->id_po ?? null;
+                        $qtyValue = $item['qty'] ?? ($detailRow->qty ?? 0);
+                        $unitValue = $item['unit'] ?? ($detailRow->unit ?? '');
+                        $materialName = $item['material'] ?? ($detailRow->material ?? '');
+                        $priceValue = $item['price'] ?? ($detailRow->price ?? 0);
+                        $totalPriceValue = $item['total_price'] ?? ($detailRow->total_price ?? 0);
+                        $noValue = $item['no'] ?? ($detailRow->no ?? null);
+
+                        DB::table('tb_ubahpo')->insert([
+                            'no_po' => $noPo,
+                            'tgl' => $dateFormatted,
+                            'ref_pr' => $request->input('ref_pr'),
+                            'ref_quota' => $request->input('ref_quota'),
+                            'for_cus' => $request->input('for_cus'),
+                            'ref_poin' => $request->input('ref_poin'),
+                            'kd_vdr' => $request->input('kd_vdr'),
+                            'nm_vdr' => $request->input('nm_vdr'),
+                            'ppn' => $ppnValue,
+                            'payment_terms' => $request->input('payment_terms'),
+                            'del_time' => $request->input('del_time'),
+                            'franco_loco' => $request->input('franco_loco'),
+                            'ket1' => $request->input('ket1'),
+                            'ket2' => $request->input('ket2'),
+                            'ket3' => $request->input('ket3'),
+                            'ket4' => $request->input('ket4'),
+                            'ket' => $request->input('ket1'),
+                            'kd_mat' => $kdMat,
+                            'material' => $materialName,
+                            'qty' => $qtyValue,
+                            'qty_po' => $qtyValue,
+                            'ir_mat' => ' ',
+                            'gr_mat' => ' ',
+                            'sisa_pr' => $qtyValue,
+                            'unit' => $unitValue,
+                            'price' => $priceValue,
+                            'total_price' => $totalPriceValue,
+                            'gr_price' => ' ',
+                            'ir_price' => ' ',
+                            'no' => $noValue ?? 0,
+                            'id' => $noValue,
+                            'id_po' => $idPo,
+                            'tgl_ubah' => $nowStamp,
                         ]);
+                    }
                 }
 
                 $totalPpn = (float) DB::table('tb_detailpo')
@@ -365,6 +475,7 @@ class PurchaseOrderController
             ->where('no_po', $noPo)
             ->where('id', $detailId)
             ->update([
+                'qty' => $request->input('qty', 0),
                 'price' => $request->input('price', 0),
                 'total_price' => $request->input('total_price', 0),
                 'gr_price' => $request->input('total_price', 0),
@@ -398,6 +509,46 @@ class PurchaseOrderController
             ]);
 
         return back()->with('success', 'Detail PO berhasil diperbarui.');
+    }
+
+    public function destroyDetail($noPo, $kdMat)
+    {
+        try {
+            DB::transaction(function () use ($noPo, $kdMat) {
+                DB::table('tb_detailpo')
+                    ->where('no_po', $noPo)
+                    ->where('kd_mat', $kdMat)
+                    ->delete();
+
+                $totalBeforePpn = (float) DB::table('tb_detailpo')
+                    ->where('no_po', $noPo)
+                    ->selectRaw('coalesce(sum(qty * price), 0) as total_before_ppn')
+                    ->value('total_before_ppn');
+
+                $grandTotal = (float) DB::table('tb_detailpo')
+                    ->where('no_po', $noPo)
+                    ->selectRaw('coalesce(sum(total_price), 0) as grand_total')
+                    ->value('grand_total');
+
+                $totalPpn = $grandTotal - $totalBeforePpn;
+
+                DB::table('tb_po')
+                    ->where('no_po', $noPo)
+                    ->update([
+                        's_total' => $totalBeforePpn,
+                        'h_ppn' => $totalPpn,
+                        'g_total' => $grandTotal,
+                    ]);
+            });
+        } catch (\Throwable $e) {
+            return redirect()
+                ->back()
+                ->with('error', 'Gagal menghapus material: '.$e->getMessage());
+        }
+
+        return redirect()
+            ->back()
+            ->with('success', 'Material berhasil dihapus.');
     }
 
     public function index(Request $request)
@@ -662,7 +813,8 @@ class PurchaseOrderController
                 'po.ppn',
                 'po.s_total',
                 'po.h_ppn',
-                DB::raw('coalesce(detail.has_outstanding, 0) as has_outstanding')
+                DB::raw('coalesce(detail.has_outstanding, 0) as has_outstanding'),
+                DB::raw('case when exists (select 1 from tb_invin where lower(trim(tb_invin.ref_po)) = lower(trim(po.no_po))) then 0 else 1 end as can_delete')
             )
             ->where(DB::raw('coalesce(detail.has_outstanding, 0)'), '>', 0)
             ->orderBy('tgl', 'desc')
@@ -742,5 +894,121 @@ class PurchaseOrderController
             'purchaseOrderDetails' => $purchaseOrderDetails,
             'company' => $company,
         ]);
+    }
+
+    public function destroy($noPo)
+    {
+        $noPo = trim((string) $noPo);
+        if ($noPo === '') {
+            return response()->json(['message' => 'No PO tidak valid.'], 400);
+        }
+
+        // Cegah hapus jika sudah ada di tb_invin
+        $existsInInvin = DB::table('tb_invin')
+            ->whereRaw('lower(trim(ref_po)) = ?', [strtolower($noPo)])
+            ->exists();
+        if ($existsInInvin) {
+            return response()->json([
+                'message' => 'PO sudah masuk invoicing (tb_invin), tidak bisa dihapus.',
+            ], 400);
+        }
+
+        $poHeader = DB::table('tb_po')
+            ->whereRaw('lower(trim(no_po)) = ?', [strtolower($noPo)])
+            ->first(['for_cus']);
+        $fallbackForCus = $poHeader->for_cus ?? '';
+        $timestamp = now()->format('m/d/Y h:i:s A');
+
+        try {
+            DB::transaction(function () use ($noPo, $timestamp, $fallbackForCus) {
+                $details = DB::table('tb_detailpo')
+                    ->whereRaw('lower(trim(no_po)) = ?', [strtolower($noPo)])
+                    ->get([
+                        'no_po',
+                        'tgl',
+                        'ref_pr',
+                        'ref_quota',
+                        'for_cus',
+                        'ref_poin',
+                        'kd_vdr',
+                        'nm_vdr',
+                        'ppn',
+                        'payment_terms',
+                        'del_time',
+                        'franco_loco',
+                        'no',
+                        'kd_mat',
+                        'material',
+                        'qty',
+                        'unit',
+                        'price',
+                        'total_price',
+                        'ket1',
+                        'ket2',
+                        'ket3',
+                        'ket4',
+                        'gr_mat',
+                        'gr_price',
+                        'ir_mat',
+                        'ir_price',
+                        'qty_po',
+                        'sisa_pr',
+                        'id',
+                        'id_po',
+                    ]);
+
+                if ($details->isNotEmpty()) {
+                    $payload = $details->map(function ($row) use ($timestamp, $fallbackForCus) {
+                        return [
+                            'no_po' => $row->no_po,
+                            'tgl' => $row->tgl,
+                            'ref_pr' => $row->ref_pr,
+                            'ref_quota' => $row->ref_quota,
+                            'for_cus' => $row->for_cus ?? $fallbackForCus,
+                            'ref_poin' => $row->ref_poin,
+                            'kd_vdr' => $row->kd_vdr,
+                            'nm_vdr' => $row->nm_vdr,
+                            'ppn' => $row->ppn,
+                            'payment_terms' => $row->payment_terms,
+                            'del_time' => $row->del_time,
+                            'franco_loco' => $row->franco_loco,
+                            'no' => $row->no,
+                            'kd_mat' => $row->kd_mat,
+                            'material' => $row->material,
+                            'qty' => $row->qty,
+                            'unit' => $row->unit,
+                            'price' => $row->price,
+                            'total_price' => $row->total_price,
+                            'ket1' => $row->ket1,
+                            'ket2' => $row->ket2,
+                            'ket3' => $row->ket3,
+                            'ket4' => $row->ket4,
+                            'gr_mat' => $row->gr_mat,
+                            'gr_price' => $row->gr_price,
+                            'ir_mat' => $row->ir_mat,
+                            'ir_price' => $row->ir_price,
+                            'qty_po' => $row->qty_po,
+                            'sisa_pr' => $row->sisa_pr,
+                            'id' => $row->id,
+                            'id_po' => $row->id_po,
+                            'tgl_hapus' => $timestamp,
+                        ];
+                    })->all();
+
+                    DB::table('tb_hapuspo')->insert($payload);
+                }
+
+                DB::table('tb_detailpo')
+                    ->whereRaw('lower(trim(no_po)) = ?', [strtolower($noPo)])
+                    ->delete();
+                DB::table('tb_po')
+                    ->whereRaw('lower(trim(no_po)) = ?', [strtolower($noPo)])
+                    ->delete();
+            });
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 500);
+        }
+
+        return response()->json(['message' => 'PO berhasil dihapus.']);
     }
 }

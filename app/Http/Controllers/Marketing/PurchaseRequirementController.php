@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use Carbon\Carbon;
 
 class PurchaseRequirementController
 {
@@ -233,13 +234,59 @@ class PurchaseRequirementController
                 'kd_material',
                 'material',
                 'unit',
-                'stok'
+                'stok',
+                'harga'
             )
             ->orderBy('material')
             ->get();
 
         return response()->json([
             'materials' => $materials,
+        ]);
+    }
+
+    public function customers(Request $request)
+    {
+        $perPageInput = $request->query('per_page', 5);
+        $perPage = $perPageInput === 'all'
+            ? null
+            : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
+        if ($perPage !== null && $perPage < 1) {
+            $perPage = 5;
+        }
+
+        $search = trim((string) $request->query('search', ''));
+
+        $query = DB::table('tb_cs')->select('kd_cs', 'nm_cs', 'kota_cs');
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $like = '%'.strtolower($search).'%';
+                $q->whereRaw('lower(kd_cs) like ?', [$like])
+                    ->orWhereRaw('lower(nm_cs) like ?', [$like])
+                    ->orWhereRaw('lower(kota_cs) like ?', [$like]);
+            });
+        }
+
+        if ($perPage === null) {
+            $data = $query->orderBy('nm_cs')->get();
+            return response()->json([
+                'customers' => $data,
+                'total' => $data->count(),
+            ]);
+        }
+
+        $page = max(1, (int) $request->query('page', 1));
+        $data = $query
+            ->orderBy('nm_cs')
+            ->forPage($page, $perPage)
+            ->get();
+        $total = $query->count();
+
+        return response()->json([
+            'customers' => $data,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
         ]);
     }
 
@@ -384,12 +431,23 @@ class PurchaseRequirementController
             $materials = [];
         }
 
+        $timestamp = now()->format('m/d/Y h:i:s A');
+        $dateFormatted = null;
         try {
-            DB::transaction(function () use ($request, $materials, $noPr) {
+            $parsedDate = $request->input('date')
+                ? Carbon::parse($request->input('date'))
+                : null;
+            $dateFormatted = $parsedDate ? $parsedDate->format('d.m.Y') : $request->input('date');
+        } catch (\Throwable $e) {
+            $dateFormatted = $request->input('date');
+        }
+
+        try {
+            DB::transaction(function () use ($request, $materials, $noPr, $timestamp, $dateFormatted) {
                 DB::table('tb_pr')
                     ->where('no_pr', $noPr)
                     ->update([
-                        'date' => $request->input('date'),
+                        'date' => $dateFormatted,
                         'payment' => $request->input('payment'),
                         'for_customer' => $request->input('for_customer'),
                         'ref_po' => $request->input('ref_po'),
@@ -400,12 +458,13 @@ class PurchaseRequirementController
                     ->delete();
 
                 foreach ($materials as $index => $item) {
+                    $noValue = $item['no'] ?? ($index + 1);
                     DB::table('tb_detailpr')->insert([
-                        'date' => $request->input('date'),
+                        'date' => $dateFormatted,
                         'payment' => $request->input('payment'),
                         'for_customer' => $request->input('for_customer'),
                         'ref_po' => $request->input('ref_po'),
-                        'no' => $item['no'] ?? ($index + 1),
+                        'no' => $noValue,
                         'no_pr' => $noPr,
                         'kd_material' => $item['kd_material'] ?? null,
                         'material' => $item['material'] ?? null,
@@ -419,6 +478,29 @@ class PurchaseRequirementController
                         'renmark' => $item['renmark'] ?? null,
                         'qty_po' => 0,
                         'sisa_pr' => $item['qty'] ?? null,
+                    ]);
+
+                    DB::table('tb_ubah')->insert([
+                        'no_pr' => $noPr,
+                        'date' => $dateFormatted,
+                        'payment' => $request->input('payment'),
+                        'ref_po' => $request->input('ref_po'),
+                        'no' => $noValue,
+                        'id' => $noValue,
+                        'for_customer' => $request->input('for_customer'),
+                        'kd_material' => $item['kd_material'] ?? null,
+                        'material' => $item['material'] ?? null,
+                        'qty' => $item['qty'] ?? null,
+                        'qty_po' => $item['qty'] ?? null,
+                        'sisa_pr' => $item['qty'] ?? null,
+                        'unit' => $item['unit'] ?? null,
+                        'stok' => $item['stok'] ?? null,
+                        'unit_price' => $item['unit_price'] ?? null,
+                        'total_price' => $item['total_price'] ?? null,
+                        'price_po' => $item['price_po'] ?? null,
+                        'margin' => $item['margin'] ?? null,
+                        'renmark' => $item['renmark'] ?? null,
+                        'tgl_ubah' => $timestamp,
                     ]);
                 }
             });
@@ -442,11 +524,23 @@ class PurchaseRequirementController
             return back()->with('error', 'Detail PR tidak ditemukan.');
         }
 
+        $timestamp = now()->format('m/d/Y h:i:s A');
+        try {
+            $parsedDate = $request->input('date')
+                ? Carbon::parse($request->input('date'))
+                : null;
+            $dateFormatted = $parsedDate
+                ? $parsedDate->format('d.m.Y')
+                : $request->input('date');
+        } catch (\Throwable $e) {
+            $dateFormatted = $request->input('date');
+        }
+
         DB::table('tb_detailpr')
             ->where('no_pr', $noPr)
             ->where('no', $detailNo)
             ->update([
-                'date' => $request->input('date'),
+                'date' => $dateFormatted,
                 'payment' => $request->input('payment'),
                 'for_customer' => $request->input('for_customer'),
                 'ref_po' => $request->input('ref_po'),
@@ -462,6 +556,29 @@ class PurchaseRequirementController
                 'renmark' => $request->input('renmark'),
                 'sisa_pr' => $request->input('qty'),
             ]);
+
+        DB::table('tb_ubah')->insert([
+            'no_pr' => $noPr,
+            'date' => $dateFormatted,
+            'payment' => $request->input('payment'),
+            'ref_po' => $request->input('ref_po'),
+            'no' => $detailNo,
+            'id' => $detailNo,
+            'for_customer' => $request->input('for_customer'),
+            'kd_material' => $request->input('kd_material'),
+            'material' => $request->input('material'),
+            'qty' => $request->input('qty'),
+            'qty_po' => $request->input('qty'),
+            'sisa_pr' => $request->input('qty'),
+            'unit' => $request->input('unit'),
+            'stok' => $request->input('stok'),
+            'unit_price' => $request->input('unit_price'),
+            'total_price' => $request->input('total_price'),
+            'price_po' => $request->input('price_po'),
+            'margin' => $request->input('margin'),
+            'renmark' => $request->input('renmark'),
+            'tgl_ubah' => $timestamp,
+        ]);
 
         return back()->with('success', 'Detail PR berhasil diperbarui.');
     }

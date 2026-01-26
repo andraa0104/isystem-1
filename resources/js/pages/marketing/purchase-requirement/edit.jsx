@@ -13,6 +13,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { Head, Link, router } from '@inertiajs/react';
 import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -85,6 +86,7 @@ export default function PurchaseRequirementEdit({
 
     const [formData, setFormData] = useState({
         date: toDateInputValue(detailDateSource),
+        refPr: purchaseRequirement?.no_pr ?? '',
         refPo: purchaseRequirement?.ref_po ?? '',
         forCustomer: purchaseRequirement?.for_customer ?? '',
         payment: purchaseRequirement?.payment ?? 'Cash Trans',
@@ -94,6 +96,7 @@ export default function PurchaseRequirementEdit({
         const detailDate = purchaseRequirementDetails?.[0]?.date;
         setFormData({
             date: toDateInputValue(detailDate),
+            refPr: purchaseRequirement?.no_pr ?? '',
             refPo: purchaseRequirement?.ref_po ?? '',
             forCustomer: purchaseRequirement?.for_customer ?? '',
             payment: purchaseRequirement?.payment ?? 'Cash Trans',
@@ -212,6 +215,12 @@ export default function PurchaseRequirementEdit({
             namaMaterial: material.material ?? '',
             stok: material.stok ?? '',
             satuan: material.unit ?? '',
+            priceEstimate:
+                material.harga ??
+                material.priceEstimate ??
+                material.price ??
+                material.unit_price ??
+                '',
         }));
         setIsMaterialModalOpen(false);
     };
@@ -308,6 +317,7 @@ export default function PurchaseRequirementEdit({
             date: formData.date,
             payment: formData.payment,
             for_customer: formData.forCustomer,
+            ref_pr: formData.refPr,
             ref_po: formData.refPo,
             kd_material: materialForm.kodeMaterial,
             material: materialForm.namaMaterial,
@@ -401,6 +411,7 @@ export default function PurchaseRequirementEdit({
             date: formData.date,
             payment: formData.payment,
             for_customer: formData.forCustomer,
+            ref_pr: formData.refPr,
             ref_po: formData.refPo,
             materials: materialItems.map((item, index) => ({
                 no: index + 1,
@@ -490,6 +501,19 @@ export default function PurchaseRequirementEdit({
                                             refPo: event.target.value,
                                         }))
                                     }
+                                />
+                            </label>
+                            <label className="space-y-2 text-sm">
+                                <span className="text-muted-foreground">No PR</span>
+                                <Input
+                                    value={formData.refPr}
+                                    onChange={(event) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            refPr: event.target.value,
+                                        }))
+                                    }
+                                    readOnly
                                 />
                             </label>
                             <label className="space-y-2 text-sm">
@@ -784,17 +808,20 @@ export default function PurchaseRequirementEdit({
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <Button
                                                             type="button"
+                                                            size="icon"
                                                             variant="ghost"
                                                             onClick={() =>
                                                                 handleEditMaterial(
                                                                     item
                                                                 )
                                                             }
+                                                            aria-label="Edit material"
                                                         >
-                                                            Edit
+                                                            <Pencil className="h-4 w-4" />
                                                         </Button>
                                                         <Button
                                                             type="button"
+                                                            size="icon"
                                                             variant="ghost"
                                                             disabled={
                                                                 deletingMaterialId ===
@@ -805,11 +832,14 @@ export default function PurchaseRequirementEdit({
                                                                     item
                                                                 )
                                                             }
+                                                            aria-label="Hapus material"
                                                         >
                                                             {deletingMaterialId ===
-                                                            item.detailNo
-                                                                ? 'Menghapus...'
-                                                                : 'Hapus'}
+                                                            item.detailNo ? (
+                                                                <Spinner className="h-4 w-4" />
+                                                            ) : (
+                                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                            )}
                                                         </Button>
                                                     </div>
                                                 </td>

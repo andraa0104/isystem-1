@@ -53,6 +53,14 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
     const [materialList, setMaterialList] = useState(materials);
     const [materialLoading, setMaterialLoading] = useState(false);
     const [materialError, setMaterialError] = useState('');
+    const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+    const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+    const [customerPageSize, setCustomerPageSize] = useState(5);
+    const [customerCurrentPage, setCustomerCurrentPage] = useState(1);
+    const [customerList, setCustomerList] = useState([]);
+    const [customerTotal, setCustomerTotal] = useState(0);
+    const [customerLoading, setCustomerLoading] = useState(false);
+    const [customerError, setCustomerError] = useState('');
 
     const [formData, setFormData] = useState({
         date: todayValue(),
@@ -140,6 +148,12 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
             namaMaterial: material.material ?? '',
             stok: material.stok ?? '',
             satuan: material.unit ?? '',
+            priceEstimate:
+                material.harga ??
+                material.priceEstimate ??
+                material.price ??
+                material.unit_price ??
+                '',
         }));
         setIsMaterialModalOpen(false);
     };
@@ -195,6 +209,44 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
     const handleRemoveMaterial = (id) => {
         setMaterialItems((prev) => prev.filter((item) => item.id !== id));
     };
+
+    const loadCustomers = async () => {
+        setCustomerLoading(true);
+        setCustomerError('');
+        try {
+            const params = new URLSearchParams();
+            params.set('per_page', customerPageSize === Infinity ? 'all' : customerPageSize);
+            params.set('page', customerCurrentPage);
+            if (customerSearchTerm.trim()) {
+                params.set('search', customerSearchTerm.trim());
+            }
+            const response = await fetch(
+                `/marketing/purchase-requirement/customers?${params.toString()}`,
+                { headers: { Accept: 'application/json' } }
+            );
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+            const data = await response.json();
+            setCustomerList(Array.isArray(data?.customers) ? data.customers : []);
+            setCustomerTotal(Number(data?.total ?? 0));
+        } catch (error) {
+            setCustomerError('Gagal memuat data customer.');
+        } finally {
+            setCustomerLoading(false);
+        }
+    };
+
+    const customerTotalPages = useMemo(() => {
+        if (customerPageSize === Infinity) return 1;
+        return Math.max(1, Math.ceil(customerTotal / customerPageSize));
+    }, [customerTotal, customerPageSize]);
+
+    const displayedCustomers = useMemo(() => {
+        if (customerPageSize === Infinity) return customerList;
+        const start = (customerCurrentPage - 1) * customerPageSize;
+        return customerList.slice(start, start + customerPageSize);
+    }, [customerList, customerCurrentPage, customerPageSize]);
 
     const handleSubmit = (event) => {
         event.preventDefault();
@@ -297,15 +349,26 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
                                 <span className="text-muted-foreground">
                                     For Customer
                                 </span>
-                                <Input
-                                    value={formData.forCustomer}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            forCustomer: event.target.value,
-                                        }))
-                                    }
-                                />
+                                <div className="flex gap-2">
+                                    <Input
+                                        value={formData.forCustomer}
+                                        readOnly
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                            setIsCustomerModalOpen(true);
+                                            setCustomerCurrentPage(1);
+                                            setCustomerSearchTerm('');
+                                            setCustomerList([]);
+                                            setCustomerTotal(0);
+                                            loadCustomers();
+                                        }}
+                                    >
+                                        Cari Customer
+                                    </Button>
+                                </div>
                             </label>
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">Payment</span>
@@ -777,6 +840,181 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
                                     </div>
                                 </div>
                             )}
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={isCustomerModalOpen}
+                    onOpenChange={(open) => {
+                        setIsCustomerModalOpen(open);
+                        if (!open) {
+                            setCustomerSearchTerm('');
+                            setCustomerPageSize(5);
+                            setCustomerCurrentPage(1);
+                            setCustomerList([]);
+                            setCustomerTotal(0);
+                        }
+                    }}
+                >
+                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>Pilih Customer</DialogTitle>
+                        </DialogHeader>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <label>
+                                Tampilkan
+                                <select
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                    value={
+                                        customerPageSize === Infinity
+                                            ? 'all'
+                                            : customerPageSize
+                                    }
+                                    onChange={(event) => {
+                                        const value = event.target.value;
+                                        setCustomerPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value)
+                                        );
+                                        setCustomerCurrentPage(1);
+                                        loadCustomers();
+                                    }}
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </label>
+                            <label>
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                    placeholder="Cari kode/nama/kota..."
+                                    value={customerSearchTerm}
+                                    onChange={(event) => {
+                                        setCustomerSearchTerm(event.target.value);
+                                        setCustomerCurrentPage(1);
+                                        loadCustomers();
+                                    }}
+                                />
+                            </label>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left">Kode CS</th>
+                                        <th className="px-4 py-3 text-left">Customer</th>
+                                        <th className="px-4 py-3 text-left">Kota</th>
+                                        <th className="px-4 py-3 text-left">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {displayedCustomers.length === 0 && (
+                                        <tr>
+                                            <td
+                                                className="px-4 py-6 text-center text-muted-foreground"
+                                                colSpan={4}
+                                            >
+                                                {customerLoading
+                                                    ? 'Memuat data customer...'
+                                                    : customerError ||
+                                                      'Tidak ada data customer.'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {displayedCustomers.map((item) => (
+                                        <tr
+                                            key={item.kd_cs}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.kd_cs)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.nm_cs)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.kota_cs)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        setFormData((prev) => ({
+                                                            ...prev,
+                                                            forCustomer: item.nm_cs ?? '',
+                                                        }));
+                                                        setIsCustomerModalOpen(false);
+                                                    }}
+                                                >
+                                                    Pilih
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {customerPageSize !== Infinity && customerTotal > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (customerCurrentPage - 1) * customerPageSize + 1,
+                                        customerTotal
+                                    )}
+                                    -
+                                    {Math.min(
+                                        customerCurrentPage * customerPageSize,
+                                        customerTotal
+                                    )}{' '}
+                                    dari {customerTotal} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCustomerCurrentPage((p) => Math.max(1, p - 1))
+                                        }
+                                        disabled={customerCurrentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {customerCurrentPage} dari {customerTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCustomerCurrentPage((p) =>
+                                                Math.min(
+                                                    customerTotalPages || p,
+                                                    p + 1
+                                                )
+                                            )
+                                        }
+                                        disabled={
+                                            customerTotalPages
+                                                ? customerCurrentPage >= customerTotalPages
+                                                : true
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </DialogContent>
                 </Dialog>
             </form>

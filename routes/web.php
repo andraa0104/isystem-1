@@ -213,6 +213,8 @@ Route::get('marketing/quotation/{noPenawaran}/details', [QuotationController::cl
     ->name('marketing.quotation.details');
 Route::get('marketing/quotation/{noPenawaran}/print', [QuotationController::class, 'print'])
     ->name('marketing.quotation.print');
+Route::delete('marketing/quotation/{noPenawaran}', [QuotationController::class, 'destroy'])
+    ->name('marketing.quotation.destroy');
 Route::put('marketing/quotation/{noPenawaran}', [QuotationController::class, 'update'])
     ->name('marketing.quotation.update');
 Route::put('marketing/quotation/{noPenawaran}/detail/{detailId}', [QuotationController::class, 'updateDetail'])
@@ -226,6 +228,10 @@ Route::get('marketing/purchase-requirement', [PurchaseRequirementController::cla
     ->name('marketing.purchase-requirement.index');
 Route::get('marketing/purchase-requirement/materials', [PurchaseRequirementController::class, 'materials'])
     ->name('marketing.purchase-requirement.materials');
+Route::get('marketing/purchase-requirement/customers', [PurchaseRequirementController::class, 'customers'])
+    ->name('marketing.purchase-requirement.customers');
+Route::get('marketing/purchase-requirement/customers', [PurchaseRequirementController::class, 'customers'])
+    ->name('marketing.purchase-requirement.customers');
 Route::get('marketing/purchase-requirement/details', [PurchaseRequirementController::class, 'details'])
     ->name('marketing.purchase-requirement.details');
 Route::get('marketing/purchase-requirement/outstanding', [PurchaseRequirementController::class, 'outstanding'])
@@ -279,6 +285,10 @@ Route::put('pembelian/purchase-order/{noPo}', [PurchaseOrderController::class, '
     ->name('pembelian.purchase-order.update');
 Route::put('pembelian/purchase-order/{noPo}/detail/{detailId}', [PurchaseOrderController::class, 'updateDetail'])
     ->name('pembelian.purchase-order.detail.update');
+Route::delete('pembelian/purchase-order/{noPo}', [PurchaseOrderController::class, 'destroy'])
+    ->name('pembelian.purchase-order.destroy');
+Route::delete('pembelian/purchase-order/{noPo}/detail/{kdMat}', [PurchaseOrderController::class, 'destroyDetail'])
+    ->name('pembelian.purchase-order.detail.destroy');
 
 Route::get('marketing/delivery-order/create', [DeliveryOrderController::class, 'create'])
     ->name('marketing.delivery-order.create');
@@ -298,6 +308,10 @@ Route::post('marketing/delivery-order', [DeliveryOrderController::class, 'store'
     ->name('marketing.delivery-order.store');
 Route::put('marketing/delivery-order/{noDo}/detail/{lineNo}', [DeliveryOrderController::class, 'updateDetail'])
     ->name('marketing.delivery-order.detail.update');
+Route::put('marketing/delivery-order/{noDo}', [DeliveryOrderController::class, 'update'])
+    ->name('marketing.delivery-order.update');
+Route::delete('marketing/delivery-order/{noDo}', [DeliveryOrderController::class, 'destroy'])
+    ->name('marketing.delivery-order.destroy');
 
 Route::get('marketing/delivery-order', [DeliveryOrderController::class, 'index'])
     ->name('marketing.delivery-order.index');
@@ -322,8 +336,12 @@ Route::get('marketing/delivery-order-add/realized', [DeliveryOrderAddController:
     ->name('marketing.delivery-order-add.realized');
 Route::post('marketing/delivery-order-add', [DeliveryOrderAddController::class, 'store'])
     ->name('marketing.delivery-order-add.store');
+Route::put('marketing/delivery-order-add/{noDob}', [DeliveryOrderAddController::class, 'update'])
+    ->name('marketing.delivery-order-add.update');
 Route::put('marketing/delivery-order-add/{noDob}/detail/{lineNo}', [DeliveryOrderAddController::class, 'updateDetail'])
     ->name('marketing.delivery-order-add.detail.update');
+Route::delete('marketing/delivery-order-add/{noDob}', [DeliveryOrderAddController::class, 'destroy'])
+    ->name('marketing.delivery-order-add.destroy');
 Route::get('marketing/delivery-order-add/{noDob}/print', [DeliveryOrderAddController::class, 'print'])
     ->name('marketing.delivery-order-add.print');
 
@@ -410,6 +428,8 @@ Route::post('penjualan/faktur-penjualan', [FakturPenjualanController::class, 'st
     ->name('penjualan.faktur-penjualan.store');
 Route::put('penjualan/faktur-penjualan/{noFaktur}', [FakturPenjualanController::class, 'update'])
     ->name('penjualan.faktur-penjualan.update');
+Route::delete('penjualan/faktur-penjualan/{noFaktur}', [FakturPenjualanController::class, 'destroy'])
+    ->name('penjualan.faktur-penjualan.destroy');
 Route::post('penjualan/faktur-penjualan/upload-faktur-pajak', [FakturPenjualanController::class, 'uploadFakturPajak'])
     ->name('penjualan.faktur-penjualan.upload-faktur-pajak');
 Route::post('penjualan/faktur-penjualan/kwitansi', [FakturPenjualanController::class, 'storeKwitansi'])

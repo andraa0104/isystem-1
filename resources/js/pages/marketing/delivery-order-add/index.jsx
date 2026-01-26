@@ -13,9 +13,10 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link } from '@inertiajs/react';
-import { Eye, Pencil, Printer } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -56,6 +57,10 @@ export default function DeliveryOrderAddIndex({
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
     const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
     const [isRealizedLoading, setIsRealizedLoading] = useState(false);
+    const [outstandingCountState, setOutstandingCountState] =
+        useState(outstandingCount);
+    const [outstandingTotalState, setOutstandingTotalState] =
+        useState(outstandingTotal);
 
     const [selectedDob, setSelectedDob] = useState(null);
     const [detailItems, setDetailItems] = useState([]);
@@ -71,6 +76,10 @@ export default function DeliveryOrderAddIndex({
     const [outstandingList, setOutstandingList] = useState([]);
     const [outstandingLoading, setOutstandingLoading] = useState(false);
     const [outstandingError, setOutstandingError] = useState('');
+    const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
+    const [outstandingPageSize, setOutstandingPageSize] = useState(5);
+    const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
+    const [isDeletingDob, setIsDeletingDob] = useState(false);
     const [realizedList, setRealizedList] = useState([]);
     const [realizedLoading, setRealizedLoading] = useState(false);
     const [realizedError, setRealizedError] = useState('');
@@ -205,6 +214,54 @@ export default function DeliveryOrderAddIndex({
         [detailItems],
     );
 
+    const filteredOutstanding = useMemo(() => {
+        const term = outstandingSearchTerm.trim().toLowerCase();
+        return outstandingList
+            .map((item) => ({
+                ...item,
+                _total: Number(item.total ?? item.g_total ?? item.total_price ?? 0) || 0,
+            }))
+            .filter((item) => {
+                if (!term) return true;
+                const values = [item.no_dob, item.ref_do, item.nm_cs];
+                return values.some((v) =>
+                    String(v ?? '').toLowerCase().includes(term),
+                );
+            });
+    }, [outstandingList, outstandingSearchTerm]);
+
+    const outstandingTotalItems = filteredOutstanding.length;
+    const outstandingTotalPages = useMemo(() => {
+        if (outstandingPageSize === Infinity) return 1;
+        return Math.max(
+            1,
+            Math.ceil(outstandingTotalItems / outstandingPageSize),
+        );
+    }, [outstandingTotalItems, outstandingPageSize]);
+
+    const displayedOutstanding = useMemo(() => {
+        if (outstandingPageSize === Infinity) return filteredOutstanding;
+        const start = (outstandingCurrentPage - 1) * outstandingPageSize;
+        return filteredOutstanding.slice(
+            start,
+            start + outstandingPageSize,
+        );
+    }, [
+        filteredOutstanding,
+        outstandingCurrentPage,
+        outstandingPageSize,
+    ]);
+
+    useEffect(() => {
+        setOutstandingCurrentPage(1);
+    }, [outstandingPageSize, outstandingSearchTerm]);
+
+    useEffect(() => {
+        if (outstandingCurrentPage > outstandingTotalPages) {
+            setOutstandingCurrentPage(outstandingTotalPages);
+        }
+    }, [outstandingCurrentPage, outstandingTotalPages]);
+
     const handleOpenDetailModal = (item, realizedOnly = false) => {
         setSelectedDob(item);
         setIsDetailModalOpen(true);
@@ -260,11 +317,19 @@ export default function DeliveryOrderAddIndex({
                 return response.json();
             })
             .then((data) => {
-                setOutstandingList(
-                    Array.isArray(data?.deliveryOrders)
-                        ? data.deliveryOrders
-                        : [],
+                const list = Array.isArray(data?.deliveryOrders)
+                    ? data.deliveryOrders
+                    : [];
+                setOutstandingList(list);
+                setOutstandingCountState(list.length);
+                const sumTotal = list.reduce(
+                    (sum, row) =>
+                        sum +
+                        (Number(row.total ?? row.g_total ?? row.total_price ?? 0) ||
+                            0),
+                    0,
                 );
+                setOutstandingTotalState(sumTotal);
             })
             .catch(() => {
                 setOutstandingError('Gagal memuat data DOB.');
@@ -307,6 +372,63 @@ export default function DeliveryOrderAddIndex({
                 setRealizedLoading(false);
                 setIsRealizedLoading(false);
             });
+    };
+
+    const handleDeleteDob = (item) => {
+        if (isDeletingDob) return;
+        setIsOutstandingModalOpen(false);
+        Swal.fire({
+            title: 'Hapus DOT?',
+            text: `No DOT: ${item.no_dob}`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+            setIsDeletingDob(true);
+                    router.delete(
+                        `/marketing/delivery-order-add/${encodeURIComponent(
+                            item.no_dob,
+                        )}`,
+                        {
+                            preserveScroll: true,
+                            preserveState: true,
+                            onSuccess: () => {
+                                setOutstandingList((prev) =>
+                                    prev.filter((row) => row.no_dob !== item.no_dob),
+                                );
+                                setOutstandingCountState((prev) =>
+                                    Math.max(0, (prev ?? 0) - 1),
+                                );
+                                setOutstandingTotalState((prev) =>
+                                    Math.max(
+                                        0,
+                                        prev -
+                                            (Number(item.total ?? item.g_total ?? 0) || 0),
+                                    ),
+                                );
+                            },
+                            onError: (errors) => {
+                                const message =
+                                    errors?.message ||
+                                    (errors &&
+                                typeof errors === 'object' &&
+                                Object.values(errors)[0]) ||
+                            'Gagal menghapus DOT.';
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'error',
+                            title: String(message),
+                            showConfirmButton: false,
+                            timer: 2200,
+                        });
+                    },
+                    onFinish: () => setIsDeletingDob(false),
+                },
+            );
+        });
     };
 
     useEffect(() => {
@@ -373,21 +495,21 @@ export default function DeliveryOrderAddIndex({
                             }
                         }}
                     >
-                        <CardHeader>
-                            <CardTitle>DOT Belum Dibebankan</CardTitle>
-                            <CardDescription>
-                                Jumlah DO bantu outstanding
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-semibold">
-                                {outstandingCount}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                                Rp {formatNumber(outstandingTotal)}
-                            </div>
-                        </CardContent>
-                    </Card>
+                            <CardHeader>
+                                <CardTitle>DOT Belum Dibebankan</CardTitle>
+                                <CardDescription>
+                                    Jumlah DO bantu outstanding
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-2xl font-semibold">
+                                {outstandingCountState}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                Rp {formatNumber(outstandingTotalState)}
+                                </div>
+                            </CardContent>
+                        </Card>
                     <Card className="transition hover:border-primary/60 hover:shadow-md">
                         <CardHeader className="pb-2">
                             <div className="flex items-start justify-between gap-3">
@@ -870,6 +992,63 @@ export default function DeliveryOrderAddIndex({
                             Grand Total: Rp {formatNumber(detailGrandTotal)}
                         </div>
                     </div>
+                    {outstandingPageSize !== Infinity &&
+                        outstandingTotalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground mt-3">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (outstandingCurrentPage - 1) *
+                                            outstandingPageSize +
+                                            1,
+                                        outstandingTotalItems,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        outstandingCurrentPage *
+                                            outstandingPageSize,
+                                        outstandingTotalItems,
+                                    )}{' '}
+                                    dari {outstandingTotalItems} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setOutstandingCurrentPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
+                                        }
+                                        disabled={outstandingCurrentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {outstandingCurrentPage} dari{' '}
+                                        {outstandingTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setOutstandingCurrentPage((page) =>
+                                                Math.min(
+                                                    outstandingTotalPages,
+                                                    page + 1,
+                                                ),
+                                            )
+                                        }
+                                        disabled={
+                                            outstandingCurrentPage ===
+                                            outstandingTotalPages
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                 </DialogContent>
             </Dialog>
 
@@ -1060,6 +1239,46 @@ export default function DeliveryOrderAddIndex({
                     <DialogHeader>
                         <DialogTitle>DOT Belum Dibebankan</DialogTitle>
                     </DialogHeader>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground px-1">
+                        <label>
+                            Tampilkan
+                            <select
+                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                value={
+                                    outstandingPageSize === Infinity
+                                        ? 'all'
+                                        : outstandingPageSize
+                                }
+                                onChange={(event) => {
+                                    const value = event.target.value;
+                                    setOutstandingPageSize(
+                                        value === 'all' ? Infinity : Number(value),
+                                    );
+                                    setOutstandingCurrentPage(1);
+                                }}
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value="all">Semua</option>
+                            </select>
+                        </label>
+                        <label>
+                            Cari
+                            <input
+                                type="search"
+                                className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                placeholder="Cari no DOT, ref DO, customer..."
+                                value={outstandingSearchTerm}
+                                onChange={(event) => {
+                                    setOutstandingSearchTerm(event.target.value);
+                                    setOutstandingCurrentPage(1);
+                                }}
+                            />
+                        </label>
+                    </div>
                     <div className="overflow-x-auto rounded-lg border border-sidebar-border/70">
                         <table className="w-full text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
@@ -1097,7 +1316,7 @@ export default function DeliveryOrderAddIndex({
                                             {outstandingError}
                                         </td>
                                     </tr>
-                                ) : outstandingList.length === 0 ? (
+                                ) : displayedOutstanding.length === 0 ? (
                                     <tr>
                                         <td
                                             colSpan={4}
@@ -1107,7 +1326,7 @@ export default function DeliveryOrderAddIndex({
                                         </td>
                                     </tr>
                                 ) : (
-                                    outstandingList.map((item) => (
+                                    displayedOutstanding.map((item) => (
                                         <tr
                                             key={`outstanding-${item.no_dob}`}
                                             className="border-t border-sidebar-border/70"
@@ -1122,16 +1341,28 @@ export default function DeliveryOrderAddIndex({
                                                 {item.nm_cs}
                                             </td>
                                             <td className="px-4 py-3">
-                                                <Link
-                                                    href={`/marketing/delivery-order-add/${encodeURIComponent(
-                                                        item.no_dob,
-                                                    )}/edit`}
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    aria-label="Edit"
-                                                    title="Edit"
-                                                >
-                                                    <Pencil className="size-4" />
-                                                </Link>
+                                                <div className="flex items-center gap-2">
+                                                    <Link
+                                                        href={`/marketing/delivery-order-add/${encodeURIComponent(
+                                                            item.no_dob,
+                                                        )}/edit`}
+                                                        className="text-muted-foreground transition hover:text-foreground"
+                                                        aria-label="Edit"
+                                                        title="Edit"
+                                                        onClick={() => setIsOutstandingModalOpen(false)}
+                                                    >
+                                                        <Pencil className="size-4" />
+                                                    </Link>
+                                                    <button
+                                                        type="button"
+                                                        className="text-destructive transition hover:text-red-600"
+                                                        aria-label="Hapus"
+                                                        title="Hapus"
+                                                        onClick={() => handleDeleteDob(item)}
+                                                    >
+                                                        <Trash2 className="size-4" />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))

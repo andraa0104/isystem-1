@@ -69,6 +69,46 @@ class DeliveryOrderController
         ]);
     }
 
+    public function update(Request $request, $noDo)
+    {
+        $row = DB::table('tb_do')
+            ->where('no_do', $noDo)
+            ->first();
+
+        if (!$row) {
+            return back()->with('error', 'Data DO tidak ditemukan.');
+        }
+
+        try {
+            $dateInput = $request->input('date');
+            $formattedDate = $dateInput;
+            try {
+                $parsed = $dateInput ? \Carbon\Carbon::parse($dateInput) : null;
+                $formattedDate = $parsed ? $parsed->format('d.m.Y') : $dateInput;
+            } catch (\Throwable $e) {
+                $formattedDate = $dateInput;
+            }
+
+            DB::transaction(function () use ($noDo, $formattedDate, $request) {
+                DB::table('tb_do')
+                    ->where('no_do', $noDo)
+                    ->update([
+                        'date' => $formattedDate,
+                    ]);
+
+                DB::table('tb_kddo')
+                    ->where('no_do', $noDo)
+                    ->update([
+                        'tgl' => $formattedDate,
+                    ]);
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return back()->with('success', 'Data DO berhasil diperbarui.');
+    }
+
     public function details(Request $request)
     {
         $noDo = $request->query('no_do');
@@ -258,12 +298,15 @@ class DeliveryOrderController
             $refPr = $header->ref_pr ?? null;
         }
         if (!$refPr) {
+            $normalizedRefPo = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $header->ref_po));
             $refPr = DB::table('tb_pr')
-                ->where('ref_po', $header->ref_po)
-                ->where('for_customer', $header->nm_cs)
-                ->orderBy('date', 'desc')
-                ->orderBy('no_pr', 'desc')
-                ->value('no_pr');
+                ->select('no_pr', 'ref_po')
+                ->get()
+                ->first(function ($row) use ($normalizedRefPo) {
+                    $candidate = strtolower(preg_replace('/[^a-z0-9]/i', '', (string) $row->ref_po));
+                    return $candidate === $normalizedRefPo;
+                })
+                ?->no_pr;
         }
 
         $prItems = collect();
@@ -378,10 +421,19 @@ class DeliveryOrderController
 
         try {
             DB::transaction(function () use ($request, $items, $noDo, $refPr, $parseNumber) {
+                $dateInput = $request->input('date');
+                try {
+                    $parsed = $dateInput ? \Carbon\Carbon::parse($dateInput) : null;
+                    $formattedDate = $parsed ? $parsed->format('d.m.Y') : $dateInput;
+                } catch (\Throwable $e) {
+                    $formattedDate = $dateInput;
+                }
+                $todayFormatted = now()->format('d.m.Y');
+
                 DB::table('tb_kddo')->insert([
                     'no_do' => $noDo,
-                    'tgl' => $request->input('date'),
-                    'pos_tgl' => now()->toDateString(),
+                    'tgl' => $formattedDate,
+                    'pos_tgl' => $todayFormatted,
                     'ref_po' => $request->input('ref_po'),
                     'kd_cs' => $request->input('kd_cs'),
                     'nm_cs' => $request->input('nm_cs'),
@@ -406,6 +458,17 @@ class DeliveryOrderController
                     $resolvedKdMat = $kdMaterial
                         ?: ($detailPr->kd_material ?? $detailPr->kd_mat ?? $detailPr->kd_mtrl ?? null);
 
+                    // ambil kd_mat dan harga dari tb_material berdasarkan nama material jika perlu
+                    $materialRow = null;
+                    if ($material) {
+                        $materialRow = DB::table('tb_material')
+                            ->whereRaw('lower(trim(material)) = ?', [strtolower(trim($material))])
+                            ->first(['kd_material', 'harga']);
+                    }
+                    if (!$resolvedKdMat && $materialRow?->kd_material) {
+                        $resolvedKdMat = $materialRow->kd_material;
+                    }
+
                     $price = 0;
                     $total = 0;
                     if ($resolvedKdMat || $material) {
@@ -425,10 +488,15 @@ class DeliveryOrderController
                         }
                     }
 
+                    // price & total fallback ke tb_material.harga bila ada
+                    $priceFromMaterial = $materialRow->harga ?? null;
+                    $effectivePrice = $priceFromMaterial !== null ? $priceFromMaterial : $price;
+                    $effectiveTotal = $parseNumber($item['qty'] ?? 0) * $parseNumber($effectivePrice);
+
                     DB::table('tb_do')->insert([
                         'no_do' => $noDo,
-                        'date' => $request->input('date'),
-                        'pos_tgl' => now()->toDateString(),
+                        'date' => $formattedDate,
+                        'pos_tgl' => $todayFormatted,
                         'ref_po' => $request->input('ref_po'),
                         'kd_cs' => $request->input('kd_cs'),
                         'nm_cs' => $request->input('nm_cs'),
@@ -438,10 +506,21 @@ class DeliveryOrderController
                         'qty' => $item['qty'] ?? null,
                         'unit' => $item['unit'] ?? null,
                         'remark' => ($item['remark'] ?? null) === null ? ' ' : $item['remark'],
-                        'harga' => $price,
-                        'total' => $total,
+                        'harga' => $effectivePrice,
+                        'total' => $effectiveTotal,
                         'val_inv' => 0,
                         'inv' => ' ',
+                    ]);
+
+                    DB::table('tb_ttldo')->insert([
+                        'no' => $item['no'] ?? ($index + 1),
+                        'qty' => $item['qty'] ?? null,
+                        'mat' => $material,
+                        'kd_mat' => $resolvedKdMat,
+                        'unit' => $item['unit'] ?? null,
+                        'price' => $effectivePrice,
+                        'total' => $effectiveTotal,
+                        'remark' => ($item['remark'] ?? null) === null ? ' ' : $item['remark'],
                     ]);
 
                     $stockNow = $item['stock_now'] ?? null;
@@ -511,6 +590,13 @@ class DeliveryOrderController
         $remarkInput = $request->input('remark');
         $remarkValue = $remarkInput === null ? ' ' : $remarkInput;
         $refPr = $request->input('ref_pr');
+        $newDateInput = $request->input('date');
+        try {
+            $parsed = $newDateInput ? \Carbon\Carbon::parse($newDateInput) : null;
+            $newDate = $parsed ? $parsed->format('d.m.Y') : $newDateInput;
+        } catch (\Throwable $e) {
+            $newDate = $newDateInput;
+        }
 
         try {
             DB::transaction(function () use (
@@ -528,6 +614,7 @@ class DeliveryOrderController
                     ->where('no_do', $noDo)
                     ->where('no', $lineNo)
                     ->update([
+                        'date' => $newDate,
                         'qty' => $newQtyInput,
                         'remark' => $remarkValue,
                     ]);
@@ -569,6 +656,64 @@ class DeliveryOrderController
         }
 
         return back()->with('success', 'Data DO berhasil diperbarui.');
+    }
+
+    public function destroy(Request $request, $noDo)
+    {
+        $rows = DB::table('tb_do')
+            ->where('no_do', $noDo)
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return response()->json(['message' => 'Data DO tidak ditemukan.'], 404);
+        }
+
+        try {
+            DB::transaction(function () use ($rows, $noDo) {
+                foreach ($rows as $row) {
+                    $qty = (float) ($row->qty ?? 0);
+                    $kdMat = $row->kd_mat ?? null;
+                    $matName = $row->mat ?? null;
+                    $refPo = $row->ref_po ?? null;
+
+                    if ($kdMat) {
+                        DB::table('tb_material')
+                            ->where('kd_material', $kdMat)
+                            ->increment('stok', $qty);
+
+                        $detailQuery = DB::table('tb_detailpr')
+                            ->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim($kdMat))]);
+                        if ($refPo) {
+                            $detailQuery->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($refPo))]);
+                        }
+                        $detailQuery->increment('sisa_pr', $qty);
+                    } elseif ($matName) {
+                        // fallback by material name
+                        DB::table('tb_detailpr')
+                            ->whereRaw('lower(trim(material)) = ?', [strtolower(trim($matName))])
+                            ->when($refPo, function ($q) use ($refPo) {
+                                $q->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($refPo))]);
+                            })
+                            ->increment('sisa_pr', $qty);
+                    }
+                }
+
+                DB::table('tb_do')->where('no_do', $noDo)->delete();
+                DB::table('tb_kddo')->where('no_do', $noDo)->delete();
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'Gagal menghapus DO: '.$e->getMessage(),
+            ], 500);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Data DO berhasil dihapus.']);
+        }
+
+        return redirect()
+            ->route('marketing.delivery-order.index')
+            ->with('success', 'Data DO berhasil dihapus.');
     }
 
     public function searchPr(Request $request)

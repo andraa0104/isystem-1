@@ -7,7 +7,8 @@ import {
 } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
-import { Eye, Pencil, Printer } from 'lucide-react';
+import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
@@ -43,6 +44,7 @@ export default function QuotationIndex({
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(10);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const filteredPenawaran = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -215,6 +217,58 @@ export default function QuotationIndex({
             setMaterialCurrentPage(materialTotalPages);
         }
     }, [materialCurrentPage, materialTotalPages]);
+
+    const handleDelete = (noPenawaran) => {
+        if (!noPenawaran || isDeleting) return;
+
+        Swal.fire({
+            title: 'Hapus data?',
+            text: `No Penawaran: ${noPenawaran}`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+            reverseButtons: true,
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+
+            setIsDeleting(true);
+            fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}`, {
+                method: 'DELETE',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute('content') ?? '',
+                },
+            })
+                .then(async (response) => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data?.message || 'Gagal menghapus data.');
+                    }
+                    return data;
+                })
+                .then((data) => {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: data?.message || 'Data berhasil dihapus.',
+                        timer: 1800,
+                        showConfirmButton: false,
+                    });
+                    router.reload({ only: ['penawaran'] });
+                })
+                .catch((error) => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal',
+                        text: error.message,
+                    });
+                })
+                .finally(() => setIsDeleting(false));
+        });
+    };
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Quotation" />
@@ -330,6 +384,18 @@ export default function QuotationIndex({
                                             >
                                                 <Printer className="size-4" />
                                             </a>
+                                            {Number(item.can_delete ?? 0) === 1 && (
+                                                <button
+                                                    type="button"
+                                                    className="text-muted-foreground transition hover:text-destructive"
+                                                    aria-label="Hapus"
+                                                    title="Hapus"
+                                                    disabled={isDeleting}
+                                                    onClick={() => handleDelete(item.No_penawaran)}
+                                                >
+                                                    <Trash2 className="size-4" />
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

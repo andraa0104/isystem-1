@@ -68,6 +68,7 @@ export default function DeliveryOrderAddCreate() {
         last_stock: 0,
         stock_now: 0,
     });
+    const [materialPrices, setMaterialPrices] = useState([]);
 
     const filteredDoList = useMemo(() => {
         const term = doSearchTerm.trim().toLowerCase();
@@ -190,15 +191,47 @@ export default function DeliveryOrderAddCreate() {
             });
     };
 
+    const loadMaterialPrices = () => {
+        if (materialPrices.length > 0) return;
+        fetch('/marketing/purchase-requirement/materials', {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            })
+            .then((data) => {
+                setMaterialPrices(Array.isArray(data?.materials) ? data.materials : []);
+            })
+            .catch(() => {
+                setMaterialPrices([]);
+            });
+    };
+
     useEffect(() => {
         if (step === 2) {
             fetchMaterials();
+            loadMaterialPrices();
         }
     }, [step, refPo]);
 
+    const getPriceByKd = (kd) => {
+        const found = materialPrices.find(
+            (m) => String(m.kd_material) === String(kd),
+        );
+        return found?.harga ?? '';
+    };
+
     const handleSourceItemClick = (item) => {
         const qty = item.sisa_pr ?? item.qty ?? '';
-        const price = Number(item.price_po || 0);
+        const priceRaw =
+            getPriceByKd(item.kd_material) ??
+            item.price_po ??
+            item.harga ??
+            0;
+        const price = Number(priceRaw || 0);
         const lastStock = Number(item.last_stock || 0);
         const stockNow = Number(qty || 0) - lastStock;
         const total = price * Number(qty || 0);

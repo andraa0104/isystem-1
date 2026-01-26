@@ -12,6 +12,8 @@ import AppLayout from '@/layouts/app-layout';
 import { Spinner } from '@/components/ui/spinner';
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
+import { Pencil, Trash2 } from 'lucide-react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -23,7 +25,10 @@ const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
 const parseNumber = (value) => {
-    const normalized = String(value ?? '').replace(/,/g, '').trim();
+    const normalized = String(value ?? '')
+        .replace(/,/g, '')
+        .replace(/[^\d.-]/g, '')
+        .trim();
     const parsed = Number(normalized);
     return Number.isNaN(parsed) ? 0 : parsed;
 };
@@ -34,6 +39,25 @@ const formatRupiah = (value) => {
         return 'Rp. 0';
     }
     return `Rp. ${new Intl.NumberFormat('id-ID').format(number)}`;
+};
+
+const normalizeDateInput = (value) => {
+    if (!value) return '';
+    // if already ISO yyyy-mm-dd
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    // accept dd.mm.yyyy or dd/mm/yyyy
+    const match = value.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+    if (match) {
+        const [_, d, m, y] = match;
+        const year = String(y).length === 2 ? `20${y}` : y.padStart(4, '0');
+        return `${year}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    // fallback to Date parse
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString().slice(0, 10);
+    }
+    return '';
 };
 
 export default function PurchaseOrderEdit({
@@ -62,6 +86,8 @@ export default function PurchaseOrderEdit({
         refQuota: '',
         forCustomer: '',
         refPoMasuk: '',
+        noPo: '',
+        date: '',
         kodeVendor: '',
         namaVendor: '',
         attended: '',
@@ -146,14 +172,20 @@ export default function PurchaseOrderEdit({
     }, [filteredVendors, vendorCurrentPage, vendorPageSize]);
 
     const basePriceValue = parseNumber(materialForm.price);
-    const appliedPpn = includePpn ? parseNumber(formData.ppn) : 0;
-    const divisor = includePpn ? 1 + appliedPpn / 100 : 1;
+    const appliedPpnRaw = includePpn
+        ? parseNumber(formData.ppn)
+        : parseNumber(materialForm.ppn);
+    const ppnRate = Number.isFinite(appliedPpnRaw) ? appliedPpnRaw / 100 : 0;
+    const divisor = includePpn ? 1 + ppnRate : 1;
     const netPrice = divisor ? basePriceValue / divisor : basePriceValue;
-    const ppnValue = includePpn ? basePriceValue - netPrice : parseNumber(materialForm.ppn);
-    const ppnTotal = parseNumber(materialForm.qty) * ppnValue;
-    const totalPriceValue =
-        parseNumber(materialForm.qty) * (includePpn ? basePriceValue : netPrice) +
-        (includePpn ? 0 : parseNumber(materialForm.ppn));
+    const isPriceEmpty =
+        materialForm.price === '' || materialForm.price === null || Number.isNaN(materialForm.price);
+    const qtyValue = parseNumber(materialForm.qty);
+    const grossAmount = qtyValue * (includePpn ? basePriceValue : netPrice);
+    const totalPriceValue = isPriceEmpty ? '' : grossAmount;
+    const ppnTotal = includePpn
+        ? grossAmount - qtyValue * netPrice // PPN yang tercakup dalam harga
+        : 0;
 
     const handlePrSelect = (item) => {
         setFormData((prev) => ({
@@ -161,6 +193,7 @@ export default function PurchaseOrderEdit({
             refPr: item.no_pr ?? '',
             forCustomer: item.for_customer ?? '',
             refPoMasuk: item.ref_po ?? '',
+            noPo: item.no_po ?? prev.noPo,
         }));
         setIsPrModalOpen(false);
     };
@@ -184,9 +217,50 @@ export default function PurchaseOrderEdit({
             qty: item.qty ?? '',
             satuan: item.satuan ?? '',
             price: item.price ?? '',
+            // PPN tetap sesuai detail; jangan auto-isi dari step 2
             ppn: item.ppn ?? '',
+            inEx: item.inEx ?? 'EX',
         });
-        setIncludePpn(false);
+        setIncludePpn((item.inEx ?? 'EX') === 'IN');
+    };
+
+    const handleDeleteMaterial = (item) => {
+        if (!purchaseOrder?.no_po) return;
+
+        Swal.fire({
+            title: 'Hapus material?',
+            text: `Kode ${item.kodeMaterial}`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+
+            router.delete(
+                `/pembelian/purchase-order/${encodeURIComponent(
+                    purchaseOrder.no_po
+                )}/detail/${encodeURIComponent(item.kodeMaterial)}`,
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    onSuccess: () => {
+                        setMaterialItems((prev) =>
+                            prev.filter(
+                                (mat) =>
+                                    String(mat.kodeMaterial) !==
+                                    String(item.kodeMaterial)
+                            )
+                        );
+                        Swal.fire('Terhapus', 'Material berhasil dihapus.', 'success');
+                    },
+                    onError: () => {
+                        // Pesan error sudah dibawa oleh flash; tampilkan default.
+                        Swal.fire('Gagal', 'Gagal menghapus material.', 'error');
+                    },
+                }
+            );
+        });
     };
 
     const handleCancelEditMaterial = () => {
@@ -199,6 +273,7 @@ export default function PurchaseOrderEdit({
             satuan: '',
             price: '',
             ppn: '',
+            inEx: 'EX',
         });
         setIncludePpn(false);
     };
@@ -208,10 +283,14 @@ export default function PurchaseOrderEdit({
             return;
         }
 
+        const isPriceEmpty =
+            materialForm.price === '' || materialForm.price === null;
+
         const payload = {
-            price: includePpn ? netPrice : materialForm.price,
-            ppn: includePpn ? ppnTotal : materialForm.ppn,
-            total_price: totalPriceValue,
+            price: isPriceEmpty ? '' : includePpn ? netPrice : materialForm.price,
+            ppn: includePpn ? `${formData.ppn ?? 0}%` : materialForm.ppn,
+            total_price: isPriceEmpty ? '' : totalPriceValue,
+            qty: materialForm.qty,
         };
 
         router.put(
@@ -229,14 +308,16 @@ export default function PurchaseOrderEdit({
                         prev.map((item) =>
                             item.id === editingMaterialId
                                 ? {
-                                      ...item,
-                                      price: payload.price,
-                                      ppn: payload.ppn,
-                                      totalPrice: payload.total_price,
-                                  }
-                                : item
-                        )
-                    );
+                                    ...item,
+                                    price: payload.price,
+                                    ppn: payload.ppn,
+                                    totalPrice: payload.total_price,
+                                    qty: materialForm.qty,
+                                    inEx: includePpn ? 'IN' : 'EX',
+                                }
+                            : item
+                    )
+                );
                     setSavingMaterialId(null);
                     handleCancelEditMaterial();
                 },
@@ -284,6 +365,8 @@ export default function PurchaseOrderEdit({
                 '',
             forCustomer: purchaseOrder.for_cus ?? '',
             refPoMasuk: purchaseOrder.ref_poin ?? purchaseOrder.ref_po ?? '',
+            noPo: purchaseOrder.no_po ?? '',
+            date: normalizeDateInput(purchaseOrder.tgl ?? ''),
             namaVendor: purchaseOrder.nm_vdr ?? '',
             ppn: parsedPpn ?? '',
             note1: purchaseOrderDetails[0]?.ket1 ?? '',
@@ -309,6 +392,7 @@ export default function PurchaseOrderEdit({
 
         const mapped = purchaseOrderDetails.map((detail, index) => ({
             id: detail.id ?? `${detail.no ?? index}-${Date.now()}`,
+            no: detail.no ?? index + 1,
             kodeMaterial: detail.kd_mat ?? detail.kd_material ?? '',
             material: detail.material ?? '',
             qty: detail.qty ?? '',
@@ -317,6 +401,7 @@ export default function PurchaseOrderEdit({
             ppn: detail.ppn ?? '',
             totalPrice: detail.total_price ?? '',
             kdVendor: detail.kd_vdr ?? '',
+            inEx: detail.in_ex ?? detail.inex ?? 'EX',
         }));
 
         setMaterialItems(mapped);
@@ -341,19 +426,39 @@ export default function PurchaseOrderEdit({
         }));
     }, [purchaseOrderDetails, vendors]);
 
-    const totalPriceSum = materialItems.reduce(
-        (sum, item) =>
-            sum + parseNumber(item.qty) * parseNumber(item.price),
-        0
+    const {
+        netSum: totalPriceSum,
+        ppnSum: totalPpnSum,
+        grossSum: grandTotalSum,
+    } = materialItems.reduce(
+        (acc, item) => {
+            const rate = parseNumber(item.ppn) / 100;
+            const qty = parseNumber(item.qty);
+            const price = parseNumber(item.price);
+            const hasQty = Number.isFinite(qty) ? qty : 0;
+
+            const totalPriceField = parseNumber(item.totalPrice);
+            const inEx = (item.inEx ?? 'EX').toUpperCase();
+
+            if (inEx === 'IN') {
+                const gross =
+                    totalPriceField > 0
+                        ? totalPriceField
+                        : price * hasQty;
+                const net = rate > 0 ? gross / (1 + rate) : gross;
+                const ppn = gross - net;
+                acc.netSum += net;
+                acc.ppnSum += ppn;
+                acc.grossSum += gross;
+            } else {
+                const net = price * hasQty;
+                acc.netSum += net;
+                acc.grossSum += net;
+            }
+            return acc;
+        },
+        { netSum: 0, ppnSum: 0, grossSum: 0 }
     );
-    const totalPpnSum = materialItems.reduce(
-        (sum, item) =>
-            sum +
-            (parseNumber(item.totalPrice) -
-                parseNumber(item.qty) * parseNumber(item.price)),
-        0
-    );
-    const grandTotalSum = totalPriceSum + totalPpnSum;
 
     const handleSubmit = () => {
         router.put(
@@ -365,6 +470,7 @@ export default function PurchaseOrderEdit({
                 ref_quota: formData.refQuota,
                 for_cus: formData.forCustomer,
                 ref_poin: formData.refPoMasuk,
+                kd_vdr: formData.kodeVendor,
                 ppn: formData.ppn,
                 nm_vdr: formData.namaVendor,
                 kd_vdr: formData.kodeVendor,
@@ -375,12 +481,17 @@ export default function PurchaseOrderEdit({
                 ket2: formData.note2,
                 ket3: formData.note3,
                 ket4: formData.note4,
+                date: formData.date,
                 s_total: totalPriceSum,
                 h_ppn: totalPpnSum,
                 g_total: grandTotalSum,
                 materials: materialItems.map((item, index) => ({
                     id: item.id,
-                    no: index + 1,
+                    no: item.no ?? index + 1,
+                    kd_mat: item.kodeMaterial,
+                    material: item.material,
+                    qty: item.qty,
+                    unit: item.satuan,
                     price: item.price,
                     ppn: item.ppn,
                     total_price: item.totalPrice,
@@ -405,7 +516,7 @@ export default function PurchaseOrderEdit({
                         </p>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                        Step {step} dari 2
+                        Step {step} dari 3
                     </div>
                 </div>
 
@@ -426,7 +537,16 @@ export default function PurchaseOrderEdit({
                                 : 'bg-muted text-muted-foreground'
                         }`}
                     >
-                        2. Data Material
+                        2. Data Vendor & Header
+                    </span>
+                    <span
+                        className={`rounded-full px-3 py-1 ${
+                            step === 3
+                                ? 'bg-primary text-primary-foreground'
+                                : 'bg-muted text-muted-foreground'
+                        }`}
+                    >
+                        3. Data Material
                     </span>
                 </div>
 
@@ -436,13 +556,19 @@ export default function PurchaseOrderEdit({
                             <CardTitle>Data PO</CardTitle>
                         </CardHeader>
                         <CardContent className="grid gap-4 md:grid-cols-2">
+                            <label className="space-y-2 text-sm">
+                                <span className="text-muted-foreground">
+                                    No PO
+                                </span>
+                                <Input value={formData.noPo} readOnly />
+                            </label>
                             <label className="space-y-2 text-sm md:col-span-2">
                                 <span className="text-muted-foreground">
                                     Ref PR
                                 </span>
                                 <Input value={formData.refPr} readOnly />
                             </label>
-                            
+
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">
                                     For Customer
@@ -450,19 +576,42 @@ export default function PurchaseOrderEdit({
                                 <Input value={formData.forCustomer} readOnly />
                             </label>
                             <label className="space-y-2 text-sm">
+                                <span className="text-muted-foreground">Date</span>
+                                <Input
+                                    type="date"
+                                    value={formData.date}
+                                    onChange={(event) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            date: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </label>
+                            <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">
                                     Ref PO Masuk
                                 </span>
                                 <Input
                                     value={formData.refPoMasuk}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            refPoMasuk: event.target.value,
-                                        }))
-                                    }
+                                    readOnly
                                 />
                             </label>
+                        </CardContent>
+                        <div className="flex justify-end gap-2 px-6 pb-6">
+                            <Button type="button" onClick={() => setStep(2)}>
+                                Lanjut
+                            </Button>
+                        </div>
+                    </Card>
+                )}
+
+                {step === 2 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Vendor & Header</CardTitle>
+                        </CardHeader>
+                        <CardContent className="grid gap-4 md:grid-cols-2">
                             <label className="space-y-2 text-sm md:col-span-2">
                                 <span className="text-muted-foreground">
                                     Cari Vendor
@@ -617,15 +766,22 @@ export default function PurchaseOrderEdit({
                                 />
                             </label>
                         </CardContent>
-                        <div className="flex justify-end gap-2 px-6 pb-6">
-                            <Button type="button" onClick={() => setStep(2)}>
+                        <div className="flex justify-between gap-2 px-6 pb-6">
+                            <Button
+                                variant="outline"
+                                type="button"
+                                onClick={() => setStep(1)}
+                            >
+                                Kembali
+                            </Button>
+                            <Button type="button" onClick={() => setStep(3)}>
                                 Lanjut
                             </Button>
                         </div>
                     </Card>
                 )}
 
-                {step === 2 && (
+                {step === 3 && (
                     <Card>
                         <CardHeader>
                             <CardTitle>Data Material</CardTitle>
@@ -642,7 +798,17 @@ export default function PurchaseOrderEdit({
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Qty</Label>
-                                    <Input value={materialForm.qty} readOnly />
+                                    <Input
+                                        type="number"
+                                        value={materialForm.qty}
+                                        onChange={(event) =>
+                                            setMaterialForm((prev) => ({
+                                                ...prev,
+                                                qty: event.target.value,
+                                            }))
+                                        }
+                                        disabled={!editingMaterialId}
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Satuan</Label>
@@ -670,7 +836,7 @@ export default function PurchaseOrderEdit({
                                     <Label>PPN</Label>
                                     <Input
                                         type="number"
-                                        value={includePpn ? ppnTotal : materialForm.ppn}
+                                        value={includePpn ? ppnTotal : materialForm.ppn || 0}
                                         onChange={(event) =>
                                             setMaterialForm((prev) => ({
                                                 ...prev,
@@ -686,9 +852,14 @@ export default function PurchaseOrderEdit({
                                         <input
                                             type="checkbox"
                                             checked={includePpn}
-                                            onChange={(event) =>
-                                                setIncludePpn(event.target.checked)
-                                            }
+                                            onChange={(event) => {
+                                                const checked = event.target.checked;
+                                                setIncludePpn(checked);
+                                                setMaterialForm((prev) => ({
+                                                    ...prev,
+                                                    inEx: checked ? 'IN' : 'EX',
+                                                }));
+                                            }}
                                             disabled={!editingMaterialId}
                                         />
                                         Include PPN
@@ -751,12 +922,15 @@ export default function PurchaseOrderEdit({
                                             <th className="px-4 py-3 text-left">
                                                 Satuan
                                             </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Price
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                PPN
-                                            </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Price
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        PPN
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        IN/EX
+                                    </th>
                                             <th className="px-4 py-3 text-left">
                                                 Total Price
                                             </th>
@@ -799,23 +973,41 @@ export default function PurchaseOrderEdit({
                                                 <td className="px-4 py-3">
                                                     {renderValue(item.price)}
                                                 </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.ppn)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.totalPrice)}
-                                                </td>
-                                                <td className="px-4 py-3">
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.ppn)}
+                                            </td>
+                                <td className="px-4 py-3">
+                                                {item.inEx ?? 'EX'}
+                                </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.totalPrice)}
+                                            </td>
+                                                <td className="px-4 py-3 space-x-1">
                                                     <Button
                                                         type="button"
+                                                        size="icon"
                                                         variant="ghost"
                                                         onClick={() =>
                                                             handleEditMaterial(
                                                                 item
                                                             )
                                                         }
+                                                        aria-label="Edit material"
                                                     >
-                                                        Edit
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        onClick={() =>
+                                                            handleDeleteMaterial(
+                                                                item
+                                                            )
+                                                        }
+                                                        aria-label="Hapus material"
+                                                    >
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
                                                     </Button>
                                                 </td>
                                             </tr>
@@ -849,7 +1041,7 @@ export default function PurchaseOrderEdit({
                             <Button
                                 variant="outline"
                                 type="button"
-                                onClick={() => setStep(1)}
+                                onClick={() => setStep(2)}
                             >
                                 Kembali
                             </Button>

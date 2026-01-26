@@ -4,6 +4,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
 } from '@/components/ui/dialog';
 import {
     Card,
@@ -13,8 +14,9 @@ import {
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
-import { Eye, Pencil, Printer } from 'lucide-react';
+import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -94,12 +96,17 @@ export default function PurchaseOrderIndex({
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
     const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
     const [isRealizedLoading, setIsRealizedLoading] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [realizedList, setRealizedList] = useState([]);
     const [realizedSearchTerm, setRealizedSearchTerm] = useState('');
     const [realizedPageSize, setRealizedPageSize] = useState(10);
     const [realizedCurrentPage, setRealizedCurrentPage] = useState(1);
     const [realizedLoading, setRealizedLoading] = useState(false);
     const [realizedError, setRealizedError] = useState('');
+    const [outstandingCountState, setOutstandingCountState] =
+        useState(outstandingCount);
+    const [outstandingTotalState, setOutstandingTotalState] =
+        useState(outstandingTotal);
     const [realizedListPeriod, setRealizedListPeriod] = useState(periodFilter);
     const [pageSize, setPageSize] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
@@ -159,7 +166,7 @@ export default function PurchaseOrderIndex({
         return filtered.sort((a, b) =>
             String(b.no_po ?? '').localeCompare(String(a.no_po ?? ''))
         );
-    }, [purchaseOrders, searchTerm, statusFilter]);
+    }, [poData, searchTerm, statusFilter]);
 
     const totalItems = filteredPurchaseOrders.length;
     const totalPages = useMemo(() => {
@@ -417,6 +424,11 @@ export default function PurchaseOrderIndex({
                         ? data.purchaseOrders
                         : []
                 );
+                const list = Array.isArray(data?.purchaseOrders)
+                    ? data.purchaseOrders
+                    : [];
+                setOutstandingCountState(list.length);
+                setOutstandingTotalState(sumOutstandingTotal(list));
             })
             .catch(() => {
                 setOutstandingError('Gagal memuat data PO outstanding.');
@@ -424,6 +436,65 @@ export default function PurchaseOrderIndex({
             .finally(() => {
                 setOutstandingLoading(false);
             });
+    };
+
+    const handleDeletePo = (noPo) => {
+        if (!noPo || isDeleting) return;
+        // tutup modal outstanding supaya overlay tidak menghalangi swal
+        setIsOutstandingModalOpen(false);
+        Swal.fire({
+            title: 'Hapus PO?',
+            text: `No PO: ${noPo}`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+            reverseButtons: true,
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+            setIsDeleting(true);
+            fetch(`/pembelian/purchase-order/${encodeURIComponent(noPo)}`, {
+                method: 'DELETE',
+                headers: {
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN':
+                        document
+                            .querySelector('meta[name=\"csrf-token\"]')
+                            ?.getAttribute('content') ?? '',
+                },
+            })
+                .then(async (response) => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data?.message || 'Gagal menghapus PO.');
+                    }
+                    return data;
+                })
+                .then((data) => {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: data?.message || 'PO dihapus.',
+                        timer: 1700,
+                        showConfirmButton: false,
+                    });
+                    setOutstandingList((prev) => {
+                        const next = prev.filter((item) => item.no_po !== noPo);
+                        setOutstandingCountState(next.length);
+                        setOutstandingTotalState(sumOutstandingTotal(next));
+                        return next;
+                    });
+                    setPoData((prev) => prev.filter((item) => item.no_po !== noPo));
+                })
+                .catch((error) => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal',
+                        text: error.message,
+                    });
+                })
+                .finally(() => setIsDeleting(false));
+        });
     };
 
     const loadRealized = (customPeriod, force = false) => {
@@ -522,7 +593,16 @@ export default function PurchaseOrderIndex({
     useEffect(() => {
         setRealizedCountState(realizedCount);
         setRealizedTotalState(realizedTotal);
-    }, [realizedCount, realizedTotal]);
+        setOutstandingCountState(outstandingCount);
+        setOutstandingTotalState(outstandingTotal);
+    }, [realizedCount, realizedTotal, outstandingCount, outstandingTotal]);
+
+    const sumOutstandingTotal = (list) =>
+        list.reduce((sum, item) => {
+            const raw = getRawValue(item, ['g_total', 'G_total', 'total', 'Total']);
+            const num = Number(String(raw ?? '').replace(/,/g, '').trim());
+            return Number.isFinite(num) ? sum + num : sum;
+        }, 0);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -552,18 +632,18 @@ export default function PurchaseOrderIndex({
                         }}
                         className="text-left"
                     >
-                        <Card className="transition hover:border-primary/60 hover:shadow-md">
-                            <CardHeader className="pb-2">
-                                <CardDescription>PO Outstanding</CardDescription>
-                                <CardTitle className="text-2xl">
-                                    {outstandingCount}
-                                </CardTitle>
-                                <div className="text-sm text-muted-foreground">
-                                    {formatRupiah(outstandingTotal)}
-                                </div>
-                            </CardHeader>
-                        </Card>
-                    </button>
+                                <Card className="transition hover:border-primary/60 hover:shadow-md">
+                                    <CardHeader className="pb-2">
+                                        <CardDescription>PO Outstanding</CardDescription>
+                                        <CardTitle className="text-2xl">
+                                            {outstandingCountState}
+                                        </CardTitle>
+                                        <div className="text-sm text-muted-foreground">
+                                            {formatRupiah(outstandingTotalState)}
+                                        </div>
+                                    </CardHeader>
+                                </Card>
+                            </button>
                     <Card className="transition hover:border-primary/60 hover:shadow-md">
                         <CardHeader className="pb-2">
                             <div className="flex items-start justify-between gap-3">
@@ -806,9 +886,15 @@ export default function PurchaseOrderIndex({
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent
+                        className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto"
+                        aria-describedby="po-detail-desc"
+                    >
                         <DialogHeader>
                             <DialogTitle>Detail Purchase Order</DialogTitle>
+                            <DialogDescription id="po-detail-desc">
+                                Menampilkan informasi header dan detail material PO.
+                            </DialogDescription>
                         </DialogHeader>
 
                         {!selectedPo && (
@@ -1252,10 +1338,10 @@ export default function PurchaseOrderIndex({
                     >
                         <DialogHeader>
                             <DialogTitle>PO Outstanding</DialogTitle>
+                            <DialogDescription id="po-outstanding-desc">
+                                Daftar PO yang belum terealisasi.
+                            </DialogDescription>
                         </DialogHeader>
-                        <p id="po-outstanding-desc" className="sr-only">
-                            Daftar PO yang belum terealisasi.
-                        </p>
 
                         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                             <label>
@@ -1373,16 +1459,30 @@ export default function PurchaseOrderIndex({
                                                     )}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <Link
-                                                        href={`/pembelian/purchase-order/${encodeURIComponent(
-                                                            item.no_po
-                                                        )}/edit`}
-                                                        className="text-muted-foreground transition hover:text-foreground"
-                                                        aria-label="Edit"
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Link>
+                                                    <div className="flex items-center gap-2">
+                                                        <Link
+                                                            href={`/pembelian/purchase-order/${encodeURIComponent(
+                                                                item.no_po
+                                                            )}/edit`}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            aria-label="Edit"
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Link>
+                                                        {Number(item.can_delete ?? item.canDelete ?? 0) === 1 && (
+                                                            <button
+                                                                type="button"
+                                                                className="text-muted-foreground transition hover:text-destructive"
+                                                                aria-label="Hapus"
+                                                                title="Hapus"
+                                                                disabled={isDeleting}
+                                                                onClick={() => handleDeletePo(item.no_po)}
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         )
@@ -1470,10 +1570,10 @@ export default function PurchaseOrderIndex({
                     >
                         <DialogHeader>
                             <DialogTitle>PO Terealisasi</DialogTitle>
+                            <DialogDescription id="po-realized-desc">
+                                Daftar PO terealisasi sesuai periode yang dipilih.
+                            </DialogDescription>
                         </DialogHeader>
-                        <p id="po-realized-desc" className="sr-only">
-                            Daftar PO terealisasi sesuai periode yang dipilih.
-                        </p>
 
                         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                             <label>

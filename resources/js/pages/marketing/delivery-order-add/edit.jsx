@@ -14,19 +14,27 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const formatDate = (date) => {
     if (!date) return '';
-    const d = new Date(date);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
+    const match = String(date).match(/^(\d{2})[.\-\/](\d{2})[.\-\/](\d{4})$/);
+    if (match) {
+        const [, d, m, y] = match;
+        return `${y}-${m}-${d}`;
+    }
+    const dObj = new Date(date);
+    if (Number.isNaN(dObj.getTime())) return '';
+    const day = String(dObj.getDate()).padStart(2, '0');
+    const month = String(dObj.getMonth() + 1).padStart(2, '0');
+    const year = dObj.getFullYear();
     return `${year}-${month}-${day}`;
 };
 
 export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSavingDate, setIsSavingDate] = useState(false);
     const [selectedLineNo, setSelectedLineNo] = useState(null);
 
     const [formData, setFormData] = useState({
@@ -147,6 +155,49 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
     const nextStep = () => setStep((s) => s + 1);
     const prevStep = () => setStep((s) => s - 1);
 
+    const handleSaveDate = () => {
+        if (!formData.date) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'error',
+                title: 'Tanggal tidak boleh kosong.',
+                showConfirmButton: false,
+                timer: 2000,
+            });
+            return;
+        }
+
+        router.put(
+            `/marketing/delivery-order-add/${encodeURIComponent(
+                deliveryOrder.no_dob,
+            )}`,
+            { date: formData.date, no_dob: deliveryOrder.no_dob },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onStart: () => setIsSavingDate(true),
+                onError: (errors) => {
+                    const message =
+                        errors?.message ||
+                        (errors &&
+                            typeof errors === 'object' &&
+                            Object.values(errors)[0]) ||
+                        'Gagal menyimpan tanggal.';
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'error',
+                        title: String(message),
+                        showConfirmButton: false,
+                        timer: 2200,
+                    });
+                },
+                onFinish: () => setIsSavingDate(false),
+            },
+        );
+    };
+
     return (
         <AppLayout
             breadcrumbs={[
@@ -174,8 +225,21 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
+                                    <Label>No DOT</Label>
+                                    <Input readOnly value={deliveryOrder?.no_dob ?? ''} />
+                                </div>
+                                <div className="space-y-2">
                                     <Label>Date</Label>
-                                    <Input readOnly value={formData.date} />
+                                    <Input
+                                        type="date"
+                                        value={formData.date}
+                                        onChange={(e) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                date: e.target.value,
+                                            }))
+                                        }
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Ref DO</Label>
@@ -190,7 +254,14 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
                                     <Input readOnly value={formData.nm_cs} />
                                 </div>
                             </div>
-                            <div className="flex justify-end pt-4">
+                            <div className="flex flex-wrap justify-end gap-2 pt-4">
+                                <Button
+                                    variant="secondary"
+                                    onClick={handleSaveDate}
+                                    disabled={isSavingDate}
+                                >
+                                    {isSavingDate ? 'Menyimpan...' : 'Simpan Data'}
+                                </Button>
                                 <Button onClick={nextStep}>
                                     Next <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>

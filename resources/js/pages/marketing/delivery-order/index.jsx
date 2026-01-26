@@ -4,6 +4,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
 } from '@/components/ui/dialog';
 import {
     Card,
@@ -13,9 +14,10 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link } from '@inertiajs/react';
-import { Eye, Pencil, Printer } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -76,6 +78,7 @@ export default function DeliveryOrderIndex({
     const [outstandingList, setOutstandingList] = useState([]);
     const [outstandingLoading, setOutstandingLoading] = useState(false);
     const [outstandingError, setOutstandingError] = useState('');
+    const [isDeletingDo, setIsDeletingDo] = useState(false);
     const [realizedList, setRealizedList] = useState([]);
     const [realizedLoading, setRealizedLoading] = useState(false);
     const [realizedError, setRealizedError] = useState('');
@@ -443,6 +446,73 @@ export default function DeliveryOrderIndex({
         }
     }, [outstandingCurrentPage, outstandingTotalPages]);
 
+    const handleDeleteDo = (item) => {
+        if (isDeletingDo) return;
+        // Tutup modal agar tidak ada focus trap Radix yang menahan klik SweetAlert
+        setIsOutstandingModalOpen(false);
+        Swal.fire({
+            title: 'Hapus DO?',
+            text: `No DO: ${item.no_do}`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+            setIsDeletingDo(true);
+            router.delete(
+                `/marketing/delivery-order/${encodeURIComponent(item.no_do)}`,
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                onSuccess: () => {
+                        setOutstandingList((prev) =>
+                            prev.filter((row) => row.no_do !== item.no_do)
+                        );
+                        setPurchaseRequirementsList((prev) =>
+                            prev.filter((row) => row.no_do !== item.no_do)
+                        );
+                        setOutstandingCount((prev) => Math.max(0, (prev ?? 0) - 1));
+                        setOutstandingTotal((prev) =>
+                            Math.max(
+                                0,
+                                prev -
+                                    (parseFloat(item.total ?? 0) ||
+                                        parseFloat(item.Total ?? 0) ||
+                                        0)
+                            )
+                        );
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: 'Berhasil dihapus',
+                            showConfirmButton: false,
+                            timer: 1800,
+                        });
+                    },
+                    onError: (errors) => {
+                        const message =
+                            errors?.message ||
+                            (errors &&
+                                typeof errors === 'object' &&
+                                Object.values(errors)[0]) ||
+                            'Gagal menghapus DO.';
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'error',
+                            title: String(message),
+                            showConfirmButton: false,
+                            timer: 2200,
+                        });
+                    },
+                    onFinish: () => setIsDeletingDo(false),
+                }
+            );
+        });
+    };
+
     useEffect(() => {
         if (realizedCurrentPage > realizedTotalPages) {
             setRealizedCurrentPage(realizedTotalPages);
@@ -707,6 +777,9 @@ export default function DeliveryOrderIndex({
                     <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
                         <DialogHeader>
                             <DialogTitle>Detail Delivery Order</DialogTitle>
+                            <DialogDescription>
+                                Ringkasan data dan item Delivery Order terpilih.
+                            </DialogDescription>
                         </DialogHeader>
 
                         {selectedDo && (
@@ -953,6 +1026,9 @@ export default function DeliveryOrderIndex({
                     <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>DO Outstanding</DialogTitle>
+                            <DialogDescription>
+                                Pilih Delivery Order yang masih outstanding.
+                            </DialogDescription>
                         </DialogHeader>
 
                         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
@@ -1050,19 +1126,30 @@ export default function DeliveryOrderIndex({
                                                     {item.nm_cs}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <Link
-                                                        href={`/marketing/delivery-order/${encodeURIComponent(
-                                                            item.no_do,
-                                                        )}/edit`}
-                                                        className="text-muted-foreground transition hover:text-foreground"
-                                                        aria-label="Edit"
-                                                        title="Edit"
-                                                        onClick={() => {
-                                                            setIsOutstandingModalOpen(false);
-                                                        }}
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Link>
+                                                    <div className="flex items-center gap-2">
+                                                        <Link
+                                                            href={`/marketing/delivery-order/${encodeURIComponent(
+                                                                item.no_do,
+                                                            )}/edit`}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            aria-label="Edit"
+                                                            title="Edit"
+                                                            onClick={() => {
+                                                                setIsOutstandingModalOpen(false);
+                                                            }}
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Link>
+                                                        <button
+                                                            type="button"
+                                                            className="text-destructive transition hover:text-red-600"
+                                                            aria-label="Hapus"
+                                                            title="Hapus"
+                                                            onClick={() => handleDeleteDo(item)}
+                                                        >
+                                                            <Trash2 className="size-4" />
+                                                        </button>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         )
@@ -1147,6 +1234,9 @@ export default function DeliveryOrderIndex({
                     <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>DO Terealisasi</DialogTitle>
+                            <DialogDescription>
+                                Daftar Delivery Order yang sudah terealisasi.
+                            </DialogDescription>
                         </DialogHeader>
 
                         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">

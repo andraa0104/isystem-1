@@ -33,6 +33,21 @@ const formatNumber = (value) =>
 
 const formatRupiah = (value) => `Rp. ${formatNumber(value)}`;
 
+const toDateInput = (value) => {
+    if (!value) return '';
+    const match = String(value).match(/^(\d{2})[./-](\d{2})[./-](\d{4})$/);
+    if (match) {
+        const [, d, m, y] = match;
+        return `${y}-${m}-${d}`;
+    }
+    const dObj = new Date(value);
+    if (Number.isNaN(dObj.getTime())) return '';
+    const day = String(dObj.getDate()).padStart(2, '0');
+    const month = String(dObj.getMonth() + 1).padStart(2, '0');
+    const year = dObj.getFullYear();
+    return `${year}-${month}-${day}`;
+};
+
 export default function FakturPenjualanEdit({
     invoice,
     materialRows: initialRows = [],
@@ -44,6 +59,9 @@ export default function FakturPenjualanEdit({
     const [materialsLoading, setMaterialsLoading] = useState(false);
 
     const [formData, setFormData] = useState({
+        no_fakturpenjualan: invoice?.no_fakturpenjualan ?? '',
+        date: toDateInput(invoice?.tgl_doc),
+        due_date: toDateInput(invoice?.jth_tempo),
         no_fakturpajak: invoice?.no_fakturpajak ?? '',
         ppn: invoice?.ppn ?? '',
         ref_po_in: invoice?.ref_po ?? '',
@@ -193,6 +211,8 @@ export default function FakturPenjualanEdit({
                 invoice?.no_fakturpenjualan ?? '',
             )}`,
             {
+                date: formData.date,
+                due_date: formData.due_date,
                 no_fakturpajak: formData.no_fakturpajak,
                 ppn: formData.ppn,
                 materials: materialRows,
@@ -202,14 +222,6 @@ export default function FakturPenjualanEdit({
             },
             {
                 onSuccess: () => {
-                    Swal.fire({
-                        toast: true,
-                        position: 'top-end',
-                        icon: 'success',
-                        title: 'Invoice berhasil diperbarui.',
-                        showConfirmButton: false,
-                        timer: 3000,
-                    });
                 },
                 onError: (errors) => {
                     Swal.fire({
@@ -280,6 +292,45 @@ export default function FakturPenjualanEdit({
                             <CardTitle>Data DO</CardTitle>
                         </CardHeader>
                         <CardContent className="grid gap-4 md:grid-cols-2">
+                            <label className="space-y-2 text-sm">
+                                <span className="text-muted-foreground">
+                                    No Invoice
+                                </span>
+                                <Input
+                                    value={formData.no_fakturpenjualan}
+                                    readOnly
+                                />
+                            </label>
+                            <label className="space-y-2 text-sm">
+                                <span className="text-muted-foreground">
+                                    Date
+                                </span>
+                                <Input
+                                    type="date"
+                                    value={formData.date}
+                                    onChange={(event) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            date: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </label>
+                            <label className="space-y-2 text-sm">
+                                <span className="text-muted-foreground">
+                                    Jatuh Tempo
+                                </span>
+                                <Input
+                                    type="date"
+                                    value={formData.due_date}
+                                    onChange={(event) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            due_date: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </label>
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">
                                     Nomor Faktur Pajak

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
+use Carbon\Carbon;
 
 class FakturPenjualanController
 {
@@ -496,6 +497,8 @@ class FakturPenjualanController
 
     public function update(Request $request, string $noFaktur)
     {
+        $dateInput = $request->input('date');
+        $dueDateInput = $request->input('due_date');
         $ppn = $request->input('ppn');
         $noFakturPajak = $request->input('no_fakturpajak');
         $materials = $request->input('materials', []);
@@ -509,10 +512,32 @@ class FakturPenjualanController
             ], 422);
         }
 
+        $formattedDate = null;
+        $formattedDue = null;
         try {
-            DB::transaction(function () use ($noFaktur, $ppn, $noFakturPajak, $materials) {
+            if ($dateInput) {
+                $formattedDate = Carbon::parse($dateInput)->format('Y-m-d');
+            }
+        } catch (\Throwable $e) {
+            $formattedDate = null;
+        }
+        try {
+            if ($dueDateInput) {
+                $formattedDue = Carbon::parse($dueDateInput)->format('Y-m-d');
+            }
+        } catch (\Throwable $e) {
+            $formattedDue = null;
+        }
+
+        try {
+            DB::transaction(function () use ($noFaktur, $ppn, $noFakturPajak, $materials, $totalPpn, $harga, $grandTotal, $formattedDate, $formattedDue) {
                 $updateHeader = [
                     'no_fakturpajak' => $noFakturPajak,
+                    'tgl_doc' => $formattedDate,
+                    'jth_tempo' => $formattedDue,
+                    'h_ppn' => $totalPpn,
+                    'harga' => $harga,
+                    'g_total' => $grandTotal,
                 ];
                 if (Schema::hasColumn('tb_kdfakturpenjualan', 'no_ppn')) {
                     $updateHeader['no_ppn'] = $ppn;
@@ -523,11 +548,7 @@ class FakturPenjualanController
 
                 DB::table('tb_kdfakturpenjualan')
                     ->where('no_fakturpenjualan', $noFaktur)
-                    ->update(array_merge($updateHeader, [
-                        'h_ppn' => $totalPpn,
-                        'harga' => $harga,
-                        'g_total' => $grandTotal,
-                    ]));
+                    ->update($updateHeader);
 
                 if (Schema::hasColumn('tb_fakturpenjualan', 'no_fakturpajak')) {
                     DB::table('tb_fakturpenjualan')
@@ -538,6 +559,14 @@ class FakturPenjualanController
                     DB::table('tb_fakturpenjualan')
                         ->where('no_fakturpenjualan', $noFaktur)
                         ->update(['no_ppn' => $ppn]);
+                }
+                if (Schema::hasColumn('tb_fakturpenjualan', 'tgl_doc')) {
+                    DB::table('tb_fakturpenjualan')
+                        ->where('no_fakturpenjualan', $noFaktur)
+                        ->update([
+                            'tgl_doc' => $formattedDate,
+                            'jth_tempo' => $formattedDue,
+                        ]);
                 }
 
                 $keep = collect($materials)->map(function ($row) {
@@ -616,14 +645,46 @@ class FakturPenjualanController
                     ]);
             });
         } catch (\Throwable $e) {
-            return response()->json([
-                'message' => 'Gagal menyimpan perubahan: '.$e->getMessage(),
-            ], 500);
+            return redirect()
+                ->back()
+                ->with('error', 'Gagal menyimpan perubahan: '.$e->getMessage());
         }
 
-        return response()->json([
-            'message' => 'OK',
-        ]);
+        return redirect()
+            ->back()
+            ->with('success', 'Invoice berhasil diperbarui.');
+    }
+
+    public function destroy(string $noFaktur)
+    {
+        $target = strtolower(trim($noFaktur));
+
+        try {
+            DB::transaction(function () use ($target) {
+                DB::table('tb_do')
+                    ->whereRaw('lower(trim(inv)) = ?', [$target])
+                    ->update([
+                        'inv' => ' ',
+                        'val_inv' => 0,
+                    ]);
+
+                DB::table('tb_fakturpenjualan')
+                    ->whereRaw('lower(trim(no_fakturpenjualan)) = ?', [$target])
+                    ->delete();
+
+                DB::table('tb_kdfakturpenjualan')
+                    ->whereRaw('lower(trim(no_fakturpenjualan)) = ?', [$target])
+                    ->delete();
+
+                DB::table('tb_kwitansi')
+                    ->whereRaw('lower(trim(ref_faktur)) = ?', [$target])
+                    ->delete();
+            });
+        } catch (\Throwable $e) {
+            return back()->with('error', 'Gagal menghapus invoice: '.$e->getMessage());
+        }
+
+        return back()->with('success', 'Invoice berhasil dihapus.');
     }
 
     public function outstandingDo()

@@ -23,8 +23,8 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link } from '@inertiajs/react';
-import { Eye, Pencil, Printer, ReceiptText } from 'lucide-react';
+import { Head, Link, router } from '@inertiajs/react';
+import { Eye, Pencil, Printer, ReceiptText, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -162,6 +162,57 @@ export default function FakturPenjualanIndex({
                 setInvoicesError('Gagal memuat data faktur.');
             })
             .finally(() => setInvoicesLoading(false));
+    };
+
+    const handleDeleteInvoice = (invoice) => {
+        // Tutup modal agar overlay Radix tidak menimpa SweetAlert
+        setIsNoReceiptOpen(false);
+        setIsKwitansiOpen(false);
+
+        Swal.fire({
+            title: 'Hapus Invoice?',
+            text: `No Invoice: ${invoice.no_fakturpenjualan}`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+            router.delete(
+                `/penjualan/faktur-penjualan/${encodeURIComponent(
+                    invoice.no_fakturpenjualan,
+                )}`,
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    onSuccess: () => {
+                        setInvoicesData((prev) =>
+                            prev.filter(
+                                (row) =>
+                                    row.no_fakturpenjualan !==
+                                    invoice.no_fakturpenjualan,
+                            ),
+                        );
+                    },
+                    onError: (errors) => {
+                        const message =
+                            errors?.message ||
+                            (errors &&
+                                typeof errors === 'object' &&
+                                Object.values(errors)[0]) ||
+                            'Gagal menghapus invoice.';
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'error',
+                            title: String(message),
+                            showConfirmButton: false,
+                            timer: 3000,
+                        });
+                    },
+                },
+            );
+        });
     };
 
     useEffect(() => {
@@ -1272,6 +1323,15 @@ export default function FakturPenjualanIndex({
                                                     >
                                                         <ReceiptText className="h-4 w-4" />
                                                     </Button>
+                                                    <button
+                                                        type="button"
+                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-destructive transition hover:text-red-600"
+                                                        aria-label="Hapus Invoice"
+                                                        title="Hapus Invoice"
+                                                        onClick={() => handleDeleteInvoice(item)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
                                                 </div>
                                             </TableCell>
                                         </TableRow>

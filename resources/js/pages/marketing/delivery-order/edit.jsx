@@ -17,10 +17,17 @@ import { useEffect, useMemo, useState } from 'react';
 
 const formatDate = (date) => {
     if (!date) return '';
-    const d = new Date(date);
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
+    // try parse dd.mm.yyyy or yyyy-mm-dd etc to yyyy-mm-dd for input
+    const match = String(date).match(/^(\d{2})[.\-\/](\d{2})[.\-\/](\d{4})$/);
+    if (match) {
+        const [, d, m, y] = match;
+        return `${y}-${m}-${d}`;
+    }
+    const dObj = new Date(date);
+    if (Number.isNaN(dObj.getTime())) return '';
+    const day = String(dObj.getDate()).padStart(2, '0');
+    const month = String(dObj.getMonth() + 1).padStart(2, '0');
+    const year = dObj.getFullYear();
     return `${year}-${month}-${day}`;
 };
 
@@ -29,13 +36,13 @@ const renderValue = (value) =>
 
 export default function DeliveryOrderEdit({
     deliveryOrder,
-    items = [],
-    refPr = null,
-    prItems = [],
-}) {
+        items = [],
+        refPr = null,
+        prItems = [],
+    }) {
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [selectedPrNo] = useState(refPr);
+    const [selectedPrNo, setSelectedPrNo] = useState(refPr ?? '');
     const [sourceItems, setSourceItems] = useState(prItems);
     const [selectedLineNo, setSelectedLineNo] = useState(null);
 
@@ -44,6 +51,7 @@ export default function DeliveryOrderEdit({
         ref_po: deliveryOrder?.ref_po ?? '',
         kd_cs: deliveryOrder?.kd_cs ?? '',
         nm_cs: deliveryOrder?.nm_cs ?? '',
+        ref_pr: refPr ?? '',
         items: items ?? [],
     });
 
@@ -64,10 +72,12 @@ export default function DeliveryOrderEdit({
             ref_po: deliveryOrder?.ref_po ?? '',
             kd_cs: deliveryOrder?.kd_cs ?? '',
             nm_cs: deliveryOrder?.nm_cs ?? '',
+            ref_pr: refPr ?? '',
             items: items ?? [],
         });
         setSourceItems(prItems);
-    }, [deliveryOrder, items, prItems]);
+        setSelectedPrNo(refPr ?? '');
+    }, [deliveryOrder, items, prItems, refPr]);
 
     const prLookup = useMemo(() => {
         const map = new Map();
@@ -128,6 +138,7 @@ export default function DeliveryOrderEdit({
                 qty: inputItem.qty,
                 remark: inputItem.remark,
                 ref_pr: selectedPrNo,
+                date: formData.date,
             },
             {
                 preserveScroll: true,
@@ -154,6 +165,29 @@ export default function DeliveryOrderEdit({
 
     const nextStep = () => setStep((s) => s + 1);
     const prevStep = () => setStep((s) => s - 1);
+
+    const handleSaveStep1 = () => {
+        router.put(
+            `/marketing/delivery-order/${encodeURIComponent(
+                deliveryOrder.no_do,
+            )}`,
+            {
+                date: formData.date,
+                ref_po: formData.ref_po,
+                kd_cs: formData.kd_cs,
+                nm_cs: formData.nm_cs,
+                ref_pr: selectedPrNo,
+            },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onStart: () => setIsSubmitting(true),
+                onFinish: () => setIsSubmitting(false),
+                onSuccess: () => {},
+                onError: () => {},
+            },
+        );
+    };
 
     return (
         <AppLayout
@@ -193,14 +227,19 @@ export default function DeliveryOrderEdit({
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Nomor PR</Label>
-                                    <Input readOnly value={selectedPrNo ?? ''} />
+                                    <Input value={selectedPrNo ?? ''} readOnly />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Date</Label>
                                     <Input
-                                        readOnly
                                         type="date"
                                         value={formData.date}
+                                        onChange={(event) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                date: event.target.value,
+                                            }))
+                                        }
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -217,9 +256,19 @@ export default function DeliveryOrderEdit({
                                 </div>
                             </div>
                             <div className="flex justify-end pt-4">
-                                <Button onClick={nextStep}>
-                                    Next <ArrowRight className="ml-2 h-4 w-4" />
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        type="button"
+                                        onClick={handleSaveStep1}
+                                        disabled={isSubmitting}
+                                    >
+                                        {isSubmitting ? 'Menyimpan...' : 'Simpan Data'}
+                                    </Button>
+                                    <Button onClick={nextStep}>
+                                        Next <ArrowRight className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

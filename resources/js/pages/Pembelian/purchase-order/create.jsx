@@ -667,6 +667,18 @@ export default function PurchaseOrderCreate({
                                     }
                                 />
                             </label>
+                            <label className="space-y-2 text-sm md:col-span-2">
+                                <span className="text-muted-foreground">Note 4</span>
+                                <Input
+                                    value={formData.note4}
+                                    onChange={(event) =>
+                                        setFormData((prev) => ({
+                                            ...prev,
+                                            note4: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </label>
                         </CardContent>
                         <div className="flex justify-between gap-2 px-6 pb-6">
                             <Button

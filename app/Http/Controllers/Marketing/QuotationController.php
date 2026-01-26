@@ -81,29 +81,56 @@ class QuotationController
         ]);
     }
 
+    public function destroy(Request $request, $noPenawaran)
+    {
+        $noPenawaran = trim((string) $noPenawaran);
+        if ($noPenawaran === '') {
+            return response()->json(['message' => 'No penawaran tidak valid.'], 400);
+        }
+
+        try {
+            DB::transaction(function () use ($noPenawaran) {
+                DB::table('tb_penawarandetail')
+                    ->whereRaw('lower(trim(No_penawaran)) = ?', [strtolower($noPenawaran)])
+                    ->delete();
+
+                DB::table('tb_penawaran')
+                    ->whereRaw('lower(trim(No_penawaran)) = ?', [strtolower($noPenawaran)])
+                    ->delete();
+            });
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+
+        return response()->json(['message' => 'Data quotation berhasil dihapus.']);
+    }
+
     public function index(Request $request)
     {
-        $penawaran = DB::table('tb_penawaran')
+        $penawaran = DB::table('tb_penawaran as p')
             ->select(
-                'No_penawaran',
-                'Tgl_penawaran',
-                'Tgl_Posting',
-                'Customer',
-                'Alamat',
-                'Telp',
-                'Fax',
-                'Email',
-                'Attend',
-                'Payment',
-                'Validity',
-                'Delivery',
-                'Franco',
-                'Note1',
-                'Note2',
-                'Note3'
+                'p.No_penawaran',
+                'p.Tgl_penawaran',
+                'p.Tgl_Posting',
+                'p.Customer',
+                'p.Alamat',
+                'p.Telp',
+                'p.Fax',
+                'p.Email',
+                'p.Attend',
+                'p.Payment',
+                'p.Validity',
+                'p.Delivery',
+                'p.Franco',
+                'p.Note1',
+                'p.Note2',
+                'p.Note3',
+                DB::raw('1 as can_delete')
             )
-            ->orderBy('Tgl_Posting', 'desc')
-            ->orderBy('No_penawaran', 'desc')
+            ->orderBy('p.Tgl_Posting', 'desc')
+            ->orderBy('p.No_penawaran', 'desc')
             ->get();
 
         $detailNo = trim((string) $request->query('detail_no', ''));
