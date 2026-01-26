@@ -34,8 +34,36 @@ class DashboardController
             ];
         }
 
+        $accountMap = [
+            '1101AD' => 'Kas Tunai',
+            '1102AD' => 'Kas Giro',
+            '1103AD' => 'Kas Bank 1',
+            '1104AD' => 'Kas Bank 2',
+        ];
+
+        $saldoByCode = DB::table('tb_nabb')
+            ->whereIn('Kode_Akun', array_keys($accountMap))
+            ->pluck('Saldo', 'Kode_Akun');
+
+        $lastVoucherByCode = DB::table('tb_kas')
+            ->select('Kode_Akun', DB::raw('MAX(Tgl_Voucher) as last_voucher'))
+            ->whereIn('Kode_Akun', array_keys($accountMap))
+            ->groupBy('Kode_Akun')
+            ->pluck('last_voucher', 'Kode_Akun');
+
+        $saldoStats = [];
+        foreach ($accountMap as $code => $label) {
+            $saldoStats[] = [
+                'code' => $code,
+                'label' => $label,
+                'saldo' => (float) ($saldoByCode[$code] ?? 0),
+                'last_voucher' => $lastVoucherByCode[$code] ?? null,
+            ];
+        }
+
         return Inertia::render('dashboard', [
             'quotationStats' => $quotationStats,
+            'saldoStats' => $saldoStats,
         ]);
     }
 }
