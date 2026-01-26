@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class PurchaseRequirementController
@@ -154,7 +155,8 @@ class PurchaseRequirementController
                 'pr.payment',
                 DB::raw('coalesce(detail.pr_sisa, 0) as sisa_pr'),
                 DB::raw('case when coalesce(detail.pr_sisa, 0) > 0 then 1 else 0 end as outstanding_count'),
-                DB::raw('case when coalesce(detail.pr_sisa, 0) = 0 then 1 else 0 end as realized_count')
+                DB::raw('case when coalesce(detail.pr_sisa, 0) = 0 then 1 else 0 end as realized_count'),
+                DB::raw('case when exists (select 1 from tb_po where lower(trim(tb_po.ref_pr)) = lower(trim(pr.no_pr))) then 0 else 1 end as can_delete')
             )
             ->where(DB::raw('coalesce(detail.pr_sisa, 0)'), '>', 0)
             ->orderBy('pr.date', 'desc')
@@ -478,6 +480,95 @@ class PurchaseRequirementController
         return back()->with('success', 'Detail PR berhasil dihapus.');
     }
 
+    public function destroy($noPr)
+    {
+        $noPr = trim((string) $noPr);
+        if ($noPr === '') {
+            return response()->json([
+                'message' => 'No PR tidak valid.',
+            ], 400);
+        }
+
+        $isUsedInPo = DB::table('tb_po')
+            ->whereRaw('lower(trim(ref_pr)) = ?', [strtolower($noPr)])
+            ->exists();
+
+        if ($isUsedInPo) {
+            return response()->json([
+                'message' => 'PR sudah terpakai di PO, tidak dapat dihapus.',
+            ], 400);
+        }
+
+        $details = DB::table('tb_detailpr')
+            ->where('no_pr', $noPr)
+            ->get([
+                'no_pr',
+                'date',
+                'payment',
+                'for_customer',
+                'ref_po',
+                'no',
+                'kd_material',
+                'material',
+                'qty',
+                'unit',
+                'stok',
+                'unit_price',
+                'total_price',
+                'price_po',
+                'margin',
+                'renmark',
+                'qty_po',
+                'sisa_pr',
+                'id',
+            ]);
+
+        $timestamp = now()->format('m/d/Y h:i:s A');
+
+        $truncate = function ($value, $length) {
+            $string = is_null($value) ? '' : (string) $value;
+            return Str::limit($string, $length, '');
+        };
+
+        DB::transaction(function () use ($details, $noPr, $timestamp, $truncate) {
+            if ($details->isNotEmpty()) {
+                $payload = $details->map(function ($row) use ($timestamp, $truncate) {
+                    return [
+                        'no_pr' => $truncate($row->no_pr, 50),
+                        'date' => $truncate($row->date, 50),
+                        'payment' => $truncate($row->payment, 100),
+                        'for_customer' => $truncate($row->for_customer, 191),
+                        'ref_po' => $truncate($row->ref_po, 100),
+                        'no' => $row->no,
+                        'kd_material' => $truncate($row->kd_material, 100),
+                        'material' => $truncate($row->material, 191),
+                        'qty' => $row->qty,
+                        'unit' => $row->unit,
+                        'stok' => $row->stok,
+                        'unit_price' => $row->unit_price,
+                        'total_price' => $row->total_price,
+                        'price_po' => $row->price_po,
+                        'margin' => $truncate($row->margin, 50),
+                        'renmark' => $truncate($row->renmark, 191),
+                        'qty_po' => $row->qty_po,
+                        'sisa_pr' => $row->sisa_pr,
+                        'id' => $row->id,
+                        'tgl_hapus' => $timestamp,
+                    ];
+                })->all();
+
+                DB::table('tb_hapus')->insert($payload);
+            }
+
+            DB::table('tb_detailpr')->where('no_pr', $noPr)->delete();
+            DB::table('tb_pr')->where('no_pr', $noPr)->delete();
+        });
+
+        return response()->json([
+            'message' => 'Data PR berhasil dihapus.',
+        ]);
+    }
+
     public function print(Request $request, $noPr)
     {
         $purchaseRequirement = DB::table('tb_pr')
@@ -515,9 +606,11 @@ class PurchaseRequirementController
 
         $database = $request->session()->get('tenant.database')
             ?? $request->cookie('tenant_database');
-        $lookupKey = $database;
-        if (is_string($lookupKey) && str_starts_with($lookupKey, 'DB')) {
-            $lookupKey = substr($lookupKey, 2);
+        $lookupKey = is_string($database) ? strtolower($database) : '';
+        // normalize prefixes like "DBSJA" or "dbsja" or "DB.SJA"
+        $lookupKey = preg_replace('/[^a-z0-9]/', '', $lookupKey ?? '');
+        if ($lookupKey === '') {
+            $lookupKey = 'dbsja'; // default company if tenant cookie/session missing
         }
         $companyConfig = $lookupKey
             ? config("tenants.companies.$lookupKey", [])

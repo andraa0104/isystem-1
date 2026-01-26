@@ -4,6 +4,7 @@ import {
     Dialog,
     DialogContent,
     DialogHeader,
+    DialogDescription,
     DialogTitle,
 } from '@/components/ui/dialog';
 import {
@@ -15,8 +16,9 @@ import {
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
-import { Eye, Pencil, Printer } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -54,6 +56,9 @@ export default function PurchaseRequirementIndex({
     period = 'today',
 }) {
     const [searchTerm, setSearchTerm] = useState('');
+    const [purchaseRequirementsList, setPurchaseRequirementsList] = useState(
+        purchaseRequirements
+    );
     const [statusFilter, setStatusFilter] = useState('outstanding');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
@@ -83,10 +88,16 @@ export default function PurchaseRequirementIndex({
     const [realizedList, setRealizedList] = useState([]);
     const [realizedLoading, setRealizedLoading] = useState(false);
     const [realizedError, setRealizedError] = useState('');
+    const [isDeleting, setIsDeleting] = useState(false);
+    const toastTimer = useRef(null);
+
+    useEffect(() => {
+        setPurchaseRequirementsList(purchaseRequirements);
+    }, [purchaseRequirements]);
 
     const filteredPurchaseRequirements = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
-        const filtered = purchaseRequirements.filter((item) => {
+        const filtered = purchaseRequirementsList.filter((item) => {
             const outstanding = Number(item.outstanding_count ?? 0) > 0;
             const realized = Number(item.realized_count ?? 0) > 0;
             if (statusFilter === 'outstanding' && !outstanding) {
@@ -114,7 +125,7 @@ export default function PurchaseRequirementIndex({
         return filtered.sort((a, b) =>
             String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? ''))
         );
-    }, [purchaseRequirements, searchTerm, statusFilter]);
+    }, [purchaseRequirementsList, searchTerm, statusFilter]);
 
     const totalItems = filteredPurchaseRequirements.length;
     const totalPages = useMemo(() => {
@@ -139,23 +150,29 @@ export default function PurchaseRequirementIndex({
 
     const outstandingPurchaseRequirements = useMemo(() => {
         const term = outstandingSearchTerm.trim().toLowerCase();
-        return outstandingList.filter((item) => {
-            const outstanding = Number(item.outstanding_count ?? 0) > 0;
-            if (!outstanding) {
-                return false;
-            }
+        return outstandingList
+            .map((item) => ({
+                ...item,
+                _canDelete: Number(item.can_delete ?? item.canDelete ?? 0) === 1,
+            }))
+            .filter((item) => {
+                const outstanding = Number(item.outstanding_count ?? 0) > 0;
+                if (!outstanding) {
+                    return false;
+                }
 
-            if (!term) {
-                return true;
-            }
+                if (!term) {
+                    return true;
+                }
 
-            const values = [item.no_pr, item.date, item.for_customer, item.ref_po];
-            return values.some((value) =>
-                String(value ?? '').toLowerCase().includes(term)
+                const values = [item.no_pr, item.date, item.for_customer, item.ref_po];
+                return values.some((value) =>
+                    String(value ?? '').toLowerCase().includes(term)
+                );
+            })
+            .sort((a, b) =>
+                String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? ''))
             );
-        }).sort((a, b) =>
-            String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? ''))
-        );
     }, [outstandingList, outstandingSearchTerm]);
 
     const outstandingTotalItems = outstandingPurchaseRequirements.length;
@@ -422,6 +439,18 @@ export default function PurchaseRequirementIndex({
         }
     }, [realizedCurrentPage, realizedTotalPages]);
 
+    const showToast = (message, variant = 'error') => {
+        if (!message) return;
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            timer: 3000,
+            showConfirmButton: false,
+            icon: variant === 'success' ? 'success' : 'error',
+            title: message,
+        });
+    };
+
     useEffect(() => {
         if (isModalOpen) {
             setMaterialSearchTerm('');
@@ -435,6 +464,68 @@ export default function PurchaseRequirementIndex({
             setMaterialCurrentPage(materialTotalPages);
         }
     }, [materialCurrentPage, materialTotalPages]);
+
+    const handleDelete = (noPr) => {
+        if (!noPr || isDeleting) return;
+
+        // Hindari fokus tertinggal di dalam dialog Radix saat SweetAlert muncul
+        const activeEl = document.activeElement;
+        if (activeEl instanceof HTMLElement) {
+            activeEl.blur();
+        }
+        setIsOutstandingModalOpen(false);
+
+        Swal.fire({
+            title: 'Hapus PR?',
+            text: `PR ${noPr} akan dipindahkan ke arsip lalu dihapus.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+            reverseButtons: true,
+            showLoaderOnConfirm: true,
+            allowOutsideClick: () => !Swal.isLoading(),
+            allowEscapeKey: () => !Swal.isLoading(),
+            preConfirm: async () => {
+                try {
+                    setIsDeleting(true);
+                    const response = await fetch(
+                        `/marketing/purchase-requirement/${encodeURIComponent(noPr)}`,
+                        {
+                            method: 'DELETE',
+                            headers: {
+                                Accept: 'application/json',
+                                'X-CSRF-TOKEN':
+                                    document
+                                        .querySelector('meta[name="csrf-token"]')
+                                        ?.getAttribute('content') ?? '',
+                            },
+                        }
+                    );
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        const msg = data?.message || 'Gagal menghapus data PR.';
+                        throw new Error(msg);
+                    }
+                    return data;
+                } catch (error) {
+                    Swal.showValidationMessage(error.message);
+                    throw error;
+                } finally {
+                    setIsDeleting(false);
+                }
+            },
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+            setOutstandingList((prev) =>
+                prev.filter((item) => item.no_pr !== noPr)
+            );
+            setPurchaseRequirementsList((prev) =>
+                prev.filter((item) => item.no_pr !== noPr)
+            );
+            showToast('PR berhasil dihapus.', 'success');
+        });
+    };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -694,9 +785,15 @@ export default function PurchaseRequirementIndex({
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent
+                        className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto"
+                        aria-describedby="pr-detail-desc"
+                    >
                         <DialogHeader>
                             <DialogTitle>Detail Purchase Requirement</DialogTitle>
+                            <DialogDescription id="pr-detail-desc">
+                                Menampilkan informasi header dan material pada PR.
+                            </DialogDescription>
                         </DialogHeader>
 
                         {!selectedPr && (
@@ -875,6 +972,8 @@ export default function PurchaseRequirementIndex({
                                                             </td>
                                                             <td className="px-4 py-3">
                                                                 {getValue(detail, [
+                                                                    'renmark',
+                                                                    'Renmark',
                                                                     'remark',
                                                                     'Remark',
                                                                     'keterangan',
@@ -971,9 +1070,15 @@ export default function PurchaseRequirementIndex({
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent
+                        className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto"
+                        aria-describedby="pr-outstanding-desc"
+                    >
                         <DialogHeader>
                             <DialogTitle>PR Outstanding</DialogTitle>
+                            <DialogDescription id="pr-outstanding-desc">
+                                Daftar PR yang belum terealisasi dan masih memiliki sisa PR.
+                            </DialogDescription>
                         </DialogHeader>
 
                         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
@@ -1071,16 +1176,30 @@ export default function PurchaseRequirementIndex({
                                                     {item.ref_po}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <Link
-                                                        href={`/marketing/purchase-requirement/${encodeURIComponent(
-                                                            item.no_pr
-                                                        )}/edit`}
-                                                        className="text-muted-foreground transition hover:text-foreground"
-                                                        aria-label="Edit"
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Link>
+                                                    <div className="flex items-center gap-3">
+                                                        <Link
+                                                            href={`/marketing/purchase-requirement/${encodeURIComponent(
+                                                                item.no_pr
+                                                            )}/edit`}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            aria-label="Edit"
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Link>
+                                                        {item._canDelete && (
+                                                            <button
+                                                                type="button"
+                                                                className="text-muted-foreground transition hover:text-destructive"
+                                                                aria-label="Hapus"
+                                                                title="Hapus"
+                                                                disabled={isDeleting}
+                                                                onClick={() => handleDelete(item.no_pr)}
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         )
@@ -1162,9 +1281,15 @@ export default function PurchaseRequirementIndex({
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent
+                        className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto"
+                        aria-describedby="pr-realized-desc"
+                    >
                         <DialogHeader>
                             <DialogTitle>PR Terealisasi</DialogTitle>
+                            <DialogDescription id="pr-realized-desc">
+                                Daftar PR yang sudah terealisasi sesuai periode terpilih.
+                            </DialogDescription>
                         </DialogHeader>
 
                         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
@@ -1347,6 +1472,7 @@ export default function PurchaseRequirementIndex({
                             )}
                     </DialogContent>
                 </Dialog>
+
             </div>
         </AppLayout>
     );

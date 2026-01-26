@@ -326,11 +326,16 @@ class QuotationController
 
         $database = $request->session()->get('tenant.database')
             ?? $request->cookie('tenant_database');
-        $companyConfig = $database
-            ? config("tenants.companies.$database", [])
+        $lookupKey = is_string($database) ? strtolower($database) : '';
+        $lookupKey = preg_replace('/[^a-z0-9]/', '', $lookupKey ?? '');
+        if ($lookupKey === '') {
+            $lookupKey = 'dbsja';
+        }
+        $companyConfig = $lookupKey
+            ? config("tenants.companies.$lookupKey", [])
             : [];
-        $fallbackName = $database
-            ? config("tenants.labels.$database", $database)
+        $fallbackName = $lookupKey
+            ? config("tenants.labels.$lookupKey", $lookupKey)
             : config('app.name');
 
         $company = [

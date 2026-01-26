@@ -31,6 +31,26 @@ export default function PurchaseRequirementPrint({
     purchaseRequirementDetails = [],
     company = {},
 }) {
+    // Print margin settings (top, right, bottom, left)
+    const pageMargins = {
+        top: '6mm',
+        right: '3mm',
+        bottom: '6mm',
+        left: '3mm',
+    };
+
+    const pageStyle = `@media print {
+        @page {
+            size: auto;
+            margin: ${pageMargins.top} ${pageMargins.right} ${pageMargins.bottom} ${pageMargins.left} !important;
+        }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
+    }`;
+
     const companyLines = [];
     if (company.address) {
         companyLines.push(company.address);
@@ -47,22 +67,26 @@ export default function PurchaseRequirementPrint({
 
     const totalQty = purchaseRequirementDetails.reduce(
         (sum, item) => sum + (Number(item.qty) || 0),
-        0
+        0,
     );
     const totalPrice = purchaseRequirementDetails.reduce(
         (sum, item) => sum + (Number(item.total_price) || 0),
-        0
+        0,
     );
 
     return (
         <div className="min-h-screen bg-white text-black">
             <Head title={`Print PR ${purchaseRequirement?.no_pr ?? ''}`} />
+            <style>{pageStyle}</style>
             <div className="mx-auto w-full max-w-[900px] px-8 py-6 text-[12px] leading-[1.35]">
                 <div className="text-[18px] font-semibold uppercase">
                     {company.name || '-'}
                 </div>
                 {companyLines.map((line, index) => (
-                    <div key={`${line}-${index}`} className="text-[12px] italic">
+                    <div
+                        key={`${line}-${index}`}
+                        className="text-[12px] italic"
+                    >
                         {line}
                     </div>
                 ))}
@@ -91,7 +115,9 @@ export default function PurchaseRequirementPrint({
                         <tr>
                             <td>For CST</td>
                             <td>:</td>
-                            <td>{renderValue(purchaseRequirement?.for_customer)}</td>
+                            <td>
+                                {renderValue(purchaseRequirement?.for_customer)}
+                            </td>
                         </tr>
                         <tr>
                             <td>Ref PO</td>
@@ -105,14 +131,14 @@ export default function PurchaseRequirementPrint({
                     <table className="w-full table-fixed border-collapse border border-black text-[11px]">
                         <colgroup>
                             <col className="w-[3%]" />
-                            <col className="w-[10%]" />
+                            <col className="w-[9%]" />
                             <col className="w-[20%]" />
+                            <col className="w-[4%]" />
                             <col className="w-[5%]" />
-                            <col className="w-[5%]" />
-                            <col className="w-[5%]" />
-                            <col className="w-[12%]" />
-                            <col className="w-[12%]" />
+                            <col className="w-[4%]" />
                             <col className="w-[10%]" />
+                            <col className="w-[10%]" />
+                            <col className="w-[12%]" />
                         </colgroup>
                         <thead>
                             <tr className="border-b border-black">

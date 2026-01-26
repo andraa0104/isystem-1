@@ -47,6 +47,27 @@ export default function QuotationPrint({
     quotationDetails = [],
     company = {},
 }) {
+    // Print margin settings (top, right, bottom, left)
+    const pageMargins = {
+        top: '6mm',
+        right: '3mm',
+        bottom: '3mm',
+        left: '6mm',
+    };
+
+    // Force margins in print (align with PR print)
+    const pageStyle = `@media print {
+        @page {
+            size: auto;
+            margin: ${pageMargins.top} ${pageMargins.right} ${pageMargins.bottom} ${pageMargins.left} !important;
+        }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+        }
+    }`;
+
     const companyLines = useMemo(() => {
         const lines = [];
         if (company.address) {
@@ -67,6 +88,7 @@ export default function QuotationPrint({
     return (
         <div className="min-h-screen bg-white text-black">
             <Head title={`Print Quotation ${quotation?.No_penawaran ?? ''}`} />
+            <style>{pageStyle}</style>
             <div className="mx-auto w-full max-w-[820px] px-8 py-6 font-['Times_New_Roman'] text-[11px] leading-[1.25]">
                 <div className="space-y-0.5">
                     <div className="text-[20px] font-semibold uppercase">
@@ -77,7 +99,7 @@ export default function QuotationPrint({
                     ))}
                 </div>
 
-                <div className="mt-3 font-semibold italic underline text-[14px]">
+                <div className="mt-3 text-[14px] font-semibold italic underline">
                     Sales Quotation No. {renderValue(quotation?.No_penawaran)}
                 </div>
 
@@ -123,12 +145,12 @@ export default function QuotationPrint({
                 <div className="mt-3">
                     <table className="w-full table-fixed border-collapse border border-black text-[11px]">
                         <colgroup>
+                            <col className="w-[4%]" />
+                            <col className="w-[40%]" />
+                            <col className="w-[5%]" />
                             <col className="w-[6%]" />
-                            <col className="w-[46%]" />
-                            <col className="w-[8%]" />
-                            <col className="w-[8%]" />
-                            <col className="w-[16%]" />
-                            <col className="w-[16%]" />
+                            <col className="w-[10%]" />
+                            <col className="w-[19%]" />
                         </colgroup>
                         <thead>
                             <tr className="border-b border-black">
@@ -193,7 +215,7 @@ export default function QuotationPrint({
                 </div>
 
                 <div className="mt-2 text-[12px]">
-                    <div className="font-semibold italic underline text-[14px]">
+                    <div className="text-[14px] font-semibold italic underline">
                         Note &gt;&gt;&gt;&gt;&gt;
                     </div>
                     <table className="mt-1 w-full">
@@ -257,8 +279,12 @@ export default function QuotationPrint({
                             <td className="h-12" />
                         </tr>
                         <tr>
-                            <td className="font-semibold underline text">Marketing Office</td>
-                            <td className="text-center font-semibold underline text">Head Office</td>
+                            <td className="text font-semibold underline">
+                                Marketing Office
+                            </td>
+                            <td className="text text-center font-semibold underline">
+                                Head Office
+                            </td>
                         </tr>
                     </tbody>
                 </table>

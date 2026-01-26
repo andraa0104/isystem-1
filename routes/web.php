@@ -244,6 +244,8 @@ Route::put('marketing/purchase-requirement/{noPr}/detail/{detailNo}', [PurchaseR
     ->name('marketing.purchase-requirement.detail.update');
 Route::delete('marketing/purchase-requirement/{noPr}/detail/{detailNo}', [PurchaseRequirementController::class, 'destroyDetail'])
     ->name('marketing.purchase-requirement.detail.destroy');
+Route::delete('marketing/purchase-requirement/{noPr}', [PurchaseRequirementController::class, 'destroy'])
+    ->name('marketing.purchase-requirement.destroy');
 Route::get('marketing/purchase-requirement/{noPr}/print', [PurchaseRequirementController::class, 'print'])
     ->name('marketing.purchase-requirement.print');
 

@@ -717,9 +717,10 @@ class PurchaseOrderController
 
         $database = $request->session()->get('tenant.database')
             ?? $request->cookie('tenant_database');
-        $lookupKey = $database;
-        if (is_string($lookupKey) && str_starts_with($lookupKey, 'DB')) {
-            $lookupKey = substr($lookupKey, 2);
+        $lookupKey = is_string($database) ? strtolower($database) : '';
+        $lookupKey = preg_replace('/[^a-z0-9]/', '', $lookupKey ?? '');
+        if ($lookupKey === '') {
+            $lookupKey = 'dbsja';
         }
         $companyConfig = $lookupKey
             ? config("tenants.companies.$lookupKey", [])
