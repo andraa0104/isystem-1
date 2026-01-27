@@ -746,9 +746,27 @@ class PurchaseOrderController
         $noPo = $request->query('no_po');
         if (!$noPo) {
             return response()->json([
+                'purchaseOrder' => null,
                 'purchaseOrderDetails' => [],
             ]);
         }
+
+        $header = DB::table('tb_po')
+            ->select(
+                'no_po',
+                'tgl',
+                'ref_pr',
+                'ref_quota',
+                'ref_poin',
+                'for_cus',
+                'nm_vdr',
+                's_total',
+                'h_ppn',
+                'g_total',
+                'ppn'
+            )
+            ->where('no_po', $noPo)
+            ->first();
 
         $query = DB::table('tb_detailpo')
             ->select(
@@ -782,6 +800,7 @@ class PurchaseOrderController
         $purchaseOrderDetails = $query->orderBy('no')->get();
 
         return response()->json([
+            'purchaseOrder' => $header,
             'purchaseOrderDetails' => $purchaseOrderDetails,
         ]);
     }

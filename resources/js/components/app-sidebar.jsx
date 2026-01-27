@@ -215,7 +215,10 @@ export function AppSidebar() {
                                                 <DropdownMenuSeparator />
                                                 {allowedItems.map((item) => (
                                                     <DropdownMenuItem key={item.title} asChild className={dropdownItemWrapClass}>
-                                                        <Link href={item.href}>
+                                                        <Link
+                                                            href={item.href}
+                                                            prefetch={item.href !== '/pembelian/biaya-kirim-pembelian'}
+                                                        >
                                                             <span>{item.title}</span>
                                                         </Link>
                                                     </DropdownMenuItem>
@@ -238,7 +241,10 @@ export function AppSidebar() {
                                                     {allowedItems.map((item) => (
                                                         <SidebarMenuSubItem key={item.title}>
                                                             <SidebarMenuSubButton asChild className={subMenuTextWrapClass}>
-                                                                <Link href={item.href}>
+                                                                <Link
+                                                                    href={item.href}
+                                                                    prefetch={item.href !== '/pembelian/biaya-kirim-pembelian'}
+                                                                >
                                                                     <span>{item.title}</span>
                                                                 </Link>
                                                             </SidebarMenuSubButton>

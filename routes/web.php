@@ -7,6 +7,8 @@ use App\Http\Controllers\Marketing\PurchaseOrderController;
 use App\Http\Controllers\Marketing\DeliveryOrderController;
 use App\Http\Controllers\Marketing\DeliveryOrderAddController;
 use App\Http\Controllers\Marketing\DeliveryOrderCostController;
+use App\Http\Controllers\Marketing\BiayaKirimPembelianController;
+use App\Http\Controllers\Marketing\InvoiceMasukController;
 use App\Http\Controllers\Marketing\FakturPenjualanController;
 use App\Http\Controllers\Marketing\KwitansiPenjualanController;
 use App\Http\Controllers\Marketing\TandaTerimaInvoiceController;
@@ -420,6 +422,45 @@ Route::get('penjualan/tanda-terima-invoice/{noTtInv}/print', [TandaTerimaInvoice
     ->name('penjualan.tanda-terima-invoice.print');
 Route::get('penjualan/tanda-terima-invoice/print', [TandaTerimaInvoiceController::class, 'print'])
     ->name('penjualan.tanda-terima-invoice.print.query');
+
+Route::get('pembelian/invoice-masuk', [InvoiceMasukController::class, 'index'])
+    ->name('pembelian.invoice-masuk.index');
+Route::get('pembelian/invoice-masuk/data', [InvoiceMasukController::class, 'data'])
+    ->name('pembelian.invoice-masuk.data');
+Route::get('pembelian/invoice-masuk/create', [InvoiceMasukController::class, 'create'])
+    ->name('pembelian.invoice-masuk.create');
+Route::get('pembelian/invoice-masuk/{noDoc}/edit', [InvoiceMasukController::class, 'edit'])
+    ->name('pembelian.invoice-masuk.edit');
+Route::get('pembelian/invoice-masuk/po-list', [InvoiceMasukController::class, 'poList'])
+    ->name('pembelian.invoice-masuk.po-list');
+Route::get('pembelian/invoice-masuk/po-detail', [InvoiceMasukController::class, 'poDetail'])
+    ->name('pembelian.invoice-masuk.po-detail');
+Route::get('pembelian/invoice-masuk/po-materials', [InvoiceMasukController::class, 'poMaterials'])
+    ->name('pembelian.invoice-masuk.po-materials');
+Route::get('pembelian/invoice-masuk/{noDoc}', [InvoiceMasukController::class, 'detail'])
+    ->name('pembelian.invoice-masuk.detail');
+Route::post('pembelian/invoice-masuk', [InvoiceMasukController::class, 'store'])
+    ->name('pembelian.invoice-masuk.store');
+Route::post('pembelian/invoice-masuk/{noDoc}', [InvoiceMasukController::class, 'update'])
+    ->name('pembelian.invoice-masuk.update');
+Route::post('pembelian/invoice-masuk/{noDoc}/delete', [InvoiceMasukController::class, 'destroy'])
+    ->name('pembelian.invoice-masuk.destroy');
+Route::get('pembelian/biaya-kirim-pembelian', [BiayaKirimPembelianController::class, 'index'])
+    ->name('pembelian.biaya-kirim-pembelian.index');
+Route::get('pembelian/biaya-kirim-pembelian/create', [BiayaKirimPembelianController::class, 'create'])
+    ->name('pembelian.biaya-kirim-pembelian.create');
+Route::get('pembelian/biaya-kirim-pembelian/data', [BiayaKirimPembelianController::class, 'data'])
+    ->name('pembelian.biaya-kirim-pembelian.data');
+Route::get('pembelian/biaya-kirim-pembelian/po-list', [BiayaKirimPembelianController::class, 'poList'])
+    ->name('pembelian.biaya-kirim-pembelian.po-list');
+Route::get('pembelian/biaya-kirim-pembelian/po-materials', [BiayaKirimPembelianController::class, 'poMaterials'])
+    ->name('pembelian.biaya-kirim-pembelian.po-materials');
+Route::get('pembelian/biaya-kirim-pembelian/{noBkp}', [BiayaKirimPembelianController::class, 'show'])
+    ->name('pembelian.biaya-kirim-pembelian.show');
+Route::get('pembelian/biaya-kirim-pembelian/{noBkp}/details', [BiayaKirimPembelianController::class, 'detailList'])
+    ->name('pembelian.biaya-kirim-pembelian.details');
+Route::get('pembelian/biaya-kirim-pembelian/{noBkp}/materials', [BiayaKirimPembelianController::class, 'materialList'])
+    ->name('pembelian.biaya-kirim-pembelian.materials');
 Route::get('penjualan/faktur-penjualan/create', [FakturPenjualanController::class, 'create'])
     ->name('penjualan.faktur-penjualan.create');
 Route::get('penjualan/faktur-penjualan/{noFaktur}/edit', [FakturPenjualanController::class, 'edit'])
