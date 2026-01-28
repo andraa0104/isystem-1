@@ -12,9 +12,9 @@ import Swal from 'sweetalert2';
 
 const STATUS_OPTIONS = [
     { value: 'all', label: 'Semua data' },
-    { value: 'belum_dibayar', label: 'Invoice belum dibayar (Total_Biaya = pembayaran)' },
-    { value: 'sisa_bayar', label: 'Invoice sisa bayar (sisa > 0)' },
-    { value: 'belum_dijurnal', label: 'Invoice belum di jurnal (trx_kas kosong)' },
+    { value: 'belum_dibayar', label: 'Invoice belum dibayar' },
+    { value: 'sisa_bayar', label: 'Invoice sisa bayar' },
+    { value: 'belum_dijurnal', label: 'Invoice belum di jurnal' },
 ];
 
 const PAGE_SIZE_OPTIONS = [
@@ -49,7 +49,7 @@ const toNumber = (value) => {
     return Number.isNaN(num) ? 0 : num;
 };
 
-export default function BiayaKirimPembelianIndex({ items = [], summary = {}, filters = {} }) {
+export default function BiayaKirimPenjualanIndex({ items = [], summary = {}, filters = {} }) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [pageSize, setPageSize] = useState(filters.pageSize || 5);
@@ -87,15 +87,15 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                 search: searchTerm,
                 status: statusFilter,
             });
-            const res = await fetch(`/pembelian/biaya-kirim-pembelian/data?${params.toString()}`, {
+            const res = await fetch(`/penjualan/biaya-kirim-penjualan/data?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
             });
-            if (!res.ok) throw new Error('Gagal memuat data biaya kirim pembelian.');
+            if (!res.ok) throw new Error('Gagal memuat data biaya kirim penjualan.');
             const data = await res.json();
             setRemoteItems(Array.isArray(data?.items) ? data.items : []);
             setRemoteSummary(data?.summary ?? { unpaid_count: 0, unpaid_total: 0 });
         } catch (err) {
-            setError(err.message || 'Gagal memuat data biaya kirim pembelian.');
+            setError(err.message || 'Gagal memuat data biaya kirim penjualan.');
             setRemoteItems([]);
             setRemoteSummary({ unpaid_count: 0, unpaid_total: 0 });
         } finally {
@@ -111,7 +111,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
 
     const sortedItems = useMemo(() => {
         return [...remoteItems].sort((a, b) =>
-            String(b.no_bkp ?? '').localeCompare(String(a.no_bkp ?? ''))
+            String(b.no_bkj ?? '').localeCompare(String(a.no_bkj ?? ''))
         );
     }, [remoteItems]);
 
@@ -119,7 +119,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
         const term = unpaidSearch.trim().toLowerCase();
         if (!term) return unpaidData;
         return unpaidData.filter((row) =>
-            [row.no_bkp, row.Vendor_Ekspedisi, row.no_inv]
+            [row.no_bkj, row.nama_vendor, row.no_inv]
                 .map((val) => String(val ?? '').toLowerCase())
                 .some((val) => val.includes(term))
         );
@@ -142,7 +142,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
         const term = detailSearch.trim().toLowerCase();
         if (!term) return detailRows;
         return detailRows.filter((row) =>
-            [row.no_po, row.customer, row.vendor]
+            [row.no_do, row.customer]
                 .map((val) => String(val ?? '').toLowerCase())
                 .some((val) => val.includes(term))
         );
@@ -165,7 +165,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
         const term = materialSearch.trim().toLowerCase();
         if (!term) return materialRows;
         return materialRows.filter((row) =>
-            String(row.material ?? '').toLowerCase().includes(term)
+            String(row.mat ?? '').toLowerCase().includes(term)
         );
     }, [materialRows, materialSearch]);
 
@@ -182,11 +182,25 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
         return filteredMaterialRows.slice(start, start + size);
     }, [filteredMaterialRows, materialPageSize, materialCurrentPage]);
 
+    const grandTotalBuy = useMemo(() => {
+        return filteredMaterialRows.reduce(
+            (sum, row) => sum + toNumber(row.harga_beli) * toNumber(row.qty),
+            0
+        );
+    }, [filteredMaterialRows]);
+
+    const grandTotalSell = useMemo(() => {
+        return filteredMaterialRows.reduce(
+            (sum, row) => sum + toNumber(row.harga_jual) * toNumber(row.qty),
+            0
+        );
+    }, [filteredMaterialRows]);
+
     useEffect(() => {
         if (!unpaidModalOpen) return;
         setUnpaidData(
             sortedItems.filter(
-                (row) => String(row.Total_Biaya ?? '') === String(row.pembayaran ?? '')
+                (row) => String(row.jumlah_bayar ?? '') === String(row.sisa ?? '')
             )
         );
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -233,10 +247,10 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
         setActiveDetailTab('po');
         try {
             const [headerRes, detailRes] = await Promise.allSettled([
-                fetch(`/pembelian/biaya-kirim-pembelian/${encodeURIComponent(noBkp)}`, {
+                fetch(`/penjualan/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}`, {
                     headers: { Accept: 'application/json' },
                 }),
-                fetch(`/pembelian/biaya-kirim-pembelian/${encodeURIComponent(noBkp)}/details`, {
+                fetch(`/penjualan/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}/details`, {
                     headers: { Accept: 'application/json' },
                 }),
             ]);
@@ -245,7 +259,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                 const headerData = await headerRes.value.json();
                 setViewHeader(headerData?.header ?? null);
             } else {
-                setViewError('Gagal memuat detail BKP.');
+                setViewError('Gagal memuat detail BKJ.');
             }
 
             if (detailRes.status === 'fulfilled' && detailRes.value.ok) {
@@ -255,14 +269,14 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                 setDetailRows([]);
             }
         } catch (err) {
-            setViewError(err.message || 'Gagal memuat detail BKP.');
+            setViewError(err.message || 'Gagal memuat detail BKJ.');
         } finally {
             setViewLoading(false);
         }
     };
 
     const handleSelectDetail = async (row) => {
-        if (!row?.no_po || !viewHeader?.no_bkp) return;
+        if (!row?.no_do || !viewHeader?.no_bkj) return;
         setSelectedDetail(row);
         setActiveDetailTab('material');
         setMaterialRows([]);
@@ -271,7 +285,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
         setMaterialCurrentPage(1);
         try {
             const res = await fetch(
-                `/pembelian/biaya-kirim-pembelian/${encodeURIComponent(viewHeader.no_bkp)}/materials?no_po=${encodeURIComponent(row.no_po)}`,
+                `/penjualan/biaya-kirim-penjualan/${encodeURIComponent(viewHeader.no_bkj)}/materials?no_do=${encodeURIComponent(row.no_do)}`,
                 { headers: { Accept: 'application/json' } }
             );
             if (!res.ok) throw new Error('Gagal memuat material.');
@@ -286,8 +300,8 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
         if (!noBkp) return;
         const prevBodyPointerEvents = document.body.style.pointerEvents;
         const result = await Swal.fire({
-            title: 'Hapus BKP?',
-            text: 'Data BKP yang dihapus tidak bisa dikembalikan.',
+            title: 'Hapus BKJ?',
+            text: 'Data BKJ yang dihapus tidak bisa dikembalikan.',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Ya, hapus',
@@ -320,8 +334,8 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
 
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Pembelian', href: '/pembelian/biaya-kirim-pembelian' }]}>
-            <Head title="Biaya Kirim Pembelian" />
+        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Penjualan', href: '/penjualan/biaya-kirim-penjualan' }]}>
+            <Head title="Biaya Kirim Penjualan" />
             <div className="relative flex flex-col gap-4 p-4">
                 {isNavigating && (
                     <div className="absolute inset-0 z-20 flex items-center justify-center rounded-lg bg-background/70 backdrop-blur-sm">
@@ -342,11 +356,11 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                     >
                         <Card className="transition hover:border-primary/60 hover:shadow-md">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-lg">BKP belum dibayar</CardTitle>
+                            <CardTitle className="text-lg">BKJ belum dibayar</CardTitle>
                         </CardHeader>
                         <CardContent className="flex items-end justify-between gap-4">
                             <div>
-                                <div className="text-xs text-muted-foreground">Jumlah BKP</div>
+                                <div className="text-xs text-muted-foreground">Jumlah BKJ</div>
                                 <div className="text-2xl font-semibold">
                                     {remoteSummary?.unpaid_count ?? 0}
                                 </div>
@@ -365,22 +379,22 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                 <Card>
                     <CardHeader className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
-                            <CardTitle>Data Biaya Kirim Pembelian</CardTitle>
+                            <CardTitle>Data Biaya Kirim Penjualan</CardTitle>
                             <Button
                                 variant="default"
                                 onClick={() => {
                                     setIsNavigating(true);
-                                    router.visit('/pembelian/biaya-kirim-pembelian/create', {
+                                    router.visit('/penjualan/biaya-kirim-penjualan/create', {
                                         onFinish: () => setIsNavigating(false),
                                     });
                                 }}
                             >
-                                Tambah BKP
+                                Tambah BKJ
                             </Button>
                         </div>
                         <div className="flex flex-wrap gap-3">
                             <Input
-                                placeholder="Cari No BKP, Vendor Ekspedisi, No Invoice In..."
+                                placeholder="Cari No BKJ, Vendor Ekspedisi, No Inv..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="w-full max-w-xs"
@@ -424,11 +438,11 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>No BKP</TableHead>
+                                        <TableHead>No BKJ</TableHead>
                                         <TableHead>Date</TableHead>
                                         <TableHead>Vendor Ekspedisi</TableHead>
                                         <TableHead>Biaya Kirim</TableHead>
-                                        <TableHead>No Inv In</TableHead>
+                                        <TableHead>No Inv</TableHead>
                                         <TableHead className="text-center">Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -447,11 +461,11 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                         </TableRow>
                                     ) : (
                                         displayedItems.map((row) => (
-                                            <TableRow key={row.no_bkp}>
-                                                <TableCell>{renderValue(row.no_bkp)}</TableCell>
+                                            <TableRow key={row.no_bkj}>
+                                                <TableCell>{renderValue(row.no_bkj)}</TableCell>
                                                 <TableCell>{formatDate(row.tanggal)}</TableCell>
-                                                <TableCell>{renderValue(row.Vendor_Ekspedisi)}</TableCell>
-                                                <TableCell>{formatRupiah(row.biaya_kirim)}</TableCell>
+                                                <TableCell>{renderValue(row.nama_vendor)}</TableCell>
+                                                <TableCell>{formatRupiah(row.jumlah_bayar)}</TableCell>
                                                 <TableCell>{renderValue(row.no_inv)}</TableCell>
                                                 <TableCell className="text-center">
                                                     <div className="flex items-center justify-center gap-2">
@@ -459,7 +473,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                             variant="ghost"
                                                             size="icon"
                                                             title="Lihat"
-                                                            onClick={() => handleOpenViewModal(row.no_bkp)}
+                                                            onClick={() => handleOpenViewModal(row.no_bkj)}
                                                         >
                                                             <Eye className="h-4 w-4" />
                                                         </Button>
@@ -512,14 +526,14 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                             <div className="flex flex-wrap items-center justify-between gap-4 border-b bg-background/80 px-4 py-3 backdrop-blur sm:px-6">
                                 <div className="space-y-1">
                                     <DialogTitle className="text-xl font-semibold sm:text-2xl">
-                                        Daftar BKP Belum Dibayar
+                                        Daftar BKJ Belum Dibayar
                                     </DialogTitle>
                                 </div>
                             </div>
 
                             <div className="grid gap-3 border-b bg-background/70 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-center sm:px-6">
                                 <Input
-                                    placeholder="Cari No BKP, Vendor Ekspedisi, No Invoice In..."
+                                    placeholder="Cari No BKJ, Vendor Ekspedisi, No Inv..."
                                     value={unpaidSearch}
                                     onChange={(e) => setUnpaidSearch(e.target.value)}
                                     className="w-full sm:max-w-lg"
@@ -555,11 +569,11 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                         <Table className="min-w-[720px]">
                                         <TableHeader className="sticky top-0 z-10 bg-muted/50 backdrop-blur">
                                             <TableRow>
-                                                <TableHead className="w-[180px]">No BKP</TableHead>
+                                                <TableHead className="w-[180px]">No BKJ</TableHead>
                                                 <TableHead className="w-[140px]">Date</TableHead>
                                                 <TableHead>Vendor Ekspedisi</TableHead>
                                                 <TableHead className="w-[140px]">Biaya Kirim</TableHead>
-                                                <TableHead>No Inv In</TableHead>
+                                                <TableHead>No Inv</TableHead>
                                                 <TableHead className="w-[120px] text-center">Aksi</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -573,13 +587,13 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                             ) : (
                                                 displayedUnpaidItems.map((row, idx) => (
                                                     <TableRow
-                                                        key={`unpaid-${row.no_bkp}`}
+                                                        key={`unpaid-${row.no_bkj}`}
                                                         className={idx % 2 === 0 ? 'bg-muted/10' : undefined}
                                                     >
-                                                        <TableCell className="font-medium">{renderValue(row.no_bkp)}</TableCell>
+                                                        <TableCell className="font-medium">{renderValue(row.no_bkj)}</TableCell>
                                                         <TableCell>{formatDate(row.tanggal)}</TableCell>
-                                                        <TableCell>{renderValue(row.Vendor_Ekspedisi)}</TableCell>
-                                                        <TableCell>{formatRupiah(row.biaya_kirim)}</TableCell>
+                                                        <TableCell>{renderValue(row.nama_vendor)}</TableCell>
+                                                        <TableCell>{formatRupiah(row.jumlah_bayar)}</TableCell>
                                                         <TableCell>{renderValue(row.no_inv)}</TableCell>
                                                         <TableCell className="text-center">
                                                             <div className="flex items-center justify-center gap-2">
@@ -589,7 +603,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                             title="Edit"
                                                             onClick={() => {
                                                                 setIsNavigating(true);
-                                                                router.visit(`/pembelian/biaya-kirim-pembelian/${row.no_bkp}/edit`, {
+                                                                router.visit(`/penjualan/biaya-kirim-penjualan/${row.no_bkj}/edit`, {
                                                                     onFinish: () => setIsNavigating(false),
                                                                 });
                                                             }}
@@ -600,7 +614,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                                     variant="ghost"
                                                                     size="icon"
                                                                     title="Hapus"
-                                                                    onClick={() => handleDeleteBkp(row.no_bkp)}
+                                                                    onClick={() => handleDeleteBkp(row.no_bkj)}
                                                                 >
                                                                     <Trash className="h-4 w-4" />
                                                                 </Button>
@@ -653,10 +667,10 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                             <div className="flex flex-wrap items-center justify-between gap-4 border-b bg-background/80 px-4 py-4 backdrop-blur sm:px-6">
                                 <div className="space-y-1">
                                     <DialogTitle className="text-xl font-semibold sm:text-2xl">
-                                        Detail Biaya Kirim Pembelian
+                                        Detail Biaya Kirim Penjualan
                                     </DialogTitle>
                                     <p className="text-xs text-muted-foreground">
-                                        {viewHeader?.no_bkp ? `No BKP: ${viewHeader.no_bkp}` : 'Memuat data...'}
+                                        {viewHeader?.no_bkj ? `No BKJ: ${viewHeader.no_bkj}` : 'Memuat data...'}
                                     </p>
                                 </div>
                             </div>
@@ -674,7 +688,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                         <div className="grid gap-3 sm:grid-cols-2">
                                             <div>
                                                 <div className="text-xs text-muted-foreground">No Biaya Kirim Beli</div>
-                                                <div className="font-semibold">{renderValue(viewHeader?.no_bkp)}</div>
+                                                <div className="font-semibold">{renderValue(viewHeader?.no_bkj)}</div>
                                             </div>
                                             <div>
                                                 <div className="text-xs text-muted-foreground">Date</div>
@@ -682,7 +696,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                             </div>
                                             <div>
                                                 <div className="text-xs text-muted-foreground">Vendor Ekspedisi</div>
-                                                <div className="font-semibold">{renderValue(viewHeader?.Vendor_Ekspedisi)}</div>
+                                                <div className="font-semibold">{renderValue(viewHeader?.nama_vendor)}</div>
                                             </div>
                                             <div>
                                                 <div className="text-xs text-muted-foreground">No Invoice In</div>
@@ -698,7 +712,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                             </div>
                                             <div>
                                                 <div className="text-xs text-muted-foreground">Margin</div>
-                                                <div className="font-semibold">{renderValue(viewHeader?.margin)}</div>
+                                                <div className="font-semibold">{renderValue(viewHeader?.margin_final)}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -706,21 +720,21 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                         <div className="space-y-3">
                                             <div className="flex items-center justify-between text-sm">
                                                 <span className="text-muted-foreground">Biaya Kirim</span>
-                                                <span className="font-semibold">{formatRupiah(viewHeader?.biaya_kirim)}</span>
+                                                <span className="font-semibold">{formatRupiah(viewHeader?.jumlah_bayar)}</span>
                                             </div>
                                             <div className="flex items-center justify-between text-sm">
                                                 <span className="text-muted-foreground">Total Beli</span>
-                                                <span className="font-semibold">{formatRupiah(viewHeader?.total_beli)}</span>
+                                                <span className="font-semibold">{formatRupiah(viewHeader?.gtotal_beli)}</span>
                                             </div>
                                             <div className="flex items-center justify-between text-sm">
                                                 <span className="text-muted-foreground">Grand Total</span>
                                                 <span className="text-lg font-bold">
-                                                    {formatRupiah(toNumber(viewHeader?.biaya_kirim) + toNumber(viewHeader?.total_beli))}
+                                                    {formatRupiah(toNumber(viewHeader?.gtotal_beli))}
                                                 </span>
                                             </div>
                                             <div className="flex items-center justify-between text-sm">
                                                 <span className="text-muted-foreground">Pembayaran</span>
-                                                <span className="font-semibold">{formatRupiah(viewHeader?.pembayaran)}</span>
+                                                <span className="font-semibold">{formatRupiah(viewHeader?.jumlah_bayar)}</span>
                                             </div>
                                             <div className="flex items-center justify-between text-sm">
                                                 <span className="text-muted-foreground">Sisa Bayar</span>
@@ -736,7 +750,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                             size="sm"
                                             onClick={() => setActiveDetailTab('po')}
                                         >
-                                            Detail PO
+                                            Detail DO
                                         </Button>
                                         <Button
                                             variant={activeDetailTab === 'material' ? 'default' : 'outline'}
@@ -750,10 +764,10 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                     {activeDetailTab === 'po' ? (
                                         <div className="rounded-xl border bg-card">
                                             <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
-                                                <div className="font-semibold">Detail PO</div>
+                                                <div className="font-semibold">Detail DO</div>
                                                 <div className="flex flex-wrap gap-2">
                                                     <Input
-                                                        placeholder="Cari No PO, Customer, Vendor..."
+                                                        placeholder="Cari No DO, Customer..."
                                                         value={detailSearch}
                                                         onChange={(e) => setDetailSearch(e.target.value)}
                                                         className="w-full sm:w-64"
@@ -788,15 +802,13 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                     <TableHeader>
                                                         <TableRow>
                                                             <TableHead className="w-[60px]">No</TableHead>
-                                                            <TableHead>No PO</TableHead>
-                                                            <TableHead>Date PO</TableHead>
-                                                            <TableHead>Customer</TableHead>
-                                                            <TableHead>Vendor</TableHead>
-                                                            <TableHead>Franco/Loco</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {viewLoading ? (
+                                                        <TableHead>No DO</TableHead>
+                                                        <TableHead>Date DO</TableHead>
+                                                        <TableHead>Customer</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {viewLoading ? (
                                                             <TableRow>
                                                                 <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
                                                                     Memuat data...
@@ -811,10 +823,10 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                         ) : (
                                                             displayedDetailRows.map((row, idx) => (
                                                                 <TableRow
-                                                                    key={`${row.no_po}-${idx}`}
+                                                                    key={`${row.no_do}-${idx}`}
                                                                     role="button"
                                                                     tabIndex={0}
-                                                                    className={`cursor-pointer transition hover:bg-muted/40 focus:bg-muted/40 focus:outline-none ${selectedDetail?.no_po === row.no_po ? 'bg-muted/30' : ''}`}
+                                                                    className={`cursor-pointer transition hover:bg-muted/40 focus:bg-muted/40 focus:outline-none ${selectedDetail?.no_do === row.no_do ? 'bg-muted/30' : ''}`}
                                                                     onClick={() => handleSelectDetail(row)}
                                                                     onKeyDown={(e) => {
                                                                         if (e.key === 'Enter' || e.key === ' ') {
@@ -824,17 +836,15 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                                     }}
                                                                 >
                                                                     <TableCell>{idx + 1 + (detailPageSize === Infinity ? 0 : (detailCurrentPage - 1) * detailPageSize)}</TableCell>
-                                                                    <TableCell>{renderValue(row.no_po)}</TableCell>
-                                                                    <TableCell>{formatDate(row.tgl_po)}</TableCell>
+                                                                    <TableCell>{renderValue(row.no_do)}</TableCell>
+                                                                    <TableCell>{formatDate(row.tgl_do)}</TableCell>
                                                                     <TableCell>{renderValue(row.customer)}</TableCell>
-                                                                    <TableCell>{renderValue(row.vendor)}</TableCell>
-                                                                    <TableCell>{renderValue(row.franco)}</TableCell>
                                                                 </TableRow>
                                                             ))
                                                         )}
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
+                                            </TableBody>
+                                        </Table>
+                                        </div>
                                             <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm">
                                                 <div className="text-muted-foreground">Total data: {filteredDetailRows.length}</div>
                                                 <div className="flex items-center gap-2">
@@ -906,14 +916,14 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                             <TableHead className="w-[120px]">Satuan</TableHead>
                                                             <TableHead className="w-[140px]">Buy Price</TableHead>
                                                             <TableHead className="w-[140px]">Sell Price</TableHead>
-                                                            <TableHead className="w-[120px]">Margin</TableHead>
+                                                            <TableHead className="w-[140px]">Gross Margin</TableHead>
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
                                                         {!selectedDetail ? (
                                                             <TableRow>
                                                                 <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
-                                                                    Pilih salah satu data PO untuk melihat material.
+                                                                    Pilih salah satu data DO untuk melihat material.
                                                                 </TableCell>
                                                             </TableRow>
                                                         ) : displayedMaterialRows.length === 0 ? (
@@ -924,14 +934,14 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                             </TableRow>
                                                         ) : (
                                                             displayedMaterialRows.map((row, idx) => (
-                                                                <TableRow key={`${row.material}-${idx}`}>
+                                                                <TableRow key={`${row.mat}-${idx}`}>
                                                                     <TableCell>{idx + 1 + (materialPageSize === Infinity ? 0 : (materialCurrentPage - 1) * materialPageSize)}</TableCell>
-                                                                    <TableCell>{renderValue(row.material)}</TableCell>
+                                                                    <TableCell>{renderValue(row.mat)}</TableCell>
                                                                     <TableCell>{renderValue(row.qty)}</TableCell>
                                                             <TableCell>{renderValue(row.unit)}</TableCell>
-                                                                    <TableCell>{formatRupiah(row.harga_modal)}</TableCell>
+                                                                    <TableCell>{formatRupiah(row.harga_beli)}</TableCell>
                                                                     <TableCell>{formatRupiah(row.harga_jual)}</TableCell>
-                                                                    <TableCell>{renderValue(row.margin)}</TableCell>
+                                                                    <TableCell>{renderValue(row.margin_sbkj)}</TableCell>
                                                                 </TableRow>
                                                             ))
                                                         )}
@@ -940,6 +950,16 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                             </div>
                                             <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm">
                                                 <div className="text-muted-foreground">Total data: {filteredMaterialRows.length}</div>
+                                                <div className="flex flex-wrap items-center gap-4 text-sm">
+                                                    <div>
+                                                        <span className="text-muted-foreground">Grand Total Buy:</span>{' '}
+                                                        <span className="font-medium">{formatRupiah(grandTotalBuy)}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-muted-foreground">Grand Total Sell:</span>{' '}
+                                                        <span className="font-medium">{formatRupiah(grandTotalSell)}</span>
+                                                    </div>
+                                                </div>
                                                 <div className="flex items-center gap-2">
                                                     <Button
                                                         variant="outline"
