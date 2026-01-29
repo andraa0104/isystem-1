@@ -9,6 +9,8 @@ use App\Http\Controllers\Marketing\DeliveryOrderAddController;
 use App\Http\Controllers\Marketing\DeliveryOrderCostController;
 use App\Http\Controllers\Marketing\BiayaKirimPembelianController;
 use App\Http\Controllers\Marketing\BiayaKirimPenjualanController;
+use App\Http\Controllers\Inventory\DataMaterialController;
+use App\Http\Controllers\Inventory\PenerimaanMaterialController;
 use App\Http\Controllers\Marketing\InvoiceMasukController;
 use App\Http\Controllers\Marketing\FakturPenjualanController;
 use App\Http\Controllers\Marketing\KwitansiPenjualanController;
@@ -385,18 +387,38 @@ Route::get('penjualan/biaya-kirim-penjualan/do-materials', [BiayaKirimPenjualanC
     ->name('penjualan.biaya-kirim-penjualan.do-materials');
 Route::get('penjualan/biaya-kirim-penjualan/dot-materials', [BiayaKirimPenjualanController::class, 'dotMaterials'])
     ->name('penjualan.biaya-kirim-penjualan.dot-materials');
+Route::get('penjualan/biaya-kirim-penjualan/biaya-kirim', [BiayaKirimPenjualanController::class, 'biayaKirim'])
+    ->name('penjualan.biaya-kirim-penjualan.biaya-kirim');
 Route::get('penjualan/biaya-kirim-penjualan/data', [BiayaKirimPenjualanController::class, 'data'])
     ->name('penjualan.biaya-kirim-penjualan.data');
 Route::post('penjualan/biaya-kirim-penjualan', [BiayaKirimPenjualanController::class, 'store'])
     ->name('penjualan.biaya-kirim-penjualan.store');
+Route::get('penjualan/biaya-kirim-penjualan/{noBkj}/edit', [BiayaKirimPenjualanController::class, 'edit'])
+    ->name('penjualan.biaya-kirim-penjualan.edit');
+Route::put('penjualan/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'update'])
+    ->name('penjualan.biaya-kirim-penjualan.update');
 Route::get('penjualan/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'show'])
     ->name('penjualan.biaya-kirim-penjualan.show');
 Route::get('penjualan/biaya-kirim-penjualan/{noBkj}/details', [BiayaKirimPenjualanController::class, 'detailList'])
     ->name('penjualan.biaya-kirim-penjualan.details');
 Route::get('penjualan/biaya-kirim-penjualan/{noBkj}/materials', [BiayaKirimPenjualanController::class, 'materialList'])
     ->name('penjualan.biaya-kirim-penjualan.materials');
+Route::get('penjualan/biaya-kirim-penjualan/{noBkj}/dot-materials', [BiayaKirimPenjualanController::class, 'dotMaterialList'])
+    ->name('penjualan.biaya-kirim-penjualan.dot-materials');
 Route::delete('penjualan/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'destroy'])
     ->name('penjualan.biaya-kirim-penjualan.destroy');
+
+Route::get('inventory/data-material', [DataMaterialController::class, 'index'])
+    ->name('inventory.data-material.index');
+Route::get('inventory/data-material/rows', [DataMaterialController::class, 'sectionRows'])
+    ->name('inventory.data-material.rows');
+
+Route::get('inventory/penerimaan-material', [PenerimaanMaterialController::class, 'index'])
+    ->name('inventory.penerimaan-material.index');
+Route::get('inventory/penerimaan-material/po-list', [PenerimaanMaterialController::class, 'poList'])
+    ->name('inventory.penerimaan-material.po-list');
+Route::get('inventory/penerimaan-material/po-materials', [PenerimaanMaterialController::class, 'poMaterials'])
+    ->name('inventory.penerimaan-material.po-materials');
 Route::get('penjualan/faktur-penjualan/data', [FakturPenjualanController::class, 'listInvoices'])
     ->name('penjualan.faktur-penjualan.data');
 Route::get('penjualan/faktur-penjualan/kwitansi', [KwitansiPenjualanController::class, 'index'])

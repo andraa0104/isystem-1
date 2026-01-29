@@ -1,0 +1,708 @@
+import AppLayout from '@/layouts/app-layout';
+import { Head } from '@inertiajs/react';
+import { useEffect, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Loader2, Search, Trash2 } from 'lucide-react';
+
+const breadcrumbs = [
+    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'Inventory', href: '/inventory/penerimaan-material' },
+    { title: 'Penerimaan Material', href: '/inventory/penerimaan-material' },
+];
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+const formatNumber = (value) => {
+    if (value === null || value === undefined || value === '') return '';
+    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        Number(value),
+    );
+};
+
+export default function PenerimaanMaterialIndex() {
+    const [mode, setMode] = useState(''); // mi | mis | mib
+
+    const [headerByMode, setHeaderByMode] = useState(() => ({
+        mi: { docDate: todayISO(), noPo: '', refPr: '', vendorName: '' },
+        mis: { docDate: todayISO(), noPo: '', refPr: '', vendorName: '' },
+        mib: { docDate: todayISO(), noPo: '', refPr: '', vendorName: '' },
+    }));
+
+    // Modal PO list (lazy)
+    const [poModalOpen, setPoModalOpen] = useState(false);
+    const [poLoading, setPoLoading] = useState(false);
+    const [poRows, setPoRows] = useState([]);
+    const [poTotal, setPoTotal] = useState(0);
+    const [poSearch, setPoSearch] = useState('');
+    const [poDebouncedSearch, setPoDebouncedSearch] = useState('');
+    const [poPageSize, setPoPageSize] = useState(5);
+    const [poPage, setPoPage] = useState(1);
+
+    // Materials in selected PO (per mode)
+    const [poMaterialsByMode, setPoMaterialsByMode] = useState(() => ({
+        mi: { loading: false, rows: [] },
+        mis: { loading: false, rows: [] },
+        mib: { loading: false, rows: [] },
+    }));
+
+    // Selected material fields (per mode)
+    const [materialByMode, setMaterialByMode] = useState(() => ({
+        mi: {
+            kdMat: '',
+            material: '',
+            qtyInPo: '',
+            qty: '',
+            unit: '',
+            price: '',
+            totalPriceInPo: '',
+            totalPrice: '',
+            lastStock: '',
+            stockNow: '',
+        },
+        mis: {
+            kdMat: '',
+            material: '',
+            qtyInPo: '',
+            qty: '',
+            unit: '',
+            price: '',
+            totalPriceInPo: '',
+            totalPrice: '',
+            lastStock: '',
+            stockNow: '',
+        },
+        mib: {
+            kdMat: '',
+            material: '',
+            qtyInPo: '',
+            qty: '',
+            unit: '',
+            price: '',
+            totalPriceInPo: '',
+            totalPrice: '',
+            lastStock: '',
+            stockNow: '',
+        },
+    }));
+
+    // Table Data Material (per mode)
+    const [rowsByMode, setRowsByMode] = useState(() => ({
+        mi: [],
+        mis: [],
+        mib: [],
+    }));
+
+    // Debounce PO search
+    useEffect(() => {
+        const handler = setTimeout(() => setPoDebouncedSearch(poSearch), 400);
+        return () => clearTimeout(handler);
+    }, [poSearch]);
+
+    // Reset pagination when filters change
+    useEffect(() => {
+        setPoPage(1);
+    }, [poDebouncedSearch, poPageSize]);
+
+    // Load PO list when modal opens / filter changes (lazy)
+    useEffect(() => {
+        if (!poModalOpen) return;
+        let cancelled = false;
+        const load = async () => {
+            setPoLoading(true);
+            try {
+                const params = new URLSearchParams();
+                params.set('search', poDebouncedSearch);
+                params.set('page', String(poPage));
+                params.set('pageSize', poPageSize === 'all' ? 'all' : String(poPageSize));
+                const res = await fetch(
+                    `/inventory/penerimaan-material/po-list?${params.toString()}`,
+                    { headers: { Accept: 'application/json' } },
+                );
+                const data = await res.json();
+                if (cancelled) return;
+                setPoRows(Array.isArray(data?.rows) ? data.rows : []);
+                setPoTotal(Number(data?.total ?? 0));
+            } catch {
+                if (cancelled) return;
+                setPoRows([]);
+                setPoTotal(0);
+            } finally {
+                if (!cancelled) setPoLoading(false);
+            }
+        };
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, [poModalOpen, poDebouncedSearch, poPageSize, poPage]);
+
+    // Load materials for selected PO
+    useEffect(() => {
+        if (!mode) return;
+        const currentNoPo = headerByMode?.[mode]?.noPo ?? '';
+        if (!currentNoPo) {
+            setPoMaterialsByMode((prev) => ({
+                ...prev,
+                [mode]: { ...prev[mode], rows: [] },
+            }));
+            return;
+        }
+        let cancelled = false;
+        const load = async () => {
+            setPoMaterialsByMode((prev) => ({
+                ...prev,
+                [mode]: { ...prev[mode], loading: true },
+            }));
+            try {
+                const params = new URLSearchParams({ no_po: currentNoPo });
+                const res = await fetch(
+                    `/inventory/penerimaan-material/po-materials?${params.toString()}`,
+                    { headers: { Accept: 'application/json' } },
+                );
+                const data = await res.json();
+                if (cancelled) return;
+                setPoMaterialsByMode((prev) => ({
+                    ...prev,
+                    [mode]: {
+                        ...prev[mode],
+                        rows: Array.isArray(data?.rows) ? data.rows : [],
+                    },
+                }));
+            } catch {
+                if (cancelled) return;
+                setPoMaterialsByMode((prev) => ({
+                    ...prev,
+                    [mode]: { ...prev[mode], rows: [] },
+                }));
+            } finally {
+                if (!cancelled) {
+                    setPoMaterialsByMode((prev) => ({
+                        ...prev,
+                        [mode]: { ...prev[mode], loading: false },
+                    }));
+                }
+            }
+        };
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, [mode, headerByMode]);
+
+    const poTotalPages = useMemo(() => {
+        if (poPageSize === 'all') return 1;
+        const size = Number(poPageSize) || 5;
+        return Math.max(1, Math.ceil(poTotal / size));
+    }, [poPageSize, poTotal]);
+
+    const computed = useMemo(() => {
+        if (!mode) {
+            return { totalInPo: 0, total: 0, stockNow: 0 };
+        }
+        const m = materialByMode?.[mode] ?? {};
+        const qtyInPoNum = Number(m.qtyInPo) || 0;
+        const qtyNum = Number(m.qty) || 0;
+        const priceNum = Number(m.price) || 0;
+        const lastStockNum = Number(m.lastStock) || 0;
+        return {
+            totalInPo: qtyInPoNum * priceNum,
+            total: qtyNum * priceNum,
+            stockNow: lastStockNum + qtyNum,
+        };
+    }, [mode, materialByMode]);
+
+    useEffect(() => {
+        if (!mode) return;
+        setMaterialByMode((prev) => ({
+            ...prev,
+            [mode]: {
+                ...prev[mode],
+                totalPriceInPo: computed.totalInPo ? String(computed.totalInPo) : '',
+                totalPrice: computed.total ? String(computed.total) : '',
+                stockNow: String(computed.stockNow || ''),
+            },
+        }));
+    }, [computed.totalInPo, computed.total, computed.stockNow]);
+
+    const handlePickPo = (row) => {
+        if (!mode) return;
+        setHeaderByMode((prev) => ({
+            ...prev,
+            [mode]: {
+                ...prev[mode],
+                noPo: String(row?.no_po ?? ''),
+                refPr: String(row?.ref_pr ?? ''),
+                vendorName: String(row?.nm_vdr ?? ''),
+            },
+        }));
+        setPoModalOpen(false);
+    };
+
+    const handlePickMaterial = (row) => {
+        if (!mode) return;
+        setMaterialByMode((prev) => ({
+            ...prev,
+            [mode]: {
+                ...prev[mode],
+                kdMat: String(row?.kd_mat ?? ''),
+                material: String(row?.material ?? ''),
+                qtyInPo: String(row?.qty ?? ''),
+                qty: String(row?.qty ?? ''),
+                unit: String(row?.unit ?? ''),
+                price: String(row?.price ?? ''),
+                lastStock: String(row?.last_stock ?? ''),
+            },
+        }));
+    };
+
+    const handleAddMi = () => {
+        if (mode !== 'mi' && mode !== 'mis') return;
+        const m = materialByMode?.[mode] ?? {};
+        if (!m.kdMat || !m.material) return;
+        const item = {
+            kdMat: m.kdMat,
+            material: m.material,
+            qtyInPo: m.qtyInPo,
+            qty: m.qty,
+            unit: m.unit,
+            // Keep raw price string (no rounding). Used for display & persisted as-is.
+            priceRaw: m.price,
+            totalPriceInPo: m.totalPriceInPo,
+            totalPrice: m.totalPrice,
+            lastStock: m.lastStock,
+            stockNow: m.stockNow,
+        };
+        setRowsByMode((prev) => ({
+            ...prev,
+            [mode]: [...prev[mode], item],
+        }));
+
+        // Clear material input fields after add (header fields stay).
+        setMaterialByMode((prev) => ({
+            ...prev,
+            [mode]: {
+                ...prev[mode],
+                kdMat: '',
+                material: '',
+                qtyInPo: '',
+                qty: '',
+                unit: '',
+                price: '',
+                totalPriceInPo: '',
+                totalPrice: '',
+                lastStock: '',
+                stockNow: '',
+            },
+        }));
+    };
+
+    const removeMiRow = (idx) => {
+        if (!mode) return;
+        setRowsByMode((prev) => ({
+            ...prev,
+            [mode]: prev[mode].filter((_, i) => i !== idx),
+        }));
+    };
+
+    const currentHeader = mode ? headerByMode[mode] : null;
+    const currentMaterial = mode ? materialByMode[mode] : null;
+    const currentPoMaterials = mode ? poMaterialsByMode[mode] : { loading: false, rows: [] };
+    const currentRows = mode ? rowsByMode[mode] : [];
+    const modeLabel = mode === 'mis' ? 'MIS' : mode === 'mi' ? 'MI' : mode?.toUpperCase();
+
+    return (
+        <AppLayout breadcrumbs={breadcrumbs}>
+            <Head title="Penerimaan Material" />
+            <div className="flex h-full flex-1 flex-col gap-4 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h1 className="text-xl font-semibold">Penerimaan Material</h1>
+                        <p className="text-sm text-muted-foreground">
+                            Terima material MI / MIS / MIB
+                        </p>
+                    </div>
+                    <div className="w-full sm:w-64">
+                        <Select value={mode} onValueChange={setMode}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Pilih penerimaan..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="mi">Terima Material MI</SelectItem>
+                                <SelectItem value="mis">Terima Material MIS</SelectItem>
+                                <SelectItem value="mib">Terima Material MIB</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                {(mode === 'mi' || mode === 'mis') && (
+                    <>
+                        <div className="rounded-2xl border bg-gradient-to-br from-slate-950/40 via-slate-900/20 to-slate-950/30 p-4 shadow-sm">
+                            <div className="flex flex-col gap-4">
+                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div>
+                                        <h2 className="text-base font-semibold">Input Material {modeLabel}</h2>
+                                        <p className="text-xs text-muted-foreground">
+                                            Pilih PO dulu, lalu pilih material dari tabel.
+                                        </p>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        onClick={() => setPoModalOpen(true)}
+                                        className="h-10 w-full gap-2 sm:w-auto"
+                                    >
+                                        <Search className="h-4 w-4" />
+                                        Cari PO
+                                    </Button>
+                                </div>
+
+                                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-medium text-muted-foreground">
+                                            No PO
+                                        </label>
+                                        <Input value={currentHeader?.noPo ?? ''} readOnly className="h-10" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-medium text-muted-foreground">
+                                            Ref PR
+                                        </label>
+                                        <Input value={currentHeader?.refPr ?? ''} readOnly className="h-10" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-medium text-muted-foreground">
+                                            Nama Vendor
+                                        </label>
+                                        <Input value={currentHeader?.vendorName ?? ''} readOnly className="h-10" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[11px] font-medium text-muted-foreground">
+                                            Date
+                                        </label>
+                                        <Input
+                                            type="date"
+                                            value={currentHeader?.docDate ?? todayISO()}
+                                            onChange={(e) =>
+                                                setHeaderByMode((prev) => ({
+                                                    ...prev,
+                                                    [mode]: { ...prev[mode], docDate: e.target.value },
+                                                }))
+                                            }
+                                            className="h-10"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border bg-card p-4">
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                                <h2 className="text-base font-semibold">Data Material In PO</h2>
+                                {currentPoMaterials.loading && (
+                                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+                                    </span>
+                                )}
+                            </div>
+                            <div className="overflow-x-auto rounded-xl border border-white/10">
+                                <table className="min-w-full text-sm text-left">
+                                    <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                                        <tr>
+                                            <th className="px-3 py-3">No</th>
+                                            <th className="px-3 py-3">Kode Material</th>
+                                            <th className="px-3 py-3">Material</th>
+                                            <th className="px-3 py-3">Qty</th>
+                                            <th className="px-3 py-3">Satuan</th>
+                                            <th className="px-3 py-3">Price</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(!currentHeader?.noPo || currentPoMaterials.rows.length === 0) && (
+                                            <tr>
+                                                <td
+                                                    colSpan={6}
+                                                    className="px-3 py-4 text-center text-muted-foreground"
+                                                >
+                                                    {!currentHeader?.noPo ? 'Pilih PO terlebih dahulu.' : 'Tidak ada data.'}
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {currentPoMaterials.rows.map((row, idx) => (
+                                            <tr
+                                                key={`${row.kd_mat ?? idx}-${idx}`}
+                                                className="cursor-pointer border-t border-white/5 hover:bg-white/5"
+                                                onClick={() => handlePickMaterial(row)}
+                                            >
+                                                <td className="px-3 py-2">{idx + 1}</td>
+                                                <td className="px-3 py-2">{row.kd_mat}</td>
+                                                <td className="px-3 py-2">{row.material}</td>
+                                                <td className="px-3 py-2">{formatNumber(row.qty)}</td>
+                                                <td className="px-3 py-2">{row.unit}</td>
+                                                <td className="px-3 py-2">{formatNumber(row.price)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border bg-card p-4">
+                            <div className="mb-3 flex items-center justify-between">
+                                <h2 className="text-base font-semibold">Input Material {modeLabel}</h2>
+                                <Button type="button" onClick={handleAddMi}>
+                                    Tambah Data
+                                </Button>
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                <div className="space-y-1">
+                                    <label className="text-xs text-muted-foreground">Kode Material</label>
+                                    <Input value={currentMaterial?.kdMat ?? ''} readOnly />
+                                </div>
+                                <div className="space-y-1 lg:col-span-2">
+                                    <label className="text-xs text-muted-foreground">Material</label>
+                                    <Input value={currentMaterial?.material ?? ''} readOnly />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs text-muted-foreground">Qty In PO</label>
+                                    <Input value={currentMaterial?.qtyInPo ?? ''} readOnly />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs text-muted-foreground">Qty</label>
+                                    <Input
+                                        value={currentMaterial?.qty ?? ''}
+                                        onChange={(e) =>
+                                            setMaterialByMode((prev) => ({
+                                                ...prev,
+                                                [mode]: { ...prev[mode], qty: e.target.value },
+                                            }))
+                                        }
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs text-muted-foreground">Satuan</label>
+                                    <Input value={currentMaterial?.unit ?? ''} readOnly />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs text-muted-foreground">Price</label>
+                                    <Input value={currentMaterial?.price ?? ''} readOnly />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs text-muted-foreground">Total Price In PO</label>
+                                    <Input value={formatNumber(currentMaterial?.totalPriceInPo)} readOnly />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs text-muted-foreground">Total Price</label>
+                                    <Input value={formatNumber(currentMaterial?.totalPrice)} readOnly />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs text-muted-foreground">Last Stock</label>
+                                    <Input value={formatNumber(currentMaterial?.lastStock)} readOnly />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs text-muted-foreground">Stock Now</label>
+                                    <Input value={formatNumber(currentMaterial?.stockNow)} readOnly />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border bg-card p-4">
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                                <h2 className="text-base font-semibold">Data Material {modeLabel}</h2>
+                                <Button type="button">Simpan Data {modeLabel}</Button>
+                            </div>
+                            <div className="overflow-x-auto rounded-xl border border-white/10">
+                                <table className="min-w-full text-sm text-left">
+                                    <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                                        <tr>
+                                            <th className="px-3 py-3">No</th>
+                                            <th className="px-3 py-3">Kode Material</th>
+                                            <th className="px-3 py-3">Material</th>
+                                            <th className="px-3 py-3">Qty In PO</th>
+                                            <th className="px-3 py-3">Qty</th>
+                                            <th className="px-3 py-3">Satuan</th>
+                                            <th className="px-3 py-3">Price</th>
+                                            <th className="px-3 py-3">Total Price In PO</th>
+                                            <th className="px-3 py-3">Total Price</th>
+                                            <th className="px-3 py-3">Last Stock</th>
+                                            <th className="px-3 py-3">Stock Now</th>
+                                            <th className="px-3 py-3">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {currentRows.length === 0 && (
+                                            <tr>
+                                                <td
+                                                    colSpan={12}
+                                                    className="px-3 py-4 text-center text-muted-foreground"
+                                                >
+                                                    Belum ada data.
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {currentRows.map((r, idx) => (
+                                            <tr
+                                                key={`${r.kdMat}-${idx}`}
+                                                className="border-t border-white/5"
+                                            >
+                                                <td className="px-3 py-2">{idx + 1}</td>
+                                                <td className="px-3 py-2">{r.kdMat}</td>
+                                                <td className="px-3 py-2">{r.material}</td>
+                                                <td className="px-3 py-2">{formatNumber(r.qtyInPo)}</td>
+                                                <td className="px-3 py-2">{formatNumber(r.qty)}</td>
+                                                <td className="px-3 py-2">{r.unit}</td>
+                                                <td className="px-3 py-2">{r.priceRaw}</td>
+                                                <td className="px-3 py-2">{formatNumber(r.totalPriceInPo)}</td>
+                                                <td className="px-3 py-2">{formatNumber(r.totalPrice)}</td>
+                                                <td className="px-3 py-2">{formatNumber(r.lastStock)}</td>
+                                                <td className="px-3 py-2">{formatNumber(r.stockNow)}</td>
+                                                <td className="px-3 py-2">
+                                                    <button
+                                                        type="button"
+                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-white/10"
+                                                        onClick={() => removeMiRow(idx)}
+                                                        aria-label="Hapus"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </>
+                )}
+
+                {!mode && (
+                    <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
+                        Pilih jenis penerimaan material dulu untuk menampilkan form.
+                    </div>
+                )}
+                {mode && mode !== 'mi' && mode !== 'mis' && (
+                    <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
+                        Form untuk {mode.toUpperCase()} belum dibuat.
+                    </div>
+                )}
+
+                <Dialog open={poModalOpen} onOpenChange={setPoModalOpen}>
+                    <DialogContent className="flex h-[100dvh] w-[100dvw] max-w-none flex-col overflow-hidden rounded-none p-0 sm:h-[85vh] sm:w-[95vw] sm:max-w-5xl sm:rounded-xl">
+                        <DialogHeader className="shrink-0 border-b px-4 py-3">
+                            <DialogTitle>Cari PO</DialogTitle>
+                        </DialogHeader>
+                        <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <Input
+                                    value={poSearch}
+                                    onChange={(e) => setPoSearch(e.target.value)}
+                                    placeholder="Cari No PO, Ref PR, Nama Vendor..."
+                                    className="sm:max-w-md"
+                                />
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm text-muted-foreground">Tampil</span>
+                                    <Select
+                                        value={String(poPageSize)}
+                                        onValueChange={(val) =>
+                                            setPoPageSize(val === 'all' ? 'all' : Number(val))
+                                        }
+                                    >
+                                        <SelectTrigger className="w-24">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="5">5</SelectItem>
+                                            <SelectItem value="10">10</SelectItem>
+                                            <SelectItem value="25">25</SelectItem>
+                                            <SelectItem value="50">50</SelectItem>
+                                            <SelectItem value="all">Semua</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+
+                            <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-white/10">
+                                {poLoading && (
+                                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
+                                        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
+                                            <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="h-full overflow-auto overscroll-contain">
+                                    <table className="min-w-full text-sm text-left">
+                                        <thead className="sticky top-0 bg-black/70 backdrop-blur text-muted-foreground uppercase text-[11px] tracking-wide">
+                                            <tr>
+                                                <th className="px-3 py-3">No PO</th>
+                                                <th className="px-3 py-3">Ref PR</th>
+                                                <th className="px-3 py-3">Nama Vendor</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {poRows.length === 0 && !poLoading && (
+                                                <tr>
+                                                    <td colSpan={3} className="px-3 py-4 text-center text-muted-foreground">
+                                                        Tidak ada data.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            {poRows.map((row, idx) => (
+                                                <tr
+                                                    key={`${row.no_po ?? idx}-${idx}`}
+                                                    className="cursor-pointer border-t border-white/5 hover:bg-white/5"
+                                                    onClick={() => handlePickPo(row)}
+                                                >
+                                                    <td className="px-3 py-2">{row.no_po}</td>
+                                                    <td className="px-3 py-2">{row.ref_pr}</td>
+                                                    <td className="px-3 py-2">{row.nm_vdr}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <div className="shrink-0 flex flex-col items-start justify-between gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center">
+                                <span>Total data: {formatNumber(poTotal)}</span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={poPage === 1 || poLoading}
+                                        onClick={() => setPoPage((p) => Math.max(1, p - 1))}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span>
+                                        Halaman {poPage} / {poTotalPages}
+                                    </span>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={poPage >= poTotalPages || poLoading}
+                                        onClick={() => setPoPage((p) => Math.min(poTotalPages, p + 1))}
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
+        </AppLayout>
+    );
+}

@@ -57,8 +57,8 @@ export const menuSections = [
         title: 'Inventory',
         icon: Package,
         items: [
-            { title: 'Data Material', href: '#' },
-            { title: 'Penerimaan Material', href: '#' },
+            { title: 'Data Material', href: '/inventory/data-material' },
+            { title: 'Penerimaan Material', href: '/inventory/penerimaan-material' },
             { title: 'Transfer Material', href: '#' },
         ],
     },

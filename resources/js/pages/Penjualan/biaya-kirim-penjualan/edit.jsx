@@ -44,9 +44,9 @@ const formatDate = (value) => {
     }).format(date);
 };
 
-export default function BiayaKirimPembelianCreate() {
+export default function BiayaKirimPenjualanEdit({ header = null, details = [], noBkj = '' }) {
     const today = new Date().toISOString().slice(0, 10);
-    const [currentStep, setCurrentStep] = useState(1);
+    const [currentStep] = useState(2);
     const [poModalOpen, setPoModalOpen] = useState(false);
     const [poRows, setPoRows] = useState([]);
     const [poTotal, setPoTotal] = useState(0);
@@ -105,6 +105,35 @@ export default function BiayaKirimPembelianCreate() {
     const [noInvoice, setNoInvoice] = useState('');
     const [namaEkspedisi, setNamaEkspedisi] = useState('');
     const [biayaKirim, setBiayaKirim] = useState('');
+
+    useEffect(() => {
+        if (!header) return;
+        setDocDate(header.tgl_inv ?? today);
+        setNoInvoice(header.no_inv ?? '');
+        setNamaEkspedisi(header.nama_vendor ?? header.nma_vendor ?? '');
+        setBiayaKirim(header.jumlah_bayar ?? header.jumlah_inv ?? header.jumlah_beban ?? '');
+    }, [header, today]);
+
+    useEffect(() => {
+        if (!Array.isArray(details)) return;
+        const mapped = details.map((row) => ({
+            no_po: row.no_do ?? '',
+            date: row.tgl_do ?? '',
+            ref_po_in: row.po_cust ?? '',
+            customer: row.customer ?? '',
+            kd_mat: row.code_mat ?? row.kd_mat ?? '',
+            material: row.material ?? '',
+            qty: row.qty ?? '',
+            unit: row.unit ?? '',
+            price: row.harga_beli ?? '',
+            total_price: row.total_beli ?? '',
+            biaya_kirim: row.biaya_beli ?? '',
+            price_sell: row.harga_jual ?? '',
+            total_price_sell: row.total_jual ?? '',
+            margin: row.margin_sbkj ?? '',
+        }));
+        setBkpRows(mapped);
+    }, [details]);
 
     const fetchPoRows = async () => {
         setPoLoading(true);
@@ -279,10 +308,10 @@ export default function BiayaKirimPembelianCreate() {
             const biayaData = await biayaRes.json();
             const biayaKirimValue = toNumber(biayaData?.biaya_kirim);
             const margin = totalBuy === 0 ? 0 : ((totalSell - totalBuy - biayaKirimValue) / totalBuy) * 100;
-            setFieldPriceSell(data?.price_po ?? 0);
+            setFieldPriceSell(data?.price_po ?? '');
             setFieldTotalPriceSell(totalSell);
             setFieldMargin(margin.toFixed(2));
-            setFieldBiayaKirim(biayaData?.biaya_kirim ?? 0);
+            setFieldBiayaKirim(biayaData?.biaya_kirim ?? '');
         }
     };
 
@@ -298,10 +327,10 @@ export default function BiayaKirimPembelianCreate() {
         setFieldAddUnit(row.unit ?? '');
         setFieldAddPrice(row.harga ?? row.price ?? '');
         setFieldAddTotalPrice(row.total ?? row.total_price ?? '');
-        setFieldAddPriceSell(0);
+        setFieldAddPriceSell('');
         setFieldAddTotalPriceSell('');
         setFieldAddMargin('');
-        setFieldAddBiayaKirim(0);
+        setFieldAddBiayaKirim('');
 
         const refPo = fieldAddRefDo || fieldNoPo;
         if (refPo) {
@@ -311,10 +340,10 @@ export default function BiayaKirimPembelianCreate() {
             )
                 .then((res) => res.json())
                 .then((data) => {
-                    setFieldAddBiayaKirim(data?.biaya_kirim ?? 0);
+                    setFieldAddBiayaKirim(data?.biaya_kirim ?? '');
                 })
                 .catch(() => {
-                    setFieldAddBiayaKirim(0);
+                    setFieldAddBiayaKirim('');
                 });
         }
     };
@@ -460,8 +489,8 @@ export default function BiayaKirimPembelianCreate() {
     };
 
     const handleSave = () => {
-        router.post(
-            '/penjualan/biaya-kirim-penjualan',
+        router.put(
+            `/penjualan/biaya-kirim-penjualan/${noBkj}`,
             {
                 doc_date: docDate,
                 no_invoice: noInvoice,
@@ -470,7 +499,7 @@ export default function BiayaKirimPembelianCreate() {
                 total_cost: totalModal,
                 total_sales: totalSales,
                 shipping_sales_percent: shippingSalesPercent,
-                margin_final: finalMarginPercent,
+                final_margin: finalMarginPercent,
                 total_dot: totalDot,
                 rows: bkpRows,
                 rows_add: doAddRowsTable,
@@ -481,7 +510,7 @@ export default function BiayaKirimPembelianCreate() {
                         toast: true,
                         position: 'top-end',
                         icon: 'error',
-                        title: 'Gagal menyimpan data.',
+                        title: 'Gagal memperbarui data.',
                         showConfirmButton: false,
                         timer: 2500,
                         timerProgressBar: true,
@@ -492,25 +521,9 @@ export default function BiayaKirimPembelianCreate() {
     };
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Penjualan', href: '/penjualan/biaya-kirim-penjualan' }, { title: 'Create', href: '/penjualan/biaya-kirim-penjualan/create' }]}>
-            <Head title="Create Biaya Kirim Penjualan" />
+        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Penjualan', href: '/penjualan/biaya-kirim-penjualan' }, { title: 'Edit', href: '/penjualan/biaya-kirim-penjualan' }]}>
+            <Head title="Edit Biaya Kirim Penjualan" />
             <div className="flex flex-col gap-4 p-4">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                    <Button
-                        variant={currentStep === 1 ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setCurrentStep(1)}
-                    >
-                        DATA DO
-                    </Button>
-                    <Button
-                        variant={currentStep === 2 ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setCurrentStep(2)}
-                    >
-                        DATA EKSPEDISI
-                    </Button>
-                </div>
 
                 {currentStep === 1 && (
                     <>
@@ -930,11 +943,7 @@ export default function BiayaKirimPembelianCreate() {
                         </div>
                     </CardContent>
                 </Card>
-                        <div className="flex justify-end">
-                            <Button variant="default" onClick={() => setCurrentStep(2)}>
-                                Lanjut
-                            </Button>
-                        </div>
+                        <div className="flex justify-end" />
                     </>
                 )}
 
@@ -1067,83 +1076,7 @@ export default function BiayaKirimPembelianCreate() {
                             </CardContent>
                         </Card>
 
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Data Biaya Kirim Penjualan DO Add</CardTitle>
-                            </CardHeader>
-                            <CardContent className="w-full overflow-x-auto">
-                                <Table className="min-w-[900px]">
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="w-[60px]">No</TableHead>
-                                            <TableHead>No DOT</TableHead>
-                                            <TableHead>No DO</TableHead>
-                                            <TableHead>Kode Material</TableHead>
-                                            <TableHead>Material</TableHead>
-                                            <TableHead>Qty</TableHead>
-                                            <TableHead>Satuan</TableHead>
-                                            <TableHead>Price</TableHead>
-                                            <TableHead>Total Price</TableHead>
-                                            <TableHead>Biaya Kirim</TableHead>
-                                            <TableHead>Sell Price</TableHead>
-                                            <TableHead>Total Sell Price</TableHead>
-                                            <TableHead>Margin</TableHead>
-                                            <TableHead className="w-[90px] text-center">Aksi</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {doAddRowsTable.length === 0 ? (
-                                            <TableRow>
-                                                <TableCell colSpan={14} className="text-center text-sm text-muted-foreground">
-                                                    Belum ada data.
-                                                </TableCell>
-                                            </TableRow>
-                                        ) : (
-                                            doAddRowsTable.map((row, idx) => (
-                                                <TableRow key={`${row.no_dot || row.no_do}-${row.kd_mat || idx}-add-${idx}`}>
-                                                    <TableCell>{idx + 1}</TableCell>
-                                                    <TableCell>{renderValue(row.no_dot)}</TableCell>
-                                                    <TableCell>{renderValue(row.no_do)}</TableCell>
-                                                    <TableCell>{renderValue(row.kd_mat)}</TableCell>
-                                                    <TableCell>{renderValue(row.material)}</TableCell>
-                                                    <TableCell>{renderValue(row.qty)}</TableCell>
-                                                    <TableCell>{renderValue(row.unit)}</TableCell>
-                                                    <TableCell>{formatRupiah(row.price)} ({formatRaw(row.price)})</TableCell>
-                                                    <TableCell>{formatRupiah(row.total_price)} ({formatRaw(row.total_price)})</TableCell>
-                                                    <TableCell>{formatRupiah(row.biaya_kirim)} ({formatRaw(row.biaya_kirim)})</TableCell>
-                                                    <TableCell>{formatRupiah(row.price_sell)} ({formatRaw(row.price_sell)})</TableCell>
-                                                    <TableCell>{formatRupiah(row.total_price_sell)} ({formatRaw(row.total_price_sell)})</TableCell>
-                                                    <TableCell>
-                                                        {(() => {
-                                                            const totalSell = toNumber(row.total_price_sell);
-                                                            const totalBuy = toNumber(row.total_price);
-                                                            const biaya = toNumber(row.biaya_kirim);
-                                                            const margin = totalBuy === 0 ? 0 : ((totalSell - totalBuy - biaya) / totalBuy) * 100;
-                                                            return `${margin.toFixed(2)}%`;
-                                                        })()}
-                                                    </TableCell>
-                                                    <TableCell className="text-center">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => handleRemoveDoAddRow(idx)}
-                                                            className="text-destructive hover:text-destructive"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <Button variant="outline" onClick={() => setCurrentStep(1)}>
-                                Kembali
-                            </Button>
+                        <div className="flex flex-wrap items-center justify-end gap-3">
                             <Button variant="default" onClick={handleSave}>Simpan Data</Button>
                         </div>
                     </>

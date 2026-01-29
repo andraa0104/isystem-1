@@ -33,6 +33,97 @@ class BiayaKirimPenjualanController
         ]);
     }
 
+
+    public function edit(string $noBkj)
+    {
+        $header = null;
+        $details = [];
+
+        if (Schema::hasTable('tb_biayakirimjual')) {
+            $header = DB::table('tb_biayakirimjual')->where('no_bkj', $noBkj)->first();
+        }
+
+        if (Schema::hasTable('tb_biayakirimjualdetail')) {
+            $details = DB::table('tb_biayakirimjualdetail')
+                ->where('no_bkj', $noBkj)
+                ->get();
+        }
+
+        return Inertia::render('Penjualan/biaya-kirim-penjualan/edit', [
+            'noBkj' => $noBkj,
+            'header' => $header,
+            'details' => $details,
+            'poRows' => [],
+        ]);
+    }
+
+    public function update(Request $request, string $noBkj)
+    {
+        $headerTable = 'tb_biayakirimjual';
+        $detailTable = 'tb_biayakirimjualdetail';
+
+        if (!Schema::hasTable($headerTable)) {
+            return back()->with('error', 'Data BKJ tidak ditemukan.');
+        }
+
+        $docDateInput = $request->input('doc_date');
+        $tglInv = $docDateInput;
+        try {
+            $tglInv = $docDateInput
+                ? Carbon::parse($docDateInput)->format('Y-m-d')
+                : $docDateInput;
+        } catch (\Throwable $e) {
+            $tglInv = $docDateInput;
+        }
+
+        $noInvoice = trim((string) $request->input('no_invoice', ''));
+        $namaEkspedisi = trim((string) $request->input('nama_ekspedisi', ''));
+        $biayaKirim = (float) $request->input('biaya_kirim', 0);
+        $finalMargin = number_format((float) $request->input('final_margin', 0), 2, '.', '').'%';
+        $totalCost = (float) $request->input('total_cost', 0);
+        $totalBeliBiayaJual = $totalCost + $biayaKirim;
+
+        DB::transaction(function () use (
+            $headerTable,
+            $detailTable,
+            $noBkj,
+            $tglInv,
+            $noInvoice,
+            $namaEkspedisi,
+            $biayaKirim,
+            $finalMargin,
+            $totalBeliBiayaJual
+        ) {
+            $headerUpdate = [
+                'tgl_inv' => $tglInv,
+                'no_inv' => $noInvoice,
+                'nama_vendor' => $namaEkspedisi,
+                'jumlah_inv' => $biayaKirim,
+                'jumlah_beban' => $biayaKirim,
+                'sisa' => $biayaKirim,
+                'margin_sbj' => $finalMargin,
+                'totalbeli_biayajual' => $totalBeliBiayaJual,
+            ];
+
+            if (!Schema::hasColumn($headerTable, 'nama_vendor') && Schema::hasColumn($headerTable, 'nma_vendor')) {
+                unset($headerUpdate['nama_vendor']);
+                $headerUpdate['nma_vendor'] = $namaEkspedisi;
+            }
+
+            DB::table($headerTable)->where('no_bkj', $noBkj)->update($headerUpdate);
+
+            if (Schema::hasTable($detailTable) && Schema::hasColumn($detailTable, 'margin_final')) {
+                DB::table($detailTable)
+                    ->where('no_bkj', $noBkj)
+                    ->update(['margin_final' => $finalMargin]);
+            }
+        });
+
+        return redirect()
+            ->route('penjualan.biaya-kirim-penjualan.index')
+            ->with('success', 'Data biaya kirim penjualan berhasil diperbarui.');
+    }
+
     public function doList(Request $request)
     {
         if (!Schema::hasTable('tb_kddo')) {
@@ -127,6 +218,39 @@ class BiayaKirimPenjualanController
         return response()->json(['rows' => $rows]);
     }
 
+    public function biayaKirim(Request $request)
+    {
+        $refPo = $request->query('ref_po');
+        $material = $request->query('material');
+
+        if (!$refPo || !$material) {
+            return response()->json(['biaya_kirim' => null]);
+        }
+
+        $detailTable = Schema::hasTable('tb_biayakirimbelidetail') ? 'tb_biayakirimbelidetail' : null;
+        if (!$detailTable || !Schema::hasTable('tb_biayakirimbeli')) {
+            return response()->json(['biaya_kirim' => null]);
+        }
+
+        $materialNormalized = preg_replace('/\s+/', '', trim((string) $material));
+        $refPoNormalized = preg_replace('/\s+/', '', trim((string) $refPo));
+
+        $noBkp = DB::table($detailTable.' as d')
+            ->whereRaw("lower(replace(replace(replace(replace(d.material, '\\r', ''), '\\n', ''), '\\t', ''), ' ', '')) = lower(?)", [$materialNormalized])
+            ->whereRaw("lower(replace(replace(replace(replace(d.po_cust, '\\r', ''), '\\n', ''), '\\t', ''), ' ', '')) = lower(?)", [$refPoNormalized])
+            ->orderBy('d.tgl_pos', 'desc')
+            ->value('d.no_bkp');
+
+        $biayaKirim = null;
+        if ($noBkp) {
+            $biayaKirim = DB::table('tb_biayakirimbeli')
+                ->where('no_bkp', $noBkp)
+                ->value('Total_Biaya');
+        }
+
+        return response()->json(['biaya_kirim' => $biayaKirim]);
+    }
+
     public function data(Request $request)
     {
         $table = 'tb_biayakirimjual';
@@ -162,14 +286,17 @@ class BiayaKirimPenjualanController
             });
         }
 
-        if (Schema::hasColumn($table, 'jumlah_bayar') && Schema::hasColumn($table, 'sisa')) {
+        if (Schema::hasColumn($table, 'sisa') && Schema::hasColumn($table, 'jumlah_beban')) {
             switch ($status) {
                 case 'belum_dibayar':
-                    $query->whereRaw('jumlah_bayar = sisa');
+                    $query->whereRaw('sisa = jumlah_beban');
                     break;
                 case 'sisa_bayar':
                     if (Schema::hasColumn($table, 'sisa')) {
                         $query->where('sisa', '>', 0);
+                        if (Schema::hasColumn($table, 'jumlah_beban')) {
+                            $query->whereRaw('sisa <> jumlah_beban');
+                        }
                     }
                     break;
                 case 'belum_dijurnal':
@@ -189,9 +316,9 @@ class BiayaKirimPenjualanController
             'unpaid_total' => 0,
         ];
 
-        if (Schema::hasColumn($table, 'jumlah_bayar') && Schema::hasColumn($table, 'sisa')) {
-            $summary['unpaid_count'] = (clone $query)->whereRaw('jumlah_bayar = sisa')->count();
-            $summary['unpaid_total'] = (clone $query)->whereRaw('jumlah_bayar = sisa')->sum('sisa');
+        if (Schema::hasColumn($table, 'sisa') && Schema::hasColumn($table, 'jumlah_beban')) {
+            $summary['unpaid_count'] = (clone $query)->whereRaw('sisa = jumlah_beban')->count();
+            $summary['unpaid_total'] = (clone $query)->whereRaw('sisa = jumlah_beban')->sum('sisa');
         }
 
         return response()->json([
@@ -227,7 +354,7 @@ class BiayaKirimPenjualanController
             $query->where('no_bkj', $noBkj);
         }
 
-        $details = $query->select('no_do', 'tgl_do', 'customer')
+        $details = $query->select('no_do', 'tgl_do', 'customer', 'no_dob')
         ->distinct()
         ->get();
 
@@ -259,15 +386,41 @@ class BiayaKirimPenjualanController
         return response()->json(['materials' => $materials]);
     }
 
+    public function dotMaterialList(Request $request, string $noBkj)
+    {
+        $noDob = $request->query('no_dob');
+        if (!$noDob || !Schema::hasTable('tb_dob')) {
+            return response()->json(['rows' => []]);
+        }
+
+        $rows = DB::table('tb_dob')
+            ->select('kd_mat', 'mat', 'qty', 'unit', 'harga', 'total')
+            ->where('no_dob', $noDob)
+            ->orderBy('kd_mat')
+            ->get();
+
+        return response()->json(['rows' => $rows]);
+    }
+
     public function destroy(string $noBkj)
     {
-        $table = 'tb_biayakirimjual';
-        if (!Schema::hasTable($table)) {
+        $headerTable = 'tb_biayakirimjual';
+        $detailTable = 'tb_biayakirimjualdetail';
+        
+        if (!Schema::hasTable($headerTable)) {
             return back()->with('error', 'Data BKJ tidak ditemukan.');
         }
 
         try {
-            DB::table($table)->where('no_bkj', $noBkj)->delete();
+            DB::transaction(function () use ($headerTable, $detailTable, $noBkj) {
+                // Delete from detail table first (foreign key constraint)
+                if (Schema::hasTable($detailTable)) {
+                    DB::table($detailTable)->where('no_bkj', $noBkj)->delete();
+                }
+                
+                // Then delete from header table
+                DB::table($headerTable)->where('no_bkj', $noBkj)->delete();
+            });
         } catch (\Throwable $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -320,21 +473,25 @@ class BiayaKirimPenjualanController
         $totalBeli = (float) $request->input('total_cost', 0);
         $totalJual = (float) $request->input('total_sales', 0);
         $biayaKirim = (float) $request->input('biaya_kirim', 0);
-        $marginPercent = (float) $request->input('margin_percent', 0);
-        $marginFinal = $request->input('margin_final', $marginPercent);
+        $shippingSalesPercent = (float) number_format((float) $request->input('shipping_sales_percent', 0), 2, '.', '');
+        $marginFinal = (float) number_format((float) $request->input('margin_final', 0), 2, '.', '');
+        $marginSbjValue = number_format($shippingSalesPercent, 2, '.', '');
+        $marginSbj = $marginSbjValue.'%';
         $totalDot = (float) $request->input('total_dot', 0);
         $namaEkspedisi = trim((string) $request->input('nama_ekspedisi', ''));
         $noInvoice = trim((string) $request->input('no_invoice', ''));
 
         DB::transaction(function () use (
             $rows,
+            $rowsAdd,
             $prefix,
             $tanggalDb,
             $tglInv,
             $totalBeli,
             $totalJual,
             $biayaKirim,
-            $marginPercent,
+            $shippingSalesPercent,
+            $marginSbj,
             $marginFinal,
             $totalDot,
             $namaEkspedisi,
@@ -366,13 +523,13 @@ class BiayaKirimPenjualanController
                     'no_inv' => $noInvoice,
                     'jumlah_beban' => $biayaKirim,
                     'jumlah_inv' => $biayaKirim,
-                    'jumlah_bayar' => $biayaKirim,
+                    'jumlah_bayar' => 0,
                     'gtotal_beli' => $totalBeli,
                     'totalbeli_biayajual' => $totalBeli,
                     'gtotal_jual' => $totalJual,
-                    'margin_sbj' => $marginPercent.'%',
-                    'margin_final' => $marginFinal,
-                    'sisa' => 0,
+                    'margin_sbj' => $marginSbj,
+                    'margin_final' => $marginFinal.'%',
+                    'sisa' => $biayaKirim,
                     'total_dot' => $totalDot,
                     'keterangan' => ' ',
                     'jurnal' => ' ',
@@ -392,19 +549,57 @@ class BiayaKirimPenjualanController
             }
 
             if (Schema::hasTable($detailTable)) {
-                foreach (array_merge($rows, $rowsAdd) as $row) {
+                $doAddMap = [];
+                foreach ($rowsAdd as $rowAdd) {
+                    $key = (string) ($rowAdd['no_do'] ?? '');
+                    if ($key === '') {
+                        continue;
+                    }
+                    $doAddMap[$key] = [
+                        'no_dob' => $rowAdd['no_dot'] ?? 0,
+                        'jumlah_dot' => $rowAdd['total_price'] ?? 0,
+                    ];
+                }
+
+                foreach ($rows as $row) {
+                    $noDo = $row['no_po'] ?? $row['no_do'] ?? null;
+                    $kdMat = $row['kd_mat'] ?? null;
+                    $idDo = null;
+                    if ($noDo && $kdMat && Schema::hasTable('tb_do')) {
+                        $idDo = DB::table('tb_do')
+                            ->where('no_do', $noDo)
+                            ->where('kd_mat', $kdMat)
+                            ->value('id');
+                    }
+
+                    $dotInfo = $noDo && isset($doAddMap[$noDo]) ? $doAddMap[$noDo] : ['no_dob' => 0, 'jumlah_dot' => 0];
+                    $totalPrice = $row['total_price'] ?? 0;
+                    $biayaBeli = $row['biaya_kirim'] ?? 0;
+
                     $detailData = [
                         'no_bkj' => $noBkj,
-                        'no_do' => $row['no_po'] ?? $row['no_do'] ?? null,
+                        'tgl_pos' => $tanggalDb,
+                        'no_do' => $noDo,
                         'tgl_do' => $row['date'] ?? null,
                         'customer' => $row['customer'] ?? null,
                         'po_cust' => $row['ref_po_in'] ?? $row['ref_do'] ?? null,
+                        'code_mat' => $row['kd_mat'] ?? null,
                         'material' => $row['material'] ?? null,
                         'qty' => $row['qty'] ?? 0,
                         'unit' => $row['unit'] ?? null,
                         'harga_beli' => $row['price'] ?? 0,
+                        'total_beli' => $totalPrice,
+                        'biaya_beli' => $biayaBeli,
+                        'totalbeli_biaya' => (float) $totalPrice + (float) $biayaBeli,
                         'harga_jual' => $row['price_sell'] ?? 0,
-                        'margin_sbkj' => $row['margin'] ?? null,
+                        'total_jual' => $row['total_price_sell'] ?? 0,
+                        'margin_sbkj' => $row['margin'].'%',
+                        'Vendor_Ekspedisi' => $namaEkspedisi,
+                        'biaya_jual' => $biayaKirim,
+                        'margin_final' => $marginFinal.'%',
+                        'no_dob' => $dotInfo['no_dob'],
+                        'jumlah_dot' => $dotInfo['jumlah_dot'],
+                        'id_do' => $idDo,
                     ];
 
                     DB::table($detailTable)->insert($detailData);
@@ -415,5 +610,39 @@ class BiayaKirimPenjualanController
         return redirect()
             ->route('penjualan.biaya-kirim-penjualan.index')
             ->with('success', 'Data biaya kirim penjualan berhasil disimpan.');
+    }
+
+    private function materialSection(string $table, string $label): array
+    {
+        if (!Schema::hasTable($table)) {
+            return [
+                'label' => $label,
+                'count' => 0,
+                'rows' => [],
+            ];
+        }
+
+        $query = DB::table($table);
+        $rows = $query
+            ->select('kd_mat', 'material', 'qty', 'unit', 'price', 'total_price')
+            ->limit(5)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'kd_mat' => $row->kd_mat,
+                    'material' => $row->material,
+                    'qty' => $row->qty,
+                    'unit' => $row->unit,
+                    'price' => $row->price,
+                    'total_price' => $row->total_price,
+                ];
+            })
+            ->toArray();
+
+        return [
+            'label' => $label,
+            'count' => (int) $query->count(),
+            'rows' => $rows,
+        ];
     }
 }
