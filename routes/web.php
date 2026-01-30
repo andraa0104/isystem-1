@@ -11,6 +11,7 @@ use App\Http\Controllers\Marketing\BiayaKirimPembelianController;
 use App\Http\Controllers\Marketing\BiayaKirimPenjualanController;
 use App\Http\Controllers\Inventory\DataMaterialController;
 use App\Http\Controllers\Inventory\PenerimaanMaterialController;
+use App\Http\Controllers\Inventory\TransferMaterialController;
 use App\Http\Controllers\Marketing\InvoiceMasukController;
 use App\Http\Controllers\Marketing\FakturPenjualanController;
 use App\Http\Controllers\Marketing\KwitansiPenjualanController;
@@ -412,6 +413,8 @@ Route::get('inventory/data-material', [DataMaterialController::class, 'index'])
     ->name('inventory.data-material.index');
 Route::get('inventory/data-material/rows', [DataMaterialController::class, 'sectionRows'])
     ->name('inventory.data-material.rows');
+Route::delete('inventory/data-material/row', [DataMaterialController::class, 'destroy'])
+    ->name('inventory.data-material.destroy');
 
 Route::get('inventory/penerimaan-material', [PenerimaanMaterialController::class, 'index'])
     ->name('inventory.penerimaan-material.index');
@@ -419,6 +422,23 @@ Route::get('inventory/penerimaan-material/po-list', [PenerimaanMaterialControlle
     ->name('inventory.penerimaan-material.po-list');
 Route::get('inventory/penerimaan-material/po-materials', [PenerimaanMaterialController::class, 'poMaterials'])
     ->name('inventory.penerimaan-material.po-materials');
+Route::post('inventory/penerimaan-material/mi', [PenerimaanMaterialController::class, 'storeMi'])
+    ->name('inventory.penerimaan-material.mi.store');
+Route::post('inventory/penerimaan-material/mis', [PenerimaanMaterialController::class, 'storeMis'])
+    ->name('inventory.penerimaan-material.mis.store');
+Route::post('inventory/penerimaan-material/mib', [PenerimaanMaterialController::class, 'storeMib'])
+    ->name('inventory.penerimaan-material.mib.store');
+
+Route::get('inventory/transfer-material', [TransferMaterialController::class, 'index'])
+    ->name('inventory.transfer-material.index');
+Route::get('inventory/transfer-material/mis-list', [TransferMaterialController::class, 'misList'])
+    ->name('inventory.transfer-material.mis-list');
+Route::post('inventory/transfer-material/mis-transfer', [TransferMaterialController::class, 'transferMis'])
+    ->name('inventory.transfer-material.mis-transfer');
+Route::get('inventory/transfer-material/mib-list', [TransferMaterialController::class, 'mibList'])
+    ->name('inventory.transfer-material.mib-list');
+Route::post('inventory/transfer-material/mib-transfer', [TransferMaterialController::class, 'transferMib'])
+    ->name('inventory.transfer-material.mib-transfer');
 Route::get('penjualan/faktur-penjualan/data', [FakturPenjualanController::class, 'listInvoices'])
     ->name('penjualan.faktur-penjualan.data');
 Route::get('penjualan/faktur-penjualan/kwitansi', [KwitansiPenjualanController::class, 'index'])

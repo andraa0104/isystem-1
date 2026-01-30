@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class DataMaterialController
 {
@@ -70,13 +71,28 @@ class DataMaterialController
         $total = (clone $base)->count();
 
         if ($key === 'mi') {
-            $base->select('no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price', 'total_price', 'miu')
+            $select = ['no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price', 'total_price', 'miu'];
+            if (Schema::hasColumn($table, 'inv')) {
+                $select[] = 'inv';
+            }
+            if (Schema::hasColumn($table, 'id')) {
+                array_unshift($select, 'id');
+            }
+            $base->select($select)
                 ->orderByDesc('no_doc');
         } elseif ($key === 'mis') {
-            $base->select('no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price', DB::raw('harga_mis as total_price'), 'mis')
+            $select = ['no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price', DB::raw('harga_mis as total_price'), 'mis'];
+            if (Schema::hasColumn($table, 'id')) {
+                array_unshift($select, 'id');
+            }
+            $base->select($select)
                 ->orderByDesc('no_doc');
         } else { // mib
-            $base->select('no_doc', 'material', 'qty', 'unit', 'price', DB::raw('(price * qty) as total_price'), 'rest_mat as mib')
+            $select = ['no_doc', 'material', 'qty', 'unit', 'price', DB::raw('(price * qty) as total_price'), DB::raw('rest_mat as mib')];
+            if (Schema::hasColumn($table, 'id')) {
+                array_unshift($select, 'id');
+            }
+            $base->select($select)
                 ->orderByDesc('no_doc');
         }
 
@@ -87,6 +103,81 @@ class DataMaterialController
         $rows = $base->get();
 
         return response()->json(['rows' => $rows, 'total' => $total]);
+    }
+
+    public function destroy(Request $request)
+    {
+        $key = (string) $request->input('key', '');
+        $id = $request->input('id');
+
+        $map = [
+            'mi' => 'tb_mi',
+            'mis' => 'tb_mi',
+            'mib' => 'tb_mib',
+        ];
+
+        if (!isset($map[$key]) || !Schema::hasTable($map[$key])) {
+            throw ValidationException::withMessages(['general' => 'Data tidak ditemukan.']);
+        }
+
+        $table = $map[$key];
+        if (!Schema::hasColumn($table, 'id')) {
+            throw ValidationException::withMessages(['general' => "Tabel {$table} tidak memiliki kolom id."]);
+        }
+
+        if (!is_numeric($id) || (int) $id <= 0) {
+            throw ValidationException::withMessages(['general' => 'ID tidak valid.']);
+        }
+
+        try {
+            DB::transaction(function () use ($key, $table, $id) {
+                $row = DB::table($table)
+                    ->select('id', 'no_doc')
+                    ->where('id', (int) $id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$row) {
+                    throw new \RuntimeException('Data tidak ditemukan atau sudah terhapus.');
+                }
+
+                $noDoc = (string) ($row->no_doc ?? '');
+
+                $deleted = DB::table($table)->where('id', (int) $id)->delete();
+                if ($deleted <= 0) {
+                    throw new \RuntimeException('Data tidak ditemukan atau sudah terhapus.');
+                }
+
+                if ($noDoc === '') {
+                    return;
+                }
+
+                // Cleanup header table when the document no longer exists in detail table.
+                // MI + MIS are stored in tb_mi and header is tb_kdmi.
+                if (($key === 'mi' || $key === 'mis') && Schema::hasTable('tb_kdmi') && Schema::hasColumn('tb_kdmi', 'no_doc')) {
+                    $remaining = (int) DB::table('tb_mi')->where('no_doc', $noDoc)->count();
+                    if ($remaining <= 0) {
+                        DB::table('tb_kdmi')->where('no_doc', $noDoc)->delete();
+                    }
+                    return;
+                }
+
+                // MIB stored in tb_mib and header is tb_kdmib.
+                if ($key === 'mib' && Schema::hasTable('tb_kdmib') && Schema::hasColumn('tb_kdmib', 'no_doc')) {
+                    $remaining = (int) DB::table('tb_mib')->where('no_doc', $noDoc)->count();
+                    if ($remaining <= 0) {
+                        DB::table('tb_kdmib')->where('no_doc', $noDoc)->delete();
+                    }
+                }
+            });
+        } catch (\Throwable $e) {
+            throw ValidationException::withMessages(['general' => $e->getMessage()]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data berhasil dihapus.',
+        ]);
     }
 
 }

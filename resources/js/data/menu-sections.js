@@ -59,7 +59,7 @@ export const menuSections = [
         items: [
             { title: 'Data Material', href: '/inventory/data-material' },
             { title: 'Penerimaan Material', href: '/inventory/penerimaan-material' },
-            { title: 'Transfer Material', href: '#' },
+            { title: 'Transfer Material', href: '/inventory/transfer-material' },
         ],
     },
     {

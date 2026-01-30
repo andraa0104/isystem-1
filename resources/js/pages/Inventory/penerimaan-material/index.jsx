@@ -1,5 +1,5 @@
 import AppLayout from '@/layouts/app-layout';
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Loader2, Search, Trash2 } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -68,6 +69,7 @@ export default function PenerimaanMaterialIndex() {
             qty: '',
             unit: '',
             price: '',
+            lastPrice: '',
             totalPriceInPo: '',
             totalPrice: '',
             lastStock: '',
@@ -80,6 +82,7 @@ export default function PenerimaanMaterialIndex() {
             qty: '',
             unit: '',
             price: '',
+            lastPrice: '',
             totalPriceInPo: '',
             totalPrice: '',
             lastStock: '',
@@ -92,6 +95,8 @@ export default function PenerimaanMaterialIndex() {
             qty: '',
             unit: '',
             price: '',
+            lastPrice: '',
+            remark: 'STOK',
             totalPriceInPo: '',
             totalPrice: '',
             lastStock: '',
@@ -264,15 +269,39 @@ export default function PenerimaanMaterialIndex() {
                 qty: String(row?.qty ?? ''),
                 unit: String(row?.unit ?? ''),
                 price: String(row?.price ?? ''),
+                lastPrice: String(row?.last_price ?? ''),
                 lastStock: String(row?.last_stock ?? ''),
             },
         }));
     };
 
-    const handleAddMi = () => {
-        if (mode !== 'mi' && mode !== 'mis') return;
+    const handleAddRow = () => {
+        if (mode !== 'mi' && mode !== 'mis' && mode !== 'mib') return;
         const m = materialByMode?.[mode] ?? {};
         if (!m.kdMat || !m.material) return;
+
+        // MI/MIS only: if PO price differs from last price (tb_material.harga), block. Item should go to MIB.
+        if (mode === 'mi' || mode === 'mis') {
+            const priceStr = String(m.price ?? '').trim();
+            const lastPriceStr = String(m.lastPrice ?? '').trim();
+            const priceNum = Number(priceStr);
+            const lastPriceNum = Number(lastPriceStr);
+            const bothNumeric = Number.isFinite(priceNum) && Number.isFinite(lastPriceNum);
+            const isSame = bothNumeric ? priceNum === lastPriceNum : priceStr === lastPriceStr;
+            if (!isSame) {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'warning',
+                    title: 'Price dan Last Price tidak sama. Barang masuk MIB.',
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true,
+                });
+                return;
+            }
+        }
+
         const item = {
             kdMat: m.kdMat,
             material: m.material,
@@ -281,6 +310,8 @@ export default function PenerimaanMaterialIndex() {
             unit: m.unit,
             // Keep raw price string (no rounding). Used for display & persisted as-is.
             priceRaw: m.price,
+            lastPriceRaw: m.lastPrice,
+            remark: mode === 'mib' ? String(m.remark ?? '') : undefined,
             totalPriceInPo: m.totalPriceInPo,
             totalPrice: m.totalPrice,
             lastStock: m.lastStock,
@@ -302,6 +333,8 @@ export default function PenerimaanMaterialIndex() {
                 qty: '',
                 unit: '',
                 price: '',
+                lastPrice: '',
+                ...(mode === 'mib' ? { remark: 'STOK' } : {}),
                 totalPriceInPo: '',
                 totalPrice: '',
                 lastStock: '',
@@ -316,6 +349,117 @@ export default function PenerimaanMaterialIndex() {
             ...prev,
             [mode]: prev[mode].filter((_, i) => i !== idx),
         }));
+    };
+
+    const handleSaveMi = () => {
+        if (mode !== 'mi') return;
+        const header = headerByMode.mi;
+        const rows = rowsByMode.mi;
+
+        if (!header.noPo || rows.length === 0) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'warning',
+                title: 'Pilih PO dan tambahkan minimal 1 material.',
+                showConfirmButton: false,
+                timer: 2500,
+                timerProgressBar: true,
+            });
+            return;
+        }
+
+        const payloadRows = rows.map((r) => ({
+            kd_mat: r.kdMat,
+            material: r.material,
+            qty: Number(r.qty) || 0,
+            unit: r.unit,
+            // Keep raw (no rounding); backend stores as-is.
+            price: r.priceRaw,
+            total_price: Number(r.totalPrice) || 0,
+        }));
+
+        router.post('/inventory/penerimaan-material/mi', {
+            doc_date: header.docDate,
+            no_po: header.noPo,
+            ref_pr: header.refPr,
+            vendor: header.vendorName,
+            rows: payloadRows,
+        });
+    };
+
+    const handleSaveMis = () => {
+        if (mode !== 'mis') return;
+        const header = headerByMode.mis;
+        const rows = rowsByMode.mis;
+
+        if (!header.noPo || rows.length === 0) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'warning',
+                title: 'Pilih PO dan tambahkan minimal 1 material.',
+                showConfirmButton: false,
+                timer: 2500,
+                timerProgressBar: true,
+            });
+            return;
+        }
+
+        const payloadRows = rows.map((r) => ({
+            kd_mat: r.kdMat,
+            material: r.material,
+            qty: Number(r.qty) || 0,
+            unit: r.unit,
+            // Keep raw (no rounding); backend stores as-is.
+            price: r.priceRaw,
+            total_price: Number(r.totalPrice) || 0,
+        }));
+
+        router.post('/inventory/penerimaan-material/mis', {
+            doc_date: header.docDate,
+            no_po: header.noPo,
+            ref_pr: header.refPr,
+            vendor: header.vendorName,
+            rows: payloadRows,
+        });
+    };
+
+    const handleSaveMib = () => {
+        if (mode !== 'mib') return;
+        const header = headerByMode.mib;
+        const rows = rowsByMode.mib;
+
+        if (!header.noPo || rows.length === 0) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'warning',
+                title: 'Pilih PO dan tambahkan minimal 1 material.',
+                showConfirmButton: false,
+                timer: 2500,
+                timerProgressBar: true,
+            });
+            return;
+        }
+
+        const payloadRows = rows.map((r) => ({
+            kd_mat: r.kdMat,
+            material: r.material,
+            qty: Number(r.qty) || 0,
+            unit: r.unit,
+            price: r.priceRaw,
+            total_price: Number(r.totalPrice) || 0,
+            remark: r.remark,
+        }));
+
+        router.post('/inventory/penerimaan-material/mib', {
+            doc_date: header.docDate,
+            no_po: header.noPo,
+            ref_pr: header.refPr,
+            vendor: header.vendorName,
+            rows: payloadRows,
+        });
     };
 
     const currentHeader = mode ? headerByMode[mode] : null;
@@ -349,7 +493,7 @@ export default function PenerimaanMaterialIndex() {
                     </div>
                 </div>
 
-                {(mode === 'mi' || mode === 'mis') && (
+                {(mode === 'mi' || mode === 'mis' || mode === 'mib') && (
                     <>
                         <div className="rounded-2xl border bg-gradient-to-br from-slate-950/40 via-slate-900/20 to-slate-950/30 p-4 shadow-sm">
                             <div className="flex flex-col gap-4">
@@ -463,7 +607,7 @@ export default function PenerimaanMaterialIndex() {
                         <div className="rounded-xl border bg-card p-4">
                             <div className="mb-3 flex items-center justify-between">
                                 <h2 className="text-base font-semibold">Input Material {modeLabel}</h2>
-                                <Button type="button" onClick={handleAddMi}>
+                                <Button type="button" onClick={handleAddRow}>
                                     Tambah Data
                                 </Button>
                             </div>
@@ -501,6 +645,24 @@ export default function PenerimaanMaterialIndex() {
                                     <Input value={currentMaterial?.price ?? ''} readOnly />
                                 </div>
                                 <div className="space-y-1">
+                                    <label className="text-xs text-muted-foreground">Last Price</label>
+                                    <Input value={currentMaterial?.lastPrice ?? ''} readOnly />
+                                </div>
+                                {mode === 'mib' && (
+                                    <div className="space-y-1 lg:col-span-2">
+                                        <label className="text-xs text-muted-foreground">Remark</label>
+                                        <Input
+                                            value={currentMaterial?.remark ?? ''}
+                                            onChange={(e) =>
+                                                setMaterialByMode((prev) => ({
+                                                    ...prev,
+                                                    mib: { ...prev.mib, remark: e.target.value },
+                                                }))
+                                            }
+                                        />
+                                    </div>
+                                )}
+                                <div className="space-y-1">
                                     <label className="text-xs text-muted-foreground">Total Price In PO</label>
                                     <Input value={formatNumber(currentMaterial?.totalPriceInPo)} readOnly />
                                 </div>
@@ -522,7 +684,21 @@ export default function PenerimaanMaterialIndex() {
                         <div className="rounded-xl border bg-card p-4">
                             <div className="mb-3 flex items-center justify-between gap-3">
                                 <h2 className="text-base font-semibold">Data Material {modeLabel}</h2>
-                                <Button type="button">Simpan Data {modeLabel}</Button>
+                                {mode === 'mi' ? (
+                                    <Button type="button" onClick={handleSaveMi}>
+                                        Simpan Data MI
+                                    </Button>
+                                ) : mode === 'mis' ? (
+                                    <Button type="button" onClick={handleSaveMis}>
+                                        Simpan Data MIS
+                                    </Button>
+                                ) : mode === 'mib' ? (
+                                    <Button type="button" onClick={handleSaveMib}>
+                                        Simpan Data MIB
+                                    </Button>
+                                ) : (
+                                    <Button type="button">Simpan Data {modeLabel}</Button>
+                                )}
                             </div>
                             <div className="overflow-x-auto rounded-xl border border-white/10">
                                 <table className="min-w-full text-sm text-left">
@@ -539,6 +715,7 @@ export default function PenerimaanMaterialIndex() {
                                             <th className="px-3 py-3">Total Price</th>
                                             <th className="px-3 py-3">Last Stock</th>
                                             <th className="px-3 py-3">Stock Now</th>
+                                            {mode === 'mib' && <th className="px-3 py-3">Remark</th>}
                                             <th className="px-3 py-3">Aksi</th>
                                         </tr>
                                     </thead>
@@ -546,7 +723,7 @@ export default function PenerimaanMaterialIndex() {
                                         {currentRows.length === 0 && (
                                             <tr>
                                                 <td
-                                                    colSpan={12}
+                                                    colSpan={mode === 'mib' ? 13 : 12}
                                                     className="px-3 py-4 text-center text-muted-foreground"
                                                 >
                                                     Belum ada data.
@@ -569,6 +746,7 @@ export default function PenerimaanMaterialIndex() {
                                                 <td className="px-3 py-2">{formatNumber(r.totalPrice)}</td>
                                                 <td className="px-3 py-2">{formatNumber(r.lastStock)}</td>
                                                 <td className="px-3 py-2">{formatNumber(r.stockNow)}</td>
+                                                {mode === 'mib' && <td className="px-3 py-2">{r.remark}</td>}
                                                 <td className="px-3 py-2">
                                                     <button
                                                         type="button"
@@ -593,7 +771,7 @@ export default function PenerimaanMaterialIndex() {
                         Pilih jenis penerimaan material dulu untuk menampilkan form.
                     </div>
                 )}
-                {mode && mode !== 'mi' && mode !== 'mis' && (
+                {mode && mode !== 'mi' && mode !== 'mis' && mode !== 'mib' && (
                     <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
                         Form untuk {mode.toUpperCase()} belum dibuat.
                     </div>

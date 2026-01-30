@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { Head } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2, Trash2 } from 'lucide-react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -24,6 +25,11 @@ const formatNumber = (value) => {
     return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
         Number(value),
     );
+};
+
+const getCsrfToken = () => {
+    const el = document.querySelector('meta[name="csrf-token"]');
+    return el?.getAttribute('content') || '';
 };
 
 function SectionCollapse({ id, label }) {
@@ -85,6 +91,86 @@ function SectionCollapse({ id, label }) {
         };
     }, [open, id, debouncedSearch, pageSize, currentPage]);
 
+    const reload = async () => {
+        if (!open) return;
+        setLoading(true);
+        try {
+            const params = new URLSearchParams();
+            params.set('key', id);
+            params.set('search', debouncedSearch);
+            params.set('page', String(currentPage));
+            params.set('pageSize', pageSize === 'all' ? 'all' : String(pageSize));
+
+            const res = await fetch(`/inventory/data-material/rows?${params.toString()}`, {
+                headers: { Accept: 'application/json' },
+            });
+            const data = await res.json();
+            setRows(Array.isArray(data?.rows) ? data.rows : []);
+            setTotal(Number(data?.total ?? 0));
+        } catch {
+            setRows([]);
+            setTotal(0);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDelete = async (row) => {
+        const rowId = row?.id;
+        if (!rowId) return;
+
+        const result = await Swal.fire({
+            title: 'Hapus data?',
+            text: 'Data yang dihapus tidak bisa dikembalikan.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+            reverseButtons: true,
+        });
+
+        if (!result.isConfirmed) return;
+
+        try {
+            const res = await fetch('/inventory/data-material/row', {
+                method: 'DELETE',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': getCsrfToken(),
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ key: id, id: rowId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const msg = data?.errors?.general || data?.message || 'Gagal menghapus data.';
+                throw new Error(msg);
+            }
+            await Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'success',
+                title: data?.message || 'Berhasil dihapus.',
+                showConfirmButton: false,
+                timer: 2500,
+                timerProgressBar: true,
+            });
+            await reload();
+        } catch (e) {
+            await Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'error',
+                title: e?.message || 'Gagal menghapus data.',
+                showConfirmButton: false,
+                timer: 3500,
+                timerProgressBar: true,
+            });
+        }
+    };
+
     const totalPages = useMemo(() => {
         if (pageSize === 'all') return 1;
         const size = Number(pageSize) || 5;
@@ -93,7 +179,7 @@ function SectionCollapse({ id, label }) {
 
     const columns = useMemo(() => {
         if (id === 'mib') {
-            return ['No MIB', 'Material', 'Qty', 'Satuan', 'Price', 'Total Price', 'MIB'];
+            return ['No MIB', 'Material', 'Qty', 'Satuan', 'Price', 'Total Price', 'MIB', 'Aksi'];
         }
         return [
             'No MI',
@@ -105,6 +191,7 @@ function SectionCollapse({ id, label }) {
             'Price',
             'Total Price',
             id === 'mis' ? 'MIS' : 'MIU',
+            'Aksi',
         ];
     }, [id]);
 
@@ -192,7 +279,7 @@ function SectionCollapse({ id, label }) {
                                             )}
                                             {rows.map((row, idx) => (
                                                 <tr
-                                                    key={`${id}-${row.no_doc ?? idx}-${idx}`}
+                                                    key={`${id}-${row.id ?? row.no_doc ?? idx}-${idx}`}
                                                     className="transition-colors hover:bg-white/5"
                                                 >
                                                     {id === 'mib' ? (
@@ -204,6 +291,19 @@ function SectionCollapse({ id, label }) {
                                                             <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.price)}</td>
                                                             <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.total_price)}</td>
                                                             <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.mib)}</td>
+                                                            <td className="px-3 py-2 border-t border-white/5">
+                                                                {Number(row.qty) === Number(row.mib) && (
+                                                                    <Button
+                                                                        type="button"
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                                                                        onClick={() => handleDelete(row)}
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                )}
+                                                            </td>
                                                         </>
                                                     ) : (
                                                         <>
@@ -216,6 +316,33 @@ function SectionCollapse({ id, label }) {
                                                             <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.price)}</td>
                                                             <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.total_price)}</td>
                                                             <td className="px-3 py-2 border-t border-white/5">{formatNumber(id === 'mis' ? row.mis : row.miu)}</td>
+                                                            <td className="px-3 py-2 border-t border-white/5">
+                                                                {id === 'mi' ? (
+                                                                    Number(row.inv ?? 0) === 0 && (
+                                                                        <Button
+                                                                            type="button"
+                                                                            size="icon"
+                                                                            variant="ghost"
+                                                                            className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                                                                            onClick={() => handleDelete(row)}
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </Button>
+                                                                    )
+                                                                ) : (
+                                                                    Number(row.qty) === Number(row.mis) && (
+                                                                        <Button
+                                                                            type="button"
+                                                                            size="icon"
+                                                                            variant="ghost"
+                                                                            className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                                                                            onClick={() => handleDelete(row)}
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4" />
+                                                                        </Button>
+                                                                    )
+                                                                )}
+                                                            </td>
                                                         </>
                                                     )}
                                                 </tr>
