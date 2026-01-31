@@ -89,11 +89,6 @@ export const menuSections = [
             { title: 'Vendor', href: '/master-data/vendor' },
             { title: 'Customer', href: '/master-data/customer' },
             { title: 'Material', href: '/master-data/material' },
-            { title: 'Biaya Kirim Pembelian', href: '#' },
-            { title: 'Biaya Kirim Penjualan', href: '/penjualan/biaya-kirim-penjualan' },
-            { title: 'Pembayaran Biaya', href: '#' },
-            { title: 'Invoice Receipt (FI)', href: '#' },
-            { title: 'Faktur Penjualan', href: '#' },
         ],
     },
     {

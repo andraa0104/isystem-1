@@ -409,6 +409,58 @@ class BiayaKirimPembelianController
         return back()->with('success', 'Data BKP berhasil dihapus.');
     }
 
+    public function print(Request $request, string $noBkp)
+    {
+        $header = DB::table('tb_biayakirimbeli')
+            ->where('no_bkp', $noBkp)
+            ->first();
+
+        if (!$header) {
+            return redirect()
+                ->route('pembelian.biaya-kirim-pembelian.index')
+                ->with('error', 'Data BKP tidak ditemukan.');
+        }
+
+        $details = DB::table('tb_biayakirimbelidetail')
+            ->where('no_bkp', $noBkp)
+            ->orderBy('no_po')
+            ->orderBy('material')
+            ->get();
+
+        $database = $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database');
+        $lookupKey = is_string($database) ? strtolower($database) : '';
+        $lookupKey = preg_replace('/[^a-z0-9]/', '', $lookupKey ?? '');
+        if ($lookupKey === '') {
+            $lookupKey = 'dbsja';
+        }
+        $companyConfig = $lookupKey
+            ? config("tenants.companies.$lookupKey", [])
+            : [];
+        $fallbackName = $lookupKey
+            ? config("tenants.labels.$lookupKey", $lookupKey)
+            : config('app.name');
+
+        $company = [
+            'name' => $companyConfig['name'] ?? $fallbackName,
+            'address' => $companyConfig['address'] ?? '',
+            'phone' => $companyConfig['phone'] ?? '',
+            'kota' => $companyConfig['kota'] ?? '',
+            'email' => $companyConfig['email'] ?? '',
+        ];
+
+        $printDate = Carbon::now()
+            ->locale('id')
+            ->translatedFormat('d F Y');
+
+        return Inertia::render('Pembelian/biaya-kirim-pembelian/print', [
+            'header' => $header,
+            'details' => $details,
+            'company' => $company,
+            'printDate' => $printDate,
+        ]);
+    }
+
     public function show(string $noBkp)
     {
         $header = DB::table('tb_biayakirimbeli')

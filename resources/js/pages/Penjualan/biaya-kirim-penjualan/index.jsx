@@ -632,11 +632,20 @@ export default function BiayaKirimPenjualanIndex({
                                                             <Eye className="h-4 w-4" />
                                                         </Button>
                                                         <Button
+                                                            asChild
                                                             variant="ghost"
                                                             size="icon"
                                                             title="Cetak"
                                                         >
-                                                            <Printer className="h-4 w-4" />
+                                                            <a
+                                                                href={`/penjualan/biaya-kirim-penjualan/${encodeURIComponent(
+                                                                    row.no_bkj,
+                                                                )}/print`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                            >
+                                                                <Printer className="h-4 w-4" />
+                                                            </a>
                                                         </Button>
                                                     </div>
                                                 </TableCell>

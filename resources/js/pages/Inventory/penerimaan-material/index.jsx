@@ -495,7 +495,13 @@ export default function PenerimaanMaterialIndex() {
 
                 {(mode === 'mi' || mode === 'mis' || mode === 'mib') && (
                     <>
-                        <div className="rounded-2xl border bg-gradient-to-br from-slate-950/40 via-slate-900/20 to-slate-950/30 p-4 shadow-sm">
+                        <div
+                            className={`rounded-2xl border p-4 shadow-sm ${
+                                mode === 'mi'
+                                    ? 'bg-card'
+                                    : 'bg-gradient-to-br from-slate-950/40 via-slate-900/20 to-slate-950/30'
+                            }`}
+                        >
                             <div className="flex flex-col gap-4">
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div>
@@ -507,6 +513,7 @@ export default function PenerimaanMaterialIndex() {
                                     <Button
                                         type="button"
                                         onClick={() => setPoModalOpen(true)}
+                                        variant={mode === 'mi' ? 'outline' : 'default'}
                                         className="h-10 w-full gap-2 sm:w-auto"
                                     >
                                         <Search className="h-4 w-4" />
@@ -779,8 +786,8 @@ export default function PenerimaanMaterialIndex() {
 
                 <Dialog open={poModalOpen} onOpenChange={setPoModalOpen}>
                     <DialogContent className="flex h-[100dvh] w-[100dvw] max-w-none flex-col overflow-hidden rounded-none p-0 sm:h-[85vh] sm:w-[95vw] sm:max-w-5xl sm:rounded-xl">
-                        <DialogHeader className="shrink-0 border-b px-4 py-3">
-                            <DialogTitle>Cari PO</DialogTitle>
+                        <DialogHeader className="shrink-0 border-b bg-background/80 px-4 py-3 backdrop-blur">
+                            <DialogTitle className="text-base">Cari PO</DialogTitle>
                         </DialogHeader>
                         <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -812,21 +819,21 @@ export default function PenerimaanMaterialIndex() {
                                 </div>
                             </div>
 
-                            <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-white/10">
+                            <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border bg-background/60">
                                 {poLoading && (
-                                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-                                        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
+                                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[2px]">
+                                        <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
                                             <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
                                         </div>
                                     </div>
                                 )}
                                 <div className="h-full overflow-auto overscroll-contain">
                                     <table className="min-w-full text-sm text-left">
-                                        <thead className="sticky top-0 bg-black/70 backdrop-blur text-muted-foreground uppercase text-[11px] tracking-wide">
+                                        <thead className="sticky top-0 z-[1] bg-background/95 text-xs text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                             <tr>
-                                                <th className="px-3 py-3">No PO</th>
-                                                <th className="px-3 py-3">Ref PR</th>
-                                                <th className="px-3 py-3">Nama Vendor</th>
+                                                <th className="border-b px-3 py-2 font-semibold">No PO</th>
+                                                <th className="border-b px-3 py-2 font-semibold">Ref PR</th>
+                                                <th className="border-b px-3 py-2 font-semibold">Nama Vendor</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -840,10 +847,10 @@ export default function PenerimaanMaterialIndex() {
                                             {poRows.map((row, idx) => (
                                                 <tr
                                                     key={`${row.no_po ?? idx}-${idx}`}
-                                                    className="cursor-pointer border-t border-white/5 hover:bg-white/5"
+                                                    className="cursor-pointer border-b last:border-b-0 hover:bg-muted/40"
                                                     onClick={() => handlePickPo(row)}
                                                 >
-                                                    <td className="px-3 py-2">{row.no_po}</td>
+                                                    <td className="px-3 py-2 font-medium">{row.no_po}</td>
                                                     <td className="px-3 py-2">{row.ref_pr}</td>
                                                     <td className="px-3 py-2">{row.nm_vdr}</td>
                                                 </tr>

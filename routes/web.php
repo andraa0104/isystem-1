@@ -398,6 +398,8 @@ Route::get('penjualan/biaya-kirim-penjualan/{noBkj}/edit', [BiayaKirimPenjualanC
     ->name('penjualan.biaya-kirim-penjualan.edit');
 Route::put('penjualan/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'update'])
     ->name('penjualan.biaya-kirim-penjualan.update');
+Route::get('penjualan/biaya-kirim-penjualan/{noBkj}/print', [BiayaKirimPenjualanController::class, 'print'])
+    ->name('penjualan.biaya-kirim-penjualan.print');
 Route::get('penjualan/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'show'])
     ->name('penjualan.biaya-kirim-penjualan.show');
 Route::get('penjualan/biaya-kirim-penjualan/{noBkj}/details', [BiayaKirimPenjualanController::class, 'detailList'])
@@ -530,6 +532,8 @@ Route::post('pembelian/biaya-kirim-pembelian/{noBkp}', [BiayaKirimPembelianContr
     ->name('pembelian.biaya-kirim-pembelian.update');
 Route::delete('pembelian/biaya-kirim-pembelian/{noBkp}', [BiayaKirimPembelianController::class, 'destroy'])
     ->name('pembelian.biaya-kirim-pembelian.destroy');
+Route::get('pembelian/biaya-kirim-pembelian/{noBkp}/print', [BiayaKirimPembelianController::class, 'print'])
+    ->name('pembelian.biaya-kirim-pembelian.print');
 Route::get('pembelian/biaya-kirim-pembelian/{noBkp}', [BiayaKirimPembelianController::class, 'show'])
     ->name('pembelian.biaya-kirim-pembelian.show');
 Route::get('pembelian/biaya-kirim-pembelian/{noBkp}/details', [BiayaKirimPembelianController::class, 'detailList'])

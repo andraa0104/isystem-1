@@ -463,8 +463,21 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                         >
                                                             <Eye className="h-4 w-4" />
                                                         </Button>
-                                                        <Button variant="ghost" size="icon" title="Cetak">
-                                                            <Printer className="h-4 w-4" />
+                                                        <Button
+                                                            asChild
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            title="Cetak"
+                                                        >
+                                                            <a
+                                                                href={`/pembelian/biaya-kirim-pembelian/${encodeURIComponent(
+                                                                    row.no_bkp,
+                                                                )}/print`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                            >
+                                                                <Printer className="h-4 w-4" />
+                                                            </a>
                                                         </Button>
                                                     </div>
                                                 </TableCell>

@@ -788,14 +788,16 @@ export default function DeliveryOrderAddIndex({
                                 </div>
                                 <div className="font-semibold">
                                     {detailHeader?.ref_do ? (
-                                        <Link
+                                        <a
                                             href={`/marketing/delivery-order/${encodeURIComponent(
                                                 detailHeader.ref_do,
                                             )}/print`}
                                             className="text-primary hover:underline"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
                                         >
                                             {detailHeader.ref_do}
-                                        </Link>
+                                        </a>
                                     ) : (
                                         renderValue(detailHeader?.ref_do)
                                     )}

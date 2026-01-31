@@ -327,6 +327,67 @@ class BiayaKirimPenjualanController
         ]);
     }
 
+    public function print(Request $request, string $noBkj)
+    {
+        $headerTable = 'tb_biayakirimjual';
+        $detailTable = 'tb_biayakirimjualdetail';
+
+        if (!Schema::hasTable($headerTable)) {
+            return redirect()
+                ->route('penjualan.biaya-kirim-penjualan.index')
+                ->with('error', 'Data BKJ tidak ditemukan.');
+        }
+
+        $header = DB::table($headerTable)->where('no_bkj', $noBkj)->first();
+        if (!$header) {
+            return redirect()
+                ->route('penjualan.biaya-kirim-penjualan.index')
+                ->with('error', 'Data BKJ tidak ditemukan.');
+        }
+
+        $details = collect();
+        if (Schema::hasTable($detailTable)) {
+            $details = DB::table($detailTable)
+                ->where('no_bkj', $noBkj)
+                ->orderBy('no_do')
+                ->orderBy('code_mat')
+                ->get();
+        }
+
+        $database = $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database');
+        $lookupKey = is_string($database) ? strtolower($database) : '';
+        $lookupKey = preg_replace('/[^a-z0-9]/', '', $lookupKey ?? '');
+        if ($lookupKey === '') {
+            $lookupKey = 'dbsja';
+        }
+        $companyConfig = $lookupKey
+            ? config("tenants.companies.$lookupKey", [])
+            : [];
+        $fallbackName = $lookupKey
+            ? config("tenants.labels.$lookupKey", $lookupKey)
+            : config('app.name');
+
+        $company = [
+            'name' => $companyConfig['name'] ?? $fallbackName,
+            'address' => $companyConfig['address'] ?? '',
+            'phone' => $companyConfig['phone'] ?? '',
+            'kota' => $companyConfig['kota'] ?? '',
+            'email' => $companyConfig['email'] ?? '',
+        ];
+
+        $printDate = Carbon::now()
+            ->locale('id')
+            ->translatedFormat('d F Y');
+
+        return Inertia::render('Penjualan/biaya-kirim-penjualan/print', [
+            'header' => $header,
+            'details' => $details,
+            'company' => $company,
+            'printDate' => $printDate,
+        ]);
+    }
+
     public function show(string $noBkj)
     {
         $table = 'tb_biayakirimjual';

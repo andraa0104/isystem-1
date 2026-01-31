@@ -245,21 +245,21 @@ function SectionCollapse({ id, label }) {
                                 </div>
                             </div>
 
-                            <div className="relative overflow-x-auto rounded-xl border border-white/10 bg-gradient-to-b from-slate-900/40 via-slate-900/20 to-slate-900/30 shadow-inner">
+                            <div className="relative overflow-x-auto rounded-xl border bg-background/70 shadow-sm">
                                 {loading && (
-                                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-                                        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
+                                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 backdrop-blur-[2px]">
+                                        <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
                                             <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
                                         </div>
                                     </div>
                                 )}
-                                    <table className="min-w-full text-sm text-left border-separate border-spacing-0">
-                                        <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                                    <table className="min-w-full table-fixed border-collapse text-sm">
+                                        <thead className="sticky top-0 z-[1] bg-background/95 text-xs text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                             <tr>
                                                 {columns.map((col, i, arr) => (
                                                     <th
                                                         key={col}
-                                                        className={`px-3 py-3 font-semibold ${i === 0 ? 'rounded-tl-xl' : ''} ${i === arr.length - 1 ? 'rounded-tr-xl' : ''}`}
+                                                        className={`border-b px-3 py-2 font-semibold ${i === 0 ? 'rounded-tl-xl' : ''} ${i === arr.length - 1 ? 'rounded-tr-xl' : ''} ${col === 'Aksi' ? 'text-center' : 'text-left'}`}
                                                     >
                                                         {col}
                                                     </th>
@@ -271,7 +271,7 @@ function SectionCollapse({ id, label }) {
                                                 <tr>
                                                     <td
                                                         colSpan={columns.length}
-                                                        className="px-3 py-4 text-center text-muted-foreground"
+                                                        className="px-3 py-8 text-center text-muted-foreground"
                                                     >
                                                         Tidak ada data.
                                                     </td>
@@ -280,18 +280,32 @@ function SectionCollapse({ id, label }) {
                                             {rows.map((row, idx) => (
                                                 <tr
                                                     key={`${id}-${row.id ?? row.no_doc ?? idx}-${idx}`}
-                                                    className="transition-colors hover:bg-white/5"
+                                                    className="odd:bg-muted/20 transition-colors hover:bg-muted/40"
                                                 >
                                                     {id === 'mib' ? (
                                                         <>
-                                                            <td className="px-3 py-2 border-t border-white/5">{row.no_doc}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{row.material}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.qty)}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{row.unit}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.price)}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.total_price)}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.mib)}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 align-top font-medium">
+                                                                {row.no_doc}
+                                                            </td>
+                                                            <td className="border-b px-3 py-2 align-top">
+                                                                {row.material}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 text-right align-top tabular-nums">
+                                                                {formatNumber(row.qty)}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 align-top">
+                                                                {row.unit}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 text-right align-top tabular-nums">
+                                                                {formatNumber(row.price)}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 text-right align-top tabular-nums">
+                                                                {formatNumber(row.total_price)}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 text-right align-top tabular-nums">
+                                                                {formatNumber(row.mib)}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 text-center align-top">
                                                                 {Number(row.qty) === Number(row.mib) && (
                                                                     <Button
                                                                         type="button"
@@ -307,16 +321,38 @@ function SectionCollapse({ id, label }) {
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <td className="px-3 py-2 border-t border-white/5">{row.no_doc}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{row.doc_tgl}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{row.ref_po}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{row.material}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.qty)}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{row.unit}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.price)}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{formatNumber(row.total_price)}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">{formatNumber(id === 'mis' ? row.mis : row.miu)}</td>
-                                                            <td className="px-3 py-2 border-t border-white/5">
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 align-top font-medium">
+                                                                {row.no_doc}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 align-top">
+                                                                {row.doc_tgl}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 align-top">
+                                                                {row.ref_po}
+                                                            </td>
+                                                            <td className="border-b px-3 py-2 align-top">
+                                                                {row.material}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 text-right align-top tabular-nums">
+                                                                {formatNumber(row.qty)}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 align-top">
+                                                                {row.unit}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 text-right align-top tabular-nums">
+                                                                {formatNumber(row.price)}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 text-right align-top tabular-nums">
+                                                                {formatNumber(row.total_price)}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 text-right align-top tabular-nums">
+                                                                {formatNumber(
+                                                                    id === 'mis'
+                                                                        ? row.mis
+                                                                        : row.miu,
+                                                                )}
+                                                            </td>
+                                                            <td className="whitespace-nowrap border-b px-3 py-2 text-center align-top">
                                                                 {id === 'mi' ? (
                                                                     Number(row.inv ?? 0) === 0 && (
                                                                         <Button
