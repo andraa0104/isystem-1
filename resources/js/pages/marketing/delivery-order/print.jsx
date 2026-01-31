@@ -42,7 +42,7 @@ export default function DeliveryOrderPrint({
         <div className="min-h-screen bg-white text-black">
             <Head title={`Print DO ${deliveryOrder?.no_do ?? ''}`} />
 
-            <div className="mx-auto w-full max-w-[900px] p-8 text-[12px] leading-tight">
+            <div className="mx-auto w-full max-w-[900px] p-5 text-[12px] leading-tight">
                 <div className="flex items-start justify-between">
                     <div className="w-[60%]">
                         <div className="mb-1 text-[20px] font-bold uppercase">
@@ -215,8 +215,8 @@ export default function DeliveryOrderPrint({
             <style>{`
                 @media print {
                     @page {
-                        size: 9.5in 11in;
-                        margin: 0.5in;
+                        size: 8.5in 5.5in;
+                        margin: 0.15in;
                     }
                     * {
                         -webkit-print-color-adjust: economy;

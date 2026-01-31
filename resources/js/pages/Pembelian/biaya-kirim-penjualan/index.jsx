@@ -111,7 +111,7 @@ export default function BiayaKirimPenjualanIndex({
                 status: statusFilter,
             });
             const res = await fetch(
-                `/penjualan/biaya-kirim-penjualan/data?${params.toString()}`,
+                `/pembelian/biaya-kirim-penjualan/data?${params.toString()}`,
                 {
                     headers: { Accept: 'application/json' },
                 },
@@ -311,13 +311,13 @@ export default function BiayaKirimPenjualanIndex({
         try {
             const [headerRes, detailRes] = await Promise.allSettled([
                 fetch(
-                    `/penjualan/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}`,
+                    `/pembelian/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}`,
                     {
                         headers: { Accept: 'application/json' },
                     },
                 ),
                 fetch(
-                    `/penjualan/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}/details`,
+                    `/pembelian/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}/details`,
                     {
                         headers: { Accept: 'application/json' },
                     },
@@ -362,7 +362,7 @@ export default function BiayaKirimPenjualanIndex({
         setDotCurrentPage(1);
         try {
             const res = await fetch(
-                `/penjualan/biaya-kirim-penjualan/${encodeURIComponent(viewHeader.no_bkj)}/materials?no_do=${encodeURIComponent(row.no_do)}`,
+                `/pembelian/biaya-kirim-penjualan/${encodeURIComponent(viewHeader.no_bkj)}/materials?no_do=${encodeURIComponent(row.no_do)}`,
                 { headers: { Accept: 'application/json' } },
             );
             if (!res.ok) throw new Error('Gagal memuat material.');
@@ -372,7 +372,7 @@ export default function BiayaKirimPenjualanIndex({
             );
             if (row.no_dob && String(row.no_dob) !== '0') {
                 const dotRes = await fetch(
-                    `/penjualan/biaya-kirim-penjualan/${encodeURIComponent(viewHeader.no_bkj)}/dot-materials?no_dob=${encodeURIComponent(row.no_dob)}`,
+                    `/pembelian/biaya-kirim-penjualan/${encodeURIComponent(viewHeader.no_bkj)}/dot-materials?no_dob=${encodeURIComponent(row.no_dob)}`,
                     { headers: { Accept: 'application/json' } },
                 );
                 if (dotRes.ok) {
@@ -415,7 +415,7 @@ export default function BiayaKirimPenjualanIndex({
         if (!result.isConfirmed) return;
 
         router.delete(
-            `/penjualan/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}`,
+            `/pembelian/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}`,
             {
                 preserveScroll: true,
                 onSuccess: () => {
@@ -432,7 +432,7 @@ export default function BiayaKirimPenjualanIndex({
                 { title: 'Dashboard', href: '/dashboard' },
                 {
                     title: 'Biaya Kirim Penjualan',
-                    href: '/penjualan/biaya-kirim-penjualan',
+                    href: '/pembelian/biaya-kirim-penjualan',
                 },
             ]}
         >
@@ -496,7 +496,7 @@ export default function BiayaKirimPenjualanIndex({
                                 onClick={() => {
                                     setIsNavigating(true);
                                     router.visit(
-                                        '/penjualan/biaya-kirim-penjualan/create',
+                                        '/pembelian/biaya-kirim-penjualan/create',
                                         {
                                             onFinish: () =>
                                                 setIsNavigating(false),
@@ -638,7 +638,7 @@ export default function BiayaKirimPenjualanIndex({
                                                             title="Cetak"
                                                         >
                                                             <a
-                                                                href={`/penjualan/biaya-kirim-penjualan/${encodeURIComponent(
+                                                                href={`/pembelian/biaya-kirim-penjualan/${encodeURIComponent(
                                                                     row.no_bkj,
                                                                 )}/print`}
                                                                 target="_blank"
@@ -842,7 +842,7 @@ export default function BiayaKirimPenjualanIndex({
                                                                                     true,
                                                                                 );
                                                                                 router.visit(
-                                                                                    `/penjualan/biaya-kirim-penjualan/${row.no_bkj}/edit`,
+                                                                                    `/pembelian/biaya-kirim-penjualan/${row.no_bkj}/edit`,
                                                                                     {
                                                                                         onFinish:
                                                                                             () =>

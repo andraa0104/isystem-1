@@ -211,8 +211,8 @@ export default function DeliveryOrderAddPrint({
             <style>{`
                 @media print {
                     @page {
-                        size: 9.5in 11in;
-                        margin: 0.5in;
+                        size: 8.5in 5.5in;
+                        margin: 0.15in;
                     }
                     * {
                         -webkit-print-color-adjust: economy;

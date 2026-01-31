@@ -12,7 +12,7 @@ class BiayaKirimPenjualanController
 {
     public function index(Request $request)
     {
-        return Inertia::render('Penjualan/biaya-kirim-penjualan/index', [
+        return Inertia::render('Pembelian/biaya-kirim-penjualan/index', [
             'items' => [],
             'summary' => [
                 'unpaid_count' => 0,
@@ -28,7 +28,7 @@ class BiayaKirimPenjualanController
 
     public function create()
     {
-        return Inertia::render('Penjualan/biaya-kirim-penjualan/create', [
+        return Inertia::render('Pembelian/biaya-kirim-penjualan/create', [
             'poRows' => [],
         ]);
     }
@@ -49,7 +49,7 @@ class BiayaKirimPenjualanController
                 ->get();
         }
 
-        return Inertia::render('Penjualan/biaya-kirim-penjualan/edit', [
+        return Inertia::render('Pembelian/biaya-kirim-penjualan/edit', [
             'noBkj' => $noBkj,
             'header' => $header,
             'details' => $details,
@@ -120,7 +120,7 @@ class BiayaKirimPenjualanController
         });
 
         return redirect()
-            ->route('penjualan.biaya-kirim-penjualan.index')
+            ->route('pembelian.biaya-kirim-penjualan.index')
             ->with('success', 'Data biaya kirim penjualan berhasil diperbarui.');
     }
 
@@ -334,14 +334,14 @@ class BiayaKirimPenjualanController
 
         if (!Schema::hasTable($headerTable)) {
             return redirect()
-                ->route('penjualan.biaya-kirim-penjualan.index')
+                ->route('pembelian.biaya-kirim-penjualan.index')
                 ->with('error', 'Data BKJ tidak ditemukan.');
         }
 
         $header = DB::table($headerTable)->where('no_bkj', $noBkj)->first();
         if (!$header) {
             return redirect()
-                ->route('penjualan.biaya-kirim-penjualan.index')
+                ->route('pembelian.biaya-kirim-penjualan.index')
                 ->with('error', 'Data BKJ tidak ditemukan.');
         }
 
@@ -380,7 +380,7 @@ class BiayaKirimPenjualanController
             ->locale('id')
             ->translatedFormat('d F Y');
 
-        return Inertia::render('Penjualan/biaya-kirim-penjualan/print', [
+        return Inertia::render('Pembelian/biaya-kirim-penjualan/print', [
             'header' => $header,
             'details' => $details,
             'company' => $company,
@@ -669,7 +669,7 @@ class BiayaKirimPenjualanController
         });
 
         return redirect()
-            ->route('penjualan.biaya-kirim-penjualan.index')
+            ->route('pembelian.biaya-kirim-penjualan.index')
             ->with('success', 'Data biaya kirim penjualan berhasil disimpan.');
     }
 

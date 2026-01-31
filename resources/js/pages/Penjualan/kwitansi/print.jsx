@@ -122,7 +122,7 @@ export default function KwitansiPrint({ kwitansi, company = {}, cityLabel }) {
         <div className="min-h-screen bg-white text-black">
             <Head title={`Print Kwitansi ${kwitansi?.no_kwitansi ?? ''}`} />
             <style>{`
-                @page { size: 9.5in 11in; margin: ${printMarginTop} ${printMarginRight} ${printMarginBottom} ${printMarginLeft}; }
+                @page { size: 8.5in 5.5in; margin: ${printMarginTop} ${printMarginRight} ${printMarginBottom} ${printMarginLeft}; }
                 @media print {
                     * { -webkit-print-color-adjust: economy; print-color-adjust: economy; }
                     body { font-family: "Courier New", Courier, monospace; }

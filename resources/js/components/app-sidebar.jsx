@@ -28,9 +28,10 @@ import {
 import { useEffect, useState } from 'react';
 import { Spinner } from './ui/spinner';
 import AppLogo from './app-logo';
-const menuTextWrapClass = 'h-auto items-start [&>span:last-child]:whitespace-normal [&>span:last-child]:break-words [&>span:last-child]:text-clip [&>span:last-child]:overflow-visible';
-const subMenuTextWrapClass = 'h-auto items-start [&>span:last-child]:whitespace-normal [&>span:last-child]:break-words [&>span:last-child]:text-clip [&>span:last-child]:overflow-visible';
-const dropdownItemWrapClass = 'h-auto items-start whitespace-normal [&_span]:whitespace-normal [&_span]:break-words';
+const expandedTextWrapClass =
+    'h-auto items-start [&>span:last-child]:whitespace-normal [&>span:last-child]:break-words [&>span:last-child]:text-clip';
+const dropdownItemWrapClass =
+    'h-auto items-start whitespace-normal [&_span]:whitespace-normal [&_span]:break-words';
 export function AppSidebar() {
     const { state } = useSidebar();
     const isCollapsed = state === 'collapsed';
@@ -145,11 +146,37 @@ export function AppSidebar() {
         },
     }[connectionSeverity] || { chip: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300', bar: 'bg-emerald-500' };
 
+    const pingLabel =
+        pingLoading
+            ? 'Mengukur koneksi...'
+            : pingMs === null
+              ? netInfo.online
+                    ? 'Tidak ada data ping'
+                    : 'Offline'
+              : pingMs > 600
+                ? `Sangat lambat ${pingMs.toFixed(0)} ms`
+                : pingMs > 250
+                  ? `Lambat ${pingMs.toFixed(0)} ms`
+                  : `Cepat ${pingMs.toFixed(0)} ms`;
+
+    const pingLabelShort =
+        pingLoading
+            ? '...'
+            : pingMs === null
+              ? netInfo.online
+                    ? 'N/A'
+                    : 'Off'
+              : `${pingMs.toFixed(0)}ms`;
+
     const isAllowed = (key) => {
         if (isAdmin) return true;
         if (!hasPrivileges) return false;
         return !!menuAccess?.[key];
     };
+
+    const menuTextWrapClass = isCollapsed ? '' : expandedTextWrapClass;
+    const subMenuTextWrapClass = isCollapsed ? '' : expandedTextWrapClass;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -157,7 +184,7 @@ export function AppSidebar() {
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
                             <Link href={mainMenuItems[0]?.href ?? '/dashboard'}>
-                                <AppLogo />
+                                <AppLogo collapsed={isCollapsed} />
                             </Link>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -173,7 +200,8 @@ export function AppSidebar() {
                                 <SidebarMenuItem key={item.title}>
                                     <SidebarMenuButton
                                         asChild
-                                        className={menuTextWrapClass}
+                                        tooltip={item.title}
+                                        className={`${menuTextWrapClass} ${isCollapsed ? 'justify-center' : ''}`}
                                     >
                                         <Link
                                             href={item.href}
@@ -184,7 +212,9 @@ export function AppSidebar() {
                                             ) : (
                                                 <LayoutDashboard />
                                             )}
-                                            <span>{item.title}</span>
+                                            <span className={isCollapsed ? 'sr-only' : ''}>
+                                                {item.title}
+                                            </span>
                                         </Link>
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
@@ -205,9 +235,14 @@ export function AppSidebar() {
                                     <SidebarMenuItem key={section.title}>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <SidebarMenuButton className={`w-full ${menuTextWrapClass}`}>
+                                                <SidebarMenuButton
+                                                    tooltip={section.title}
+                                                    className={`w-full ${menuTextWrapClass} ${isCollapsed ? 'justify-center' : ''}`}
+                                                >
                                                     <SectionIcon />
-                                                    <span>{section.title}</span>
+                                                    <span className={isCollapsed ? 'sr-only' : ''}>
+                                                        {section.title}
+                                                    </span>
                                                 </SidebarMenuButton>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent side="right" align="start" className="min-w-56">
@@ -230,9 +265,14 @@ export function AppSidebar() {
                                     <Collapsible key={section.title} className="group/collapsible">
                                         <SidebarMenuItem>
                                             <CollapsibleTrigger asChild>
-                                                <SidebarMenuButton className={`w-full ${menuTextWrapClass}`}>
+                                                <SidebarMenuButton
+                                                    tooltip={section.title}
+                                                    className={`w-full ${menuTextWrapClass} ${isCollapsed ? 'justify-center' : ''}`}
+                                                >
                                                     <SectionIcon />
-                                                    <span>{section.title}</span>
+                                                    <span className={isCollapsed ? 'sr-only' : ''}>
+                                                        {section.title}
+                                                    </span>
                                                     <ChevronRight className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-90" />
                                                 </SidebarMenuButton>
                                             </CollapsibleTrigger>
@@ -245,7 +285,9 @@ export function AppSidebar() {
                                                                     href={item.href}
                                                                     prefetch={item.href !== '/pembelian/biaya-kirim-pembelian'}
                                                                 >
-                                                                    <span>{item.title}</span>
+                                                                    <span className={isCollapsed ? 'sr-only' : ''}>
+                                                                        {item.title}
+                                                                    </span>
                                                                 </Link>
                                                             </SidebarMenuSubButton>
                                                         </SidebarMenuSubItem>
@@ -263,121 +305,112 @@ export function AppSidebar() {
             </SidebarContent>
 
             <SidebarFooter>
-                <SidebarMenu className="mb-3">
-                    <SidebarMenuItem>
-                        <SidebarMenuButton className={`w-full rounded-lg border border-sidebar-border/70 bg-gradient-to-r from-background via-muted to-background shadow-sm ${menuTextWrapClass}`}>
-                            <div className="flex items-center gap-3">
-                                <div
-                                    className={`relative flex h-9 w-9 items-center justify-center rounded-lg ${severityTone.chip}`}
-                                >
-                                    <Signal className="h-4 w-4" />
-                                </div>
-                                <div className="flex flex-col leading-tight">
-                                    <span className="text-sm font-semibold">Koneksi</span>
-                                    <span className="text-[11px] text-muted-foreground">
-                                        {netInfo.online ? 'Online' : 'Offline'}
-                                    </span>
-                                </div>
-                            </div>
-                            <div className="ml-auto flex items-center gap-2 text-xs font-semibold">
-                                <div className="flex items-end gap-0.5">
-                                    {['slow-2g', '2g', '3g', '4g'].map((tier, idx) => {
-                                        const active =
-                                            netInfo.effectiveType === tier ||
-                                            (tier === '4g' && (netInfo.effectiveType === '5g' || netInfo.effectiveType === '4g'));
-                                        const height = 6 + idx * 4;
-                                        return (
-                                            <span
-                                                key={tier}
-                                                className={`w-1.5 rounded-sm ${
-                                                    active ? severityTone.bar : 'bg-muted-foreground/30'
-                                                }`}
-                                                style={{ height: `${height}px` }}
-                                            />
-                                        );
-                                    })}
-                                </div>
-                                    <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                        <span
-                                            className={`h-2 w-2 rounded-full ${severityTone.bar}`}
-                                        />
-                                        <span>
-                                            {pingLoading
-                                                ? 'Mengukur koneksi...'
-                                                : pingMs === null
-                                                    ? netInfo.online
-                                                        ? 'Tidak ada data ping'
-                                                        : 'Offline'
-                                                    : pingMs > 600
-                                                        ? `Sangat lambat ${pingMs.toFixed(0)} ms`
-                                                        : pingMs > 250
-                                                            ? `Lambat ${pingMs.toFixed(0)} ms`
-                                                            : `Cepat ${pingMs.toFixed(0)} ms`}
-                                        </span>
-                                    </div>
-                            </div>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                </SidebarMenu>
-
-                <Collapsible
-                    className="group/collapsible mb-3"
-                    open={onlineOpen}
-                    onOpenChange={setOnlineOpen}
-                >
-                    <SidebarMenu>
-                        <SidebarMenuItem>
-                            <CollapsibleTrigger asChild>
-                                <SidebarMenuButton
-                                    className={`w-full rounded-lg border border-sidebar-border/70 bg-gradient-to-r from-muted to-background shadow-sm ${menuTextWrapClass}`}
-                                >
+                {!isCollapsed && (
+                    <>
+                        <SidebarMenu className="mb-3">
+                            <SidebarMenuItem>
+                                <SidebarMenuButton className={`w-full rounded-lg border border-sidebar-border/70 bg-gradient-to-r from-background via-muted to-background shadow-sm ${menuTextWrapClass}`}>
                                     <div className="flex items-center gap-3">
-                                        <span className="relative flex h-2.5 w-2.5">
-                                            <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
-                                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-                                        </span>
+                                        <div
+                                            className={`relative flex h-9 w-9 items-center justify-center rounded-lg ${severityTone.chip}`}
+                                        >
+                                            <Signal className="h-4 w-4" />
+                                        </div>
                                         <div className="flex flex-col leading-tight">
-                                            <span className="text-sm font-semibold">User online</span>
+                                            <span className="text-sm font-semibold">Koneksi</span>
+                                            <span className="text-[11px] text-muted-foreground">
+                                                {netInfo.online ? 'Online' : 'Offline'}
+                                            </span>
                                         </div>
                                     </div>
-                                    <span className="ml-auto flex items-center gap-2 text-xs font-semibold">
-                                        <span className="inline-flex min-w-[28px] items-center justify-center rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-300">
-                                            {onlineUsers.length}
-                                        </span>
-                                        <ChevronRight className="transition-transform group-data-[state=open]/collapsible:rotate-90" />
-                                    </span>
+                                    <div className="ml-auto flex items-center gap-2 text-xs font-semibold">
+                                        <div className="hidden items-end gap-0.5 md:flex">
+                                            {['slow-2g', '2g', '3g', '4g'].map((tier, idx) => {
+                                                const active =
+                                                    netInfo.effectiveType === tier ||
+                                                    (tier === '4g' && (netInfo.effectiveType === '5g' || netInfo.effectiveType === '4g'));
+                                                const height = 6 + idx * 4;
+                                                return (
+                                                    <span
+                                                        key={tier}
+                                                        className={`w-1.5 rounded-sm ${
+                                                            active ? severityTone.bar : 'bg-muted-foreground/30'
+                                                        }`}
+                                                        style={{ height: `${height}px` }}
+                                                    />
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                            <span className={`h-2 w-2 rounded-full ${severityTone.bar}`} />
+                                            <span className="hidden md:inline">{pingLabel}</span>
+                                            <span className="md:hidden">{pingLabelShort}</span>
+                                        </div>
+                                    </div>
                                 </SidebarMenuButton>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                                <SidebarMenuSub>
-                                    {onlineUsers.length === 0 ? (
-                                        <SidebarMenuSubItem>
-                                            <SidebarMenuSubButton className={subMenuTextWrapClass}>
-                                                <span>Tidak ada user online.</span>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                    ) : (
-                                        onlineUsers.map((name, idx) => {
-                                            const initial = (name || '?').charAt(0).toUpperCase();
-                                            return (
-                                                <SidebarMenuSubItem key={`${name}-${idx}`}>
-                                                    <SidebarMenuSubButton className={`${subMenuTextWrapClass} bg-muted/40`}>
-                                                        <span className="flex items-center gap-2">
-                                                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                                                                {initial}
-                                                            </span>
-                                                            <span className="text-sm">{name || '-'}</span>
-                                                        </span>
+                            </SidebarMenuItem>
+                        </SidebarMenu>
+
+                        <Collapsible
+                            className="group/collapsible mb-3"
+                            open={onlineOpen}
+                            onOpenChange={setOnlineOpen}
+                        >
+                            <SidebarMenu>
+                                <SidebarMenuItem>
+                                    <CollapsibleTrigger asChild>
+                                        <SidebarMenuButton
+                                            className={`w-full rounded-lg border border-sidebar-border/70 bg-gradient-to-r from-muted to-background shadow-sm ${menuTextWrapClass}`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <span className="relative flex h-2.5 w-2.5">
+                                                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                                                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                                                </span>
+                                                <div className="flex flex-col leading-tight">
+                                                    <span className="text-sm font-semibold">User online</span>
+                                                </div>
+                                            </div>
+                                            <span className="ml-auto flex items-center gap-2 text-xs font-semibold">
+                                                <span className="inline-flex min-w-[28px] items-center justify-center rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-300">
+                                                    {onlineUsers.length}
+                                                </span>
+                                                <ChevronRight className="transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                                            </span>
+                                        </SidebarMenuButton>
+                                    </CollapsibleTrigger>
+                                    <CollapsibleContent>
+                                        <SidebarMenuSub>
+                                            {onlineUsers.length === 0 ? (
+                                                <SidebarMenuSubItem>
+                                                    <SidebarMenuSubButton className={subMenuTextWrapClass}>
+                                                        <span>Tidak ada user online.</span>
                                                     </SidebarMenuSubButton>
                                                 </SidebarMenuSubItem>
-                                            );
-                                        })
-                                    )}
-                                </SidebarMenuSub>
-                            </CollapsibleContent>
-                        </SidebarMenuItem>
-                    </SidebarMenu>
-                </Collapsible>
+                                            ) : (
+                                                onlineUsers.map((name, idx) => {
+                                                    const initial = (name || '?').charAt(0).toUpperCase();
+                                                    return (
+                                                        <SidebarMenuSubItem key={`${name}-${idx}`}>
+                                                            <SidebarMenuSubButton className={`${subMenuTextWrapClass} bg-muted/40`}>
+                                                                <span className="flex items-center gap-2">
+                                                                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/15 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                                                                        {initial}
+                                                                    </span>
+                                                                    <span className="text-sm">{name || '-'}</span>
+                                                                </span>
+                                                            </SidebarMenuSubButton>
+                                                        </SidebarMenuSubItem>
+                                                    );
+                                                })
+                                            )}
+                                        </SidebarMenuSub>
+                                    </CollapsibleContent>
+                                </SidebarMenuItem>
+                            </SidebarMenu>
+                        </Collapsible>
+                    </>
+                )}
 
                 <NavFooter items={footerNavItems} className="mt-auto" />
                 <NavUser />

@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useInitials } from '@/hooks/use-initials';
-export function UserInfo({ user, showEmail = false, }) {
+export function UserInfo({ user, showName = true, showEmail = false, }) {
     const getInitials = useInitials();
     const name = user?.name ?? 'Guest';
     const email = user?.email ?? '';
@@ -12,11 +12,11 @@ export function UserInfo({ user, showEmail = false, }) {
                     {getInitials(name)}
                 </AvatarFallback>
             </Avatar>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{name}</span>
-                {showEmail && (<span className="truncate text-xs text-muted-foreground">
-                        {email}
-                    </span>)}
-            </div>
+            {showName && (<div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-medium">{name}</span>
+                    {showEmail && (<span className="truncate text-xs text-muted-foreground">
+                            {email}
+                        </span>)}
+                </div>)}
         </>);
 }

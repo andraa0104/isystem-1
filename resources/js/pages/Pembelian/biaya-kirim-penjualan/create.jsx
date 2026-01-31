@@ -114,7 +114,7 @@ export default function BiayaKirimPembelianCreate() {
                 pageSize: poPageSize === Infinity ? 'all' : String(poPageSize),
                 page: String(poCurrentPage),
             });
-            const res = await fetch(`/penjualan/biaya-kirim-penjualan/do-list?${params.toString()}`, {
+            const res = await fetch(`/pembelian/biaya-kirim-penjualan/do-list?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
             });
             const data = await res.json();
@@ -228,7 +228,7 @@ export default function BiayaKirimPembelianCreate() {
         setFieldNmVdr(row.nm_vdr ?? '');
         setFieldFranco(row.franco_loco ?? '');
 
-        const res = await fetch(`/penjualan/biaya-kirim-penjualan/do-materials?no_do=${encodeURIComponent(row.no_do)}`, {
+        const res = await fetch(`/pembelian/biaya-kirim-penjualan/do-materials?no_do=${encodeURIComponent(row.no_do)}`, {
             headers: { Accept: 'application/json' },
         });
         const data = await res.json();
@@ -237,7 +237,7 @@ export default function BiayaKirimPembelianCreate() {
         setMaterialPageSize(5);
         setMaterialCurrentPage(1);
 
-        const dotRes = await fetch(`/penjualan/biaya-kirim-penjualan/dot-materials?no_do=${encodeURIComponent(row.no_do)}`, {
+        const dotRes = await fetch(`/pembelian/biaya-kirim-penjualan/dot-materials?no_do=${encodeURIComponent(row.no_do)}`, {
             headers: { Accept: 'application/json' },
         });
         const dotData = await dotRes.json();
@@ -273,7 +273,7 @@ export default function BiayaKirimPembelianCreate() {
             const totalBuy = toNumber(row.total ?? row.total_price);
             const materialValue = row.material ?? row.mat ?? '';
             const biayaRes = await fetch(
-                `/penjualan/biaya-kirim-penjualan/biaya-kirim?ref_po=${encodeURIComponent(refPo)}&material=${encodeURIComponent(materialValue)}`,
+                `/pembelian/biaya-kirim-penjualan/biaya-kirim?ref_po=${encodeURIComponent(refPo)}&material=${encodeURIComponent(materialValue)}`,
                 { headers: { Accept: 'application/json' } }
             );
             const biayaData = await biayaRes.json();
@@ -306,7 +306,7 @@ export default function BiayaKirimPembelianCreate() {
         const refPo = fieldAddRefDo || fieldNoPo;
         if (refPo) {
             fetch(
-                `/penjualan/biaya-kirim-penjualan/biaya-kirim?ref_po=${encodeURIComponent(refPo)}&material=${encodeURIComponent(row.mat ?? row.material ?? '')}`,
+                `/pembelian/biaya-kirim-penjualan/biaya-kirim?ref_po=${encodeURIComponent(refPo)}&material=${encodeURIComponent(row.mat ?? row.material ?? '')}`,
                 { headers: { Accept: 'application/json' } }
             )
                 .then((res) => res.json())
@@ -461,7 +461,7 @@ export default function BiayaKirimPembelianCreate() {
 
     const handleSave = () => {
         router.post(
-            '/penjualan/biaya-kirim-penjualan',
+            '/pembelian/biaya-kirim-penjualan',
             {
                 doc_date: docDate,
                 no_invoice: noInvoice,
@@ -492,7 +492,7 @@ export default function BiayaKirimPembelianCreate() {
     };
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Penjualan', href: '/penjualan/biaya-kirim-penjualan' }, { title: 'Create', href: '/penjualan/biaya-kirim-penjualan/create' }]}>
+        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Penjualan', href: '/pembelian/biaya-kirim-penjualan' }, { title: 'Create', href: '/pembelian/biaya-kirim-penjualan/create' }]}>
             <Head title="Create Biaya Kirim Penjualan" />
             <div className="flex flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center gap-2 text-sm">

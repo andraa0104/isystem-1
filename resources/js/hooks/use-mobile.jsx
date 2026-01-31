@@ -1,8 +1,13 @@
 import { useSyncExternalStore } from 'react';
+
+// Note:
+// On desktop, browser zoom can reduce the viewport width (CSS px) below breakpoints,
+// which would incorrectly force "mobile" navigation. We gate "mobile" to touch-like
+// devices using hover/pointer media features.
 const MOBILE_BREAKPOINT = 768;
-const mql = typeof window === 'undefined'
-    ? undefined
-    : window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
+const QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px) and (hover: none) and (pointer: coarse)`;
+
+const mql = typeof window === 'undefined' ? undefined : window.matchMedia(QUERY);
 function mediaQueryListener(callback) {
     if (!mql) {
         return () => { };

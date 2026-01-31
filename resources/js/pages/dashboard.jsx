@@ -40,15 +40,15 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
     );
 
     return (<AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Dashboard"/>
-            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-                <div className="grid auto-rows-min gap-4 md:grid-cols-3">
+            <Head title="Dashboard" />
+            <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4">
+                <div className="grid auto-rows-min gap-4 lg:grid-cols-3">
                     <Card className="flex flex-col">
                         <CardHeader className="space-y-2">
-                            <div className="flex items-center justify-between gap-2">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                 <CardTitle>Jumlah Quotation</CardTitle>
                                 <select
-                                    className="rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm text-muted-foreground"
+                                    className="w-full rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm text-muted-foreground sm:w-auto"
                                     value={range}
                                     onChange={(event) => setRange(Number(event.target.value))}
                                 >
@@ -62,7 +62,7 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
                             </p>
                         </CardHeader>
                         <CardContent className="flex flex-1 flex-col">
-                            <div className="flex flex-1 items-end gap-3 overflow-x-auto pb-2">
+                            <div className="grid flex-1 items-end gap-3 pb-2 [grid-template-columns:repeat(auto-fit,minmax(80px,1fr))]">
                                 {displayedStats.length === 0 && (
                                     <p className="text-sm text-muted-foreground">
                                         Data quotation belum tersedia.
@@ -75,7 +75,7 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
                                     return (
                                         <div
                                             key={item.period}
-                                            className="flex min-w-[70px] flex-col items-center gap-2"
+                                            className="flex w-full flex-col items-center gap-2"
                                         >
                                             <div className="flex h-28 w-full items-end">
                                                 <div
@@ -104,7 +104,7 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
                             </p>
                         </CardHeader>
                         <CardContent className="flex flex-1 flex-col">
-                            <div className="flex flex-1 items-end gap-3 overflow-x-auto pb-2">
+                            <div className="grid flex-1 items-end gap-3 pb-2 [grid-template-columns:repeat(auto-fit,minmax(92px,1fr))]">
                                 {saldoStats.length === 0 && (
                                     <p className="text-sm text-muted-foreground">
                                         Data saldo belum tersedia.
@@ -118,7 +118,7 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
                                     return (
                                         <div
                                             key={item.code}
-                                            className="flex min-w-[80px] flex-col items-center gap-2"
+                                            className="flex w-full flex-col items-center gap-2"
                                             title={tooltip}
                                             role="button"
                                             onClick={() =>
@@ -175,7 +175,7 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
                         <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20"/>
                     </div>
                 </div>
-                <div className="relative min-h-[100vh] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 md:min-h-min dark:border-sidebar-border">
+                <div className="relative min-h-[260px] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 sm:min-h-[320px] md:min-h-[420px] dark:border-sidebar-border">
                     <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20"/>
                 </div>
             </div>

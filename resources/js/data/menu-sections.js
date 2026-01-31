@@ -49,7 +49,7 @@ export const menuSections = [
             { title: 'Permintaan Dana Operaisonal', href: '#' },
             { title: 'Permintaan Dana Biaya', href: '#' },
             { title: 'Biaya Kirim Pembelian', href: '/pembelian/biaya-kirim-pembelian' },
-            { title: 'Biaya Kirim Penjualan', href: '/penjualan/biaya-kirim-penjualan' },
+            { title: 'Biaya Kirim Penjualan', href: '/pembelian/biaya-kirim-penjualan' },
             { title: 'Payment Cost', href: '#' },
         ],
     },
