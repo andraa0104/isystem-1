@@ -126,7 +126,7 @@ export default function FakturPenjualanPrint({
 }) {
     const printMarginTop = '0.2in';
     const printMarginRight = '0.4in';
-    const printMarginBottom = '0.4in';
+    const printMarginBottom = '0.3in';
     const printMarginLeft = '0.4in';
     const terbilang = formatTerbilang(invoice?.g_total);
     const dppNilaiLain = (11 / 12) * Number(invoice?.harga || 0);
@@ -166,7 +166,7 @@ export default function FakturPenjualanPrint({
                     }
                 }
             `}</style>
-            <div className="mx-auto w-full max-w-[900px] p-8 text-[12px] leading-tight">
+            <div className="mx-auto w-full max-w-[900px] p-1 text-[12px] leading-tight">
                 <div className="grid grid-cols-2 gap-6">
                     <div>
                         <div className="text-[20px] font-semibold uppercase">

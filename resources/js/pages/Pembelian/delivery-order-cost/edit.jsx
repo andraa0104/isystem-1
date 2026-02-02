@@ -367,18 +367,18 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
     );
 
     return (
-        <AppLayout
-            breadcrumbs={[
-                { title: 'Dashboard', href: '/dashboard' },
-                { title: 'Pembelian', href: '/pembelian/delivery-order-cost' },
-                { title: 'Edit DO Biaya', href: '#' },
-            ]}
-        >
-            <Head title="Edit Delivery Order Cost" />
+                <AppLayout
+                    breadcrumbs={[
+                        { title: 'Dashboard', href: '/dashboard' },
+                        { title: 'Pembelian', href: '/pembelian/delivery-order-cost' },
+                        { title: 'Edit DO Biaya', href: '#' },
+                    ]}
+                >
+                    <Head title="Edit Delivery Order Cost" />
             <div className="flex-1 p-4">
                 <div className="mb-6 flex items-center justify-between">
                     <h1 className="text-2xl font-bold">
-                        Edit Delivery Order Cost
+                            Edit Delivery Order Cost
                     </h1>
                     <div className="text-sm text-muted-foreground">
                         Step {step} of 2

@@ -153,7 +153,7 @@ export default function BiayaKirimPenjualanPrint({
                 </button>
             </div>
 
-            <div className="print-page text-[12px] leading-[1.35] text-black">
+            <div className="print-page text-[12px] p-1 leading-[1.35] text-black">
                 <div>
                     <div className="text-[16px] font-semibold uppercase">
                         {company.name || '-'}

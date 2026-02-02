@@ -99,7 +99,7 @@ export default function PurchaseOrderIndex({
     const [isDeleting, setIsDeleting] = useState(false);
     const [realizedList, setRealizedList] = useState([]);
     const [realizedSearchTerm, setRealizedSearchTerm] = useState('');
-    const [realizedPageSize, setRealizedPageSize] = useState(10);
+    const [realizedPageSize, setRealizedPageSize] = useState(5);
     const [realizedCurrentPage, setRealizedCurrentPage] = useState(1);
     const [realizedLoading, setRealizedLoading] = useState(false);
     const [realizedError, setRealizedError] = useState('');
@@ -108,14 +108,14 @@ export default function PurchaseOrderIndex({
     const [outstandingTotalState, setOutstandingTotalState] =
         useState(outstandingTotal);
     const [realizedListPeriod, setRealizedListPeriod] = useState(periodFilter);
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedPo, setSelectedPo] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isOutstandingModalOpen, setIsOutstandingModalOpen] = useState(false);
     const [isRealizedModalOpen, setIsRealizedModalOpen] = useState(false);
     const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
-    const [outstandingPageSize, setOutstandingPageSize] = useState(10);
+    const [outstandingPageSize, setOutstandingPageSize] = useState(5);
     const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
     const [selectedDetails, setSelectedDetails] = useState([]);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -697,6 +697,7 @@ export default function PurchaseOrderIndex({
                                 value={pageSize === Infinity ? 'all' : pageSize}
                                 onChange={handlePageSizeChange}
                             >
+                                <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
                                 <option value={50}>50</option>
@@ -1327,7 +1328,7 @@ export default function PurchaseOrderIndex({
                             loadOutstanding();
                         } else {
                             setOutstandingSearchTerm('');
-                            setOutstandingPageSize(10);
+                            setOutstandingPageSize(5);
                             setOutstandingCurrentPage(1);
                         }
                     }}
@@ -1363,6 +1364,7 @@ export default function PurchaseOrderIndex({
                                         setOutstandingCurrentPage(1);
                                     }}
                                 >
+                                    <option value={5}>5</option>
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
                                     <option value={50}>50</option>
@@ -1559,7 +1561,7 @@ export default function PurchaseOrderIndex({
                             loadRealized();
                         } else {
                             setRealizedSearchTerm('');
-                            setRealizedPageSize(10);
+                            setRealizedPageSize(5);
                             setRealizedCurrentPage(1);
                         }
                     }}
@@ -1595,6 +1597,7 @@ export default function PurchaseOrderIndex({
                                         setRealizedCurrentPage(1);
                                     }}
                                 >
+                                    <option value={5}>5</option>
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
                                     <option value={50}>50</option>

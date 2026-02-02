@@ -82,6 +82,8 @@ export default function BiayaKirimPenjualanIndex({
     const [unpaidSearch, setUnpaidSearch] = useState('');
     const [unpaidPageSize, setUnpaidPageSize] = useState(5);
     const [unpaidCurrentPage, setUnpaidCurrentPage] = useState(1);
+    const [unpaidLoading, setUnpaidLoading] = useState(false);
+    const [unpaidError, setUnpaidError] = useState('');
     const [viewModalOpen, setViewModalOpen] = useState(false);
     const [viewLoading, setViewLoading] = useState(false);
     const [viewError, setViewError] = useState('');
@@ -111,7 +113,7 @@ export default function BiayaKirimPenjualanIndex({
                 status: statusFilter,
             });
             const res = await fetch(
-                `/pembelian/biaya-kirim-penjualan/data?${params.toString()}`,
+                `/pembayaran/biaya-kirim-penjualan/data?${params.toString()}`,
                 {
                     headers: { Accept: 'application/json' },
                 },
@@ -259,15 +261,36 @@ export default function BiayaKirimPenjualanIndex({
 
     useEffect(() => {
         if (!unpaidModalOpen) return;
-        setUnpaidData(
-            sortedItems.filter(
-                (row) =>
-                    String(row.jumlah_bayar ?? '') ===
-                    String(row.jumlah_beban ?? ''),
-            ),
-        );
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [unpaidModalOpen, sortedItems]);
+
+        const fetchUnpaid = async () => {
+            setUnpaidLoading(true);
+            setUnpaidError('');
+            try {
+                const params = new URLSearchParams({
+                    search: searchTerm,
+                    status: 'belum_dibayar',
+                });
+                const res = await fetch(
+                    `/pembayaran/biaya-kirim-penjualan/data?${params.toString()}`,
+                    { headers: { Accept: 'application/json' } },
+                );
+                if (!res.ok) {
+                    throw new Error('Gagal memuat data BKJ belum dibayar.');
+                }
+                const data = await res.json();
+                setUnpaidData(Array.isArray(data?.items) ? data.items : []);
+            } catch (err) {
+                setUnpaidError(
+                    err?.message || 'Gagal memuat data BKJ belum dibayar.',
+                );
+                setUnpaidData([]);
+            } finally {
+                setUnpaidLoading(false);
+            }
+        };
+
+        fetchUnpaid();
+    }, [unpaidModalOpen, searchTerm]);
 
     const totalPages = useMemo(() => {
         if (pageSize === Infinity) return 1;
@@ -311,13 +334,13 @@ export default function BiayaKirimPenjualanIndex({
         try {
             const [headerRes, detailRes] = await Promise.allSettled([
                 fetch(
-                    `/pembelian/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}`,
+                    `/pembayaran/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}`,
                     {
                         headers: { Accept: 'application/json' },
                     },
                 ),
                 fetch(
-                    `/pembelian/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}/details`,
+                    `/pembayaran/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}/details`,
                     {
                         headers: { Accept: 'application/json' },
                     },
@@ -362,7 +385,7 @@ export default function BiayaKirimPenjualanIndex({
         setDotCurrentPage(1);
         try {
             const res = await fetch(
-                `/pembelian/biaya-kirim-penjualan/${encodeURIComponent(viewHeader.no_bkj)}/materials?no_do=${encodeURIComponent(row.no_do)}`,
+                `/pembayaran/biaya-kirim-penjualan/${encodeURIComponent(viewHeader.no_bkj)}/materials?no_do=${encodeURIComponent(row.no_do)}`,
                 { headers: { Accept: 'application/json' } },
             );
             if (!res.ok) throw new Error('Gagal memuat material.');
@@ -372,7 +395,7 @@ export default function BiayaKirimPenjualanIndex({
             );
             if (row.no_dob && String(row.no_dob) !== '0') {
                 const dotRes = await fetch(
-                    `/pembelian/biaya-kirim-penjualan/${encodeURIComponent(viewHeader.no_bkj)}/dot-materials?no_dob=${encodeURIComponent(row.no_dob)}`,
+                    `/pembayaran/biaya-kirim-penjualan/${encodeURIComponent(viewHeader.no_bkj)}/dot-materials?no_dob=${encodeURIComponent(row.no_dob)}`,
                     { headers: { Accept: 'application/json' } },
                 );
                 if (dotRes.ok) {
@@ -415,7 +438,7 @@ export default function BiayaKirimPenjualanIndex({
         if (!result.isConfirmed) return;
 
         router.delete(
-            `/pembelian/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}`,
+            `/pembayaran/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}`,
             {
                 preserveScroll: true,
                 onSuccess: () => {
@@ -432,7 +455,7 @@ export default function BiayaKirimPenjualanIndex({
                 { title: 'Dashboard', href: '/dashboard' },
                 {
                     title: 'Biaya Kirim Penjualan',
-                    href: '/pembelian/biaya-kirim-penjualan',
+                    href: '/pembayaran/biaya-kirim-penjualan',
                 },
             ]}
         >
@@ -496,7 +519,7 @@ export default function BiayaKirimPenjualanIndex({
                                 onClick={() => {
                                     setIsNavigating(true);
                                     router.visit(
-                                        '/pembelian/biaya-kirim-penjualan/create',
+                                        '/pembayaran/biaya-kirim-penjualan/create',
                                         {
                                             onFinish: () =>
                                                 setIsNavigating(false),
@@ -638,7 +661,7 @@ export default function BiayaKirimPenjualanIndex({
                                                             title="Cetak"
                                                         >
                                                             <a
-                                                                href={`/pembelian/biaya-kirim-penjualan/${encodeURIComponent(
+                                                                href={`/pembayaran/biaya-kirim-penjualan/${encodeURIComponent(
                                                                     row.no_bkj,
                                                                 )}/print`}
                                                                 target="_blank"
@@ -783,9 +806,27 @@ export default function BiayaKirimPenjualanIndex({
                                                     </TableHead>
                                                 </TableRow>
                                             </TableHeader>
-                                            <TableBody>
-                                                {displayedUnpaidItems.length ===
-                                                0 ? (
+                            <TableBody>
+                                                {unpaidLoading ? (
+                                                    <TableRow>
+                                                        <TableCell
+                                                            colSpan={6}
+                                                            className="text-center text-sm text-muted-foreground"
+                                                        >
+                                                            Memuat data...
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ) : unpaidError ? (
+                                                    <TableRow>
+                                                        <TableCell
+                                                            colSpan={6}
+                                                            className="text-center text-sm text-destructive"
+                                                        >
+                                                            {unpaidError}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ) : displayedUnpaidItems.length ===
+                                                  0 ? (
                                                     <TableRow>
                                                         <TableCell
                                                             colSpan={6}
@@ -842,7 +883,7 @@ export default function BiayaKirimPenjualanIndex({
                                                                                     true,
                                                                                 );
                                                                                 router.visit(
-                                                                                    `/pembelian/biaya-kirim-penjualan/${row.no_bkj}/edit`,
+                                                                                    `/pembayaran/biaya-kirim-penjualan/${row.no_bkj}/edit`,
                                                                                     {
                                                                                         onFinish:
                                                                                             () =>
@@ -894,7 +935,8 @@ export default function BiayaKirimPenjualanIndex({
                                         }
                                         disabled={
                                             unpaidCurrentPage === 1 ||
-                                            unpaidPageSize === Infinity
+                                            unpaidPageSize === Infinity ||
+                                            unpaidLoading
                                         }
                                     >
                                         Sebelumnya
@@ -917,7 +959,8 @@ export default function BiayaKirimPenjualanIndex({
                                         disabled={
                                             unpaidCurrentPage ===
                                                 unpaidTotalPages ||
-                                            unpaidPageSize === Infinity
+                                            unpaidPageSize === Infinity ||
+                                            unpaidLoading
                                         }
                                     >
                                         Berikutnya

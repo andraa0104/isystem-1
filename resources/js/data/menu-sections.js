@@ -46,11 +46,29 @@ export const menuSections = [
             },
             { title: 'Purchase Order', href: '/pembelian/purchase-order' },
             { title: 'Invoice Masuk', href: '/pembelian/invoice-masuk' },
-            { title: 'Permintaan Dana Operaisonal', href: '#' },
-            { title: 'Permintaan Dana Biaya', href: '#' },
-            { title: 'Biaya Kirim Pembelian', href: '/pembelian/biaya-kirim-pembelian' },
-            { title: 'Biaya Kirim Penjualan', href: '/pembelian/biaya-kirim-penjualan' },
-            { title: 'Payment Cost', href: '#' },
+        ],
+    },
+    {
+        title: 'Pembayaran',
+        icon: Banknote,
+        items: [
+            {
+                title: 'Permintaan Dana Operasional',
+                href: '/pembayaran/permintaan-dana-operasional',
+            },
+            {
+                title: 'Permintaan Dana Biaya',
+                href: '/pembayaran/permintaan-dana-biaya',
+            },
+            {
+                title: 'Biaya Kirim Pembelian',
+                href: '/pembayaran/biaya-kirim-pembelian',
+            },
+            {
+                title: 'Biaya Kirim Penjualan',
+                href: '/pembayaran/biaya-kirim-penjualan',
+            },
+            { title: 'Payment Cost', href: '/pembayaran/payment-cost' },
         ],
     },
     {

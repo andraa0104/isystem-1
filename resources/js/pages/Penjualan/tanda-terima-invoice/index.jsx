@@ -59,7 +59,7 @@ export default function TandaTerimaInvoiceIndex() {
     const [error, setError] = useState('');
 
     const [searchTerm, setSearchTerm] = useState('');
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState('pending');
 
@@ -372,6 +372,7 @@ export default function TandaTerimaInvoiceIndex() {
                                 setPageSize(value === 'all' ? Infinity : Number(value));
                             }}
                         >
+                            <option value={5}>5</option>
                             <option value={10}>10</option>
                             <option value={25}>25</option>
                             <option value={50}>50</option>

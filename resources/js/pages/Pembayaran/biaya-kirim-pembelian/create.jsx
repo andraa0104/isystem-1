@@ -92,7 +92,7 @@ export default function BiayaKirimPembelianCreate() {
                 pageSize: poPageSize === Infinity ? 'all' : String(poPageSize),
                 page: String(poCurrentPage),
             });
-            const res = await fetch(`/pembelian/biaya-kirim-pembelian/po-list?${params.toString()}`, {
+            const res = await fetch(`/pembayaran/biaya-kirim-pembelian/po-list?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
             });
             const data = await res.json();
@@ -170,7 +170,7 @@ export default function BiayaKirimPembelianCreate() {
         setFieldNmVdr(row.nm_vdr ?? '');
         setFieldFranco(row.franco_loco ?? '');
 
-        const res = await fetch(`/pembelian/biaya-kirim-pembelian/po-materials?no_po=${encodeURIComponent(row.no_po)}`, {
+        const res = await fetch(`/pembayaran/biaya-kirim-pembelian/po-materials?no_po=${encodeURIComponent(row.no_po)}`, {
             headers: { Accept: 'application/json' },
         });
         const data = await res.json();
@@ -194,7 +194,7 @@ export default function BiayaKirimPembelianCreate() {
         const refPo = fieldRefPoIn || row.ref_poin;
         if (refPo && row.kd_mat) {
             const res = await fetch(
-                `/pembelian/biaya-kirim-pembelian/pr-price?ref_po=${encodeURIComponent(refPo)}&kd_material=${encodeURIComponent(row.kd_mat)}`,
+                `/pembayaran/biaya-kirim-pembelian/pr-price?ref_po=${encodeURIComponent(refPo)}&kd_material=${encodeURIComponent(row.kd_mat)}`,
                 { headers: { Accept: 'application/json' } }
             );
             const data = await res.json();
@@ -270,7 +270,7 @@ export default function BiayaKirimPembelianCreate() {
 
     const handleSave = () => {
         router.post(
-            '/pembelian/biaya-kirim-pembelian',
+            '/pembayaran/biaya-kirim-pembelian',
             {
                 doc_date: docDate,
                 no_invoice: noInvoice,
@@ -298,7 +298,7 @@ export default function BiayaKirimPembelianCreate() {
     };
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Pembelian', href: '/pembelian/biaya-kirim-pembelian' }, { title: 'Create', href: '/pembelian/biaya-kirim-pembelian/create' }]}>
+        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Pembelian', href: '/pembayaran/biaya-kirim-pembelian' }, { title: 'Create', href: '/pembayaran/biaya-kirim-pembelian/create' }]}>
             <Head title="Create Biaya Kirim Pembelian" />
             <div className="flex flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center gap-2 text-sm">

@@ -43,7 +43,6 @@ export default function DeliveryOrderCostIndex({
     deliveryOrders = [],
     outstandingCount = 0,
     outstandingTotal = 0,
-    realizedCount = 0,
 }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('outstanding');
@@ -306,7 +305,7 @@ export default function DeliveryOrderCostIndex({
                     </Button>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-1">
                     <Card
                         className="cursor-pointer transition hover:shadow-sm"
                         onClick={() => {
@@ -334,19 +333,6 @@ export default function DeliveryOrderCostIndex({
                             </div>
                             <div className="text-sm text-muted-foreground">
                                 Rp {formatNumber(outstandingTotal)}
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>DO Biaya Sudah Dibebankan</CardTitle>
-                            <CardDescription>
-                                Jumlah DO biaya selesai
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-semibold">
-                                {realizedCount}
                             </div>
                         </CardContent>
                     </Card>

@@ -11,6 +11,49 @@ const toNumber = (value) => {
 const formatNumber = (value) =>
     new Intl.NumberFormat('id-ID').format(toNumber(value));
 
+const formatDateSlash = (value) => {
+    if (!value) {
+        return renderValue(value);
+    }
+
+    const raw = String(value).trim();
+    if (!raw) {
+        return renderValue(value);
+    }
+
+    if (raw.includes('.')) {
+        const parts = raw.split('.');
+        if (parts.length === 3) {
+            const [dd, mm, yyyy] = parts;
+            return `${dd}/${mm}/${yyyy}`;
+        }
+    }
+
+    if (raw.includes('-')) {
+        const parts = raw.split('-');
+        if (parts.length === 3) {
+            if (parts[0].length === 4) {
+                const [yyyy, mm, dd] = parts;
+                return `${dd}/${mm}/${yyyy}`;
+            }
+            if (parts[2].length === 4) {
+                const [dd, mm, yyyy] = parts;
+                return `${dd}/${mm}/${yyyy}`;
+            }
+        }
+    }
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+        const dd = String(parsed.getDate()).padStart(2, '0');
+        const mm = String(parsed.getMonth() + 1).padStart(2, '0');
+        const yyyy = parsed.getFullYear();
+        return `${dd}/${mm}/${yyyy}`;
+    }
+
+    return renderValue(value);
+};
+
 export default function TandaTerimaInvoicePrint({
     header,
     items = [],
@@ -19,7 +62,7 @@ export default function TandaTerimaInvoicePrint({
 }) {
     const printMarginTop = '0.2in';
     const printMarginRight = '0.4in';
-    const printMarginBottom = '0.4in';
+    const printMarginBottom = '0.3in';
     const printMarginLeft = '0.4in';
 
     const companyLines = [];
@@ -45,6 +88,28 @@ export default function TandaTerimaInvoicePrint({
                     * { -webkit-print-color-adjust: economy; print-color-adjust: economy; }
                     body { font-family: "Courier New", Courier, monospace; }
                     table { border-collapse: collapse !important; }
+                }
+                table.ttinv {
+                    table-layout: fixed;
+                    width: 100%;
+                }
+                table.ttinv col.no { width: 38px; }
+                table.ttinv col.no-invoice { width: 120px; }
+                table.ttinv col.no-faktur { width: 130px; }
+                table.ttinv col.tgl-inv { width: 80px; }
+                table.ttinv col.customer { width: 160px; }
+                table.ttinv col.ref-po { width: 110px; }
+                table.ttinv col.total { width: 130px; }
+                table.ttinv td,
+                table.ttinv th {
+                    vertical-align: top;
+                }
+                table.ttinv th,
+                table.ttinv td {
+                    word-break: break-word;
+                    white-space: normal;
+                    overflow: visible;
+                    text-overflow: clip;
                 }
                 table.ttinv th,
                 table.ttinv td {
@@ -95,10 +160,10 @@ export default function TandaTerimaInvoicePrint({
                 table.ttinv tbody tr.spacer-row td {
                     border-top: 0;
                     border-bottom: 0;
-                    height: 24px;
+                    height: 15px;
                 }
             `}</style>
-            <div className="mx-auto w-full max-w-[900px] p-8 text-[12px] leading-tight">
+            <div className="mx-auto w-full max-w-[900px] p-1 text-[12px] leading-tight">
                 <div className="text-[12px]">
                     <div className="text-[20px] font-semibold uppercase">
                         {company.name || '-'}
@@ -123,11 +188,20 @@ export default function TandaTerimaInvoicePrint({
                     <div className="grid grid-cols-[40px_12px_1fr] items-start gap-2">
                         <span>Date.</span>
                         <span className="text-center">:</span>
-                        <span>{renderValue(header?.tgl_doc)}</span>
+                        <span>{formatDateSlash(header?.tgl_doc)}</span>
                     </div>
                 </div>
 
                 <table className="ttinv mt-4 w-full text-[11px]">
+                    <colgroup>
+                        <col className="no" />
+                        <col className="no-invoice" />
+                        <col className="no-faktur" />
+                        <col className="tgl-inv" />
+                        <col className="customer" />
+                        <col className="ref-po" />
+                        <col className="total" />
+                    </colgroup>
                     <thead>
                         <tr>
                             <th className="px-2 py-1 text-center">No.</th>
@@ -136,7 +210,9 @@ export default function TandaTerimaInvoicePrint({
                             <th className="px-2 py-1">Tgl. Inv</th>
                             <th className="px-2 py-1">Customer</th>
                             <th className="px-2 py-1">Ref. PO</th>
-                            <th className="px-2 py-1 text-right">Total (Rp.)</th>
+                            <th className="px-2 py-1 text-right">
+                                Total (Rp.)
+                            </th>
                         </tr>
                     </thead>
                     <tbody>
@@ -166,7 +242,7 @@ export default function TandaTerimaInvoicePrint({
                                     {renderValue(item.no_faktur)}
                                 </td>
                                 <td className="px-2 py-1">
-                                    {renderValue(item.tgl)}
+                                    {formatDateSlash(item.tgl)}
                                 </td>
                                 <td className="px-2 py-1">
                                     {renderValue(item.nm_cs)}

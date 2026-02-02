@@ -50,7 +50,7 @@ const formatRupiah = (value) => `Rp. ${formatNumber(value)}`;
 
 export default function KwitansiIndex() {
     const [searchTerm, setSearchTerm] = useState('');
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [kwitansiData, setKwitansiData] = useState([]);
     const [kwitansiLoading, setKwitansiLoading] = useState(false);
@@ -399,6 +399,7 @@ export default function KwitansiIndex() {
                             setPageSize(value === 'all' ? Infinity : Number(value));
                         }}
                     >
+                        <option value={5}>5</option>
                         <option value={10}>10</option>
                         <option value={25}>25</option>
                         <option value={50}>50</option>
@@ -880,6 +881,7 @@ export default function KwitansiIndex() {
                                     );
                                 }}
                             >
+                                <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
                                 <option value={50}>50</option>

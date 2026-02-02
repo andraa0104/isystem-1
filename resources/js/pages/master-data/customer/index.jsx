@@ -47,9 +47,9 @@ const initialFormState = {
     Attnd: '',
 };
 
-export default function CustomerIndex({ customers = [], customerCount = 0 }) {
+export default function CustomerIndex({ customers = [] }) {
     const [searchTerm, setSearchTerm] = useState('');
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [codeOrder, setCodeOrder] = useState('asc');
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -276,20 +276,6 @@ export default function CustomerIndex({ customers = [], customerCount = 0 }) {
                     </Button>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Total Customer</CardTitle>
-                            <CardDescription>Jumlah customer terdaftar</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-semibold">
-                                {customerCount}
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
                 <Card>
                     <CardHeader>
                         <CardTitle>Daftar Customer</CardTitle>
@@ -319,6 +305,7 @@ export default function CustomerIndex({ customers = [], customerCount = 0 }) {
                                             setCurrentPage(1);
                                         }}
                                     >
+                                        <option value={5}>5</option>
                                         <option value={10}>10</option>
                                         <option value={25}>25</option>
                                         <option value={50}>50</option>

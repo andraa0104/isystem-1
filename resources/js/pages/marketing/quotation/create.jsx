@@ -62,9 +62,9 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     });
 
     const [detailForm, setDetailForm] = useState({
-        payment: '',
-        validity: '',
-        delivery: '',
+        payment: '30 Hari',
+        validity: '7 Hari',
+        delivery: '3 Hari Kerja setelah PO kami terima/Menyesuaikan',
         franco: '',
         note1: '',
         note2: '',

@@ -16,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router, useForm } from '@inertiajs/react';
-import { Plus } from 'lucide-react';
+import { Pencil, Plus, Trash } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
@@ -34,9 +34,9 @@ const compareCode = (a, b) =>
         sensitivity: 'base',
     });
 
-export default function MaterialIndex({ materials = [], materialCount = 0 }) {
+export default function MaterialIndex({ materials = [] }) {
     const [searchTerm, setSearchTerm] = useState('');
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [stockFilter, setStockFilter] = useState('all');
     const [codeOrder, setCodeOrder] = useState('asc');
@@ -198,20 +198,6 @@ export default function MaterialIndex({ materials = [], materialCount = 0 }) {
                     </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Jumlah Material</CardTitle>
-                            <CardDescription>Total data material</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-3xl font-semibold">
-                                {materialCount}
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
                 <Card>
                     <CardHeader>
                         <CardTitle>Daftar Material</CardTitle>
@@ -241,6 +227,7 @@ export default function MaterialIndex({ materials = [], materialCount = 0 }) {
                                             setCurrentPage(1);
                                         }}
                                     >
+                                        <option value={5}>5</option>
                                         <option value={10}>10</option>
                                         <option value={25}>25</option>
                                         <option value={50}>50</option>
@@ -381,8 +368,9 @@ export default function MaterialIndex({ materials = [], materialCount = 0 }) {
                                                         onClick={() =>
                                                             handleEdit(item)
                                                         }
+                                                        title="Edit"
                                                     >
-                                                        Edit
+                                                        <Pencil className="h-4 w-4" />
                                                     </Button>
                                                     <Button
                                                         variant="destructive"
@@ -390,8 +378,9 @@ export default function MaterialIndex({ materials = [], materialCount = 0 }) {
                                                         onClick={() =>
                                                             handleDelete(item)
                                                         }
+                                                        title="Hapus"
                                                     >
-                                                        Hapus
+                                                        <Trash className="h-4 w-4" />
                                                     </Button>
                                                 </div>
                                             </td>

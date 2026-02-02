@@ -34,7 +34,7 @@ export default function QuotationIndex({
     detailNo = null,
 }) {
     const [searchTerm, setSearchTerm] = useState('');
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedPenawaran, setSelectedPenawaran] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,7 +42,7 @@ export default function QuotationIndex({
     const [detailRowsNo, setDetailRowsNo] = useState(null);
     const [detailLoading, setDetailLoading] = useState(false);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
-    const [materialPageSize, setMaterialPageSize] = useState(10);
+    const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
     const [isDeleting, setIsDeleting] = useState(false);
 
@@ -203,7 +203,7 @@ export default function QuotationIndex({
     useEffect(() => {
         if (isModalOpen) {
             setMaterialSearchTerm('');
-            setMaterialPageSize(10);
+            setMaterialPageSize(5);
             setMaterialCurrentPage(1);
         } else {
             setDetailRows([]);
@@ -297,6 +297,7 @@ export default function QuotationIndex({
                                 value={pageSize === Infinity ? 'all' : pageSize}
                                 onChange={handlePageSizeChange}
                             >
+                                <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
                                 <option value={50}>50</option>
@@ -660,6 +661,7 @@ export default function QuotationIndex({
                                                     setMaterialCurrentPage(1);
                                                 }}
                                             >
+                                                <option value={5}>5</option>
                                                 <option value={10}>10</option>
                                                 <option value={25}>25</option>
                                                 <option value={50}>50</option>

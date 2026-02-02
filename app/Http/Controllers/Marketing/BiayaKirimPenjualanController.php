@@ -12,7 +12,7 @@ class BiayaKirimPenjualanController
 {
     public function index(Request $request)
     {
-        return Inertia::render('Pembelian/biaya-kirim-penjualan/index', [
+        return Inertia::render('Pembayaran/biaya-kirim-penjualan/index', [
             'items' => [],
             'summary' => [
                 'unpaid_count' => 0,
@@ -28,7 +28,7 @@ class BiayaKirimPenjualanController
 
     public function create()
     {
-        return Inertia::render('Pembelian/biaya-kirim-penjualan/create', [
+        return Inertia::render('Pembayaran/biaya-kirim-penjualan/create', [
             'poRows' => [],
         ]);
     }
@@ -49,7 +49,7 @@ class BiayaKirimPenjualanController
                 ->get();
         }
 
-        return Inertia::render('Pembelian/biaya-kirim-penjualan/edit', [
+        return Inertia::render('Pembayaran/biaya-kirim-penjualan/edit', [
             'noBkj' => $noBkj,
             'header' => $header,
             'details' => $details,
@@ -120,7 +120,7 @@ class BiayaKirimPenjualanController
         });
 
         return redirect()
-            ->route('pembelian.biaya-kirim-penjualan.index')
+            ->route('pembayaran.biaya-kirim-penjualan.index')
             ->with('success', 'Data biaya kirim penjualan berhasil diperbarui.');
     }
 
@@ -268,10 +268,11 @@ class BiayaKirimPenjualanController
         $status = $request->query('status', 'all');
 
         $query = DB::table($table);
+        $summaryQuery = DB::table($table);
 
         if ($search) {
             $term = '%'.trim($search).'%';
-            $query->where(function ($q) use ($term, $table) {
+            $applySearch = function ($q) use ($term, $table) {
                 if (Schema::hasColumn($table, 'no_bkj')) {
                     $q->orWhere('no_bkj', 'like', $term);
                 }
@@ -283,6 +284,13 @@ class BiayaKirimPenjualanController
                 if (Schema::hasColumn($table, 'no_inv')) {
                     $q->orWhere('no_inv', 'like', $term);
                 }
+            };
+
+            $query->where(function ($q) use ($applySearch) {
+                $applySearch($q);
+            });
+            $summaryQuery->where(function ($q) use ($applySearch) {
+                $applySearch($q);
             });
         }
 
@@ -317,8 +325,14 @@ class BiayaKirimPenjualanController
         ];
 
         if (Schema::hasColumn($table, 'sisa') && Schema::hasColumn($table, 'jumlah_beban')) {
-            $summary['unpaid_count'] = (clone $query)->whereRaw('sisa = jumlah_beban')->count();
-            $summary['unpaid_total'] = (clone $query)->whereRaw('sisa = jumlah_beban')->sum('sisa');
+            // Summary "BKJ belum dibayar" harus selalu berdasarkan kondisi belum dibayar,
+            // tidak mengikuti filter status (mis. "belum di jurnal").
+            $summary['unpaid_count'] = (clone $summaryQuery)
+                ->whereRaw('sisa = jumlah_beban')
+                ->count();
+            $summary['unpaid_total'] = (clone $summaryQuery)
+                ->whereRaw('sisa = jumlah_beban')
+                ->sum('sisa');
         }
 
         return response()->json([
@@ -334,14 +348,14 @@ class BiayaKirimPenjualanController
 
         if (!Schema::hasTable($headerTable)) {
             return redirect()
-                ->route('pembelian.biaya-kirim-penjualan.index')
+                ->route('pembayaran.biaya-kirim-penjualan.index')
                 ->with('error', 'Data BKJ tidak ditemukan.');
         }
 
         $header = DB::table($headerTable)->where('no_bkj', $noBkj)->first();
         if (!$header) {
             return redirect()
-                ->route('pembelian.biaya-kirim-penjualan.index')
+                ->route('pembayaran.biaya-kirim-penjualan.index')
                 ->with('error', 'Data BKJ tidak ditemukan.');
         }
 
@@ -380,7 +394,7 @@ class BiayaKirimPenjualanController
             ->locale('id')
             ->translatedFormat('d F Y');
 
-        return Inertia::render('Pembelian/biaya-kirim-penjualan/print', [
+        return Inertia::render('Pembayaran/biaya-kirim-penjualan/print', [
             'header' => $header,
             'details' => $details,
             'company' => $company,
@@ -669,7 +683,7 @@ class BiayaKirimPenjualanController
         });
 
         return redirect()
-            ->route('pembelian.biaya-kirim-penjualan.index')
+            ->route('pembayaran.biaya-kirim-penjualan.index')
             ->with('success', 'Data biaya kirim penjualan berhasil disimpan.');
     }
 

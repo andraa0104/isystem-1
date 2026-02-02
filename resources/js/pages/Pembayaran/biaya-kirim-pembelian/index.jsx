@@ -87,7 +87,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                 search: searchTerm,
                 status: statusFilter,
             });
-            const res = await fetch(`/pembelian/biaya-kirim-pembelian/data?${params.toString()}`, {
+            const res = await fetch(`/pembayaran/biaya-kirim-pembelian/data?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
             });
             if (!res.ok) throw new Error('Gagal memuat data biaya kirim pembelian.');
@@ -233,10 +233,10 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
         setActiveDetailTab('po');
         try {
             const [headerRes, detailRes] = await Promise.allSettled([
-                fetch(`/pembelian/biaya-kirim-pembelian/${encodeURIComponent(noBkp)}`, {
+                fetch(`/pembayaran/biaya-kirim-pembelian/${encodeURIComponent(noBkp)}`, {
                     headers: { Accept: 'application/json' },
                 }),
-                fetch(`/pembelian/biaya-kirim-pembelian/${encodeURIComponent(noBkp)}/details`, {
+                fetch(`/pembayaran/biaya-kirim-pembelian/${encodeURIComponent(noBkp)}/details`, {
                     headers: { Accept: 'application/json' },
                 }),
             ]);
@@ -271,7 +271,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
         setMaterialCurrentPage(1);
         try {
             const res = await fetch(
-                `/pembelian/biaya-kirim-pembelian/${encodeURIComponent(viewHeader.no_bkp)}/materials?no_po=${encodeURIComponent(row.no_po)}`,
+                `/pembayaran/biaya-kirim-pembelian/${encodeURIComponent(viewHeader.no_bkp)}/materials?no_po=${encodeURIComponent(row.no_po)}`,
                 { headers: { Accept: 'application/json' } }
             );
             if (!res.ok) throw new Error('Gagal memuat material.');
@@ -309,7 +309,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
 
         if (!result.isConfirmed) return;
 
-        router.delete(`/pembelian/biaya-kirim-pembelian/${encodeURIComponent(noBkp)}`, {
+        router.delete(`/pembayaran/biaya-kirim-pembelian/${encodeURIComponent(noBkp)}`, {
             preserveScroll: true,
             onSuccess: () => {
                 fetchItems();
@@ -320,7 +320,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
 
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Pembelian', href: '/pembelian/biaya-kirim-pembelian' }]}>
+        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Pembelian', href: '/pembayaran/biaya-kirim-pembelian' }]}>
             <Head title="Biaya Kirim Pembelian" />
             <div className="relative flex flex-col gap-4 p-4">
                 {isNavigating && (
@@ -370,7 +370,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                 variant="default"
                                 onClick={() => {
                                     setIsNavigating(true);
-                                    router.visit('/pembelian/biaya-kirim-pembelian/create', {
+                                    router.visit('/pembayaran/biaya-kirim-pembelian/create', {
                                         onFinish: () => setIsNavigating(false),
                                     });
                                 }}
@@ -470,7 +470,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                             title="Cetak"
                                                         >
                                                             <a
-                                                                href={`/pembelian/biaya-kirim-pembelian/${encodeURIComponent(
+                                                                href={`/pembayaran/biaya-kirim-pembelian/${encodeURIComponent(
                                                                     row.no_bkp,
                                                                 )}/print`}
                                                                 target="_blank"
@@ -602,7 +602,7 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                             title="Edit"
                                                             onClick={() => {
                                                                 setIsNavigating(true);
-                                                                router.visit(`/pembelian/biaya-kirim-pembelian/${row.no_bkp}/edit`, {
+                                                                router.visit(`/pembayaran/biaya-kirim-pembelian/${row.no_bkp}/edit`, {
                                                                     onFinish: () => setIsNavigating(false),
                                                                 });
                                                             }}

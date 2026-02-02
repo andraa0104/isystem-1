@@ -175,7 +175,7 @@ export default function BiayaKirimPembelianEdit({ header = {}, details = [] }) {
         setFieldNmVdr(row.nm_vdr ?? '');
         setFieldFranco(row.franco_loco ?? '');
 
-        const res = await fetch(`/pembelian/biaya-kirim-pembelian/po-materials?no_po=${encodeURIComponent(row.no_po)}`, {
+        const res = await fetch(`/pembayaran/biaya-kirim-pembelian/po-materials?no_po=${encodeURIComponent(row.no_po)}`, {
             headers: { Accept: 'application/json' },
         });
         const data = await res.json();
@@ -199,7 +199,7 @@ export default function BiayaKirimPembelianEdit({ header = {}, details = [] }) {
         const refPo = fieldRefPoIn || row.ref_poin;
         if (refPo && row.kd_mat) {
             const res = await fetch(
-                `/pembelian/biaya-kirim-pembelian/pr-price?ref_po=${encodeURIComponent(refPo)}&kd_material=${encodeURIComponent(row.kd_mat)}`,
+                `/pembayaran/biaya-kirim-pembelian/pr-price?ref_po=${encodeURIComponent(refPo)}&kd_material=${encodeURIComponent(row.kd_mat)}`,
                 { headers: { Accept: 'application/json' } }
             );
             const data = await res.json();
@@ -276,7 +276,7 @@ export default function BiayaKirimPembelianEdit({ header = {}, details = [] }) {
     const handleSave = () => {
         if (!fieldNoBkp) return;
         router.post(
-            `/pembelian/biaya-kirim-pembelian/${encodeURIComponent(fieldNoBkp)}`,
+            `/pembayaran/biaya-kirim-pembelian/${encodeURIComponent(fieldNoBkp)}`,
             {
                 doc_date: docDate,
                 no_invoice: noInvoice,
@@ -291,7 +291,7 @@ export default function BiayaKirimPembelianEdit({ header = {}, details = [] }) {
     };
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Pembelian', href: '/pembelian/biaya-kirim-pembelian' }, { title: 'Edit', href: `/pembelian/biaya-kirim-pembelian/${fieldNoBkp}/edit` }]}>
+        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Pembelian', href: '/pembayaran/biaya-kirim-pembelian' }, { title: 'Edit', href: `/pembayaran/biaya-kirim-pembelian/${fieldNoBkp}/edit` }]}>
             <Head title="Edit Biaya Kirim Pembelian" />
             <div className="flex flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center gap-2 text-sm">

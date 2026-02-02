@@ -252,7 +252,7 @@ export function AppSidebar() {
                                                     <DropdownMenuItem key={item.title} asChild className={dropdownItemWrapClass}>
                                                         <Link
                                                             href={item.href}
-                                                            prefetch={item.href !== '/pembelian/biaya-kirim-pembelian'}
+                                                            prefetch={item.href !== '/pembayaran/biaya-kirim-pembelian'}
                                                         >
                                                             <span>{item.title}</span>
                                                         </Link>
@@ -283,7 +283,7 @@ export function AppSidebar() {
                                                             <SidebarMenuSubButton asChild className={subMenuTextWrapClass}>
                                                                 <Link
                                                                     href={item.href}
-                                                                    prefetch={item.href !== '/pembelian/biaya-kirim-pembelian'}
+                                                                    prefetch={item.href !== '/pembayaran/biaya-kirim-pembelian'}
                                                                 >
                                                                     <span className={isCollapsed ? 'sr-only' : ''}>
                                                                         {item.title}
@@ -307,49 +307,32 @@ export function AppSidebar() {
             <SidebarFooter>
                 {!isCollapsed && (
                     <>
-                        <SidebarMenu className="mb-3">
-                            <SidebarMenuItem>
-                                <SidebarMenuButton className={`w-full rounded-lg border border-sidebar-border/70 bg-gradient-to-r from-background via-muted to-background shadow-sm ${menuTextWrapClass}`}>
-                                    <div className="flex items-center gap-3">
-                                        <div
-                                            className={`relative flex h-9 w-9 items-center justify-center rounded-lg ${severityTone.chip}`}
-                                        >
-                                            <Signal className="h-4 w-4" />
-                                        </div>
-                                        <div className="flex flex-col leading-tight">
-                                            <span className="text-sm font-semibold">Koneksi</span>
-                                            <span className="text-[11px] text-muted-foreground">
-                                                {netInfo.online ? 'Online' : 'Offline'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="ml-auto flex items-center gap-2 text-xs font-semibold">
-                                        <div className="hidden items-end gap-0.5 md:flex">
-                                            {['slow-2g', '2g', '3g', '4g'].map((tier, idx) => {
-                                                const active =
-                                                    netInfo.effectiveType === tier ||
-                                                    (tier === '4g' && (netInfo.effectiveType === '5g' || netInfo.effectiveType === '4g'));
-                                                const height = 6 + idx * 4;
-                                                return (
-                                                    <span
-                                                        key={tier}
-                                                        className={`w-1.5 rounded-sm ${
-                                                            active ? severityTone.bar : 'bg-muted-foreground/30'
-                                                        }`}
-                                                        style={{ height: `${height}px` }}
-                                                    />
-                                                );
-                                            })}
-                                        </div>
-                                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                            <span className={`h-2 w-2 rounded-full ${severityTone.bar}`} />
-                                            <span className="hidden md:inline">{pingLabel}</span>
-                                            <span className="md:hidden">{pingLabelShort}</span>
-                                        </div>
-                                    </div>
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                        </SidebarMenu>
+	                        <SidebarMenu className="mb-3">
+	                            <SidebarMenuItem>
+	                                <SidebarMenuButton className={`w-full rounded-lg border border-sidebar-border/70 bg-gradient-to-r from-background via-muted to-background shadow-sm ${menuTextWrapClass}`}>
+	                                    <div className="flex items-center gap-3">
+	                                        <div
+	                                            className={`relative flex h-9 w-9 items-center justify-center rounded-lg ${severityTone.chip}`}
+	                                        >
+	                                            <Signal className="h-4 w-4" />
+	                                        </div>
+	                                        <div className="flex flex-col leading-tight">
+	                                            <span className="text-sm font-semibold">Koneksi</span>
+	                                            <span className="text-[11px] text-muted-foreground">
+	                                                {netInfo.online ? 'Online' : 'Offline'}
+	                                            </span>
+	                                        </div>
+	                                    </div>
+	                                    <div className="ml-auto flex items-center gap-2 text-xs font-semibold">
+	                                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+	                                            <span className={`h-2 w-2 rounded-full ${severityTone.bar}`} />
+	                                            <span className="hidden md:inline">{pingLabel}</span>
+	                                            <span className="md:hidden">{pingLabelShort}</span>
+	                                        </div>
+	                                    </div>
+	                                </SidebarMenuButton>
+	                            </SidebarMenuItem>
+	                        </SidebarMenu>
 
                         <Collapsible
                             className="group/collapsible mb-3"

@@ -199,18 +199,18 @@ export default function DeliveryOrderCostCreate() {
     );
 
     return (
-        <AppLayout
-            breadcrumbs={[
-                { title: 'Dashboard', href: '/dashboard' },
-                { title: 'Pembelian', href: '/pembelian/delivery-order-cost' },
-                { title: 'Create DO Biaya', href: '#' },
-            ]}
-        >
-            <Head title="Create Delivery Order Cost" />
+                <AppLayout
+                    breadcrumbs={[
+                        { title: 'Dashboard', href: '/dashboard' },
+                        { title: 'Pembelian', href: '/pembelian/delivery-order-cost' },
+                        { title: 'Create DO Biaya', href: '#' },
+                    ]}
+                >
+                    <Head title="Create Delivery Order Cost" />
             <div className="flex-1 p-4">
                 <div className="mb-6 flex items-center justify-between">
                     <h1 className="text-2xl font-bold">
-                        Buat Delivery Order Cost
+                            Buat Delivery Order Cost
                     </h1>
                     <div className="text-sm text-muted-foreground">
                         Step {step} of 2

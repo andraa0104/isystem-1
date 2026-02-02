@@ -33,6 +33,11 @@ export default function DeliveryOrderAddPrint({
     company = {},
     grandTotal = 0,
 }) {
+    const printMarginTop = '0.2in';
+    const printMarginRight = '0.4in';
+    const printMarginBottom = '0.3in';
+    const printMarginLeft = '0.4in';
+
     const companyLines = [];
     if (company.address) companyLines.push(company.address);
     if (company.kota) companyLines.push(company.kota);
@@ -42,7 +47,7 @@ export default function DeliveryOrderAddPrint({
         <div className="min-h-screen bg-white font-sans text-black">
             <Head title={`Print DOB ${deliveryOrder?.no_dob ?? ''}`} />
 
-            <div className="mx-auto w-full max-w-[900px] p-8 text-[12px] leading-tight">
+            <div className="mx-auto w-full max-w-[900px] p-1 text-[12px] leading-tight">
                 <div className="flex items-start justify-between">
                     <div className="w-[60%]">
                         <div className="mb-1 text-[20px] font-extrabold uppercase">
@@ -209,25 +214,12 @@ export default function DeliveryOrderAddPrint({
             </div>
 
             <style>{`
+                @page { size: 8.5in 5.5in; margin: ${printMarginTop} ${printMarginRight} ${printMarginBottom} ${printMarginLeft}; }
                 @media print {
-                    @page {
-                        size: 8.5in 5.5in;
-                        margin: 0.15in;
-                    }
-                    * {
-                        -webkit-print-color-adjust: economy;
-                        print-color-adjust: economy;
-                    }
-                    body {
-                        font-family: "Courier New", Courier, monospace;
-                    }
-                    table {
-                        border-collapse: collapse !important;
-                        border: 0.2px solid #000 !important;
-                    }
-                    th, td {
-                        border: 0.2px solid #000 !important;
-                    }
+                    * { -webkit-print-color-adjust: economy; print-color-adjust: economy; }
+                    html, body, * { font-family: "Courier New", Courier, monospace !important; }
+                    table { border-collapse: collapse !important; border: 1px solid #000 !important; }
+                    th, td { border: 1px solid #000 !important; }
                     table.no-border,
                     table.no-border th,
                     table.no-border td {
@@ -242,7 +234,7 @@ export default function DeliveryOrderAddPrint({
                     }
                     table.no-row-lines thead th {
                         border-top: 0 !important;
-                        border-bottom: 0.2px solid #000 !important;
+                        border-bottom: 1px solid #000 !important;
                     }
                 }
             `}</style>

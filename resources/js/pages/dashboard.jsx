@@ -4,15 +4,20 @@ import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { Head } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
+
 const breadcrumbs = [
     {
         title: 'Dashboard',
         href: dashboard().url,
     },
 ];
-const resolveMax = (values) => values.reduce((max, item) => Math.max(max, item.total), 0);
+
+const resolveMax = (values) =>
+    values.reduce((max, item) => Math.max(max, item.total), 0);
+
 const formatNumber = (value) =>
     new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value ?? 0);
+
 const formatDate = (value) => {
     if (!value) return '-';
     const date = new Date(value);
@@ -39,11 +44,12 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
         [saldoStats]
     );
 
-    return (<AppLayout breadcrumbs={breadcrumbs}>
+    return (
+        <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
             <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4">
-                <div className="grid auto-rows-min gap-4 lg:grid-cols-3">
-                    <Card className="flex flex-col">
+                <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3 xl:items-stretch">
+                    <Card className="flex h-full flex-col">
                         <CardHeader className="space-y-2">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                 <CardTitle>Jumlah Quotation</CardTitle>
@@ -62,22 +68,23 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
                             </p>
                         </CardHeader>
                         <CardContent className="flex flex-1 flex-col">
-                            <div className="grid flex-1 items-end gap-3 pb-2 [grid-template-columns:repeat(auto-fit,minmax(80px,1fr))]">
+                            <div className="grid flex-1 grid-flow-col items-end gap-3 overflow-x-auto pb-2 auto-cols-[minmax(88px,1fr)]">
                                 {displayedStats.length === 0 && (
                                     <p className="text-sm text-muted-foreground">
                                         Data quotation belum tersedia.
                                     </p>
                                 )}
                                 {displayedStats.map((item) => {
-                                    const height = maxTotal > 0
-                                        ? Math.round((item.total / maxTotal) * 100)
-                                        : 0;
+                                    const height =
+                                        maxTotal > 0
+                                            ? Math.round((item.total / maxTotal) * 100)
+                                            : 0;
                                     return (
                                         <div
                                             key={item.period}
                                             className="flex w-full flex-col items-center gap-2"
                                         >
-                                            <div className="flex h-28 w-full items-end">
+                                            <div className="flex h-24 w-full items-end sm:h-28">
                                                 <div
                                                     className="flex w-full items-end justify-center rounded-md bg-emerald-500/80 text-[15px] font-extrabold text-black dark:text-white"
                                                     style={{ height: `${Math.max(height, 8)}%` }}
@@ -96,7 +103,8 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
                             </div>
                         </CardContent>
                     </Card>
-                    <Card className="flex flex-col">
+
+                    <Card className="flex h-full flex-col">
                         <CardHeader className="space-y-2">
                             <CardTitle>Saldo Kas</CardTitle>
                             <p className="text-sm text-muted-foreground">
@@ -104,16 +112,19 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
                             </p>
                         </CardHeader>
                         <CardContent className="flex flex-1 flex-col">
-                            <div className="grid flex-1 items-end gap-3 pb-2 [grid-template-columns:repeat(auto-fit,minmax(92px,1fr))]">
+                            <div className="grid flex-1 grid-flow-col items-end gap-3 overflow-x-auto pb-2 auto-cols-[minmax(100px,1fr)]">
                                 {saldoStats.length === 0 && (
                                     <p className="text-sm text-muted-foreground">
                                         Data saldo belum tersedia.
                                     </p>
                                 )}
                                 {saldoStats.map((item) => {
-                                    const height = maxSaldo > 0
-                                        ? Math.round(((item.saldo ?? 0) / maxSaldo) * 100)
-                                        : 0;
+                                    const height =
+                                        maxSaldo > 0
+                                            ? Math.round(
+                                                  ((item.saldo ?? 0) / maxSaldo) * 100
+                                              )
+                                            : 0;
                                     const tooltip = `${item.label}\nSaldo: ${formatNumber(item.saldo)}\nTransaksi terakhir: ${formatDate(item.last_voucher)}`;
                                     return (
                                         <div
@@ -136,7 +147,7 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
                                                 }
                                             }}
                                         >
-                                            <div className="flex h-32 w-full items-end">
+                                            <div className="flex h-28 w-full items-end sm:h-32">
                                                 <div
                                                     className="flex w-full items-end justify-center rounded-md bg-blue-500/80 text-[12px] font-semibold text-black dark:text-white"
                                                     style={{ height: `${Math.max(height, 8)}%` }}
@@ -162,22 +173,29 @@ export default function Dashboard({ quotationStats = [], saldoStats = [] }) {
                                         {selectedSaldo.label} ({selectedSaldo.code})
                                     </div>
                                     <div className="text-muted-foreground">
-                                        Saldo: <span className="font-medium text-foreground">{formatNumber(selectedSaldo.saldo)}</span>
+                                        Saldo:{' '}
+                                        <span className="font-medium text-foreground">
+                                            {formatNumber(selectedSaldo.saldo)}
+                                        </span>
                                     </div>
                                     <div className="text-muted-foreground">
-                                        Transaksi terakhir: {formatDate(selectedSaldo.last_voucher)}
+                                        Transaksi terakhir:{' '}
+                                        {formatDate(selectedSaldo.last_voucher)}
                                     </div>
                                 </div>
                             )}
                         </CardContent>
                     </Card>
-                    <div className="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
-                        <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20"/>
+
+                    <div className="relative aspect-video overflow-hidden rounded-xl border border-sidebar-border/70 lg:col-span-2 xl:col-span-1 dark:border-sidebar-border">
+                        <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
                     </div>
                 </div>
-                <div className="relative min-h-[260px] flex-1 overflow-hidden rounded-xl border border-sidebar-border/70 sm:min-h-[320px] md:min-h-[420px] dark:border-sidebar-border">
-                    <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20"/>
+
+                <div className="relative overflow-hidden rounded-xl border border-sidebar-border/70 min-h-[220px] sm:min-h-[260px] md:min-h-[320px] lg:min-h-[360px] dark:border-sidebar-border">
+                    <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
                 </div>
             </div>
-        </AppLayout>);
+        </AppLayout>
+    );
 }

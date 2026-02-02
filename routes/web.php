@@ -16,6 +16,9 @@ use App\Http\Controllers\Marketing\InvoiceMasukController;
 use App\Http\Controllers\Marketing\FakturPenjualanController;
 use App\Http\Controllers\Marketing\KwitansiPenjualanController;
 use App\Http\Controllers\Marketing\TandaTerimaInvoiceController;
+use App\Http\Controllers\Pembayaran\PermintaanDanaOperasionalController;
+use App\Http\Controllers\Pembayaran\PermintaanDanaBiayaController;
+use App\Http\Controllers\Pembayaran\PaymentCostController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MasterData\MaterialController;
 use App\Http\Controllers\MasterData\VendorController;
@@ -76,14 +79,15 @@ Route::post('/login-simple', function (Request $request) {
         ->where('pengguna', $user->pengguna)
         ->update(['Sesi' => 'Y']);
 
-    // Gunakan session-cookie (expires saat browser ditutup) supaya perlu login ulang jika browser ditutup
-    $sessionCookieMinutes = 0; // 0 = session cookie
+    // Stabil tidak mudah terlogout: gunakan cookie persisten (terutama untuk mobile browser)
+    $loginCookieMinutes = 60 * 24 * 30; // 30 hari
+    $tenantCookieMinutes = 60 * 24 * 30; // 30 hari
 
     return redirect('/dashboard')
-        ->withCookie(cookie('tenant_database', $database, $sessionCookieMinutes))
-        ->withCookie(cookie('login_user', $user->pengguna, $sessionCookieMinutes))
-        ->withCookie(cookie('login_user_name', $user->name, $sessionCookieMinutes))
-        ->withCookie(cookie('login_last_online', (string) ($user->last_online ?? ''), $sessionCookieMinutes));
+        ->withCookie(cookie('tenant_database', $database, $tenantCookieMinutes))
+        ->withCookie(cookie('login_user', $user->pengguna, $loginCookieMinutes))
+        ->withCookie(cookie('login_user_name', $user->name, $loginCookieMinutes))
+        ->withCookie(cookie('login_last_online', (string) ($user->last_online ?? ''), $loginCookieMinutes));
 });
 
 Route::match(['get', 'post'], '/logout-simple', function (Request $request) {
@@ -376,40 +380,47 @@ Route::delete('pembelian/delivery-order-cost/{noAlokasi}/detail/{lineNo}', [Deli
 Route::put('pembelian/delivery-order-cost/{noAlokasi}', [DeliveryOrderCostController::class, 'updateHeader'])
     ->name('pembelian.delivery-order-cost.update');
 
+Route::get('pembayaran/permintaan-dana-operasional', [PermintaanDanaOperasionalController::class, 'index'])
+    ->name('pembayaran.permintaan-dana-operasional.index');
+Route::get('pembayaran/permintaan-dana-biaya', [PermintaanDanaBiayaController::class, 'index'])
+    ->name('pembayaran.permintaan-dana-biaya.index');
+Route::get('pembayaran/payment-cost', [PaymentCostController::class, 'index'])
+    ->name('pembayaran.payment-cost.index');
+
 Route::get('penjualan/faktur-penjualan', [FakturPenjualanController::class, 'index'])
     ->name('penjualan.faktur-penjualan.index');
-Route::get('pembelian/biaya-kirim-penjualan', [BiayaKirimPenjualanController::class, 'index'])
-    ->name('pembelian.biaya-kirim-penjualan.index');
-Route::get('pembelian/biaya-kirim-penjualan/create', [BiayaKirimPenjualanController::class, 'create'])
-    ->name('pembelian.biaya-kirim-penjualan.create');
-Route::get('pembelian/biaya-kirim-penjualan/do-list', [BiayaKirimPenjualanController::class, 'doList'])
-    ->name('pembelian.biaya-kirim-penjualan.do-list');
-Route::get('pembelian/biaya-kirim-penjualan/do-materials', [BiayaKirimPenjualanController::class, 'doMaterials'])
-    ->name('pembelian.biaya-kirim-penjualan.do-materials');
-Route::get('pembelian/biaya-kirim-penjualan/dot-materials', [BiayaKirimPenjualanController::class, 'dotMaterials'])
-    ->name('pembelian.biaya-kirim-penjualan.dot-materials');
-Route::get('pembelian/biaya-kirim-penjualan/biaya-kirim', [BiayaKirimPenjualanController::class, 'biayaKirim'])
-    ->name('pembelian.biaya-kirim-penjualan.biaya-kirim');
-Route::get('pembelian/biaya-kirim-penjualan/data', [BiayaKirimPenjualanController::class, 'data'])
-    ->name('pembelian.biaya-kirim-penjualan.data');
-Route::post('pembelian/biaya-kirim-penjualan', [BiayaKirimPenjualanController::class, 'store'])
-    ->name('pembelian.biaya-kirim-penjualan.store');
-Route::get('pembelian/biaya-kirim-penjualan/{noBkj}/edit', [BiayaKirimPenjualanController::class, 'edit'])
-    ->name('pembelian.biaya-kirim-penjualan.edit');
-Route::put('pembelian/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'update'])
-    ->name('pembelian.biaya-kirim-penjualan.update');
-Route::get('pembelian/biaya-kirim-penjualan/{noBkj}/print', [BiayaKirimPenjualanController::class, 'print'])
-    ->name('pembelian.biaya-kirim-penjualan.print');
-Route::get('pembelian/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'show'])
-    ->name('pembelian.biaya-kirim-penjualan.show');
-Route::get('pembelian/biaya-kirim-penjualan/{noBkj}/details', [BiayaKirimPenjualanController::class, 'detailList'])
-    ->name('pembelian.biaya-kirim-penjualan.details');
-Route::get('pembelian/biaya-kirim-penjualan/{noBkj}/materials', [BiayaKirimPenjualanController::class, 'materialList'])
-    ->name('pembelian.biaya-kirim-penjualan.materials');
-Route::get('pembelian/biaya-kirim-penjualan/{noBkj}/dot-materials', [BiayaKirimPenjualanController::class, 'dotMaterialList'])
-    ->name('pembelian.biaya-kirim-penjualan.dot-materials');
-Route::delete('pembelian/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'destroy'])
-    ->name('pembelian.biaya-kirim-penjualan.destroy');
+Route::get('pembayaran/biaya-kirim-penjualan', [BiayaKirimPenjualanController::class, 'index'])
+    ->name('pembayaran.biaya-kirim-penjualan.index');
+Route::get('pembayaran/biaya-kirim-penjualan/create', [BiayaKirimPenjualanController::class, 'create'])
+    ->name('pembayaran.biaya-kirim-penjualan.create');
+Route::get('pembayaran/biaya-kirim-penjualan/do-list', [BiayaKirimPenjualanController::class, 'doList'])
+    ->name('pembayaran.biaya-kirim-penjualan.do-list');
+Route::get('pembayaran/biaya-kirim-penjualan/do-materials', [BiayaKirimPenjualanController::class, 'doMaterials'])
+    ->name('pembayaran.biaya-kirim-penjualan.do-materials');
+Route::get('pembayaran/biaya-kirim-penjualan/dot-materials', [BiayaKirimPenjualanController::class, 'dotMaterials'])
+    ->name('pembayaran.biaya-kirim-penjualan.dot-materials');
+Route::get('pembayaran/biaya-kirim-penjualan/biaya-kirim', [BiayaKirimPenjualanController::class, 'biayaKirim'])
+    ->name('pembayaran.biaya-kirim-penjualan.biaya-kirim');
+Route::get('pembayaran/biaya-kirim-penjualan/data', [BiayaKirimPenjualanController::class, 'data'])
+    ->name('pembayaran.biaya-kirim-penjualan.data');
+Route::post('pembayaran/biaya-kirim-penjualan', [BiayaKirimPenjualanController::class, 'store'])
+    ->name('pembayaran.biaya-kirim-penjualan.store');
+Route::get('pembayaran/biaya-kirim-penjualan/{noBkj}/edit', [BiayaKirimPenjualanController::class, 'edit'])
+    ->name('pembayaran.biaya-kirim-penjualan.edit');
+Route::put('pembayaran/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'update'])
+    ->name('pembayaran.biaya-kirim-penjualan.update');
+Route::get('pembayaran/biaya-kirim-penjualan/{noBkj}/print', [BiayaKirimPenjualanController::class, 'print'])
+    ->name('pembayaran.biaya-kirim-penjualan.print');
+Route::get('pembayaran/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'show'])
+    ->name('pembayaran.biaya-kirim-penjualan.show');
+Route::get('pembayaran/biaya-kirim-penjualan/{noBkj}/details', [BiayaKirimPenjualanController::class, 'detailList'])
+    ->name('pembayaran.biaya-kirim-penjualan.details');
+Route::get('pembayaran/biaya-kirim-penjualan/{noBkj}/materials', [BiayaKirimPenjualanController::class, 'materialList'])
+    ->name('pembayaran.biaya-kirim-penjualan.materials');
+Route::get('pembayaran/biaya-kirim-penjualan/{noBkj}/dot-materials', [BiayaKirimPenjualanController::class, 'dotMaterialList'])
+    ->name('pembayaran.biaya-kirim-penjualan.dot-materials');
+Route::delete('pembayaran/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'destroy'])
+    ->name('pembayaran.biaya-kirim-penjualan.destroy');
 
 Route::get('inventory/data-material', [DataMaterialController::class, 'index'])
     ->name('inventory.data-material.index');
@@ -512,34 +523,34 @@ Route::post('pembelian/invoice-masuk/{noDoc}', [InvoiceMasukController::class, '
     ->name('pembelian.invoice-masuk.update');
 Route::post('pembelian/invoice-masuk/{noDoc}/delete', [InvoiceMasukController::class, 'destroy'])
     ->name('pembelian.invoice-masuk.destroy');
-Route::get('pembelian/biaya-kirim-pembelian', [BiayaKirimPembelianController::class, 'index'])
-    ->name('pembelian.biaya-kirim-pembelian.index');
-Route::get('pembelian/biaya-kirim-pembelian/create', [BiayaKirimPembelianController::class, 'create'])
-    ->name('pembelian.biaya-kirim-pembelian.create');
-Route::get('pembelian/biaya-kirim-pembelian/{noBkp}/edit', [BiayaKirimPembelianController::class, 'edit'])
-    ->name('pembelian.biaya-kirim-pembelian.edit');
-Route::get('pembelian/biaya-kirim-pembelian/data', [BiayaKirimPembelianController::class, 'data'])
-    ->name('pembelian.biaya-kirim-pembelian.data');
-Route::get('pembelian/biaya-kirim-pembelian/po-list', [BiayaKirimPembelianController::class, 'poList'])
-    ->name('pembelian.biaya-kirim-pembelian.po-list');
-Route::get('pembelian/biaya-kirim-pembelian/po-materials', [BiayaKirimPembelianController::class, 'poMaterials'])
-    ->name('pembelian.biaya-kirim-pembelian.po-materials');
-Route::get('pembelian/biaya-kirim-pembelian/pr-price', [BiayaKirimPembelianController::class, 'prPrice'])
-    ->name('pembelian.biaya-kirim-pembelian.pr-price');
-Route::post('pembelian/biaya-kirim-pembelian', [BiayaKirimPembelianController::class, 'store'])
-    ->name('pembelian.biaya-kirim-pembelian.store');
-Route::post('pembelian/biaya-kirim-pembelian/{noBkp}', [BiayaKirimPembelianController::class, 'update'])
-    ->name('pembelian.biaya-kirim-pembelian.update');
-Route::delete('pembelian/biaya-kirim-pembelian/{noBkp}', [BiayaKirimPembelianController::class, 'destroy'])
-    ->name('pembelian.biaya-kirim-pembelian.destroy');
-Route::get('pembelian/biaya-kirim-pembelian/{noBkp}/print', [BiayaKirimPembelianController::class, 'print'])
-    ->name('pembelian.biaya-kirim-pembelian.print');
-Route::get('pembelian/biaya-kirim-pembelian/{noBkp}', [BiayaKirimPembelianController::class, 'show'])
-    ->name('pembelian.biaya-kirim-pembelian.show');
-Route::get('pembelian/biaya-kirim-pembelian/{noBkp}/details', [BiayaKirimPembelianController::class, 'detailList'])
-    ->name('pembelian.biaya-kirim-pembelian.details');
-Route::get('pembelian/biaya-kirim-pembelian/{noBkp}/materials', [BiayaKirimPembelianController::class, 'materialList'])
-    ->name('pembelian.biaya-kirim-pembelian.materials');
+Route::get('pembayaran/biaya-kirim-pembelian', [BiayaKirimPembelianController::class, 'index'])
+    ->name('pembayaran.biaya-kirim-pembelian.index');
+Route::get('pembayaran/biaya-kirim-pembelian/create', [BiayaKirimPembelianController::class, 'create'])
+    ->name('pembayaran.biaya-kirim-pembelian.create');
+Route::get('pembayaran/biaya-kirim-pembelian/{noBkp}/edit', [BiayaKirimPembelianController::class, 'edit'])
+    ->name('pembayaran.biaya-kirim-pembelian.edit');
+Route::get('pembayaran/biaya-kirim-pembelian/data', [BiayaKirimPembelianController::class, 'data'])
+    ->name('pembayaran.biaya-kirim-pembelian.data');
+Route::get('pembayaran/biaya-kirim-pembelian/po-list', [BiayaKirimPembelianController::class, 'poList'])
+    ->name('pembayaran.biaya-kirim-pembelian.po-list');
+Route::get('pembayaran/biaya-kirim-pembelian/po-materials', [BiayaKirimPembelianController::class, 'poMaterials'])
+    ->name('pembayaran.biaya-kirim-pembelian.po-materials');
+Route::get('pembayaran/biaya-kirim-pembelian/pr-price', [BiayaKirimPembelianController::class, 'prPrice'])
+    ->name('pembayaran.biaya-kirim-pembelian.pr-price');
+Route::post('pembayaran/biaya-kirim-pembelian', [BiayaKirimPembelianController::class, 'store'])
+    ->name('pembayaran.biaya-kirim-pembelian.store');
+Route::post('pembayaran/biaya-kirim-pembelian/{noBkp}', [BiayaKirimPembelianController::class, 'update'])
+    ->name('pembayaran.biaya-kirim-pembelian.update');
+Route::delete('pembayaran/biaya-kirim-pembelian/{noBkp}', [BiayaKirimPembelianController::class, 'destroy'])
+    ->name('pembayaran.biaya-kirim-pembelian.destroy');
+Route::get('pembayaran/biaya-kirim-pembelian/{noBkp}/print', [BiayaKirimPembelianController::class, 'print'])
+    ->name('pembayaran.biaya-kirim-pembelian.print');
+Route::get('pembayaran/biaya-kirim-pembelian/{noBkp}', [BiayaKirimPembelianController::class, 'show'])
+    ->name('pembayaran.biaya-kirim-pembelian.show');
+Route::get('pembayaran/biaya-kirim-pembelian/{noBkp}/details', [BiayaKirimPembelianController::class, 'detailList'])
+    ->name('pembayaran.biaya-kirim-pembelian.details');
+Route::get('pembayaran/biaya-kirim-pembelian/{noBkp}/materials', [BiayaKirimPembelianController::class, 'materialList'])
+    ->name('pembayaran.biaya-kirim-pembelian.materials');
 Route::get('penjualan/faktur-penjualan/create', [FakturPenjualanController::class, 'create'])
     ->name('penjualan.faktur-penjualan.create');
 Route::get('penjualan/faktur-penjualan/{noFaktur}/edit', [FakturPenjualanController::class, 'edit'])

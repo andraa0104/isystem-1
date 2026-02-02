@@ -64,20 +64,20 @@ export default function PurchaseRequirementIndex({
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
     const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
     const [isRealizedLoading, setIsRealizedLoading] = useState(false);
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedPr, setSelectedPr] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isOutstandingModalOpen, setIsOutstandingModalOpen] = useState(false);
     const [isRealizedModalOpen, setIsRealizedModalOpen] = useState(false);
     const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
-    const [outstandingPageSize, setOutstandingPageSize] = useState(10);
+    const [outstandingPageSize, setOutstandingPageSize] = useState(5);
     const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
     const [realizedSearchTerm, setRealizedSearchTerm] = useState('');
-    const [realizedPageSize, setRealizedPageSize] = useState(10);
+    const [realizedPageSize, setRealizedPageSize] = useState(5);
     const [realizedCurrentPage, setRealizedCurrentPage] = useState(1);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
-    const [materialPageSize, setMaterialPageSize] = useState(10);
+    const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
     const [selectedDetails, setSelectedDetails] = useState([]);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -633,6 +633,7 @@ export default function PurchaseRequirementIndex({
                                 value={pageSize === Infinity ? 'all' : pageSize}
                                 onChange={handlePageSizeChange}
                             >
+                                <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
                                 <option value={50}>50</option>
@@ -865,6 +866,7 @@ export default function PurchaseRequirementIndex({
                                                     setMaterialCurrentPage(1);
                                                 }}
                                             >
+                                                <option value={5}>5</option>
                                                 <option value={10}>10</option>
                                                 <option value={25}>25</option>
                                                 <option value={50}>50</option>
@@ -1065,7 +1067,7 @@ export default function PurchaseRequirementIndex({
                             loadOutstanding();
                         } else {
                             setOutstandingSearchTerm('');
-                            setOutstandingPageSize(10);
+                            setOutstandingPageSize(5);
                             setOutstandingCurrentPage(1);
                         }
                     }}
@@ -1101,6 +1103,7 @@ export default function PurchaseRequirementIndex({
                                         setOutstandingCurrentPage(1);
                                     }}
                                 >
+                                    <option value={5}>5</option>
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
                                     <option value={50}>50</option>
@@ -1276,7 +1279,7 @@ export default function PurchaseRequirementIndex({
                             loadRealized(periodFilter, true);
                         } else {
                             setRealizedSearchTerm('');
-                            setRealizedPageSize(10);
+                            setRealizedPageSize(5);
                             setRealizedCurrentPage(1);
                         }
                     }}
@@ -1312,6 +1315,7 @@ export default function PurchaseRequirementIndex({
                                         setRealizedCurrentPage(1);
                                     }}
                                 >
+                                    <option value={5}>5</option>
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
                                     <option value={50}>50</option>

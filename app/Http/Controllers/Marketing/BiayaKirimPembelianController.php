@@ -12,7 +12,7 @@ class BiayaKirimPembelianController
 {
     public function index(Request $request)
     {
-        return Inertia::render('Pembelian/biaya-kirim-pembelian/index', [
+        return Inertia::render('Pembayaran/biaya-kirim-pembelian/index', [
             'items' => [],
             'summary' => [
                 'unpaid_count' => 0,
@@ -28,7 +28,7 @@ class BiayaKirimPembelianController
 
     public function create()
     {
-        return Inertia::render('Pembelian/biaya-kirim-pembelian/create', [
+        return Inertia::render('Pembayaran/biaya-kirim-pembelian/create', [
             'poRows' => [],
         ]);
     }
@@ -41,7 +41,7 @@ class BiayaKirimPembelianController
 
         if (!$header) {
             return redirect()
-                ->route('pembelian.biaya-kirim-pembelian.index')
+                ->route('pembayaran.biaya-kirim-pembelian.index')
                 ->with('error', 'Data BKP tidak ditemukan.');
         }
 
@@ -55,7 +55,7 @@ class BiayaKirimPembelianController
             ->select('d.*', 'p.kd_vdr as po_kd_vdr')
             ->get();
 
-        return Inertia::render('Pembelian/biaya-kirim-pembelian/edit', [
+        return Inertia::render('Pembayaran/biaya-kirim-pembelian/edit', [
             'header' => $header,
             'details' => $details,
         ]);
@@ -325,7 +325,7 @@ class BiayaKirimPembelianController
         });
 
         return redirect()
-            ->route('pembelian.biaya-kirim-pembelian.index')
+            ->route('pembayaran.biaya-kirim-pembelian.index')
             ->with('success', 'Data biaya kirim pembelian berhasil disimpan.');
     }
 
@@ -364,7 +364,7 @@ class BiayaKirimPembelianController
         }
 
         return redirect()
-            ->route('pembelian.biaya-kirim-pembelian.index')
+            ->route('pembayaran.biaya-kirim-pembelian.index')
             ->with('success', 'Data biaya kirim pembelian berhasil diperbarui.');
     }
 
@@ -417,7 +417,7 @@ class BiayaKirimPembelianController
 
         if (!$header) {
             return redirect()
-                ->route('pembelian.biaya-kirim-pembelian.index')
+                ->route('pembayaran.biaya-kirim-pembelian.index')
                 ->with('error', 'Data BKP tidak ditemukan.');
         }
 
@@ -453,7 +453,7 @@ class BiayaKirimPembelianController
             ->locale('id')
             ->translatedFormat('d F Y');
 
-        return Inertia::render('Pembelian/biaya-kirim-pembelian/print', [
+        return Inertia::render('Pembayaran/biaya-kirim-pembelian/print', [
             'header' => $header,
             'details' => $details,
             'company' => $company,

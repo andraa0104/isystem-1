@@ -42,10 +42,10 @@ export default function DeliveryOrderPrint({
         <div className="min-h-screen bg-white text-black">
             <Head title={`Print DO ${deliveryOrder?.no_do ?? ''}`} />
 
-            <div className="mx-auto w-full max-w-[900px] p-5 text-[12px] leading-tight">
+            <div className="mx-auto w-full max-w-[900px] p-1 text-[12px] leading-tight">
                 <div className="flex items-start justify-between">
                     <div className="w-[60%]">
-                        <div className="mb-1 text-[20px] font-bold uppercase">
+                        <div className="text-[20px] font-bold uppercase">
                             {renderValue(company.name)}
                         </div>
                         {companyLines.map((line, idx) => (
@@ -216,7 +216,7 @@ export default function DeliveryOrderPrint({
                 @media print {
                     @page {
                         size: 8.5in 5.5in;
-                        margin: 0.15in;
+                        margin: 0.4in;
                     }
                     * {
                         -webkit-print-color-adjust: economy;
@@ -227,10 +227,10 @@ export default function DeliveryOrderPrint({
                     }
                     table {
                         border-collapse: collapse !important;
-                        border: 0.2px solid #000 !important;
+                        border: 1px solid #000 !important;
                     }
                     th, td {
-                        border: 0.2px solid #000 !important;
+                        border: 0.1px solid #000 !important;
                     }
                     table.no-border,
                     table.no-border th,
@@ -243,7 +243,7 @@ export default function DeliveryOrderPrint({
                     }
                     table.no-row-lines thead th {
                         border-top: 0 !important;
-                        border-bottom: 0.2px solid #000 !important;
+                        border-bottom: 1px solid #000 !important;
                     }
                 }
             `}</style>

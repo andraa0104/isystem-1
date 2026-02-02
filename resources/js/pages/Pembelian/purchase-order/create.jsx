@@ -79,7 +79,7 @@ export default function PurchaseOrderCreate({
         attended: '',
         ppn: '',
         paymentTerms: '',
-        deliveryTime: '',
+        deliveryTime: 'SEGERA',
         francoLoco: '',
         note1: '',
         note2: '',

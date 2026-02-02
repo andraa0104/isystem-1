@@ -111,7 +111,7 @@ export default function FakturPenjualanIndex({
     const [invoicesLoading, setInvoicesLoading] = useState(false);
     const [invoicesError, setInvoicesError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState('unpaid');
     const [noReceiptRange, setNoReceiptRange] = useState('today');
@@ -125,7 +125,7 @@ export default function FakturPenjualanIndex({
     const [detailPageSize, setDetailPageSize] = useState(5);
     const [detailCurrentPage, setDetailCurrentPage] = useState(1);
     const [isNoReceiptOpen, setIsNoReceiptOpen] = useState(false);
-    const [noReceiptPageSize, setNoReceiptPageSize] = useState(10);
+    const [noReceiptPageSize, setNoReceiptPageSize] = useState(5);
     const [noReceiptCurrentPage, setNoReceiptCurrentPage] = useState(1);
     const [noReceiptSearch, setNoReceiptSearch] = useState('');
     const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -797,6 +797,7 @@ export default function FakturPenjualanIndex({
                                     );
                                 }}
                             >
+                                <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
                                 <option value={50}>50</option>
@@ -1246,6 +1247,7 @@ export default function FakturPenjualanIndex({
                                     );
                                 }}
                             >
+                                <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
                                 <option value={50}>50</option>
