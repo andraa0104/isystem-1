@@ -42,7 +42,7 @@ export default function DeliveryOrderPrint({
         <div className="min-h-screen bg-white text-black">
             <Head title={`Print DO ${deliveryOrder?.no_do ?? ''}`} />
 
-            <div className="mx-auto w-full max-w-[900px] p-1 text-[12px] leading-tight">
+            <div className="print-container mx-auto w-full max-w-[900px] p-1 text-[12px] leading-tight">
                 <div className="flex items-start justify-between">
                     <div className="w-[60%]">
                         <div className="text-[20px] font-bold uppercase">
@@ -215,22 +215,39 @@ export default function DeliveryOrderPrint({
             <style>{`
                 @media print {
                     @page {
-                        size: 8.5in 5.5in;
-                        margin: 0.4in;
+                        size: 8.5in 5.5in landscape;
+                        margin: 10mm;
                     }
                     * {
-                        -webkit-print-color-adjust: economy;
-                        print-color-adjust: economy;
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+                    html, body {
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        background: #fff !important;
+                        color: #000 !important;
                     }
                     body {
-                        font-family: "Courier New", Courier, monospace;
+                        font-family: "Courier New", "Lucida Console", Consolas, monospace !important;
+                        font-size: 12pt !important;
+                        line-height: 1.15 !important;
+                        font-weight: 700 !important;
+                        -webkit-font-smoothing: none;
+                        text-rendering: optimizeSpeed;
+                    }
+                    .print-container {
+                        max-width: none !important;
+                        width: 100% !important;
+                        padding: 0 !important;
                     }
                     table {
                         border-collapse: collapse !important;
                         border: 1px solid #000 !important;
                     }
                     th, td {
-                        border: 0.1px solid #000 !important;
+                        border: 1px solid #000 !important;
+                        font-weight: 700 !important;
                     }
                     table.no-border,
                     table.no-border th,
