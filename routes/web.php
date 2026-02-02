@@ -386,6 +386,16 @@ Route::get('pembayaran/permintaan-dana-biaya', [PermintaanDanaBiayaController::c
     ->name('pembayaran.permintaan-dana-biaya.index');
 Route::get('pembayaran/payment-cost', [PaymentCostController::class, 'index'])
     ->name('pembayaran.payment-cost.index');
+Route::get('pembayaran/payment-cost/create', [PaymentCostController::class, 'create'])
+    ->name('pembayaran.payment-cost.create');
+Route::post('pembayaran/payment-cost', [PaymentCostController::class, 'store'])
+    ->name('pembayaran.payment-cost.store');
+Route::get('pembayaran/payment-cost/bkp-rows', [PaymentCostController::class, 'bkpRows'])
+    ->name('pembayaran.payment-cost.bkp-rows');
+Route::get('pembayaran/payment-cost/bkj-rows', [PaymentCostController::class, 'bkjRows'])
+    ->name('pembayaran.payment-cost.bkj-rows');
+Route::get('pembayaran/payment-cost/rows', [PaymentCostController::class, 'rows'])
+    ->name('pembayaran.payment-cost.rows');
 
 Route::get('penjualan/faktur-penjualan', [FakturPenjualanController::class, 'index'])
     ->name('penjualan.faktur-penjualan.index');
