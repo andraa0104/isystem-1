@@ -68,7 +68,7 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
 
     const [unbilledModalOpen, setUnbilledModalOpen] = useState(false);
     const [unbilledData, setUnbilledData] = useState([]);
-    const [unbilledSearch, setUnbilledSearch] = useState("");
+    const [unbilledSearch, setUnbilledSearch] = useState('');
     const [unbilledPageSize, setUnbilledPageSize] = useState(5);
     const [unbilledCurrentPage, setUnbilledCurrentPage] = useState(1);
     const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
@@ -81,6 +81,16 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
     const [invoiceSearch, setInvoiceSearch] = useState('');
     const [remoteInvoices, setRemoteInvoices] = useState(invoices);
     const [remoteSummary, setRemoteSummary] = useState(summary);
+
+    const [paidPeriod, setPaidPeriod] = useState('today');
+    const [paidSummary, setPaidSummary] = useState({ paid_count: 0, paid_total: 0 });
+    const [paidModalOpen, setPaidModalOpen] = useState(false);
+    const [paidData, setPaidData] = useState([]);
+    const [paidSearch, setPaidSearch] = useState('');
+    const [paidPageSize, setPaidPageSize] = useState(5);
+    const [paidCurrentPage, setPaidCurrentPage] = useState(1);
+    const [paidLoading, setPaidLoading] = useState(false);
+    const [paidError, setPaidError] = useState('');
 
     const [currentPage, setCurrentPage] = useState(1);
     const [loading, setLoading] = useState(false);
@@ -126,8 +136,36 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [statusFilter, pageSize, searchTerm]);
 
+    const fetchPaid = async (period, search = '') => {
+        setPaidLoading(true);
+        setPaidError('');
+        try {
+            const params = new URLSearchParams({
+                period,
+                search,
+            });
+            const res = await fetch(`/pembelian/invoice-masuk/paid?${params.toString()}`, {
+                headers: { Accept: 'application/json' },
+            });
+            if (!res.ok) throw new Error('Gagal memuat data invoice sudah dibayar.');
+            const data = await res.json();
+            const rows = Array.isArray(data?.invoices) ? data.invoices : [];
+            setPaidData(rows);
+            setPaidSummary(data?.summary ?? { paid_count: 0, paid_total: 0 });
+        } catch (err) {
+            setPaidError(err.message || 'Gagal memuat data invoice sudah dibayar.');
+            setPaidData([]);
+            setPaidSummary({ paid_count: 0, paid_total: 0 });
+        } finally {
+            setPaidLoading(false);
+        }
+    };
 
-    
+    useEffect(() => {
+        fetchPaid(paidPeriod, '');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [paidPeriod]);
+
     const filtered = useMemo(() => {
         let data = remoteInvoices;
 
@@ -190,6 +228,32 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
         return filteredUnbilled.slice(start, start + unbilledPageSize);
     }, [filteredUnbilled, unbilledPageSize, unbilledCurrentPage]);
 
+    const filteredPaid = useMemo(() => {
+        const term = paidSearch.trim().toLowerCase();
+        let data = paidData;
+        if (term) {
+            data = data.filter((row) =>
+                [row.no_doc, row.ref_po, row.nm_vdr, row.tgl_bayar]
+                    .map((v) => String(v ?? '').toLowerCase())
+                    .some((v) => v.includes(term))
+            );
+        }
+        return [...data].sort((a, b) =>
+            String(b.tgl_bayar ?? '').localeCompare(String(a.tgl_bayar ?? ''))
+        );
+    }, [paidData, paidSearch]);
+
+    const paidTotalPages = useMemo(() => {
+        if (paidPageSize === Infinity) return 1;
+        return Math.max(1, Math.ceil(filteredPaid.length / paidPageSize));
+    }, [filteredPaid.length, paidPageSize]);
+
+    const displayedPaid = useMemo(() => {
+        if (paidPageSize === Infinity) return filteredPaid;
+        const start = (paidCurrentPage - 1) * paidPageSize;
+        return filteredPaid.slice(start, start + paidPageSize);
+    }, [filteredPaid, paidPageSize, paidCurrentPage]);
+
     const filteredInvoiceItems = useMemo(() => {
         const term = invoiceSearch.trim().toLowerCase();
         let data = invoiceItems;
@@ -242,6 +306,9 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
 
     const openInvoiceDetail = async (noDoc) => {
         if (!noDoc) return;
+        if (paidModalOpen) {
+            setPaidModalOpen(false);
+        }
         setInvoiceModalOpen(true);
         setInvoiceLoading(true);
         setInvoiceError('');
@@ -305,32 +372,89 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
         <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Invoice Masuk', href: '/pembelian/invoice-masuk' }]}>
             <Head title="Invoice Masuk" />
             <div className="flex flex-col gap-4 p-4">
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
                     <button
                         type="button"
                         onClick={openUnbilledModal}
-                        className="text-left md:col-span-2"
+                        className="h-full w-full text-left"
                     >
-                        <Card className="transition hover:border-primary/60 hover:shadow-md">
+                        <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-lg">Invoice belum ditagihkan</CardTitle>
+                                <div className="text-xs text-muted-foreground">Pembayaran = 0</div>
                             </CardHeader>
-                            <CardContent className="flex flex-wrap items-end justify-between gap-4">
-                                <div>
+                            <CardContent className="grid gap-4 sm:grid-cols-2">
+                                <div className="space-y-1">
                                     <div className="text-xs text-muted-foreground">Jumlah invoice</div>
-                                    <div className="text-2xl font-semibold">
-                                        {initialLoaded ? remoteSummary.unbilled_count ?? 0 : "-"}
+                                    <div className="text-3xl font-semibold leading-none">
+                                        {initialLoaded ? remoteSummary.unbilled_count ?? 0 : '-'}
                                     </div>
                                 </div>
-                                <div className="text-right">
+                                <div className="space-y-1 sm:text-right">
                                     <div className="text-xs text-muted-foreground">Grand total sisa bayar</div>
-                                    <div className="text-lg font-bold text-foreground">
-                                        {initialLoaded ? `Rp ${formatNumber(remoteSummary.unbilled_total ?? 0)}` : "-"}
+                                    <div className="text-2xl font-bold leading-none text-foreground">
+                                        {initialLoaded
+                                            ? `Rp ${formatNumber(remoteSummary.unbilled_total ?? 0)}`
+                                            : '-'}
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
                     </button>
+
+                    <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
+                        <CardHeader className="pb-2">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                    <CardTitle className="text-lg">Invoice sudah dibayar</CardTitle>
+                                    <div className="text-xs text-muted-foreground">Berdasarkan tanggal bayar (tgl_bayar)</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Select value={paidPeriod} onValueChange={setPaidPeriod}>
+                                        <SelectTrigger className="h-8 w-[140px]">
+                                            <SelectValue placeholder="Periode" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="today">Hari Ini</SelectItem>
+                                            <SelectItem value="this_week">Minggu Ini</SelectItem>
+                                            <SelectItem value="this_month">Bulan Ini</SelectItem>
+                                            <SelectItem value="this_year">Tahun Ini</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 gap-2"
+                                        onClick={() => {
+                                            setPaidModalOpen(true);
+                                            setPaidSearch('');
+                                            setPaidPageSize(5);
+                                            setPaidCurrentPage(1);
+                                            fetchPaid(paidPeriod, '');
+                                        }}
+                                    >
+                                        <Eye className="h-4 w-4" />
+                                        Lihat
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="grid gap-4 pt-2 sm:grid-cols-2">
+                            <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground">Jumlah invoice</div>
+                                <div className="text-3xl font-semibold leading-none">
+                                    {paidLoading ? '...' : paidSummary?.paid_count ?? 0}
+                                </div>
+                            </div>
+                            <div className="space-y-1 sm:text-right">
+                                <div className="text-xs text-muted-foreground">Total pembayaran</div>
+                                <div className="text-2xl font-bold leading-none text-foreground">
+                                    {paidLoading ? '...' : `Rp ${formatNumber(paidSummary?.paid_total ?? 0)}`}
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 <Card>
@@ -880,6 +1004,149 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                                         size="sm"
                                         onClick={() => setInvoiceCurrentPage((p) => Math.min(invoiceTotalPages, p + 1))}
                                         disabled={invoiceCurrentPage === invoiceTotalPages}
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={paidModalOpen} onOpenChange={setPaidModalOpen}>
+                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-hidden">
+                    <DialogHeader>
+                        <DialogTitle>Invoice sudah dibayar</DialogTitle>
+                        <DialogDescription>
+                            Berdasarkan tgl_bayar (periode terpilih).
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-3 h-[calc(100vh-8rem)]">
+                        <div className="flex flex-wrap gap-3">
+                            <Input
+                                placeholder="Cari No FI, Ref PO, Vendor, Tgl Bayar..."
+                                value={paidSearch}
+                                onChange={(e) => {
+                                    setPaidSearch(e.target.value);
+                                    setPaidCurrentPage(1);
+                                }}
+                                className="w-full max-w-xs"
+                            />
+                            <select
+                                className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
+                                value={paidPeriod}
+                                onChange={(e) => setPaidPeriod(e.target.value)}
+                            >
+                                <option value="today">Hari Ini</option>
+                                <option value="this_week">Minggu Ini</option>
+                                <option value="this_month">Bulan Ini</option>
+                                <option value="this_year">Tahun Ini</option>
+                            </select>
+                            <Select
+                                value={paidPageSize === Infinity ? 'all' : String(paidPageSize)}
+                                onValueChange={(val) => {
+                                    setPaidCurrentPage(1);
+                                    setPaidPageSize(val === 'all' ? Infinity : Number(val));
+                                }}
+                            >
+                                <SelectTrigger className="w-32">
+                                    <SelectValue placeholder="Tampilkan" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {[5,10,25,50].map((n) => (
+                                        <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                                    ))}
+                                    <SelectItem value="all">Semua data</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {paidError ? (
+                            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                                {paidError}
+                            </div>
+                        ) : null}
+
+                        <div className="flex-1 overflow-auto rounded-lg border border-sidebar-border/70">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>No FI</TableHead>
+                                        <TableHead>Tgl Bayar</TableHead>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead>Inv Date</TableHead>
+                                        <TableHead>Ref PO</TableHead>
+                                        <TableHead>Vendor</TableHead>
+                                        <TableHead className="text-right">Total Invoice</TableHead>
+                                        <TableHead className="text-right">Pembayaran</TableHead>
+                                        <TableHead className="text-right">Sisa</TableHead>
+                                        <TableHead className="text-center">Aksi</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {paidLoading ? (
+                                        <TableRow>
+                                            <TableCell colSpan={10} className="text-center text-muted-foreground">
+                                                Memuat data...
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : displayedPaid.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={10} className="text-center text-muted-foreground">
+                                                Tidak ada data.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        displayedPaid.map((row) => (
+                                            <TableRow key={`${row.no_doc}-${row.tgl_bayar}`}>
+                                                <TableCell>{row.no_doc ?? '-'}</TableCell>
+                                                <TableCell>{formatDate(row.tgl_bayar)}</TableCell>
+                                                <TableCell>{formatDate(row.doc_rec)}</TableCell>
+                                                <TableCell>{formatDate(row.inv_d)}</TableCell>
+                                                <TableCell>{row.ref_po ?? '-'}</TableCell>
+                                                <TableCell>{row.nm_vdr ?? '-'}</TableCell>
+                                                <TableCell className="text-right">Rp {formatNumber(row.total ?? 0)}</TableCell>
+                                                <TableCell className="text-right">Rp {formatNumber(row.pembayaran ?? 0)}</TableCell>
+                                                <TableCell className="text-right">Rp {formatNumber(row.sisa_bayar ?? 0)}</TableCell>
+                                                <TableCell className="text-center">
+                                                    <Button
+                                                        size="icon"
+                                                        variant="outline"
+                                                        onClick={() => openInvoiceDetail(row.no_doc)}
+                                                        title="Detail Invoice"
+                                                    >
+                                                        <Eye className="h-4 w-4" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+
+                        {paidPageSize !== Infinity && filteredPaid.length > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan {Math.min((paidCurrentPage - 1) * paidPageSize + 1, filteredPaid.length)} -
+                                    {Math.min(paidCurrentPage * paidPageSize, filteredPaid.length)} dari {filteredPaid.length} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setPaidCurrentPage((p) => Math.max(1, p - 1))}
+                                        disabled={paidCurrentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span>Halaman {paidCurrentPage} / {paidTotalPages}</span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setPaidCurrentPage((p) => Math.min(paidTotalPages, p + 1))}
+                                        disabled={paidCurrentPage === paidTotalPages}
                                     >
                                         Berikutnya
                                     </Button>

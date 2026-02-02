@@ -42,8 +42,8 @@ export default function DeliveryOrderPrint({
         <div className="min-h-screen bg-white text-black">
             <Head title={`Print DO ${deliveryOrder?.no_do ?? ''}`} />
 
-            <div className="print-container mx-auto w-full max-w-[900px] p-1 text-[12px] leading-tight">
-                <div className="flex items-start justify-between">
+            <div className="print-container mx-auto w-full max-w-[900px] text-[12px] leading-tight">
+                <div className="flex items-start justify-between gap-2">
                     <div className="w-[60%]">
                         <div className="text-[20px] font-bold uppercase">
                             {renderValue(company.name)}
@@ -54,7 +54,7 @@ export default function DeliveryOrderPrint({
                             </div>
                         ))}
                     </div>
-                    <div className="w-[40%] border border-black px-2 py-1">
+                    <div className="delivery-to box-border w-[40%] border border-black px-2 py-1">
                         <div className="mb-1 underline">Delivery To :</div>
                         <div className="mb-1 font-bold uppercase">
                             {renderValue(deliveryOrder?.nm_cs)}
@@ -92,7 +92,7 @@ export default function DeliveryOrderPrint({
                 </div>
 
                 <div className="border border-black">
-                    <table className="w-full border-collapse text-[12px] no-row-lines">
+                    <table className="no-row-lines w-full border-collapse text-[12px]">
                         <colgroup>
                             <col className="w-[4%]" />
                             <col className="w-[10%]" />
@@ -101,16 +101,16 @@ export default function DeliveryOrderPrint({
                         </colgroup>
                         <thead>
                             <tr>
-                                <th className="border-b border-r border-black py-[2px] text-center font-normal leading-tight">
+                                <th className="border-r border-b border-black py-[2px] text-center leading-tight font-normal">
                                     No.
                                 </th>
-                                <th className="border-b border-r border-black py-[2px] text-center font-normal leading-tight">
+                                <th className="border-r border-b border-black py-[2px] text-center leading-tight font-normal">
                                     Quantity
                                 </th>
-                                <th className="border-b border-r border-black py-[2px] text-center font-normal leading-tight">
+                                <th className="border-r border-b border-black py-[2px] text-center leading-tight font-normal">
                                     Description
                                 </th>
-                                <th className="border-b border-black py-[2px] text-center font-normal leading-tight">
+                                <th className="border-b border-black py-[2px] text-center leading-tight font-normal">
                                     Remark
                                 </th>
                             </tr>
@@ -123,25 +123,30 @@ export default function DeliveryOrderPrint({
                                 const lastCellClass = '';
 
                                 return (
-                                <tr
-                                    key={index}
-                                    className="align-top"
-                                >
-                                    <td className={`${cellClass} py-[2px] text-center leading-tight`}>
-                                        {index + 1}
-                                    </td>
-                                    <td className={`${cellClass} px-2 py-[2px] text-right leading-tight`}>
-                                        {formatNumber(item.qty)}{' '}
-                                        {renderValue(item.unit)}
-                                    </td>
-                                    <td className={`${cellClass} py-[2px] pl-2 leading-tight`}>
-                                        {renderValue(item.mat)}
-                                    </td>
-                                    <td className={`${lastCellClass} py-[2px] pl-2 leading-tight`}>
-                                        {renderValue(item.remark)}
-                                    </td>
-                                </tr>
-                            );
+                                    <tr key={index} className="align-top">
+                                        <td
+                                            className={`${cellClass} py-[2px] text-center leading-tight`}
+                                        >
+                                            {index + 1}
+                                        </td>
+                                        <td
+                                            className={`${cellClass} px-2 py-[2px] text-right leading-tight`}
+                                        >
+                                            {formatNumber(item.qty)}{' '}
+                                            {renderValue(item.unit)}
+                                        </td>
+                                        <td
+                                            className={`${cellClass} py-[2px] pl-2 leading-tight`}
+                                        >
+                                            {renderValue(item.mat)}
+                                        </td>
+                                        <td
+                                            className={`${lastCellClass} py-[2px] pl-2 leading-tight`}
+                                        >
+                                            {renderValue(item.remark)}
+                                        </td>
+                                    </tr>
+                                );
                             })}
                             {deliveryOrderDetails.length === 0 && (
                                 <tr>
@@ -155,9 +160,15 @@ export default function DeliveryOrderPrint({
                             )}
                             {deliveryOrderDetails.length > 0 && (
                                 <tr className="h-[20px]">
-                                    <td className="border-r border-black">&nbsp;</td>
-                                    <td className="border-r border-black">&nbsp;</td>
-                                    <td className="border-r border-black">&nbsp;</td>
+                                    <td className="border-r border-black">
+                                        &nbsp;
+                                    </td>
+                                    <td className="border-r border-black">
+                                        &nbsp;
+                                    </td>
+                                    <td className="border-r border-black">
+                                        &nbsp;
+                                    </td>
                                     <td>&nbsp;</td>
                                 </tr>
                             )}
@@ -184,22 +195,24 @@ export default function DeliveryOrderPrint({
                                 <td className="border-r border-black py-1 text-center">
                                     Carried By,
                                 </td>
-                                <td className="py-1 text-center">Received By,</td>
+                                <td className="py-1 text-center">
+                                    Received By,
+                                </td>
                             </tr>
                             <tr>
-                                <td className="border-r border-black h-[60px]" />
-                                <td className="border-r border-black h-[60px]" />
-                                <td className="border-r border-black h-[60px]" />
+                                <td className="h-[60px] border-r border-black" />
+                                <td className="h-[60px] border-r border-black" />
+                                <td className="h-[60px] border-r border-black" />
                                 <td className="h-[60px]" />
                             </tr>
                             <tr>
-                                <td className="border-r border-t border-black py-1 text-center">
+                                <td className="border-t border-r border-black py-1 text-center">
                                     &nbsp;
                                 </td>
-                                <td className="border-r border-t border-black py-1 text-center">
+                                <td className="border-t border-r border-black py-1 text-center">
                                     &nbsp;
                                 </td>
-                                <td className="border-r border-t border-black py-1 text-center">
+                                <td className="border-t border-r border-black py-1 text-center">
                                     &nbsp;
                                 </td>
                                 <td className="border-t border-black py-1 text-center font-semibold uppercase">
@@ -222,6 +235,9 @@ export default function DeliveryOrderPrint({
                         -webkit-print-color-adjust: exact;
                         print-color-adjust: exact;
                     }
+                    *, *::before, *::after {
+                        box-sizing: border-box !important;
+                    }
                     html, body {
                         margin: 0 !important;
                         padding: 0 !important;
@@ -232,7 +248,7 @@ export default function DeliveryOrderPrint({
                         font-family: "Courier New", "Lucida Console", Consolas, monospace !important;
                         font-size: 12pt !important;
                         line-height: 1.15 !important;
-                        font-weight: 700 !important;
+                        font-weight: 900 !important;
                         -webkit-font-smoothing: none;
                         text-rendering: optimizeSpeed;
                     }
@@ -240,6 +256,11 @@ export default function DeliveryOrderPrint({
                         max-width: none !important;
                         width: 100% !important;
                         padding: 0 !important;
+                    }
+                    .delivery-to {
+                        border: 1px solid #000 !important;
+                        outline: 1px solid #000 !important;
+                        outline-offset: -1px;
                     }
                     table {
                         border-collapse: collapse !important;

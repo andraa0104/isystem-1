@@ -515,6 +515,8 @@ Route::get('pembelian/invoice-masuk/po-detail', [InvoiceMasukController::class, 
     ->name('pembelian.invoice-masuk.po-detail');
 Route::get('pembelian/invoice-masuk/po-materials', [InvoiceMasukController::class, 'poMaterials'])
     ->name('pembelian.invoice-masuk.po-materials');
+Route::get('pembelian/invoice-masuk/paid', [InvoiceMasukController::class, 'paid'])
+    ->name('pembelian.invoice-masuk.paid');
 Route::get('pembelian/invoice-masuk/{noDoc}', [InvoiceMasukController::class, 'detail'])
     ->name('pembelian.invoice-masuk.detail');
 Route::post('pembelian/invoice-masuk', [InvoiceMasukController::class, 'store'])

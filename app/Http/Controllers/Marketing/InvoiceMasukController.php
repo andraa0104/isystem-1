@@ -110,6 +110,67 @@ class InvoiceMasukController
         ]);
     }
 
+    public function paid(Request $request)
+    {
+        $search = $request->query('search');
+        $period = $request->query('period', 'today');
+
+        $baseQuery = DB::table('tb_kdinvin');
+
+        // Paid invoices: have payment date and payment amount > 0
+        $baseQuery->whereNotNull('tgl_bayar')
+            ->whereRaw("TRIM(COALESCE(tgl_bayar, '')) <> ''")
+            ->whereRaw('COALESCE(pembayaran, 0) > 0');
+
+        if ($search) {
+            $term = '%'.trim($search).'%';
+            $baseQuery->where(function ($query) use ($term) {
+                $query->where('no_doc', 'like', $term)
+                    ->orWhere('ref_po', 'like', $term)
+                    ->orWhere('nm_vdr', 'like', $term);
+            });
+        }
+
+        $today = Carbon::now();
+        switch ($period) {
+            case 'this_week':
+                $baseQuery->whereBetween('tgl_bayar', [
+                    $today->copy()->startOfWeek()->toDateString(),
+                    $today->copy()->endOfWeek()->toDateString(),
+                ]);
+                break;
+            case 'this_month':
+                $baseQuery->whereBetween('tgl_bayar', [
+                    $today->copy()->startOfMonth()->toDateString(),
+                    $today->copy()->endOfMonth()->toDateString(),
+                ]);
+                break;
+            case 'this_year':
+                $baseQuery->whereBetween('tgl_bayar', [
+                    $today->copy()->startOfYear()->toDateString(),
+                    $today->copy()->endOfYear()->toDateString(),
+                ]);
+                break;
+            case 'today':
+            default:
+                $baseQuery->whereDate('tgl_bayar', $today->toDateString());
+                break;
+        }
+
+        $baseQuery->orderByDesc('tgl_bayar')->orderByDesc('no_doc');
+
+        $invoices = $baseQuery->get();
+        $summary = [
+            'paid_count' => (int) $invoices->count(),
+            'paid_total' => (float) $invoices->sum('pembayaran'),
+        ];
+
+        return response()->json([
+            'invoices' => $invoices,
+            'summary' => $summary,
+        ]);
+    }
+
     public function detail(Request $request, string $noDoc)
     {
         $header = DB::table('tb_kdinvin')
