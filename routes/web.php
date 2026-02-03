@@ -28,6 +28,7 @@ use Laravel\Fortify\Features;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use App\Models\Pengguna;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
@@ -79,7 +80,8 @@ Route::post('/login-simple', function (Request $request) {
         ->where('pengguna', $user->pengguna)
         ->update(['Sesi' => 'Y']);
 
-    // Stabil tidak mudah terlogout: gunakan cookie persisten (terutama untuk mobile browser)
+    // Cookie persisten supaya tidak gampang terlogout sendiri (mobile sering membuang session-cookie).
+    // Status login "aktif" tetap dikontrol oleh heartbeat (lihat /heartbeat-simple).
     $loginCookieMinutes = 60 * 24 * 30; // 30 hari
     $tenantCookieMinutes = 60 * 24 * 30; // 30 hari
 
@@ -88,6 +90,34 @@ Route::post('/login-simple', function (Request $request) {
         ->withCookie(cookie('login_user', $user->pengguna, $loginCookieMinutes))
         ->withCookie(cookie('login_user_name', $user->name, $loginCookieMinutes))
         ->withCookie(cookie('login_last_online', (string) ($user->last_online ?? ''), $loginCookieMinutes));
+});
+
+Route::post('/heartbeat-simple', function (Request $request) {
+    $database = $request->cookie('tenant_database');
+    $username = $request->cookie('login_user');
+    $allowed = config('tenants.databases', []);
+
+    if (!$username) {
+        return response()->json(['ok' => false], 401);
+    }
+
+    if ($database && in_array($database, $allowed, true)) {
+        $connection = config('tenants.connection', config('database.default'));
+        config(['database.default' => $connection]);
+        DB::setDefaultConnection($connection);
+        config(["database.connections.$connection.database" => $database]);
+        DB::purge($connection);
+        DB::reconnect($connection);
+
+        Pengguna::on($connection)
+            ->where('pengguna', $username)
+            ->update(['Sesi' => 'Y']);
+    }
+
+    $key = 'browser_active:' . ($database ?: 'default') . ':' . $username;
+    Cache::store('file')->put($key, time(), now()->addMinutes(10));
+
+    return response()->json(['ok' => true]);
 });
 
 Route::match(['get', 'post'], '/logout-simple', function (Request $request) {

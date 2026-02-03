@@ -97,7 +97,7 @@ export default function PaymentCostIndex() {
                             <h1 className="text-xl font-semibold">Payment Cost</h1>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Daftar pembayaran biaya (tb_bayar)
+                            Daftar pembayaran biaya
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">

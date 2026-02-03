@@ -8,6 +8,26 @@ import { initializeTheme } from './hooks/use-appearance';
 // Catatan:
 // Jangan auto-logout via event unload/pagehide.
 // Browser sering memicu event ini saat refresh / pindah halaman sehingga user bisa ter-logout sendiri.
+if (typeof window !== 'undefined') {
+    const sendHeartbeat = () => {
+        try {
+            fetch('/heartbeat-simple', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                keepalive: true,
+            }).catch(() => {});
+        } catch {
+            /* noop */
+        }
+    };
+
+    sendHeartbeat();
+    window.setInterval(sendHeartbeat, 30_000);
+    window.addEventListener('visibilitychange', () => {
+        if (!document.hidden) sendHeartbeat();
+    });
+}
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

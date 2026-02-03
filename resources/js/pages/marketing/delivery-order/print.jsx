@@ -229,11 +229,11 @@ export default function DeliveryOrderPrint({
                 @media print {
                     @page {
                         size: 8.5in 5.5in landscape;
-                        margin: 10mm;
+                        margin: 8mm;
                     }
                     * {
-                        -webkit-print-color-adjust: exact;
-                        print-color-adjust: exact;
+                        -webkit-print-color-adjust: economy;
+                        print-color-adjust: economy;
                     }
                     *, *::before, *::after {
                         box-sizing: border-box !important;
@@ -244,12 +244,15 @@ export default function DeliveryOrderPrint({
                         background: #fff !important;
                         color: #000 !important;
                     }
+                    html, body, * {
+                        font-family: "Consolas", monospace !important;
+                    }
                     body {
-                        font-family: "Courier New", "Lucida Console", Consolas, monospace !important;
-                        font-size: 12pt !important;
-                        line-height: 1.15 !important;
-                        font-weight: 900 !important;
-                        -webkit-font-smoothing: none;
+                        font-size: 11pt !important;
+                        line-height: 1.1 !important;
+                        font-weight: 400 !important;
+                        letter-spacing: 0.02em !important;
+                        -webkit-font-smoothing: auto;
                         text-rendering: optimizeSpeed;
                     }
                     .print-container {
@@ -264,11 +267,11 @@ export default function DeliveryOrderPrint({
                     }
                     table {
                         border-collapse: collapse !important;
-                        border: 1px solid #000 !important;
+                        border: 0.5px solid #000 !important;
                     }
                     th, td {
-                        border: 1px solid #000 !important;
-                        font-weight: 700 !important;
+                        border: 0.5px solid #000 !important;
+                        font-weight: 400 !important;
                     }
                     table.no-border,
                     table.no-border th,
@@ -281,7 +284,7 @@ export default function DeliveryOrderPrint({
                     }
                     table.no-row-lines thead th {
                         border-top: 0 !important;
-                        border-bottom: 1px solid #000 !important;
+                        border-bottom: 0.5px solid #000 !important;
                     }
                 }
             `}</style>
