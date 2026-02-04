@@ -412,6 +412,20 @@ Route::put('pembelian/delivery-order-cost/{noAlokasi}', [DeliveryOrderCostContro
 
 Route::get('pembayaran/permintaan-dana-operasional', [PermintaanDanaOperasionalController::class, 'index'])
     ->name('pembayaran.permintaan-dana-operasional.index');
+Route::get('pembayaran/permintaan-dana-operasional/create', [PermintaanDanaOperasionalController::class, 'create'])
+    ->name('pembayaran.permintaan-dana-operasional.create');
+Route::post('pembayaran/permintaan-dana-operasional', [PermintaanDanaOperasionalController::class, 'store'])
+    ->name('pembayaran.permintaan-dana-operasional.store');
+Route::get('pembayaran/permintaan-dana-operasional/rows', [PermintaanDanaOperasionalController::class, 'rows'])
+    ->name('pembayaran.permintaan-dana-operasional.rows');
+Route::get('pembayaran/permintaan-dana-operasional/fi-rows', [PermintaanDanaOperasionalController::class, 'fiRows'])
+    ->name('pembayaran.permintaan-dana-operasional.fi-rows');
+Route::get('pembayaran/permintaan-dana-operasional/fi/{noDoc}', [PermintaanDanaOperasionalController::class, 'fiDetail'])
+    ->name('pembayaran.permintaan-dana-operasional.fi-detail');
+Route::get('pembayaran/permintaan-dana-operasional/{noPdo}/rows', [PermintaanDanaOperasionalController::class, 'pdoRows'])
+    ->name('pembayaran.permintaan-dana-operasional.pdo-rows');
+Route::get('pembayaran/permintaan-dana-operasional/{noPdo}/print', [PermintaanDanaOperasionalController::class, 'print'])
+    ->name('pembayaran.permintaan-dana-operasional.print');
 Route::get('pembayaran/permintaan-dana-biaya', [PermintaanDanaBiayaController::class, 'index'])
     ->name('pembayaran.permintaan-dana-biaya.index');
 Route::get('pembayaran/payment-cost', [PaymentCostController::class, 'index'])
