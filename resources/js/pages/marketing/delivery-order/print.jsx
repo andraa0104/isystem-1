@@ -228,9 +228,13 @@ export default function DeliveryOrderPrint({
             <style>{`
                 @media print {
                     @page {
-                        size: 8.5in 5.5in landscape;
-                        /* Keep content inside dot-matrix printer hard margins. */
-                        margin: 6mm;
+                        size: 8.5in 5.4in landscape;
+                        /*
+                         * Epson LX usually has a fairly large non-printable area,
+                         * especially on the right/top edge. Use a larger margin
+                         * to avoid clipped borders.
+                         */
+                        margin: 10mm 14mm 14mm 10mm;
                     }
                     * {
                         -webkit-print-color-adjust: economy;
@@ -246,29 +250,43 @@ export default function DeliveryOrderPrint({
                         color: #000 !important;
                     }
                     html, body, * {
-                        font-family: "Lucida Console", "Courier New", Consolas, monospace !important;
+                        /*
+                         * Prefer sharper printer-style monospace fonts if available.
+                         * These may not exist on all machines; we keep safe fallbacks.
+                         */
+                        font-family:
+                            "OCR A Extended",
+                            "OCRA",
+                            "Letter Gothic",
+                            "Courier 10 Pitch",
+                            "Nimbus Mono L",
+                            "Courier New",
+                            "Lucida Console",
+                            Consolas,
+                            monospace !important;
                     }
                     body {
                         /* Slightly larger + heavier improves legibility on Epson LX. */
                         font-size: 12pt !important;
-                        line-height: 1.15 !important;
+                        line-height: 1.2 !important;
                         /* Avoid dot-matrix "bleeding" while staying readable. */
-                        font-weight: 600 !important;
+                        font-weight: 400 !important;
                         letter-spacing: 0 !important;
-                        -webkit-font-smoothing: auto;
+                        -webkit-font-smoothing: none;
                         text-rendering: optimizeSpeed;
                     }
                     .print-container {
                         max-width: none !important;
+                        /*
+                         * Keep some breathing room inside the page margin
+                         * so the right-most border doesn't get clipped.
+                         */
                         width: 100% !important;
-                        /* Prevent right border from being clipped. */
-                        padding: 0 2mm 0 0 !important;
+                        padding: 0 !important;
                         overflow: visible !important;
                     }
                     .delivery-to {
                         border: 1px solid #000 !important;
-                        outline: 1px solid #000 !important;
-                        outline-offset: -1px;
                     }
                     table {
                         border-collapse: collapse !important;
@@ -277,7 +295,7 @@ export default function DeliveryOrderPrint({
                     }
                     th, td {
                         border: 1px solid #000 !important;
-                        font-weight: 600 !important;
+                        font-weight: 700 !important;
                     }
                     table.no-border,
                     table.no-border th,
@@ -290,7 +308,7 @@ export default function DeliveryOrderPrint({
                     }
                     table.no-row-lines thead th {
                         border-top: 0 !important;
-                        border-bottom: 1px solid #000 !important;
+                        border-bottom: 2px solid #000 !important;
                     }
                 }
             `}</style>
