@@ -100,7 +100,7 @@ export default function PermintaanDanaOperasionalPrint({
                             </span>
                         </div>
                     </div>
-                    <div className="space-y-1 text-right">
+                    <div className="space-y-1 text-right" style={{fontSize: '12px'}}>
                         <div>
                             Kas Bank:{' '}
                             <span className="font-semibold">

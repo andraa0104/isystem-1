@@ -229,7 +229,8 @@ export default function DeliveryOrderPrint({
                 @media print {
                     @page {
                         size: 8.5in 5.5in landscape;
-                        margin: 8mm;
+                        /* Keep content inside dot-matrix printer hard margins. */
+                        margin: 6mm;
                     }
                     * {
                         -webkit-print-color-adjust: economy;
@@ -245,20 +246,24 @@ export default function DeliveryOrderPrint({
                         color: #000 !important;
                     }
                     html, body, * {
-                        font-family: "Consolas", monospace !important;
+                        font-family: "Lucida Console", "Courier New", Consolas, monospace !important;
                     }
                     body {
-                        font-size: 11pt !important;
-                        line-height: 1.1 !important;
-                        font-weight: 400 !important;
-                        letter-spacing: 0.02em !important;
+                        /* Slightly larger + heavier improves legibility on Epson LX. */
+                        font-size: 12pt !important;
+                        line-height: 1.15 !important;
+                        /* Avoid dot-matrix "bleeding" while staying readable. */
+                        font-weight: 600 !important;
+                        letter-spacing: 0 !important;
                         -webkit-font-smoothing: auto;
                         text-rendering: optimizeSpeed;
                     }
                     .print-container {
                         max-width: none !important;
                         width: 100% !important;
-                        padding: 0 !important;
+                        /* Prevent right border from being clipped. */
+                        padding: 0 2mm 0 0 !important;
+                        overflow: visible !important;
                     }
                     .delivery-to {
                         border: 1px solid #000 !important;
@@ -267,11 +272,12 @@ export default function DeliveryOrderPrint({
                     }
                     table {
                         border-collapse: collapse !important;
-                        border: 0.5px solid #000 !important;
+                        border: 1px solid #000 !important;
+                        width: 100% !important;
                     }
                     th, td {
-                        border: 0.5px solid #000 !important;
-                        font-weight: 400 !important;
+                        border: 1px solid #000 !important;
+                        font-weight: 600 !important;
                     }
                     table.no-border,
                     table.no-border th,
@@ -284,7 +290,7 @@ export default function DeliveryOrderPrint({
                     }
                     table.no-row-lines thead th {
                         border-top: 0 !important;
-                        border-bottom: 0.5px solid #000 !important;
+                        border-bottom: 1px solid #000 !important;
                     }
                 }
             `}</style>
