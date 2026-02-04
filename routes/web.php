@@ -23,6 +23,11 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MasterData\MaterialController;
 use App\Http\Controllers\MasterData\VendorController;
 use App\Http\Controllers\MasterData\CustomerController;
+use App\Http\Controllers\Laporan\BukuBesarController;
+use App\Http\Controllers\Laporan\NeracaLajurController;
+use App\Http\Controllers\Laporan\NeracaSaldoController;
+use App\Http\Controllers\Laporan\RugiLabaController;
+use App\Http\Controllers\Laporan\NeracaAkhirController;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Illuminate\Http\Request;
@@ -207,6 +212,41 @@ Route::get('/ping-db', function (Request $request) {
 
 Route::get('dashboard', [DashboardController::class, 'index'])
     ->name('dashboard');
+
+Route::get('laporan/buku-besar', [BukuBesarController::class, 'index'])
+    ->name('laporan.buku-besar.index');
+Route::get('laporan/buku-besar/rows', [BukuBesarController::class, 'rows'])
+    ->name('laporan.buku-besar.rows');
+Route::get('laporan/buku-besar/print', [BukuBesarController::class, 'print'])
+    ->name('laporan.buku-besar.print');
+
+Route::get('laporan/neraca-lajur', [NeracaLajurController::class, 'index'])
+    ->name('laporan.neraca-lajur.index');
+Route::get('laporan/neraca-lajur/rows', [NeracaLajurController::class, 'rows'])
+    ->name('laporan.neraca-lajur.rows');
+Route::get('laporan/neraca-lajur/print', [NeracaLajurController::class, 'print'])
+    ->name('laporan.neraca-lajur.print');
+
+Route::get('laporan/neraca-saldo', [NeracaSaldoController::class, 'index'])
+    ->name('laporan.neraca-saldo.index');
+Route::get('laporan/neraca-saldo/rows', [NeracaSaldoController::class, 'rows'])
+    ->name('laporan.neraca-saldo.rows');
+Route::get('laporan/neraca-saldo/print', [NeracaSaldoController::class, 'print'])
+    ->name('laporan.neraca-saldo.print');
+
+Route::get('laporan/rugi-laba', [RugiLabaController::class, 'index'])
+    ->name('laporan.rugi-laba.index');
+Route::get('laporan/rugi-laba/rows', [RugiLabaController::class, 'rows'])
+    ->name('laporan.rugi-laba.rows');
+Route::get('laporan/rugi-laba/print', [RugiLabaController::class, 'print'])
+    ->name('laporan.rugi-laba.print');
+
+Route::get('laporan/neraca-akhir', [NeracaAkhirController::class, 'index'])
+    ->name('laporan.neraca-akhir.index');
+Route::get('laporan/neraca-akhir/rows', [NeracaAkhirController::class, 'rows'])
+    ->name('laporan.neraca-akhir.rows');
+Route::get('laporan/neraca-akhir/print', [NeracaAkhirController::class, 'print'])
+    ->name('laporan.neraca-akhir.print');
 
 Route::get('master-data/material', [MaterialController::class, 'index'])
     ->name('master-data.material.index');
@@ -428,6 +468,20 @@ Route::get('pembayaran/permintaan-dana-operasional/{noPdo}/print', [PermintaanDa
     ->name('pembayaran.permintaan-dana-operasional.print');
 Route::get('pembayaran/permintaan-dana-biaya', [PermintaanDanaBiayaController::class, 'index'])
     ->name('pembayaran.permintaan-dana-biaya.index');
+Route::get('pembayaran/permintaan-dana-biaya/create', [PermintaanDanaBiayaController::class, 'create'])
+    ->name('pembayaran.permintaan-dana-biaya.create');
+Route::post('pembayaran/permintaan-dana-biaya', [PermintaanDanaBiayaController::class, 'store'])
+    ->name('pembayaran.permintaan-dana-biaya.store');
+Route::get('pembayaran/permintaan-dana-biaya/rows', [PermintaanDanaBiayaController::class, 'rows'])
+    ->name('pembayaran.permintaan-dana-biaya.rows');
+Route::get('pembayaran/permintaan-dana-biaya/paycost-rows', [PermintaanDanaBiayaController::class, 'payCostRows'])
+    ->name('pembayaran.permintaan-dana-biaya.paycost-rows');
+Route::get('pembayaran/permintaan-dana-biaya/bayar-detail', [PermintaanDanaBiayaController::class, 'bayarDetail'])
+    ->name('pembayaran.permintaan-dana-biaya.bayar-detail');
+Route::get('pembayaran/permintaan-dana-biaya/detail-rows', [PermintaanDanaBiayaController::class, 'detailRows'])
+    ->name('pembayaran.permintaan-dana-biaya.detail-rows');
+Route::get('pembayaran/permintaan-dana-biaya/print', [PermintaanDanaBiayaController::class, 'print'])
+    ->name('pembayaran.permintaan-dana-biaya.print');
 Route::get('pembayaran/payment-cost', [PaymentCostController::class, 'index'])
     ->name('pembayaran.payment-cost.index');
 Route::get('pembayaran/payment-cost/create', [PaymentCostController::class, 'create'])

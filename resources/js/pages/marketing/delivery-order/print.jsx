@@ -49,23 +49,23 @@ export default function DeliveryOrderPrint({
                             {renderValue(company.name)}
                         </div>
                         {companyLines.map((line, idx) => (
-                            <div key={idx} className="capitalize">
+                            <div key={idx} className="print-address capitalize">
                                 {line}
                             </div>
                         ))}
                     </div>
                     <div className="delivery-to box-border w-[40%] border border-black px-2 py-1">
                         <div className="mb-1 underline">Delivery To :</div>
-                        <div className="mb-1 font-bold uppercase">
+                        <div className="mb-1 font-extrabold uppercase">
                             {renderValue(deliveryOrder?.nm_cs)}
                         </div>
-                        <div className="uppercase">
+                        <div className="print-address uppercase">
                             {renderValue(customerAddress)}
                         </div>
                     </div>
                 </div>
 
-                <div className="my-3 text-center text-[20px] font-extrabold tracking-[0.2em]">
+                <div className="my-3 text-center text-[20px] font-semibold tracking-[0.2em]">
                     DELIVERY ORDER
                 </div>
 
@@ -95,9 +95,9 @@ export default function DeliveryOrderPrint({
                     <table className="no-row-lines w-full border-collapse text-[12px]">
                         <colgroup>
                             <col className="w-[4%]" />
-                            <col className="w-[10%]" />
-                            <col className="w-[50%]" />
-                            <col className="w-[30.9%]" />
+                            <col className="w-[8%]" />
+                            <col className="w-[51%]" />
+                            <col className="w-[30.5%]" />
                         </colgroup>
                         <thead>
                             <tr>
@@ -234,7 +234,7 @@ export default function DeliveryOrderPrint({
                          * especially on the right/top edge. Use a larger margin
                          * to avoid clipped borders.
                          */
-                        margin: 10mm 14mm 14mm 10mm;
+                        margin: 8mm 6mm 8mm 3mm;
                     }
                     * {
                         -webkit-print-color-adjust: economy;
@@ -250,30 +250,21 @@ export default function DeliveryOrderPrint({
                         color: #000 !important;
                     }
                     html, body, * {
-                        /*
-                         * Prefer sharper printer-style monospace fonts if available.
-                         * These may not exist on all machines; we keep safe fallbacks.
-                         */
-                        font-family:
-                            "OCR A Extended",
-                            "OCRA",
-                            "Letter Gothic",
-                            "Courier 10 Pitch",
-                            "Nimbus Mono L",
-                            "Courier New",
-                            "Lucida Console",
-                            Consolas,
-                            monospace !important;
+                        /* Prioritize clarity over alignment: use common sans fonts for sharper output. */
+                        font-family: Arial, Helvetica, "Liberation Sans", sans-serif !important;
                     }
                     body {
                         /* Slightly larger + heavier improves legibility on Epson LX. */
                         font-size: 12pt !important;
                         line-height: 1.2 !important;
                         /* Avoid dot-matrix "bleeding" while staying readable. */
-                        font-weight: 400 !important;
+                        font-weight: 700 !important;
                         letter-spacing: 0 !important;
                         -webkit-font-smoothing: none;
                         text-rendering: optimizeSpeed;
+                    }
+                    .print-address {
+                        font-weight: 700 !important;
                     }
                     .print-container {
                         max-width: none !important;
@@ -281,21 +272,21 @@ export default function DeliveryOrderPrint({
                          * Keep some breathing room inside the page margin
                          * so the right-most border doesn't get clipped.
                          */
-                        width: 100% !important;
-                        padding: 0 !important;
+                        width: 95% !important;
+                        padding: 0 2mm 0 0 !important;
                         overflow: visible !important;
                     }
                     .delivery-to {
-                        border: 1px solid #000 !important;
+                        border: 2px solid #000 !important;
                     }
                     table {
                         border-collapse: collapse !important;
-                        border: 1px solid #000 !important;
+                        border: 0.5px solid #000 !important;
                         width: 100% !important;
                     }
                     th, td {
-                        border: 1px solid #000 !important;
-                        font-weight: 700 !important;
+                        border: 0.5px solid #000 !important;
+                        font-weight: 600 !important;
                     }
                     table.no-border,
                     table.no-border th,
@@ -307,8 +298,8 @@ export default function DeliveryOrderPrint({
                         border-bottom: 0 !important;
                     }
                     table.no-row-lines thead th {
-                        border-top: 0 !important;
-                        border-bottom: 2px solid #000 !important;
+                        border-top: 0.5px solid #000 !important;
+                        border-bottom: 0.5px solid #000 !important;
                     }
                 }
             `}</style>
