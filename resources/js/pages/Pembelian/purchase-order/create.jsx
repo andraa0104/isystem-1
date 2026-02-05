@@ -12,6 +12,8 @@ import AppLayout from '@/layouts/app-layout';
 import { Spinner } from '@/components/ui/spinner';
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
+import { readApiError, normalizeApiError } from '@/lib/api-error';
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -54,11 +56,11 @@ export default function PurchaseOrderCreate({
     const [prDetailList, setPrDetailList] = useState(purchaseRequirementDetails);
     const [vendorList, setVendorList] = useState(vendors);
     const [prLoading, setPrLoading] = useState(false);
-    const [prError, setPrError] = useState('');
+    const [prError, setPrError] = useState(null);
     const [prDetailLoading, setPrDetailLoading] = useState(false);
-    const [prDetailError, setPrDetailError] = useState('');
+    const [prDetailError, setPrDetailError] = useState(null);
     const [vendorLoading, setVendorLoading] = useState(false);
-    const [vendorError, setVendorError] = useState('');
+    const [vendorError, setVendorError] = useState(null);
 
     const [prSearchTerm, setPrSearchTerm] = useState('');
     const [prPageSize, setPrPageSize] = useState(10);
@@ -201,13 +203,13 @@ export default function PurchaseOrderCreate({
             return;
         }
         setPrLoading(true);
-        setPrError('');
+        setPrError(null);
         try {
             const response = await fetch('/pembelian/purchase-order/outstanding-pr', {
                 headers: { Accept: 'application/json' },
             });
             if (!response.ok) {
-                throw new Error('Request failed');
+                throw await readApiError(response);
             }
             const data = await response.json();
             setPrList(
@@ -216,7 +218,7 @@ export default function PurchaseOrderCreate({
                     : []
             );
         } catch (error) {
-            setPrError('Gagal memuat data PR.');
+            setPrError(normalizeApiError(error, 'Gagal memuat data PR.'));
         } finally {
             setPrLoading(false);
         }
@@ -227,14 +229,14 @@ export default function PurchaseOrderCreate({
             return;
         }
         setPrDetailLoading(true);
-        setPrDetailError('');
+        setPrDetailError(null);
         try {
             const response = await fetch(
                 `/pembelian/purchase-order/pr-details?no_pr=${encodeURIComponent(noPr)}`,
                 { headers: { Accept: 'application/json' } }
             );
             if (!response.ok) {
-                throw new Error('Request failed');
+                throw await readApiError(response);
             }
             const data = await response.json();
             setPrDetailList(
@@ -243,7 +245,7 @@ export default function PurchaseOrderCreate({
                     : []
             );
         } catch (error) {
-            setPrDetailError('Gagal memuat detail PR.');
+            setPrDetailError(normalizeApiError(error, 'Gagal memuat detail PR.'));
         } finally {
             setPrDetailLoading(false);
         }
@@ -254,18 +256,18 @@ export default function PurchaseOrderCreate({
             return;
         }
         setVendorLoading(true);
-        setVendorError('');
+        setVendorError(null);
         try {
             const response = await fetch('/pembelian/purchase-order/vendors', {
                 headers: { Accept: 'application/json' },
             });
             if (!response.ok) {
-                throw new Error('Request failed');
+                throw await readApiError(response);
             }
             const data = await response.json();
             setVendorList(Array.isArray(data?.vendors) ? data.vendors : []);
         } catch (error) {
-            setVendorError('Gagal memuat data vendor.');
+            setVendorError(normalizeApiError(error, 'Gagal memuat data vendor.'));
         } finally {
             setVendorLoading(false);
         }
@@ -721,25 +723,28 @@ export default function PurchaseOrderCreate({
                                                 Remark
                                             </th>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        {selectedPrMaterials.length === 0 && (
-                                            <tr>
-                                                <td
-                                                    className="px-4 py-6 text-center text-muted-foreground"
-                                                    colSpan={5}
-                                                >
-                                                    {prDetailLoading
-                                                        ? 'Memuat detail PR...'
-                                                        : prDetailError ||
-                                                          'Belum ada material PR.'}
-                                                </td>
-                                            </tr>
-                                        )}
-                                        {selectedPrMaterials.map((item, index) => (
-                                            <tr
-                                                key={`${item.no_pr}-${index}`}
-                                                className="border-t border-sidebar-border/70 cursor-pointer"
+	                                    </thead>
+	                                    <tbody>
+	                                        <PlainTableStateRows
+	                                            columns={5}
+	                                            loading={prDetailLoading && selectedPrMaterials.length === 0}
+	                                            error={selectedPrMaterials.length === 0 ? prDetailError : null}
+	                                            onRetry={
+	                                                formData.refPr
+	                                                    ? () => loadPrDetails(formData.refPr)
+	                                                    : undefined
+	                                            }
+	                                            isEmpty={
+	                                                !prDetailLoading &&
+	                                                !prDetailError &&
+	                                                selectedPrMaterials.length === 0
+	                                            }
+	                                            emptyTitle="Belum ada material PR."
+	                                        />
+	                                        {selectedPrMaterials.map((item, index) => (
+	                                            <tr
+	                                                key={`${item.no_pr}-${index}`}
+	                                                className="border-t border-sidebar-border/70 cursor-pointer"
                                                 onClick={() =>
                                                     handleMaterialSelect(item)
                                                 }
@@ -1045,25 +1050,24 @@ export default function PurchaseOrderCreate({
                                             Action
                                         </th>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    {displayedPr.length === 0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={4}
-                                            >
-                                                {prLoading
-                                                    ? 'Memuat data PR...'
-                                                    : prError ||
-                                                      'Tidak ada PR outstanding.'}
-                                            </td>
-                                        </tr>
-                                    )}
-                                    {displayedPr.map((item) => (
-                                        <tr
-                                            key={item.no_pr}
-                                            className="border-t border-sidebar-border/70"
+	                                </thead>
+	                                <tbody>
+	                                    <PlainTableStateRows
+	                                        columns={4}
+	                                        loading={prLoading && displayedPr.length === 0}
+	                                        error={displayedPr.length === 0 ? prError : null}
+	                                        onRetry={loadPrs}
+	                                        isEmpty={
+	                                            !prLoading &&
+	                                            !prError &&
+	                                            displayedPr.length === 0
+	                                        }
+	                                        emptyTitle="Tidak ada PR outstanding."
+	                                    />
+	                                    {displayedPr.map((item) => (
+	                                        <tr
+	                                            key={item.no_pr}
+	                                            className="border-t border-sidebar-border/70"
                                         >
                                             <td className="px-4 py-3">
                                                 {renderValue(item.no_pr)}
@@ -1224,25 +1228,24 @@ export default function PurchaseOrderCreate({
                                             Action
                                         </th>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    {displayedVendors.length === 0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={7}
-                                            >
-                                                {vendorLoading
-                                                    ? 'Memuat data vendor...'
-                                                    : vendorError ||
-                                                      'Tidak ada data vendor.'}
-                                            </td>
-                                        </tr>
-                                    )}
-                                    {displayedVendors.map((item) => (
-                                        <tr
-                                            key={item.kd_vdr}
-                                            className="border-t border-sidebar-border/70"
+	                                </thead>
+	                                <tbody>
+	                                    <PlainTableStateRows
+	                                        columns={7}
+	                                        loading={vendorLoading && displayedVendors.length === 0}
+	                                        error={displayedVendors.length === 0 ? vendorError : null}
+	                                        onRetry={loadVendors}
+	                                        isEmpty={
+	                                            !vendorLoading &&
+	                                            !vendorError &&
+	                                            displayedVendors.length === 0
+	                                        }
+	                                        emptyTitle="Tidak ada data vendor."
+	                                    />
+	                                    {displayedVendors.map((item) => (
+	                                        <tr
+	                                            key={item.kd_vdr}
+	                                            className="border-t border-sidebar-border/70"
                                         >
                                             <td className="px-4 py-3">
                                                 {renderValue(item.kd_vdr)}

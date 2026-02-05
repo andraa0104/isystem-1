@@ -14,9 +14,14 @@ import {
 } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
+import { Badge } from '@/components/ui/badge';
+import { ActionIconButton } from '@/components/action-icon-button';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
+import { readApiError, normalizeApiError } from '@/lib/api-error';
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
+import { formatDateId } from '@/lib/formatters';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -79,6 +84,13 @@ const isOutstanding = (item) => {
 
 const isRealized = (item) => !isOutstanding(item);
 
+const getPoStatus = (item) => {
+    if (isOutstanding(item)) {
+        return { label: 'Outstanding', variant: 'secondary' };
+    }
+    return { label: 'Terealisasi', variant: 'default' };
+};
+
 export default function PurchaseOrderIndex({
     purchaseOrders = [],
     outstandingCount = 0,
@@ -90,7 +102,7 @@ export default function PurchaseOrderIndex({
     const [searchTerm, setSearchTerm] = useState('');
     const [poData, setPoData] = useState(purchaseOrders);
     const [poLoading, setPoLoading] = useState(false);
-    const [poError, setPoError] = useState('');
+    const [poError, setPoError] = useState(null);
     const [statusFilter, setStatusFilter] = useState('outstanding');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
@@ -102,7 +114,7 @@ export default function PurchaseOrderIndex({
     const [realizedPageSize, setRealizedPageSize] = useState(5);
     const [realizedCurrentPage, setRealizedCurrentPage] = useState(1);
     const [realizedLoading, setRealizedLoading] = useState(false);
-    const [realizedError, setRealizedError] = useState('');
+    const [realizedError, setRealizedError] = useState(null);
     const [outstandingCountState, setOutstandingCountState] =
         useState(outstandingCount);
     const [outstandingTotalState, setOutstandingTotalState] =
@@ -119,10 +131,10 @@ export default function PurchaseOrderIndex({
     const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
     const [selectedDetails, setSelectedDetails] = useState([]);
     const [detailLoading, setDetailLoading] = useState(false);
-    const [detailError, setDetailError] = useState('');
+    const [detailError, setDetailError] = useState(null);
     const [outstandingList, setOutstandingList] = useState([]);
     const [outstandingLoading, setOutstandingLoading] = useState(false);
-    const [outstandingError, setOutstandingError] = useState('');
+    const [outstandingError, setOutstandingError] = useState(null);
     const [detailPageSize, setDetailPageSize] = useState(5);
     const [detailCurrentPage, setDetailCurrentPage] = useState(1);
     const [detailSearch, setDetailSearch] = useState('');
@@ -313,7 +325,7 @@ export default function PurchaseOrderIndex({
         setIsRealizedDetail(realizedOnly);
         setIsModalOpen(true);
         setSelectedDetails([]);
-        setDetailError('');
+        setDetailError(null);
         setDetailSearch('');
         setDebouncedDetailSearch('');
         setDetailPageSize(5);
@@ -328,46 +340,45 @@ export default function PurchaseOrderIndex({
         return () => clearTimeout(handler);
     }, [detailSearch]);
 
-    useEffect(() => {
-        let isMounted = true;
+    const fetchPurchaseOrders = () => {
         setPoLoading(true);
-        setPoError('');
+        setPoError(null);
         fetch('/pembelian/purchase-order/data', {
             headers: { Accept: 'application/json' },
         })
-            .then((response) => {
+            .then(async (response) => {
                 if (!response.ok) {
-                    throw new Error('Request failed');
+                    throw await readApiError(response);
                 }
                 return response.json();
             })
             .then((data) => {
-                if (!isMounted) return;
                 setPoData(
                     Array.isArray(data?.purchaseOrders)
                         ? data.purchaseOrders
                         : []
                 );
             })
-            .catch(() => {
-                if (!isMounted) return;
-                setPoError('Gagal memuat data purchase order.');
+            .catch((error) => {
+                setPoError(
+                    normalizeApiError(error, 'Gagal memuat data purchase order.')
+                );
             })
             .finally(() => {
-                if (!isMounted) return;
                 setPoLoading(false);
             });
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
+    };
 
     useEffect(() => {
+        fetchPurchaseOrders();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const fetchPoDetails = () => {
         if (!selectedPo || !isModalOpen) {
             return;
         }
-        setDetailError('');
+        setDetailError(null);
         setDetailLoading(true);
         const params = new URLSearchParams({
             no_po: selectedPo.no_po,
@@ -381,9 +392,9 @@ export default function PurchaseOrderIndex({
         fetch(`/pembelian/purchase-order/details?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         })
-            .then((response) => {
+            .then(async (response) => {
                 if (!response.ok) {
-                    throw new Error('Request failed');
+                    throw await readApiError(response);
                 }
                 return response.json();
             })
@@ -395,26 +406,33 @@ export default function PurchaseOrderIndex({
                 );
                 setDetailCurrentPage(1);
             })
-            .catch(() => {
-                setDetailError('Gagal memuat detail PO.');
+            .catch((error) => {
+                setDetailError(
+                    normalizeApiError(error, 'Gagal memuat detail PO.')
+                );
             })
             .finally(() => {
                 setDetailLoading(false);
             });
-    }, [debouncedDetailSearch, isModalOpen, selectedPo]);
+    };
+
+    useEffect(() => {
+        fetchPoDetails();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debouncedDetailSearch, isModalOpen, selectedPo, isRealizedDetail]);
 
     const loadOutstanding = () => {
         if (outstandingLoading || outstandingList.length > 0) {
             return;
         }
         setOutstandingLoading(true);
-        setOutstandingError('');
+        setOutstandingError(null);
         fetch('/pembelian/purchase-order/outstanding', {
             headers: { Accept: 'application/json' },
         })
-            .then((response) => {
+            .then(async (response) => {
                 if (!response.ok) {
-                    throw new Error('Request failed');
+                    throw await readApiError(response);
                 }
                 return response.json();
             })
@@ -430,8 +448,13 @@ export default function PurchaseOrderIndex({
                 setOutstandingCountState(list.length);
                 setOutstandingTotalState(sumOutstandingTotal(list));
             })
-            .catch(() => {
-                setOutstandingError('Gagal memuat data PO outstanding.');
+            .catch((error) => {
+                setOutstandingError(
+                    normalizeApiError(
+                        error,
+                        'Gagal memuat data PO outstanding.'
+                    )
+                );
             })
             .finally(() => {
                 setOutstandingLoading(false);
@@ -464,11 +487,10 @@ export default function PurchaseOrderIndex({
                 },
             })
                 .then(async (response) => {
-                    const data = await response.json().catch(() => ({}));
                     if (!response.ok) {
-                        throw new Error(data?.message || 'Gagal menghapus PO.');
+                        throw await readApiError(response);
                     }
-                    return data;
+                    return response.json().catch(() => ({}));
                 })
                 .then((data) => {
                     Swal.fire({
@@ -487,10 +509,26 @@ export default function PurchaseOrderIndex({
                     setPoData((prev) => prev.filter((item) => item.no_po !== noPo));
                 })
                 .catch((error) => {
+                    const normalized = normalizeApiError(error, 'Gagal menghapus PO.');
+                    const detail = normalized?.detail ? String(normalized.detail) : '';
+                    const html = `
+                        <div style="text-align:left; white-space:pre-wrap; word-break:break-word;">
+                            <div>${String(normalized.summary || 'Gagal menghapus PO.')}</div>
+                            ${
+                                detail
+                                    ? `<details style="margin-top:8px;"><summary style="cursor:pointer;">Detail error</summary><pre style="margin-top:8px; max-height:260px; overflow:auto;">${detail.replace(
+                                          /</g,
+                                          '&lt;',
+                                      )}</pre></details>`
+                                    : ''
+                            }
+                        </div>
+                    `;
                     Swal.fire({
                         icon: 'error',
                         title: 'Gagal',
-                        text: error.message,
+                        html,
+                        width: 800,
                     });
                 })
                 .finally(() => setIsDeleting(false));
@@ -506,14 +544,14 @@ export default function PurchaseOrderIndex({
             return;
         }
         setRealizedLoading(true);
-        setRealizedError('');
+        setRealizedError(null);
         const params = new URLSearchParams({ period: targetPeriod });
         fetch(`/pembelian/purchase-order/realized?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         })
-            .then((response) => {
+            .then(async (response) => {
                 if (!response.ok) {
-                    throw new Error('Request failed');
+                    throw await readApiError(response);
                 }
                 return response.json();
             })
@@ -525,8 +563,13 @@ export default function PurchaseOrderIndex({
                 );
                 setRealizedListPeriod(targetPeriod);
             })
-            .catch(() => {
-                setRealizedError('Gagal memuat data PO terealisasi.');
+            .catch((error) => {
+                setRealizedError(
+                    normalizeApiError(
+                        error,
+                        'Gagal memuat data PO terealisasi.'
+                    )
+                );
             })
             .finally(() => {
                 setRealizedLoading(false);
@@ -570,9 +613,9 @@ export default function PurchaseOrderIndex({
         fetch(`/pembelian/purchase-order?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         })
-            .then((response) => {
+            .then(async (response) => {
                 if (!response.ok) {
-                    throw new Error('Request failed');
+                    throw await readApiError(response);
                 }
                 return response.json();
             })
@@ -583,9 +626,12 @@ export default function PurchaseOrderIndex({
                     loadRealized(value, true);
                 }
             })
-            .catch(() => {
+            .catch((error) => {
                 setRealizedCountState(0);
                 setRealizedTotalState(0);
+                setRealizedError(
+                    normalizeApiError(error, 'Gagal memuat ringkasan PO.')
+                );
             })
             .finally(() => setIsRealizedLoading(false));
     };
@@ -733,108 +779,114 @@ export default function PurchaseOrderIndex({
 
                 <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
                     <table className="w-full text-sm">
-                        <thead className="bg-muted/50 text-muted-foreground">
-                            <tr>
-                                <th className="px-4 py-3 text-left">No PO</th>
-                                <th className="px-4 py-3 text-left">Date</th>
-                                <th className="px-4 py-3 text-left">Customer</th>
-                                <th className="px-4 py-3 text-left">Nama Vendor</th>
-                                <th className="px-4 py-3 text-left">Total Price</th>
-                                <th className="px-4 py-3 text-left">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {/* Saat loading, tetap biarkan baris data sebelumnya tampil agar tidak muncul pesan tengah tabel */}
-                            {poError && (
-                                <tr>
-                                    <td
-                                        className="px-4 py-6 text-center text-muted-foreground"
-                                        colSpan={6}
-                                    >
-                                        {poError}
-                                    </td>
-                                </tr>
-                            )}
-                            {!poError && displayedPurchaseOrders.length === 0 && (
-                                    <tr>
-                                        <td
-                                            className="px-4 py-6 text-center text-muted-foreground"
-                                            colSpan={6}
-                                        >
-                                            Belum ada data PO.
-                                        </td>
-                                </tr>
-                            )}
-                            {displayedPurchaseOrders.map((item) => (
-                                <tr
-                                    key={item.no_po}
-                                    className="border-t border-sidebar-border/70"
-                                >
-                                    <td className="px-4 py-3">{item.no_po}</td>
-                                    <td className="px-4 py-3">
-                                        {getValue(item, ['tgl', 'Tgl', 'TGL', 'date', 'Date'])}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {getValue(item, [
-                                            'for_cus',
+	                        <thead className="bg-muted/50 text-muted-foreground">
+	                            <tr className="sticky top-0 z-10 bg-muted/50">
+	                                <th className="px-4 py-3 text-left">No PO</th>
+	                                <th className="px-4 py-3 text-left">Date</th>
+	                                <th className="px-4 py-3 text-left">Status</th>
+	                                <th className="px-4 py-3 text-left">Customer</th>
+	                                <th className="px-4 py-3 text-left">Nama Vendor</th>
+	                                <th className="px-4 py-3 text-right">Total Price</th>
+	                                <th className="px-4 py-3 text-left">Action</th>
+	                            </tr>
+	                        </thead>
+	                        <tbody>
+	                            <PlainTableStateRows
+	                                columns={7}
+	                                loading={poLoading && poData.length === 0}
+	                                error={poError}
+	                                onRetry={fetchPurchaseOrders}
+	                                isEmpty={
+	                                    !poLoading &&
+	                                    !poError &&
+	                                    displayedPurchaseOrders.length === 0
+	                                }
+	                                emptyTitle="Belum ada data PO."
+	                                emptyDescription="Silakan tambah PO baru atau ubah filter/pencarian."
+	                                emptyActionLabel="Tambah PO"
+	                                emptyActionHref="/pembelian/purchase-order/create"
+	                            />
+	                            {displayedPurchaseOrders.map((item) => (
+	                                <tr
+	                                    key={item.no_po}
+	                                    className="border-t border-sidebar-border/70"
+	                                >
+	                                    <td className="px-4 py-3">{item.no_po}</td>
+	                                    <td className="px-4 py-3">
+	                                        {formatDateId(
+	                                            getRawValue(item, ['tgl', 'Tgl', 'TGL', 'date', 'Date']),
+	                                        )}
+	                                    </td>
+	                                    <td className="px-4 py-3">
+	                                        {(() => {
+	                                            const status = getPoStatus(item);
+	                                            return (
+	                                                <Badge variant={status.variant}>
+	                                                    {status.label}
+	                                                </Badge>
+	                                            );
+	                                        })()}
+	                                    </td>
+	                                    <td className="px-4 py-3">
+	                                        {getValue(item, [
+	                                            'for_cus',
                                             'For_cus',
                                             'FOR_CUS',
                                             'for_cust',
                                             'For_cust',
                                             'FOR_CUST',
-                                            'for_customer',
-                                        ])}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {getValue(item, [
+	                                            'for_customer',
+	                                        ])}
+	                                    </td>
+	                                    <td className="px-4 py-3">
+	                                        {getValue(item, [
                                             'nm_vdr',
                                             'Nm_vdr',
                                             'NM_VDR',
                                             'vendor',
-                                            'Vendor',
-                                        ])}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {formatRupiah(
-                                            getValue(item, [
-                                                'g_total',
+	                                            'Vendor',
+	                                        ])}
+	                                    </td>
+	                                    <td className="px-4 py-3 text-right whitespace-nowrap">
+	                                        {formatRupiah(
+	                                            getValue(item, [
+	                                                'g_total',
                                                 'G_total',
                                                 'G_TOTAL',
                                                 'total',
                                                 'Total',
-                                            ])
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => handleOpenModal(item)}
-                                                className="text-muted-foreground transition hover:text-foreground"
-                                                aria-label="Lihat"
-                                                title="Lihat"
-                                            >
-                                                <Eye className="size-4" />
-                                            </button>
-                                            <a
-                                                href={`/pembelian/purchase-order/${encodeURIComponent(
-                                                    item.no_po
-                                                )}/print`}
-                                                className="text-muted-foreground transition hover:text-foreground"
-                                                aria-label="Cetak"
-                                                title="Cetak"
-                                                target="_blank"
-                                                rel="noreferrer"
-                                            >
-                                                <Printer className="size-4" />
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+	                                            ])
+	                                        )}
+	                                    </td>
+	                                    <td className="px-4 py-3">
+	                                        <div className="flex items-center gap-2">
+	                                            <ActionIconButton
+	                                                label="Detail"
+	                                                onClick={() => handleOpenModal(item)}
+	                                            >
+	                                                <Eye className="size-4" />
+	                                            </ActionIconButton>
+	                                            <ActionIconButton
+	                                                label="Cetak"
+	                                                asChild
+	                                            >
+	                                                <a
+	                                                    href={`/pembelian/purchase-order/${encodeURIComponent(
+	                                                        item.no_po,
+	                                                    )}/print`}
+	                                                    target="_blank"
+	                                                    rel="noreferrer"
+	                                                >
+	                                                    <Printer className="size-4" />
+	                                                </a>
+	                                            </ActionIconButton>
+	                                        </div>
+	                                    </td>
+	                                </tr>
+	                            ))}
+	                        </tbody>
+	                    </table>
+	                </div>
 
                 {pageSize !== Infinity && totalItems > 0 && (
                     <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
@@ -1183,36 +1235,27 @@ export default function PurchaseOrderIndex({
                                                         Total Price
                                                     </th>
                                                 </tr>
-                                            </thead>
-                                            <tbody>
-                                                {detailLoading && (
-                                                    <tr>
-                                                        <td
-                                                            className="px-4 py-6 text-center text-muted-foreground"
-                                                            colSpan={6}
-                                                        >
-                                                            Memuat detail PO...
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                                {!detailLoading &&
-                                                    displayedDetailItems.length === 0 && (
-                                                    <tr>
-                                                        <td
-                                                            className="px-4 py-6 text-center text-muted-foreground"
-                                                            colSpan={6}
-                                                        >
-                                                            {detailError ||
-                                                                'Tidak ada detail PO.'}
-                                                        </td>
-                                                    </tr>
-                                                    )}
-                                                {!detailLoading &&
-                                                    displayedDetailItems.map((detail) => (
-                                                        <tr
-                                                            key={detail.no}
-                                                            className="border-t border-sidebar-border/70"
-                                                        >
+	                                            </thead>
+	                                            <tbody>
+		                                                <PlainTableStateRows
+		                                                    columns={6}
+		                                                    loading={detailLoading}
+		                                                    error={detailError}
+		                                                    onRetry={fetchPoDetails}
+		                                                    isEmpty={
+		                                                        !detailLoading &&
+		                                                        !detailError &&
+		                                                        displayedDetailItems.length === 0
+	                                                    }
+	                                                    emptyTitle="Tidak ada detail PO."
+	                                                />
+	                                                {!detailLoading &&
+	                                                    !detailError &&
+	                                                    displayedDetailItems.map((detail) => (
+	                                                        <tr
+	                                                            key={detail.no}
+	                                                            className="border-t border-sidebar-border/70"
+	                                                        >
                                                             <td className="px-4 py-3">
                                                                 {renderValue(detail.no)}
                                                             </td>
@@ -1387,104 +1430,113 @@ export default function PurchaseOrderIndex({
 
                         <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
                             <table className="w-full text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left">No PO</th>
-                                        <th className="px-4 py-3 text-left">Date</th>
-                                        <th className="px-4 py-3 text-left">
-                                            Customer
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Nama Vendor
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Total Price
-                                        </th>
-                                        <th className="px-4 py-3 text-left">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {displayedOutstandingPurchaseOrders.length ===
-                                        0 && (
-                                            <tr>
-                                                <td
-                                                    className="px-4 py-6 text-center text-muted-foreground"
-                                                    colSpan={6}
-                                                >
-                                                    {outstandingLoading
-                                                        ? 'Memuat data PO...'
-                                                        : outstandingError ||
-                                                          'Tidak ada PO outstanding.'}
-                                                </td>
-                                            </tr>
-                                        )}
-                                    {displayedOutstandingPurchaseOrders.map(
-                                        (item) => (
-                                            <tr
-                                                key={`outstanding-${item.no_po}`}
-                                                className="border-t border-sidebar-border/70"
-                                            >
-                                                <td className="px-4 py-3">
-                                                    {item.no_po}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {getValue(item, [
-                                                        'tgl',
-                                                        'Tgl',
-                                                        'date',
-                                                        'Date',
-                                                    ])}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {getValue(item, [
-                                                        'for_cus',
+	                                <thead className="bg-muted/50 text-muted-foreground">
+	                                    <tr className="sticky top-0 z-10 bg-muted/50">
+	                                        <th className="px-4 py-3 text-left">No PO</th>
+	                                        <th className="px-4 py-3 text-left">Date</th>
+	                                        <th className="px-4 py-3 text-left">Status</th>
+	                                        <th className="px-4 py-3 text-left">
+	                                            Customer
+	                                        </th>
+	                                        <th className="px-4 py-3 text-left">
+	                                            Nama Vendor
+	                                        </th>
+	                                        <th className="px-4 py-3 text-right">
+	                                            Total Price
+	                                        </th>
+	                                        <th className="px-4 py-3 text-left">Action</th>
+	                                    </tr>
+	                                </thead>
+	                                <tbody>
+	                                    <PlainTableStateRows
+	                                        columns={7}
+	                                        loading={
+	                                            outstandingLoading &&
+	                                            displayedOutstandingPurchaseOrders.length === 0
+	                                        }
+	                                        error={
+	                                            displayedOutstandingPurchaseOrders.length === 0
+	                                                ? outstandingError
+	                                                : null
+	                                        }
+	                                        onRetry={loadOutstanding}
+	                                        isEmpty={
+	                                            !outstandingLoading &&
+	                                            !outstandingError &&
+	                                            displayedOutstandingPurchaseOrders.length === 0
+	                                        }
+	                                        emptyTitle="Tidak ada PO outstanding."
+	                                    />
+	                                    {displayedOutstandingPurchaseOrders.map(
+	                                        (item) => (
+	                                            <tr
+	                                                key={`outstanding-${item.no_po}`}
+	                                                className="border-t border-sidebar-border/70"
+	                                            >
+	                                                <td className="px-4 py-3">
+	                                                    {item.no_po}
+	                                                </td>
+	                                                <td className="px-4 py-3">
+	                                                    {formatDateId(
+	                                                        getRawValue(item, [
+	                                                            'tgl',
+	                                                            'Tgl',
+	                                                            'date',
+	                                                            'Date',
+	                                                        ]),
+	                                                    )}
+	                                                </td>
+	                                                <td className="px-4 py-3">
+	                                                    <Badge variant="secondary">
+	                                                        Outstanding
+	                                                    </Badge>
+	                                                </td>
+	                                                <td className="px-4 py-3">
+	                                                    {getValue(item, [
+	                                                        'for_cus',
                                                         'for_cust',
                                                         'for_customer',
                                                     ])}
                                                 </td>
-                                                <td className="px-4 py-3">
-                                                    {getValue(item, [
-                                                        'nm_vdr',
-                                                        'Nm_vdr',
-                                                        'vendor',
-                                                        'Vendor',
-                                                    ])}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatRupiah(
-                                                        getValue(item, [
-                                                            'g_total',
+	                                                <td className="px-4 py-3">
+	                                                    {getValue(item, [
+	                                                        'nm_vdr',
+	                                                        'Nm_vdr',
+	                                                        'vendor',
+	                                                        'Vendor',
+	                                                    ])}
+	                                                </td>
+	                                                <td className="px-4 py-3 text-right whitespace-nowrap">
+	                                                    {formatRupiah(
+	                                                        getValue(item, [
+	                                                            'g_total',
                                                             'G_total',
                                                             'total',
                                                             'Total',
-                                                        ])
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <Link
-                                                            href={`/pembelian/purchase-order/${encodeURIComponent(
-                                                                item.no_po
-                                                            )}/edit`}
-                                                            className="text-muted-foreground transition hover:text-foreground"
-                                                            aria-label="Edit"
-                                                            title="Edit"
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                        </Link>
-                                                        {Number(item.can_delete ?? item.canDelete ?? 0) === 1 && (
-                                                            <button
-                                                                type="button"
-                                                                className="text-muted-foreground transition hover:text-destructive"
-                                                                aria-label="Hapus"
-                                                                title="Hapus"
-                                                                disabled={isDeleting}
-                                                                onClick={() => handleDeletePo(item.no_po)}
-                                                            >
-                                                                <Trash2 className="size-4" />
-                                                            </button>
-                                                        )}
-                                                    </div>
+	                                                        ])
+	                                                    )}
+	                                                </td>
+	                                                <td className="px-4 py-3">
+	                                                    <div className="flex items-center gap-2">
+	                                                        <ActionIconButton label="Edit" asChild>
+	                                                            <Link
+	                                                                href={`/pembelian/purchase-order/${encodeURIComponent(
+	                                                                    item.no_po,
+	                                                                )}/edit`}
+	                                                            >
+	                                                                <Pencil className="size-4" />
+	                                                            </Link>
+	                                                        </ActionIconButton>
+	                                                        {Number(item.can_delete ?? item.canDelete ?? 0) === 1 && (
+	                                                            <ActionIconButton
+	                                                                label="Hapus"
+	                                                                onClick={() => handleDeletePo(item.no_po)}
+	                                                                disabled={isDeleting}
+	                                                            >
+	                                                                <Trash2 className="size-4 text-destructive" />
+	                                                            </ActionIconButton>
+	                                                        )}
+	                                                    </div>
                                                 </td>
                                             </tr>
                                         )
@@ -1620,86 +1672,96 @@ export default function PurchaseOrderIndex({
 
                         <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
                             <table className="w-full text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left">No PO</th>
-                                        <th className="px-4 py-3 text-left">Date</th>
-                                        <th className="px-4 py-3 text-left">Customer</th>
-                                        <th className="px-4 py-3 text-left">Nama Vendor</th>
-                                        <th className="px-4 py-3 text-left">Total Price</th>
-                                        <th className="px-4 py-3 text-left">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {displayedRealizedPurchaseOrders.length ===
-                                        0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={6}
-                                            >
-                                                {realizedLoading
-                                                    ? 'Memuat data PO...'
-                                                    : realizedError ||
-                                                      'Tidak ada PO terealisasi.'}
-                                            </td>
-                                        </tr>
-                                    )}
-                                    {displayedRealizedPurchaseOrders.map((item) => (
-                                        <tr
-                                            key={`realized-${item.no_po}`}
-                                            className="border-t border-sidebar-border/70"
-                                        >
-                                            <td className="px-4 py-3">
-                                                {item.no_po}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {getValue(item, [
-                                                    'tgl',
-                                                    'Tgl',
-                                                    'date',
-                                                    'Date',
-                                                ])}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {getValue(item, [
-                                                    'for_cus',
+	                                <thead className="bg-muted/50 text-muted-foreground">
+	                                    <tr className="sticky top-0 z-10 bg-muted/50">
+	                                        <th className="px-4 py-3 text-left">No PO</th>
+	                                        <th className="px-4 py-3 text-left">Date</th>
+	                                        <th className="px-4 py-3 text-left">Status</th>
+	                                        <th className="px-4 py-3 text-left">Customer</th>
+	                                        <th className="px-4 py-3 text-left">Nama Vendor</th>
+	                                        <th className="px-4 py-3 text-right">Total Price</th>
+	                                        <th className="px-4 py-3 text-left">Action</th>
+	                                    </tr>
+	                                </thead>
+	                                <tbody>
+	                                    <PlainTableStateRows
+	                                        columns={7}
+	                                        loading={
+	                                            realizedLoading &&
+	                                            displayedRealizedPurchaseOrders.length === 0
+	                                        }
+	                                        error={
+	                                            displayedRealizedPurchaseOrders.length === 0
+	                                                ? realizedError
+	                                                : null
+	                                        }
+	                                        onRetry={() => loadRealized(periodFilter, true)}
+	                                        isEmpty={
+	                                            !realizedLoading &&
+	                                            !realizedError &&
+	                                            displayedRealizedPurchaseOrders.length === 0
+	                                        }
+	                                        emptyTitle="Tidak ada PO terealisasi."
+	                                    />
+	                                    {displayedRealizedPurchaseOrders.map((item) => (
+	                                        <tr
+	                                            key={`realized-${item.no_po}`}
+	                                            className="border-t border-sidebar-border/70"
+	                                        >
+	                                            <td className="px-4 py-3">
+	                                                {item.no_po}
+	                                            </td>
+	                                            <td className="px-4 py-3">
+	                                                {formatDateId(
+	                                                    getRawValue(item, [
+	                                                        'tgl',
+	                                                        'Tgl',
+	                                                        'date',
+	                                                        'Date',
+	                                                    ]),
+	                                                )}
+	                                            </td>
+	                                            <td className="px-4 py-3">
+	                                                <Badge variant="default">
+	                                                    Terealisasi
+	                                                </Badge>
+	                                            </td>
+	                                            <td className="px-4 py-3">
+	                                                {getValue(item, [
+	                                                    'for_cus',
                                                     'for_cust',
                                                     'for_customer',
                                                 ])}
                                             </td>
-                                            <td className="px-4 py-3">
-                                                {getValue(item, [
-                                                    'nm_vdr',
+	                                            <td className="px-4 py-3">
+	                                                {getValue(item, [
+	                                                    'nm_vdr',
                                                     'Nm_vdr',
                                                     'vendor',
                                                     'Vendor',
-                                                ])}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {formatRupiah(
-                                                    getValue(item, [
-                                                        'g_total',
+	                                                ])}
+	                                            </td>
+	                                            <td className="px-4 py-3 text-right whitespace-nowrap">
+	                                                {formatRupiah(
+	                                                    getValue(item, [
+	                                                        'g_total',
                                                         'G_total',
                                                         'total',
                                                         'Total',
                                                     ])
                                                 )}
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <button
-                                                    type="button"
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    aria-label="Lihat"
-                                                    title="Lihat"
-                                                    onClick={() => {
-                                                        setIsRealizedModalOpen(false);
-                                                        handleOpenModal(item, true);
-                                                    }}
-                                                >
-                                                    <Eye className="size-4" />
-                                                </button>
-                                            </td>
+	                                            <td className="px-4 py-3">
+	                                                <ActionIconButton
+	                                                    label="Detail"
+	                                                    onClick={() => {
+	                                                        setIsRealizedModalOpen(false);
+	                                                        handleOpenModal(item, true);
+	                                                    }}
+	                                                >
+	                                                    <Eye className="size-4" />
+	                                                </ActionIconButton>
+	                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>

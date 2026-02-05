@@ -21,6 +21,10 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { readApiError, normalizeApiError } from '@/lib/api-error';
+import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
+import { ActionIconButton } from '@/components/action-icon-button';
+import Swal from 'sweetalert2';
 
 const formatDate = (date) => {
     if (!date) return '';
@@ -48,6 +52,7 @@ export default function DeliveryOrderCostCreate() {
 
     const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
     const [materialLoading, setMaterialLoading] = useState(false);
+    const [materialError, setMaterialError] = useState(null);
     const [materialList, setMaterialList] = useState([]);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
@@ -66,15 +71,16 @@ export default function DeliveryOrderCostCreate() {
 
     const fetchMaterials = (page = 1) => {
         setMaterialLoading(true);
+        setMaterialError(null);
         fetch(
             `/pembelian/delivery-order-cost/materials?search=${encodeURIComponent(
                 materialSearchTerm,
             )}&page=${page}&per_page=${encodeURIComponent(materialPageSize)}`,
             { headers: { Accept: 'application/json' } },
         )
-            .then((response) => {
+            .then(async (response) => {
                 if (!response.ok) {
-                    throw new Error('Request failed');
+                    throw await readApiError(response);
                 }
                 return response.json();
             })
@@ -83,7 +89,8 @@ export default function DeliveryOrderCostCreate() {
                 setMaterialPage(data?.current_page ?? 1);
                 setMaterialTotalPages(data?.last_page ?? 1);
             })
-            .catch(() => {
+            .catch((error) => {
+                setMaterialError(normalizeApiError(error, 'Gagal memuat data material.'));
                 setMaterialList([]);
             })
             .finally(() => {
@@ -154,7 +161,19 @@ export default function DeliveryOrderCostCreate() {
         });
     };
 
-    const handleRemoveItem = (index) => {
+    const handleRemoveItem = async (index) => {
+        const result = await Swal.fire({
+            title: 'Hapus material?',
+            text: 'Item material akan dihapus dari daftar (sebelum disimpan).',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+            reverseButtons: true,
+        });
+        if (!result.isConfirmed) {
+            return;
+        }
         setFormData((prev) => ({
             ...prev,
             items: prev.items.filter((_, i) => i !== index),
@@ -432,19 +451,13 @@ export default function DeliveryOrderCostCreate() {
                                                                 )}
                                                             </TableCell>
                                                             <TableCell>
-                                                                <Button
+                                                                <ActionIconButton
+                                                                    label="Hapus"
                                                                     variant="destructive"
-                                                                    size="icon"
-                                                                    onClick={() =>
-                                                                        handleRemoveItem(
-                                                                            i,
-                                                                        )
-                                                                    }
-                                                                    aria-label="Hapus"
-                                                                    title="Hapus"
+                                                                    onClick={() => handleRemoveItem(i)}
                                                                 >
                                                                     <Trash2 className="h-4 w-4" />
-                                                                </Button>
+                                                                </ActionIconButton>
                                                             </TableCell>
                                                         </TableRow>
                                                     ),
@@ -547,26 +560,15 @@ export default function DeliveryOrderCostCreate() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {materialLoading ? (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={4}
-                                            className="text-center"
-                                        >
-                                            Loading...
-                                        </TableCell>
-                                    </TableRow>
-                                ) : materialList.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={4}
-                                            className="text-center"
-                                        >
-                                            Tidak ada data material.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    materialList.map((item) => (
+                                <ShadcnTableStateRows
+                                    columns={4}
+                                    loading={materialLoading}
+                                    error={materialError}
+                                    onRetry={() => fetchMaterials(materialPage || 1)}
+                                    isEmpty={!materialLoading && !materialError && materialList.length === 0}
+                                    emptyTitle="Tidak ada data material."
+                                />
+                                {!materialLoading && !materialError && materialList.map((item) => (
                                         <TableRow key={item.kd_material}>
                                             <TableCell>
                                                 {item.material}
@@ -586,8 +588,7 @@ export default function DeliveryOrderCostCreate() {
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
-                                    ))
-                                )}
+                                    ))}
                             </TableBody>
                         </Table>
                     </div>

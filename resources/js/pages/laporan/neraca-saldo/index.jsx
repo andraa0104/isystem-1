@@ -1,5 +1,5 @@
 import AppLayout from '@/layouts/app-layout';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Loader2, Printer, Scale } from 'lucide-react';
+import { buildBukuBesarUrl } from '@/lib/report-links';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -269,15 +270,16 @@ export default function NeracaSaldoIndex() {
                                                 {has00 ? (
                                                     <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                                 ) : null}
-                                                <span
+                                                <Link
+                                                    href={buildBukuBesarUrl({ kodeAkun })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30'
-                                                            : ''
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                            : 'text-amber-300 hover:underline'
                                                     }
                                                 >
                                                     {kodeAkun}
-                                                </span>
+                                                </Link>
                                             </div>
                                         </td>
                                         <td className={`px-3 py-2 ${cellClass}`}>{r?.Nama_Akun}</td>

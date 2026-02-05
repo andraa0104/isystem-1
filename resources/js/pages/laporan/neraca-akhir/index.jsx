@@ -1,5 +1,5 @@
 import AppLayout from '@/layouts/app-layout';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import {
     TrendingDown,
     TrendingUp,
 } from 'lucide-react';
+import { buildBukuBesarUrl } from '@/lib/report-links';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -41,8 +42,23 @@ const formatNumber = (value) => {
     return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
 };
 
+const getPeriodLabel = (periodType, period) => {
+    if (periodType === 'year') {
+        if (!period || !/^\d{4}$/.test(period)) return period || '';
+        return `FY ${period} (Jan–Des)`;
+    }
+
+    if (!period || !/^\d{6}$/.test(period)) return period || '';
+    const y = Number(period.slice(0, 4));
+    const m = Number(period.slice(4, 6));
+    const d = new Date(y, Math.max(0, m - 1), 1);
+    return new Intl.DateTimeFormat('id-ID', { month: 'short', year: 'numeric' }).format(d);
+};
+
 const buildPrintUrl = (query) => {
     const params = new URLSearchParams();
+    params.set('periodType', query.periodType ?? 'month');
+    params.set('period', query.period ?? '');
     params.set('search', query.search ?? '');
     params.set('sortBy', query.sortBy ?? 'Kode_Akun');
     params.set('sortDir', query.sortDir ?? 'asc');
@@ -179,7 +195,13 @@ function buildAiKpiInsights({ metrics }) {
 }
 
 export default function NeracaAkhirIndex() {
-    const { initialQuery = {} } = usePage().props;
+    const {
+        initialQuery = {},
+        periodOptions = [],
+        defaultPeriod = '',
+        yearOptions = [],
+        defaultYear = '',
+    } = usePage().props;
 
     const [rows, setRows] = useState([]);
     const [total, setTotal] = useState(0);
@@ -192,6 +214,10 @@ export default function NeracaAkhirIndex() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    const [periodType, setPeriodType] = useState(initialQuery?.periodType ?? 'month');
+    const [period, setPeriod] = useState(
+        initialQuery?.period ?? (periodType === 'year' ? defaultYear ?? '' : defaultPeriod ?? ''),
+    );
     const [search, setSearch] = useState(initialQuery?.search ?? '');
     const [debouncedSearch, setDebouncedSearch] = useState(initialQuery?.search ?? '');
     const [sortBy, setSortBy] = useState(initialQuery?.sortBy ?? 'Kode_Akun');
@@ -202,6 +228,14 @@ export default function NeracaAkhirIndex() {
             : Number(initialQuery?.pageSize ?? 10) || 10,
     );
     const [page, setPage] = useState(1);
+    const [effectivePeriod, setEffectivePeriod] = useState('');
+    const [effectivePeriodLabel, setEffectivePeriodLabel] = useState('');
+
+    const latestMonthForYear = (year) => {
+        if (!year || !/^\d{4}$/.test(year)) return '';
+        const hit = periodOptions.find((p) => String(p).startsWith(String(year)));
+        return hit ? String(hit) : '';
+    };
 
     useEffect(() => {
         const t = setTimeout(() => setDebouncedSearch(search), 400);
@@ -210,13 +244,15 @@ export default function NeracaAkhirIndex() {
 
     useEffect(() => {
         setPage(1);
-    }, [debouncedSearch, pageSize, sortBy, sortDir]);
+    }, [debouncedSearch, pageSize, sortBy, sortDir, period, periodType]);
 
     const fetchRows = async () => {
         setLoading(true);
         setError('');
         try {
             const params = new URLSearchParams();
+            params.set('periodType', periodType);
+            params.set('period', period);
             params.set('search', debouncedSearch);
             params.set('sortBy', sortBy);
             params.set('sortDir', sortDir);
@@ -241,10 +277,14 @@ export default function NeracaAkhirIndex() {
                 total_ekuitas: Number(data?.summary?.total_ekuitas ?? 0),
                 selisih: Number(data?.summary?.selisih ?? 0),
             });
+            setEffectivePeriod(String(data?.effective_period ?? ''));
+            setEffectivePeriodLabel(String(data?.effective_period_label ?? ''));
         } catch {
             setRows([]);
             setTotal(0);
             setSummary({ total_aset: 0, total_liabilitas: 0, total_ekuitas: 0, selisih: 0 });
+            setEffectivePeriod('');
+            setEffectivePeriodLabel('');
         } finally {
             setLoading(false);
         }
@@ -253,7 +293,7 @@ export default function NeracaAkhirIndex() {
     useEffect(() => {
         fetchRows();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [debouncedSearch, pageSize, page, sortBy, sortDir]);
+    }, [periodType, period, debouncedSearch, pageSize, page, sortBy, sortDir]);
 
     const totalPages = useMemo(() => {
         if (pageSize === 'all') return 1;
@@ -261,7 +301,7 @@ export default function NeracaAkhirIndex() {
         return Math.max(1, Math.ceil(total / size));
     }, [pageSize, total]);
 
-    const printUrl = buildPrintUrl({ search: debouncedSearch, sortBy, sortDir });
+    const printUrl = buildPrintUrl({ periodType, period, search: debouncedSearch, sortBy, sortDir });
 
     const selisihAccent = summary.selisih === 0 ? 'positive' : 'negative';
 
@@ -288,11 +328,89 @@ export default function NeracaAkhirIndex() {
                             <h1 className="text-xl font-semibold">Neraca Akhir</h1>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Posisi aset, liabilitas, dan ekuitas pada akhir periode (snapshot)
+                            Posisi aset, liabilitas, dan ekuitas pada akhir periode (periodik)
                         </p>
+                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                            Periode:{' '}
+                            <span className="text-white/80">{getPeriodLabel(periodType, period)}</span>
+                            {periodType === 'month' && period ? (
+                                <span className="text-white/60">({period})</span>
+                            ) : periodType === 'month' ? (
+                                <span className="text-white/60">(-)</span>
+                            ) : null}
+                            {periodType === 'year' && period ? (
+                                <span className="text-white/60">({period})</span>
+                            ) : null}
+                            {periodType === 'year' && effectivePeriod ? (
+                                <span className="text-white/60">
+                                    • Posisi: {effectivePeriodLabel || effectivePeriod} ({effectivePeriod})
+                                </span>
+                            ) : null}
+                        </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Mode</span>
+                        <Select
+                            value={periodType}
+                            onValueChange={(val) => {
+                                const next = val === 'year' ? 'year' : 'month';
+                                setPeriodType(next);
+                                if (next === 'year') {
+                                    const y = /^\d{6}$/.test(String(period))
+                                        ? String(period).slice(0, 4)
+                                        : /^\d{4}$/.test(String(period))
+                                          ? String(period)
+                                          : String(defaultYear || '').slice(0, 4);
+                                    setPeriod(y || defaultYear || '');
+                                } else {
+                                    const y = /^\d{4}$/.test(String(period))
+                                        ? String(period)
+                                        : /^\d{6}$/.test(String(period))
+                                          ? String(period).slice(0, 4)
+                                          : '';
+                                    const p = latestMonthForYear(y) || defaultPeriod || '';
+                                    setPeriod(p);
+                                }
+                            }}
+                        >
+                            <SelectTrigger className="w-36">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="month">Per Bulan</SelectItem>
+                                <SelectItem value="year">Per Tahun</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <span className="text-sm text-muted-foreground">Periode</span>
+                        <Select value={period} onValueChange={setPeriod}>
+                            <SelectTrigger className="w-44">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {periodType === 'year' ? (
+                                    yearOptions.length === 0 ? (
+                                        <SelectItem value={period || ''}>{period || '-'}</SelectItem>
+                                    ) : (
+                                        yearOptions.map((y) => (
+                                            <SelectItem key={y} value={y}>
+                                                {getPeriodLabel('year', y)}
+                                            </SelectItem>
+                                        ))
+                                    )
+                                ) : periodOptions.length === 0 ? (
+                                    <SelectItem value={period || ''}>{period || '-'}</SelectItem>
+                                ) : (
+                                    periodOptions.map((p) => (
+                                        <SelectItem key={p} value={p}>
+                                            {getPeriodLabel('month', p)} ({p})
+                                        </SelectItem>
+                                    ))
+                                )}
+                            </SelectContent>
+                        </Select>
+
                         <Button asChild variant="outline">
                             <a href={printUrl} target="_blank" rel="noreferrer">
                                 <Printer className="mr-2 h-4 w-4" />
@@ -421,7 +539,7 @@ export default function NeracaAkhirIndex() {
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
                         <div className="mt-2 text-xs text-rose-200/80">
-                            Sumber data menggunakan `tb_neracalajur` kolom `NA_Debit` dan `NA_Kredit`. Nama akun diambil dari `tb_nabb.Nama_Akun` bila tersedia.
+                            Sumber data menggunakan `tb_nabbrekap` (saldo akhir per akun per periode). Nama akun diambil dari `tb_nabb.Nama_Akun` bila tersedia.
                         </div>
                     </div>
                 ) : null}
@@ -470,15 +588,16 @@ export default function NeracaAkhirIndex() {
                                                 {has00 ? (
                                                     <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                                 ) : null}
-                                                <span
+                                                <Link
+                                                    href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30'
-                                                            : ''
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                            : 'text-amber-300 hover:underline'
                                                     }
                                                 >
                                                     {kodeAkun}
-                                                </span>
+                                                </Link>
                                             </div>
                                         </td>
                                         <td className={`px-3 py-2 ${cellClass}`}>
@@ -520,15 +639,16 @@ export default function NeracaAkhirIndex() {
                                                 {has00 ? (
                                                     <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                                 ) : null}
-                                                <span
+                                                <Link
+                                                    href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30'
-                                                            : ''
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                            : 'text-amber-300 hover:underline'
                                                     }
                                                 >
                                                     {kodeAkun}
-                                                </span>
+                                                </Link>
                                             </div>
                                         </td>
                                         <td className={`px-3 py-2 ${cellClass}`}>
@@ -570,15 +690,16 @@ export default function NeracaAkhirIndex() {
                                                 {has00 ? (
                                                     <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                                 ) : null}
-                                                <span
+                                                <Link
+                                                    href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30'
-                                                            : ''
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                            : 'text-amber-300 hover:underline'
                                                     }
                                                 >
                                                     {kodeAkun}
-                                                </span>
+                                                </Link>
                                             </div>
                                         </td>
                                         <td className={`px-3 py-2 ${cellClass}`}>

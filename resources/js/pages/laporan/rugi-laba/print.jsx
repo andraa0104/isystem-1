@@ -9,6 +9,18 @@ const formatRupiah = (value) => {
     return `Rp ${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n)}`;
 };
 
+const getPeriodLabel = (periodType, period) => {
+    if (periodType === 'year') {
+        if (!period || !/^\d{4}$/.test(period)) return period || '';
+        return `FY ${period} (Jan–Des)`;
+    }
+    if (!period || !/^\d{6}$/.test(period)) return period || '';
+    const y = Number(period.slice(0, 4));
+    const m = Number(period.slice(4, 6));
+    const d = new Date(y, Math.max(0, m - 1), 1);
+    return new Intl.DateTimeFormat('id-ID', { month: 'short', year: 'numeric' }).format(d);
+};
+
 const markedCellClass = 'bg-amber-50';
 
 function SectionTitle({ title, subtitle }) {
@@ -66,6 +78,8 @@ export default function RugiLabaPrint() {
             setError('');
             try {
                 const params = new URLSearchParams();
+                params.set('periodType', initialQuery?.periodType ?? 'month');
+                params.set('period', initialQuery?.period ?? '');
                 params.set('search', initialQuery?.search ?? '');
                 params.set('sortBy', initialQuery?.sortBy ?? 'Kode_Akun');
                 params.set('sortDir', initialQuery?.sortDir ?? 'asc');
@@ -142,7 +156,10 @@ export default function RugiLabaPrint() {
                     <div>
                         <h1 className="text-2xl font-semibold">Rugi Laba</h1>
                         <div className="mt-1 text-sm text-slate-600">
-                            Income statement (snapshot)
+                            Income statement (periodik)
+                        </div>
+                        <div className="mt-1 text-sm text-slate-600">
+                            Periode: {getPeriodLabel(initialQuery?.periodType ?? 'month', initialQuery?.period ?? '')}
                         </div>
                     </div>
                     <div className="text-right text-xs text-slate-600">
@@ -151,7 +168,8 @@ export default function RugiLabaPrint() {
                             {openedAt.toLocaleTimeString('id-ID')}
                         </div>
                         <div className="mt-1">
-                            Filter: search="{initialQuery?.search ?? ''}", sort=
+                            Filter: mode="{initialQuery?.periodType ?? 'month'}", period="{initialQuery?.period ?? ''}",
+                            search="{initialQuery?.search ?? ''}", sort=
                             {(initialQuery?.sortBy ?? 'Kode_Akun') + ' ' + (initialQuery?.sortDir ?? 'asc')}
                         </div>
                         <div className="mt-1">Total akun RL: {new Intl.NumberFormat('id-ID').format(total)}</div>
@@ -175,6 +193,38 @@ export default function RugiLabaPrint() {
                         <div className="text-[11px] uppercase tracking-wide text-slate-500">Laba Bersih</div>
                         <div className="mt-1 text-lg font-semibold">{formatRupiah(summary.laba_bersih)}</div>
                     </div>
+                </div>
+
+                <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-600">
+                            <tr>
+                                <th className="border border-slate-200 px-3 py-2 text-left">Waterfall</th>
+                                <th className="border border-slate-200 px-3 py-2 text-right">Nilai</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {[
+                                { label: 'Pendapatan', sign: '+', value: summary.total_pendapatan },
+                                { label: 'HPP', sign: '-', value: summary.total_hpp },
+                                { label: 'Laba Kotor', sign: '=', value: summary.laba_kotor },
+                                { label: 'Beban Operasional', sign: '-', value: summary.total_beban_operasional },
+                                { label: 'Laba Usaha', sign: '=', value: summary.laba_usaha },
+                                { label: 'Lain-lain Bersih', sign: summary.total_lain_lain_net >= 0 ? '+' : '-', value: summary.total_lain_lain_net },
+                                { label: 'Laba Bersih', sign: '=', value: summary.laba_bersih },
+                            ].map((s, idx) => (
+                                <tr key={idx}>
+                                    <td className="border border-slate-200 bg-white px-3 py-2">
+                                        <span className="mr-2 inline-flex w-5 justify-center text-slate-400">{s.sign}</span>
+                                        <span className={s.sign === '=' ? 'font-semibold text-slate-900' : 'text-slate-700'}>{s.label}</span>
+                                    </td>
+                                    <td className="border border-slate-200 bg-white px-3 py-2 text-right font-semibold text-slate-900">
+                                        {formatRupiah(s.value)}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
 
                 <div className="relative mt-4 overflow-x-auto rounded-xl border border-slate-200">
@@ -331,4 +381,3 @@ export default function RugiLabaPrint() {
         </div>
     );
 }
-

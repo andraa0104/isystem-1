@@ -28,6 +28,12 @@ use App\Http\Controllers\Laporan\NeracaLajurController;
 use App\Http\Controllers\Laporan\NeracaSaldoController;
 use App\Http\Controllers\Laporan\RugiLabaController;
 use App\Http\Controllers\Laporan\NeracaAkhirController;
+use App\Http\Controllers\Laporan\JurnalUmumController;
+use App\Http\Controllers\Laporan\JurnalPenyesuaianController;
+use App\Http\Controllers\Laporan\BukuKasController;
+use App\Http\Controllers\Laporan\PerubahanModalController;
+use App\Http\Controllers\Laporan\SaldoAkunController;
+use App\Http\Controllers\Laporan\AuditRekonsiliasiController;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Illuminate\Http\Request;
@@ -44,6 +50,8 @@ Route::get('/', function () {
         'canRegister' => Features::enabled(Features::registration()),
     ]);
 })->name('home');
+
+
 
 Route::post('/login-simple', function (Request $request) {
     $database = $request->input('database');
@@ -96,6 +104,8 @@ Route::post('/login-simple', function (Request $request) {
         ->withCookie(cookie('login_user_name', $user->name, $loginCookieMinutes))
         ->withCookie(cookie('login_last_online', (string) ($user->last_online ?? ''), $loginCookieMinutes));
 });
+
+
 
 Route::post('/heartbeat-simple', function (Request $request) {
     $database = $request->cookie('tenant_database');
@@ -212,6 +222,44 @@ Route::get('/ping-db', function (Request $request) {
 
 Route::get('dashboard', [DashboardController::class, 'index'])
     ->name('dashboard');
+Route::get('dashboard/quotation-stats', [DashboardController::class, 'quotationStats'])
+    ->name('dashboard.quotation-stats');
+Route::get('dashboard/saldo-stats', [DashboardController::class, 'saldoStats'])
+    ->name('dashboard.saldo-stats');
+Route::get('dashboard/delivery-stats', [DashboardController::class, 'deliveryStats'])
+    ->name('dashboard.delivery-stats');
+Route::get('dashboard/sales-hpp-stats/{period?}', [DashboardController::class, 'getSalesHppStats'])
+    ->name('dashboard.sales-hpp-stats');
+
+Route::get('laporan/jurnal-umum', [JurnalUmumController::class, 'index'])
+    ->name('laporan.jurnal-umum.index');
+Route::get('laporan/jurnal-umum/rows', [JurnalUmumController::class, 'rows'])
+    ->name('laporan.jurnal-umum.rows');
+Route::get('laporan/jurnal-umum/details', [JurnalUmumController::class, 'details'])
+    ->name('laporan.jurnal-umum.details');
+Route::get('laporan/jurnal-umum/print', [JurnalUmumController::class, 'print'])
+    ->name('laporan.jurnal-umum.print');
+
+Route::get('laporan/audit-rekonsiliasi', [AuditRekonsiliasiController::class, 'index'])
+    ->name('laporan.audit-rekonsiliasi.index');
+Route::get('laporan/audit-rekonsiliasi/rows', [AuditRekonsiliasiController::class, 'rows'])
+    ->name('laporan.audit-rekonsiliasi.rows');
+
+Route::get('laporan/jurnal-penyesuaian', [JurnalPenyesuaianController::class, 'index'])
+    ->name('laporan.jurnal-penyesuaian.index');
+Route::get('laporan/jurnal-penyesuaian/rows', [JurnalPenyesuaianController::class, 'rows'])
+    ->name('laporan.jurnal-penyesuaian.rows');
+Route::get('laporan/jurnal-penyesuaian/details', [JurnalPenyesuaianController::class, 'details'])
+    ->name('laporan.jurnal-penyesuaian.details');
+Route::get('laporan/jurnal-penyesuaian/print', [JurnalPenyesuaianController::class, 'print'])
+    ->name('laporan.jurnal-penyesuaian.print');
+
+Route::get('laporan/buku-kas', [BukuKasController::class, 'index'])
+    ->name('laporan.buku-kas.index');
+Route::get('laporan/buku-kas/rows', [BukuKasController::class, 'rows'])
+    ->name('laporan.buku-kas.rows');
+Route::get('laporan/buku-kas/print', [BukuKasController::class, 'print'])
+    ->name('laporan.buku-kas.print');
 
 Route::get('laporan/buku-besar', [BukuBesarController::class, 'index'])
     ->name('laporan.buku-besar.index');
@@ -219,6 +267,13 @@ Route::get('laporan/buku-besar/rows', [BukuBesarController::class, 'rows'])
     ->name('laporan.buku-besar.rows');
 Route::get('laporan/buku-besar/print', [BukuBesarController::class, 'print'])
     ->name('laporan.buku-besar.print');
+
+Route::get('laporan/saldo-akun', [SaldoAkunController::class, 'index'])
+    ->name('laporan.saldo-akun.index');
+Route::get('laporan/saldo-akun/rows', [SaldoAkunController::class, 'rows'])
+    ->name('laporan.saldo-akun.rows');
+Route::get('laporan/saldo-akun/print', [SaldoAkunController::class, 'print'])
+    ->name('laporan.saldo-akun.print');
 
 Route::get('laporan/neraca-lajur', [NeracaLajurController::class, 'index'])
     ->name('laporan.neraca-lajur.index');
@@ -247,6 +302,13 @@ Route::get('laporan/neraca-akhir/rows', [NeracaAkhirController::class, 'rows'])
     ->name('laporan.neraca-akhir.rows');
 Route::get('laporan/neraca-akhir/print', [NeracaAkhirController::class, 'print'])
     ->name('laporan.neraca-akhir.print');
+
+Route::get('laporan/perubahan-modal', [PerubahanModalController::class, 'index'])
+    ->name('laporan.perubahan-modal.index');
+Route::get('laporan/perubahan-modal/rows', [PerubahanModalController::class, 'rows'])
+    ->name('laporan.perubahan-modal.rows');
+Route::get('laporan/perubahan-modal/print', [PerubahanModalController::class, 'print'])
+    ->name('laporan.perubahan-modal.print');
 
 Route::get('master-data/material', [MaterialController::class, 'index'])
     ->name('master-data.material.index');

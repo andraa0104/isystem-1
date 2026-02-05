@@ -22,6 +22,9 @@ import { Head, router } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
+import { readApiError, normalizeApiError } from '@/lib/api-error';
+import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
+import { ActionIconButton } from '@/components/action-icon-button';
 
 const formatDate = (date) => {
     if (!date) return '';
@@ -64,6 +67,25 @@ const showToast = (icon, title) => {
     });
 };
 
+const showErrorAlert = (error, title = 'Gagal') => {
+    const normalized = normalizeApiError(error, title);
+    const detail = normalized?.detail ? String(normalized.detail) : '';
+    const html = `
+        <div style="text-align:left; white-space:pre-wrap; word-break:break-word;">
+            <div>${String(normalized.summary || title)}</div>
+            ${
+                detail
+                    ? `<details style="margin-top:8px;"><summary style="cursor:pointer;">Detail error</summary><pre style="margin-top:8px; max-height:260px; overflow:auto;">${detail.replace(
+                          /</g,
+                          '&lt;',
+                      )}</pre></details>`
+                    : ''
+            }
+        </div>
+    `;
+    Swal.fire({ icon: 'error', title, html, width: 800 });
+};
+
 export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,6 +101,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
 
     const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
     const [materialLoading, setMaterialLoading] = useState(false);
+    const [materialError, setMaterialError] = useState(null);
     const [materialList, setMaterialList] = useState([]);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
@@ -108,15 +131,16 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
 
     const fetchMaterials = (page = 1) => {
         setMaterialLoading(true);
+        setMaterialError(null);
         fetch(
             `/pembelian/delivery-order-cost/materials?search=${encodeURIComponent(
                 materialSearchTerm,
             )}&page=${page}&per_page=${encodeURIComponent(materialPageSize)}`,
             { headers: { Accept: 'application/json' } },
         )
-            .then((response) => {
+            .then(async (response) => {
                 if (!response.ok) {
-                    throw new Error('Request failed');
+                    throw await readApiError(response);
                 }
                 return response.json();
             })
@@ -125,7 +149,8 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                 setMaterialPage(data?.current_page ?? 1);
                 setMaterialTotalPages(data?.last_page ?? 1);
             })
-            .catch(() => {
+            .catch((error) => {
+                setMaterialError(normalizeApiError(error, 'Gagal memuat data material.'));
                 setMaterialList([]);
             })
             .finally(() => {
@@ -205,7 +230,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                 },
             );
             if (!response.ok) {
-                throw new Error('Request failed');
+                throw await readApiError(response);
             }
             const data = await response.json();
             if (data?.item) {
@@ -226,7 +251,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
             });
             showToast('success', 'Data material ditambahkan.');
         } catch (error) {
-            showToast('error', 'Gagal menambah data material.');
+            showErrorAlert(error, 'Gagal menambah data material.');
         } finally {
             setIsSavingDetail(false);
         }
@@ -271,7 +296,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                 },
             );
             if (!response.ok) {
-                throw new Error('Request failed');
+                throw await readApiError(response);
             }
             const data = await response.json();
             setFormData((prev) => ({
@@ -290,7 +315,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
             }));
             showToast('success', 'Data material diperbarui.');
         } catch (error) {
-            showToast('error', 'Gagal memperbarui data material.');
+            showErrorAlert(error, 'Gagal memperbarui data material.');
         } finally {
             setIsSavingDetail(false);
         }
@@ -323,7 +348,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                     },
                 );
                 if (!response.ok) {
-                    throw new Error('Request failed');
+                    throw await readApiError(response);
                 }
                 setFormData((prev) => ({
                     ...prev,
@@ -333,7 +358,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                 }));
                 showToast('success', 'Data material dihapus.');
             } catch (error) {
-                showToast('error', 'Gagal menghapus data material.');
+                showErrorAlert(error, 'Gagal menghapus data material.');
             } finally {
                 setIsSavingDetail(false);
             }
@@ -627,20 +652,16 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                                             )}
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Button
+                                                            <ActionIconButton
+                                                                label="Hapus"
                                                                 variant="destructive"
-                                                                size="icon"
                                                                 onClick={(event) => {
                                                                     event.stopPropagation();
-                                                                    handleDeleteItem(
-                                                                        item,
-                                                                    );
+                                                                    handleDeleteItem(item);
                                                                 }}
-                                                                aria-label="Hapus"
-                                                                title="Hapus"
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
-                                                            </Button>
+                                                            </ActionIconButton>
                                                         </TableCell>
                                                     </TableRow>
                                                 ))}
@@ -742,26 +763,15 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {materialLoading ? (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={4}
-                                            className="text-center"
-                                        >
-                                            Loading...
-                                        </TableCell>
-                                    </TableRow>
-                                ) : materialList.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={4}
-                                            className="text-center"
-                                        >
-                                            Tidak ada data material.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    materialList.map((item) => (
+                                <ShadcnTableStateRows
+                                    columns={4}
+                                    loading={materialLoading}
+                                    error={materialError}
+                                    onRetry={() => fetchMaterials(materialPage || 1)}
+                                    isEmpty={!materialLoading && !materialError && materialList.length === 0}
+                                    emptyTitle="Tidak ada data material."
+                                />
+                                {!materialLoading && !materialError && materialList.map((item) => (
                                         <TableRow key={item.kd_material}>
                                             <TableCell>
                                                 {item.material}
@@ -781,8 +791,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
-                                    ))
-                                )}
+                                    ))}
                             </TableBody>
                         </Table>
                     </div>

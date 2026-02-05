@@ -14,6 +14,7 @@ import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 import { Pencil, Trash2 } from 'lucide-react';
+import { ActionIconButton } from '@/components/action-icon-button';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -982,33 +983,29 @@ export default function PurchaseOrderEdit({
                                             <td className="px-4 py-3">
                                                 {renderValue(item.totalPrice)}
                                             </td>
-                                                <td className="px-4 py-3 space-x-1">
-                                                    <Button
-                                                        type="button"
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        onClick={() =>
-                                                            handleEditMaterial(
-                                                                item
-                                                            )
-                                                        }
-                                                        aria-label="Edit material"
-                                                    >
-                                                        <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        onClick={() =>
-                                                            handleDeleteMaterial(
-                                                                item
-                                                            )
-                                                        }
-                                                        aria-label="Hapus material"
-                                                    >
-                                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                                    </Button>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-1">
+                                                        <ActionIconButton
+                                                            label="Edit"
+                                                            onClick={() =>
+                                                                handleEditMaterial(
+                                                                    item,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </ActionIconButton>
+                                                        <ActionIconButton
+                                                            label="Hapus"
+                                                            onClick={() =>
+                                                                handleDeleteMaterial(
+                                                                    item,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </ActionIconButton>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}

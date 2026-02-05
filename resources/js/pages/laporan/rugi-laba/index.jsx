@@ -1,5 +1,5 @@
 import AppLayout from '@/layouts/app-layout';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { BarChart3, Loader2, Printer, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
+import { buildBukuBesarUrl } from '@/lib/report-links';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -31,8 +32,23 @@ const formatNumber = (value) => {
     return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
 };
 
+const getPeriodLabel = (periodType, period) => {
+    if (periodType === 'year') {
+        if (!period || !/^\d{4}$/.test(period)) return period || '';
+        return `FY ${period} (Jan–Des)`;
+    }
+
+    if (!period || !/^\d{6}$/.test(period)) return period || '';
+    const y = Number(period.slice(0, 4));
+    const m = Number(period.slice(4, 6));
+    const d = new Date(y, Math.max(0, m - 1), 1);
+    return new Intl.DateTimeFormat('id-ID', { month: 'short', year: 'numeric' }).format(d);
+};
+
 const buildPrintUrl = (query) => {
     const params = new URLSearchParams();
+    params.set('periodType', query.periodType ?? 'month');
+    params.set('period', query.period ?? '');
     params.set('search', query.search ?? '');
     params.set('sortBy', query.sortBy ?? 'Kode_Akun');
     params.set('sortDir', query.sortDir ?? 'asc');
@@ -79,7 +95,7 @@ function buildKpiInsights({ summary }) {
     const insights = [];
 
     if (pendapatan === 0) {
-        insights.push('Pendapatan masih Rp 0 pada periode snapshot ini; pastikan akun pendapatan (prefix 4) sudah terisi di RL.');
+        insights.push('Pendapatan masih Rp 0 pada periode ini; pastikan akun pendapatan (prefix 4) sudah terisi di jurnal dan penyesuaian.');
         if (hpp !== 0 || bebanOps !== 0) {
             insights.push('Terdapat beban meskipun pendapatan nol; periksa mapping akun atau jurnal penutup/penyesuaian.');
         }
@@ -181,7 +197,13 @@ function TotalRow({ label, value, emphasis = false }) {
 }
 
 export default function RugiLabaIndex() {
-    const { initialQuery = {} } = usePage().props;
+    const {
+        initialQuery = {},
+        periodOptions = [],
+        defaultPeriod = '',
+        yearOptions = [],
+        defaultYear = '',
+    } = usePage().props;
 
     const [rows, setRows] = useState([]);
     const [total, setTotal] = useState(0);
@@ -193,10 +215,22 @@ export default function RugiLabaIndex() {
         laba_usaha: 0,
         total_lain_lain_net: 0,
         laba_bersih: 0,
+        drivers: {
+            pendapatan: [],
+            hpp: [],
+            beban_operasional: [],
+            pendapatan_lain: [],
+            beban_lain: [],
+        },
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [showWaterfallDetail, setShowWaterfallDetail] = useState(false);
 
+    const [periodType, setPeriodType] = useState(initialQuery?.periodType ?? 'month');
+    const [period, setPeriod] = useState(
+        initialQuery?.period ?? (periodType === 'year' ? defaultYear ?? '' : defaultPeriod ?? ''),
+    );
     const [search, setSearch] = useState(initialQuery?.search ?? '');
     const [debouncedSearch, setDebouncedSearch] = useState(initialQuery?.search ?? '');
     const [sortBy, setSortBy] = useState(initialQuery?.sortBy ?? 'Kode_Akun');
@@ -208,6 +242,12 @@ export default function RugiLabaIndex() {
     );
     const [page, setPage] = useState(1);
 
+    const latestMonthForYear = (year) => {
+        if (!year || !/^\d{4}$/.test(year)) return '';
+        const hit = periodOptions.find((p) => String(p).startsWith(String(year)));
+        return hit ? String(hit) : '';
+    };
+
     useEffect(() => {
         const t = setTimeout(() => setDebouncedSearch(search), 400);
         return () => clearTimeout(t);
@@ -215,13 +255,15 @@ export default function RugiLabaIndex() {
 
     useEffect(() => {
         setPage(1);
-    }, [debouncedSearch, pageSize, sortBy, sortDir]);
+    }, [debouncedSearch, pageSize, sortBy, sortDir, period, periodType]);
 
     const fetchRows = async () => {
         setLoading(true);
         setError('');
         try {
             const params = new URLSearchParams();
+            params.set('periodType', periodType);
+            params.set('period', period);
             params.set('search', debouncedSearch);
             params.set('sortBy', sortBy);
             params.set('sortDir', sortDir);
@@ -248,6 +290,13 @@ export default function RugiLabaIndex() {
                 laba_usaha: Number(data?.summary?.laba_usaha ?? 0),
                 total_lain_lain_net: Number(data?.summary?.total_lain_lain_net ?? 0),
                 laba_bersih: Number(data?.summary?.laba_bersih ?? 0),
+                drivers: data?.summary?.drivers ?? {
+                    pendapatan: [],
+                    hpp: [],
+                    beban_operasional: [],
+                    pendapatan_lain: [],
+                    beban_lain: [],
+                },
             });
         } catch {
             setRows([]);
@@ -260,6 +309,13 @@ export default function RugiLabaIndex() {
                 laba_usaha: 0,
                 total_lain_lain_net: 0,
                 laba_bersih: 0,
+                drivers: {
+                    pendapatan: [],
+                    hpp: [],
+                    beban_operasional: [],
+                    pendapatan_lain: [],
+                    beban_lain: [],
+                },
             });
         } finally {
             setLoading(false);
@@ -269,7 +325,7 @@ export default function RugiLabaIndex() {
     useEffect(() => {
         fetchRows();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [debouncedSearch, pageSize, page, sortBy, sortDir]);
+    }, [periodType, period, debouncedSearch, pageSize, page, sortBy, sortDir]);
 
     const totalPages = useMemo(() => {
         if (pageSize === 'all') return 1;
@@ -277,7 +333,7 @@ export default function RugiLabaIndex() {
         return Math.max(1, Math.ceil(total / size));
     }, [pageSize, total]);
 
-    const printUrl = buildPrintUrl({ search: debouncedSearch, sortBy, sortDir });
+    const printUrl = buildPrintUrl({ periodType, period, search: debouncedSearch, sortBy, sortDir });
     const labaBersihAccent = summary.laba_bersih > 0 ? 'positive' : summary.laba_bersih < 0 ? 'negative' : 'default';
 
     const sections = useMemo(() => {
@@ -293,6 +349,27 @@ export default function RugiLabaIndex() {
     const kpiInsights = useMemo(() => buildKpiInsights({ summary }), [summary]);
     const kpiMetrics = useMemo(() => buildKpiMetrics({ summary }), [summary]);
 
+    const wf = useMemo(() => {
+        const pendapatan = Number(summary?.total_pendapatan ?? 0);
+        const hpp = Number(summary?.total_hpp ?? 0);
+        const labaKotor = Number(summary?.laba_kotor ?? 0);
+        const opex = Number(summary?.total_beban_operasional ?? 0);
+        const labaUsaha = Number(summary?.laba_usaha ?? 0);
+        const lainNet = Number(summary?.total_lain_lain_net ?? 0);
+        const labaBersih = Number(summary?.laba_bersih ?? 0);
+        return [
+            { label: 'Pendapatan', value: pendapatan, sign: '+' },
+            { label: 'HPP', value: hpp, sign: '-' },
+            { label: 'Laba Kotor', value: labaKotor, sign: '=' },
+            { label: 'Beban Operasional', value: opex, sign: '-' },
+            { label: 'Laba Usaha', value: labaUsaha, sign: '=' },
+            { label: 'Lain-lain Bersih', value: lainNet, sign: lainNet >= 0 ? '+' : '-' },
+            { label: 'Laba Bersih', value: labaBersih, sign: '=' },
+        ];
+    }, [summary]);
+
+    const drivers = useMemo(() => summary?.drivers ?? {}, [summary]);
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Rugi Laba" />
@@ -306,11 +383,84 @@ export default function RugiLabaIndex() {
                             <h1 className="text-xl font-semibold">Rugi Laba</h1>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Income statement (snapshot) dari kolom RL pada neraca lajur
+                            Income statement periodik (Jurnal + Jurnal Detail + Jurnal Penyesuaian)
                         </p>
+                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                            Periode:{' '}
+                            <span className="text-white/80">{getPeriodLabel(periodType, period)}</span>
+                            {periodType === 'month' && period ? (
+                                <span className="text-white/60">({period})</span>
+                            ) : periodType === 'month' ? (
+                                <span className="text-white/60">(-)</span>
+                            ) : null}
+                            {periodType === 'year' && period ? (
+                                <span className="text-white/60">({period})</span>
+                            ) : null}
+                        </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Mode</span>
+                        <Select
+                            value={periodType}
+                            onValueChange={(val) => {
+                                const next = val === 'year' ? 'year' : 'month';
+                                setPeriodType(next);
+                                if (next === 'year') {
+                                    const y = /^\d{6}$/.test(String(period))
+                                        ? String(period).slice(0, 4)
+                                        : /^\d{4}$/.test(String(period))
+                                          ? String(period)
+                                          : String(defaultYear || '').slice(0, 4);
+                                    setPeriod(y || defaultYear || '');
+                                } else {
+                                    const y = /^\d{4}$/.test(String(period))
+                                        ? String(period)
+                                        : /^\d{6}$/.test(String(period))
+                                          ? String(period).slice(0, 4)
+                                          : '';
+                                    const p = latestMonthForYear(y) || defaultPeriod || '';
+                                    setPeriod(p);
+                                }
+                            }}
+                        >
+                            <SelectTrigger className="w-36">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="month">Per Bulan</SelectItem>
+                                <SelectItem value="year">Per Tahun</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <span className="text-sm text-muted-foreground">Periode</span>
+                        <Select value={period} onValueChange={setPeriod}>
+                            <SelectTrigger className="w-44">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {periodType === 'year' ? (
+                                    yearOptions.length === 0 ? (
+                                        <SelectItem value={period || ''}>{period || '-'}</SelectItem>
+                                    ) : (
+                                        yearOptions.map((y) => (
+                                            <SelectItem key={y} value={y}>
+                                                {getPeriodLabel('year', y)}
+                                            </SelectItem>
+                                        ))
+                                    )
+                                ) : periodOptions.length === 0 ? (
+                                    <SelectItem value={period || ''}>{period || '-'}</SelectItem>
+                                ) : (
+                                    periodOptions.map((p) => (
+                                        <SelectItem key={p} value={p}>
+                                            {getPeriodLabel('month', p)} ({p})
+                                        </SelectItem>
+                                    ))
+                                )}
+                            </SelectContent>
+                        </Select>
+
                         <Button asChild variant="outline">
                             <a href={printUrl} target="_blank" rel="noreferrer">
                                 <Printer className="mr-2 h-4 w-4" />
@@ -373,6 +523,209 @@ export default function RugiLabaIndex() {
                         value={formatRupiah(summary.laba_bersih)}
                         accent={labaBersihAccent}
                     />
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-card p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div className="text-sm font-semibold text-white">Waterfall Laba Bersih</div>
+                            <div className="text-xs text-muted-foreground">
+                                Step-by-step + top drivers per bagian (akun penyumbang terbesar).
+                            </div>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setShowWaterfallDetail((v) => !v)}
+                        >
+                            {showWaterfallDetail ? 'Tutup' : 'Detail'}
+                        </Button>
+                    </div>
+
+                    <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
+                        <table className="min-w-full text-sm">
+                            <thead className="bg-white/5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                <tr>
+                                    <th className="px-3 py-3 text-left">Step</th>
+                                    <th className="px-3 py-3 text-right">Nilai</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {wf.map((s, idx) => {
+                                    const isTotal = s.sign === '=';
+                                    const accent =
+                                        s.label === 'Laba Bersih'
+                                            ? Number(summary?.laba_bersih ?? 0) >= 0
+                                                ? 'text-emerald-300'
+                                                : 'text-rose-300'
+                                            : isTotal
+                                              ? 'text-white'
+                                              : s.sign === '-'
+                                                ? 'text-rose-200'
+                                                : 'text-emerald-200';
+                                    return (
+                                        <tr key={idx} className="border-t border-white/10">
+                                            <td className="px-3 py-2">
+                                                <span className="mr-2 inline-flex w-5 justify-center text-white/50">
+                                                    {s.sign}
+                                                </span>
+                                                <span className={isTotal ? 'font-semibold text-white' : 'text-white/80'}>
+                                                    {s.label}
+                                                </span>
+                                            </td>
+                                            <td className={`px-3 py-2 text-right font-semibold ${accent}`}>
+                                                {formatRupiah(s.value)}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {showWaterfallDetail ? (
+                        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                            <div className="rounded-2xl border border-white/10 bg-white/5">
+                                <div className="border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/70">
+                                    Top Pendapatan
+                                </div>
+                                <div className="divide-y divide-white/10">
+                                    {(drivers?.pendapatan ?? []).length ? (
+                                        drivers.pendapatan.map((d, i) => (
+                                            <div key={i} className="flex items-start justify-between gap-3 px-4 py-3">
+                                                <div className="min-w-0">
+                                                    <Link
+                                                        href={buildBukuBesarUrl({ kodeAkun: d.Kode_Akun, periodType, period })}
+                                                        className="text-sm font-semibold text-amber-300 hover:underline"
+                                                    >
+                                                        {d.Kode_Akun}
+                                                    </Link>
+                                                    <div className="truncate text-xs text-muted-foreground">{d.Nama_Akun}</div>
+                                                </div>
+                                                <div className="text-right text-sm font-semibold text-emerald-300">
+                                                    {formatRupiah(d.amount)}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                                            Tidak ada data.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-white/10 bg-white/5">
+                                <div className="border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/70">
+                                    Top HPP
+                                </div>
+                                <div className="divide-y divide-white/10">
+                                    {(drivers?.hpp ?? []).length ? (
+                                        drivers.hpp.map((d, i) => (
+                                            <div key={i} className="flex items-start justify-between gap-3 px-4 py-3">
+                                                <div className="min-w-0">
+                                                    <Link
+                                                        href={buildBukuBesarUrl({ kodeAkun: d.Kode_Akun, periodType, period })}
+                                                        className="text-sm font-semibold text-amber-300 hover:underline"
+                                                    >
+                                                        {d.Kode_Akun}
+                                                    </Link>
+                                                    <div className="truncate text-xs text-muted-foreground">{d.Nama_Akun}</div>
+                                                </div>
+                                                <div className="text-right text-sm font-semibold text-rose-300">
+                                                    {formatRupiah(d.amount)}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                                            Tidak ada data.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-white/10 bg-white/5">
+                                <div className="border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/70">
+                                    Top Beban Operasional
+                                </div>
+                                <div className="divide-y divide-white/10">
+                                    {(drivers?.beban_operasional ?? []).length ? (
+                                        drivers.beban_operasional.map((d, i) => (
+                                            <div key={i} className="flex items-start justify-between gap-3 px-4 py-3">
+                                                <div className="min-w-0">
+                                                    <Link
+                                                        href={buildBukuBesarUrl({ kodeAkun: d.Kode_Akun, periodType, period })}
+                                                        className="text-sm font-semibold text-amber-300 hover:underline"
+                                                    >
+                                                        {d.Kode_Akun}
+                                                    </Link>
+                                                    <div className="truncate text-xs text-muted-foreground">{d.Nama_Akun}</div>
+                                                </div>
+                                                <div className="text-right text-sm font-semibold text-rose-300">
+                                                    {formatRupiah(d.amount)}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                                            Tidak ada data.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-white/10 bg-white/5">
+                                <div className="border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/70">
+                                    Top Lain-lain
+                                </div>
+                                <div className="divide-y divide-white/10">
+                                    {((drivers?.pendapatan_lain ?? []).length || (drivers?.beban_lain ?? []).length) ? (
+                                        <>
+                                            {(drivers?.pendapatan_lain ?? []).map((d, i) => (
+                                                <div key={`pl-${i}`} className="flex items-start justify-between gap-3 px-4 py-3">
+                                                    <div className="min-w-0">
+                                                        <Link
+                                                            href={buildBukuBesarUrl({ kodeAkun: d.Kode_Akun, periodType, period })}
+                                                            className="text-sm font-semibold text-amber-300 hover:underline"
+                                                        >
+                                                            {d.Kode_Akun}
+                                                        </Link>
+                                                        <div className="truncate text-xs text-muted-foreground">{d.Nama_Akun}</div>
+                                                        <div className="text-[11px] text-emerald-300/80">Pendapatan lain</div>
+                                                    </div>
+                                                    <div className="text-right text-sm font-semibold text-emerald-300">
+                                                        {formatRupiah(d.amount)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {(drivers?.beban_lain ?? []).map((d, i) => (
+                                                <div key={`bl-${i}`} className="flex items-start justify-between gap-3 px-4 py-3">
+                                                    <div className="min-w-0">
+                                                        <Link
+                                                            href={buildBukuBesarUrl({ kodeAkun: d.Kode_Akun, periodType, period })}
+                                                            className="text-sm font-semibold text-amber-300 hover:underline"
+                                                        >
+                                                            {d.Kode_Akun}
+                                                        </Link>
+                                                        <div className="truncate text-xs text-muted-foreground">{d.Nama_Akun}</div>
+                                                        <div className="text-[11px] text-rose-300/80">Beban lain</div>
+                                                    </div>
+                                                    <div className="text-right text-sm font-semibold text-rose-300">
+                                                        {formatRupiah(d.amount)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </>
+                                    ) : (
+                                        <div className="px-4 py-6 text-center text-sm text-muted-foreground">
+                                            Tidak ada data.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ) : null}
                 </div>
 
                 <div className="overflow-hidden rounded-2xl border border-white/10 bg-card">
@@ -442,7 +795,7 @@ export default function RugiLabaIndex() {
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
                         <div className="mt-2 text-xs text-rose-200/80">
-                            Pastikan `tb_neracalajur` punya kolom `Kode_Akun`, `RL_Debit`, `RL_Kredit`. Nama akun diambil dari `tb_nabb.Nama_Akun` bila tersedia.
+                            Sumber: `tb_jurnal` + `tb_jurnaldetail` (transaksi) + `tb_jurnalpenyesuaian` (AJP). Nama akun diambil dari `tb_nabb.Nama_Akun` bila tersedia.
                         </div>
                     </div>
                 ) : null}
@@ -498,7 +851,12 @@ export default function RugiLabaIndex() {
                                                             : ''
                                                     }
                                                 >
-                                                    {kodeAkun}
+                                                    <Link
+                                                        href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
+                                                        className={has00 ? '' : 'text-amber-300 hover:underline'}
+                                                    >
+                                                        {kodeAkun}
+                                                    </Link>
                                                 </span>
                                             </div>
                                         </td>
@@ -543,7 +901,12 @@ export default function RugiLabaIndex() {
                                                             : ''
                                                     }
                                                 >
-                                                    {kodeAkun}
+                                                    <Link
+                                                        href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
+                                                        className={has00 ? '' : 'text-amber-300 hover:underline'}
+                                                    >
+                                                        {kodeAkun}
+                                                    </Link>
                                                 </span>
                                             </div>
                                         </td>
@@ -589,7 +952,12 @@ export default function RugiLabaIndex() {
                                                             : ''
                                                     }
                                                 >
-                                                    {kodeAkun}
+                                                    <Link
+                                                        href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
+                                                        className={has00 ? '' : 'text-amber-300 hover:underline'}
+                                                    >
+                                                        {kodeAkun}
+                                                    </Link>
                                                 </span>
                                             </div>
                                         </td>
@@ -641,7 +1009,12 @@ export default function RugiLabaIndex() {
                                                                     : ''
                                                             }
                                                         >
-                                                            {kodeAkun}
+                                                            <Link
+                                                                href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
+                                                                className={has00 ? '' : 'text-amber-300 hover:underline'}
+                                                            >
+                                                                {kodeAkun}
+                                                            </Link>
                                                         </span>
                                                     </div>
                                                 </td>
@@ -678,7 +1051,12 @@ export default function RugiLabaIndex() {
                                                                     : ''
                                                             }
                                                         >
-                                                            {kodeAkun}
+                                                            <Link
+                                                                href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
+                                                                className={has00 ? '' : 'text-amber-300 hover:underline'}
+                                                            >
+                                                                {kodeAkun}
+                                                            </Link>
                                                         </span>
                                                     </div>
                                                 </td>

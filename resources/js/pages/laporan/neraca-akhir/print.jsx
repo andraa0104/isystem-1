@@ -9,6 +9,18 @@ const formatRupiah = (value) => {
     return `Rp ${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n)}`;
 };
 
+const getPeriodLabel = (periodType, period) => {
+    if (periodType === 'year') {
+        if (!period || !/^\d{4}$/.test(period)) return period || '';
+        return `FY ${period} (Jan–Des)`;
+    }
+    if (!period || !/^\d{6}$/.test(period)) return period || '';
+    const y = Number(period.slice(0, 4));
+    const m = Number(period.slice(4, 6));
+    const d = new Date(y, Math.max(0, m - 1), 1);
+    return new Intl.DateTimeFormat('id-ID', { month: 'short', year: 'numeric' }).format(d);
+};
+
 const markedCellClass = 'bg-amber-50';
 
 function SectionTitle({ title, subtitle }) {
@@ -63,6 +75,8 @@ export default function NeracaAkhirPrint() {
             setError('');
             try {
                 const params = new URLSearchParams();
+                params.set('periodType', initialQuery?.periodType ?? 'month');
+                params.set('period', initialQuery?.period ?? '');
                 params.set('search', initialQuery?.search ?? '');
                 params.set('sortBy', initialQuery?.sortBy ?? 'Kode_Akun');
                 params.set('sortDir', initialQuery?.sortDir ?? 'asc');
@@ -126,7 +140,10 @@ export default function NeracaAkhirPrint() {
                     <div>
                         <h1 className="text-2xl font-semibold">Neraca Akhir</h1>
                         <div className="mt-1 text-sm text-slate-600">
-                            Posisi aset, liabilitas, dan ekuitas (snapshot)
+                            Posisi aset, liabilitas, dan ekuitas (periodik)
+                        </div>
+                        <div className="mt-1 text-sm text-slate-600">
+                            Periode: {getPeriodLabel(initialQuery?.periodType ?? 'month', initialQuery?.period ?? '')}
                         </div>
                     </div>
                     <div className="text-right text-xs text-slate-600">
@@ -135,7 +152,8 @@ export default function NeracaAkhirPrint() {
                             {openedAt.toLocaleTimeString('id-ID')}
                         </div>
                         <div className="mt-1">
-                            Filter: search="{initialQuery?.search ?? ''}", sort=
+                            Filter: mode="{initialQuery?.periodType ?? 'month'}", period="{initialQuery?.period ?? ''}",
+                            search="{initialQuery?.search ?? ''}", sort=
                             {(initialQuery?.sortBy ?? 'Kode_Akun') + ' ' + (initialQuery?.sortDir ?? 'asc')}
                         </div>
                         <div className="mt-1">Total akun NA: {new Intl.NumberFormat('id-ID').format(total)}</div>
@@ -279,4 +297,3 @@ export default function NeracaAkhirPrint() {
         </div>
     );
 }
-

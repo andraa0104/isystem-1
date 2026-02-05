@@ -6,35 +6,33 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class BukuBesarTest extends TestCase
+class BukuKasTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_authenticated_users_can_visit_buku_besar_page()
+    public function test_authenticated_users_can_visit_buku_kas_page()
     {
         $this->actingAs(User::factory()->create());
 
-        $this->get(route('laporan.buku-besar.index'))->assertOk();
+        $this->get(route('laporan.buku-kas.index'))->assertOk();
     }
 
     public function test_rows_endpoint_returns_expected_shape()
     {
         $this->actingAs(User::factory()->create());
 
-        $res = $this->getJson(route('laporan.buku-besar.rows'));
+        $res = $this->getJson(route('laporan.buku-kas.rows'));
         $res->assertStatus(500);
         $res->assertJsonStructure([
             'rows',
             'total',
             'summary' => [
-                'opening_balance_signed',
-                'opening_warning',
-                'opening_source',
-                'opening_period',
-                'total_debit',
-                'total_kredit',
-                'closing_balance_signed',
-                'line_count',
+                'opening_balance',
+                'closing_balance',
+                'total_in',
+                'total_out',
+                'net_change',
+                'count_voucher',
             ],
             'error',
         ]);
@@ -44,9 +42,10 @@ class BukuBesarTest extends TestCase
     {
         $this->actingAs(User::factory()->create());
 
-        $this->getJson(route('laporan.buku-besar.rows', [
+        $this->getJson(route('laporan.buku-kas.rows', [
             'sortBy' => 'DROP_TABLE',
-            'sortDir' => 'desc',
+            'sortDir' => 'asc',
         ]))->assertStatus(500);
     }
 }
+

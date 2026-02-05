@@ -8,6 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { readApiError, normalizeApiError } from '@/lib/api-error';
+import { ErrorState } from '@/components/data-states/ErrorState';
+import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 
 const PAGE_OPTIONS = [
     { value: '5', label: '5' },
@@ -58,7 +61,7 @@ export default function InvoiceMasukCreate() {
     const [poPageSize, setPoPageSize] = useState(5);
     const [poPage, setPoPage] = useState(1);
     const [poLoading, setPoLoading] = useState(false);
-    const [poError, setPoError] = useState('');
+    const [poError, setPoError] = useState(null);
 
     const [header, setHeader] = useState({
         no_gudang: '',
@@ -133,16 +136,16 @@ export default function InvoiceMasukCreate() {
         setPoModalOpen(true);
         if (poData.length > 0) return;
         setPoLoading(true);
-        setPoError('');
+        setPoError(null);
         try {
             const res = await fetch('/pembelian/invoice-masuk/po-list?pageSize=all', { headers: { Accept: 'application/json' } });
-            if (!res.ok) throw new Error('Gagal memuat data PO.');
+            if (!res.ok) throw await readApiError(res);
             const data = await res.json();
             const rows = Array.isArray(data?.data) ? data.data : [];
             rows.sort((a, b) => String(b.no_doc ?? '').localeCompare(String(a.no_doc ?? '')));
             setPoData(rows);
         } catch (err) {
-            setPoError(err.message || 'Gagal memuat data PO.');
+            setPoError(normalizeApiError(err, 'Gagal memuat data PO.'));
         } finally {
             setPoLoading(false);
         }
@@ -152,10 +155,12 @@ export default function InvoiceMasukCreate() {
         setPoModalOpen(false);
         setPoLoading(true);
         setLoadingMaterials(true);
+        setPoError(null);
         try {
             const detailRes = await fetch(`/pembelian/invoice-masuk/po-detail?no_gudang=${encodeURIComponent(row.no_doc)}`, {
                 headers: { Accept: 'application/json' },
             });
+            if (!detailRes.ok) throw await readApiError(detailRes);
             const detail = await detailRes.json();
             setHeader((prev) => ({
                 ...prev,
@@ -170,6 +175,7 @@ export default function InvoiceMasukCreate() {
             const matRes = await fetch(`/pembelian/invoice-masuk/po-materials?no_gudang=${encodeURIComponent(row.no_doc)}`, {
                 headers: { Accept: 'application/json' },
             });
+            if (!matRes.ok) throw await readApiError(matRes);
             const matData = await matRes.json();
             setMaterials(
                 Array.isArray(matData?.items)
@@ -182,7 +188,7 @@ export default function InvoiceMasukCreate() {
             );
             setMaterialPage(1);
         } catch (err) {
-            setPoError(err.message || 'Gagal memuat detail PO.');
+            setPoError(normalizeApiError(err, 'Gagal memuat detail PO.'));
             setMaterials([]);
         } finally {
             setPoLoading(false);
@@ -230,6 +236,7 @@ export default function InvoiceMasukCreate() {
         ]}>
             <Head title="Tambah Invoice Masuk" />
             <div className="p-4 space-y-4">
+                {poError ? <ErrorState error={poError} /> : null}
                 {step === 1 && (
                     <Card>
                         <CardHeader>
@@ -294,7 +301,6 @@ export default function InvoiceMasukCreate() {
                             <CardTitle>Step 2 - Material in PO</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                        {loadingMaterials && <p className="text-sm text-muted-foreground">Memuat material...</p>}
                         <div className="flex flex-wrap gap-3">
                             <Select value={String(materialPageSize === Infinity ? 'all' : materialPageSize)} onValueChange={(val) => {
                                 setMaterialPage(1);
@@ -324,14 +330,14 @@ export default function InvoiceMasukCreate() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {displayedMaterials.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={7} className="text-center text-muted-foreground">
-                                                {header.no_gudang ? 'Tidak ada data material.' : 'Pilih PO terlebih dahulu.'}
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                    {displayedMaterials.map((row, idx) => (
+                                    <ShadcnTableStateRows
+                                        columns={7}
+                                        loading={loadingMaterials}
+                                        error={poError}
+                                        isEmpty={!loadingMaterials && !poError && displayedMaterials.length === 0}
+                                        emptyTitle={header.no_gudang ? 'Tidak ada data material.' : 'Pilih PO terlebih dahulu.'}
+                                    />
+                                    {!loadingMaterials && !poError && displayedMaterials.map((row, idx) => (
                                         <TableRow key={`${row.kd_mat}-${idx}`}>
                                             <TableCell>{(materialPage - 1) * (materialPageSize === Infinity ? displayedMaterials.length : materialPageSize) + idx + 1}</TableCell>
                                             <TableCell>{row.kd_mat}</TableCell>
@@ -427,8 +433,6 @@ export default function InvoiceMasukCreate() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        {poLoading && <p className="text-sm text-muted-foreground">Memuat data...</p>}
-                        {poError && <p className="text-sm text-rose-600">{poError}</p>}
                         <div className="overflow-x-auto max-h-[60vh] overflow-y-auto">
                             <Table>
                                 <TableHeader>
@@ -440,14 +444,15 @@ export default function InvoiceMasukCreate() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {displayedPo.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={4} className="text-center text-muted-foreground">
-                                                Tidak ada data.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                    {displayedPo.map((row) => (
+                                    <ShadcnTableStateRows
+                                        columns={4}
+                                        loading={poLoading}
+                                        error={poError}
+                                        onRetry={openPoModal}
+                                        isEmpty={!poLoading && !poError && displayedPo.length === 0}
+                                        emptyTitle="Tidak ada data."
+                                    />
+                                    {!poLoading && !poError && displayedPo.map((row) => (
                                         <TableRow key={row.no_doc} className="cursor-pointer hover:bg-muted/40" onClick={() => handleSelectPo(row)}>
                                             <TableCell>{row.no_doc}</TableCell>
                                             <TableCell>{row.ref_pr}</TableCell>

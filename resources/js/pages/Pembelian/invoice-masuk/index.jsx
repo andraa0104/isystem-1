@@ -13,8 +13,13 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Eye, Printer, Pencil, Trash } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ActionIconButton } from '@/components/action-icon-button';
+import { Eye, Printer, Pencil, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { readApiError, normalizeApiError } from '@/lib/api-error';
+import { ErrorState } from '@/components/data-states/ErrorState';
+import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 
 const STATUS_OPTIONS = [
     { value: 'all', label: 'Semua data' },
@@ -55,6 +60,23 @@ const getValue = (source, keys) => {
     return '-';
 };
 
+const getInvoiceStatus = (row) => {
+    const pembayaran = Number(row?.pembayaran ?? 0);
+    const sisa = Number(row?.sisa_bayar ?? 0);
+    const jurnal = String(row?.jurnal ?? '').trim();
+
+    if (pembayaran <= 0) {
+        return { label: 'Belum dibayar', variant: 'destructive' };
+    }
+    if (!jurnal) {
+        return { label: 'Belum dijurnal', variant: 'secondary' };
+    }
+    if (sisa === 0) {
+        return { label: 'Lunas', variant: 'default' };
+    }
+    return { label: 'Belum lunas', variant: 'outline' };
+};
+
 export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters = {} }) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
@@ -63,7 +85,7 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
     const [poDetails, setPoDetails] = useState([]);
     const [poHeader, setPoHeader] = useState(null);
     const [poDetailLoading, setPoDetailLoading] = useState(false);
-    const [poDetailError, setPoDetailError] = useState('');
+    const [poDetailError, setPoDetailError] = useState(null);
     const [selectedRefPo, setSelectedRefPo] = useState(null);
 
     const [unbilledModalOpen, setUnbilledModalOpen] = useState(false);
@@ -75,7 +97,8 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
     const [invoiceDetail, setInvoiceDetail] = useState(null);
     const [invoiceItems, setInvoiceItems] = useState([]);
     const [invoiceLoading, setInvoiceLoading] = useState(false);
-    const [invoiceError, setInvoiceError] = useState('');
+    const [invoiceError, setInvoiceError] = useState(null);
+    const [lastInvoiceNoDoc, setLastInvoiceNoDoc] = useState(null);
     const [invoicePageSize, setInvoicePageSize] = useState(5);
     const [invoiceCurrentPage, setInvoiceCurrentPage] = useState(1);
     const [invoiceSearch, setInvoiceSearch] = useState('');
@@ -90,12 +113,12 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
     const [paidPageSize, setPaidPageSize] = useState(5);
     const [paidCurrentPage, setPaidCurrentPage] = useState(1);
     const [paidLoading, setPaidLoading] = useState(false);
-    const [paidError, setPaidError] = useState('');
+    const [paidError, setPaidError] = useState(null);
 
     const [currentPage, setCurrentPage] = useState(1);
     const [loading, setLoading] = useState(false);
     const [initialLoaded, setInitialLoaded] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState(null);
 
     const openUnbilledModal = () => {
         setUnbilledData(
@@ -107,7 +130,7 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
 
     const fetchInvoices = async () => {
         setLoading(true);
-        setError('');
+        setError(null);
         try {
             const params = new URLSearchParams({
                 search: searchTerm,
@@ -117,13 +140,13 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
             const res = await fetch(`/pembelian/invoice-masuk/data?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
             });
-            if (!res.ok) throw new Error('Gagal memuat data invoice.');
+            if (!res.ok) throw await readApiError(res);
             const data = await res.json();
             setRemoteInvoices(Array.isArray(data?.invoices) ? data.invoices : []);
             setRemoteSummary(data?.summary ?? { unbilled_count: 0, unbilled_total: 0 });
             setInitialLoaded(true);
         } catch (err) {
-            setError(err.message || "Gagal memuat data invoice.");
+            setError(normalizeApiError(err, 'Gagal memuat data invoice.'));
             setRemoteInvoices([]);
             setRemoteSummary({ unbilled_count: 0, unbilled_total: 0 });
             setInitialLoaded(false);
@@ -138,7 +161,7 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
 
     const fetchPaid = async (period, search = '') => {
         setPaidLoading(true);
-        setPaidError('');
+        setPaidError(null);
         try {
             const params = new URLSearchParams({
                 period,
@@ -147,13 +170,13 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
             const res = await fetch(`/pembelian/invoice-masuk/paid?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
             });
-            if (!res.ok) throw new Error('Gagal memuat data invoice sudah dibayar.');
+            if (!res.ok) throw await readApiError(res);
             const data = await res.json();
             const rows = Array.isArray(data?.invoices) ? data.invoices : [];
             setPaidData(rows);
             setPaidSummary(data?.summary ?? { paid_count: 0, paid_total: 0 });
         } catch (err) {
-            setPaidError(err.message || 'Gagal memuat data invoice sudah dibayar.');
+            setPaidError(normalizeApiError(err, 'Gagal memuat data invoice sudah dibayar.'));
             setPaidData([]);
             setPaidSummary({ paid_count: 0, paid_total: 0 });
         } finally {
@@ -280,23 +303,23 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
         setSelectedRefPo(refPo);
         setPoModalOpen(true);
         setPoDetailLoading(true);
-        setPoDetailError('');
+        setPoDetailError(null);
         try {
             const response = await fetch(
                 `/pembelian/purchase-order/details?no_po=${encodeURIComponent(refPo)}`,
                 { headers: { Accept: 'application/json' } }
             );
             if (!response.ok) {
-                throw new Error('Gagal memuat detail PO.');
+                throw await readApiError(response);
             }
             const data = await response.json();
             setPoHeader(data?.purchaseOrder ?? null);
             setPoDetails(Array.isArray(data?.purchaseOrderDetails) ? data.purchaseOrderDetails : []);
             if (!Array.isArray(data?.purchaseOrderDetails) || data.purchaseOrderDetails.length === 0) {
-                setPoDetailError('Detail PO tidak ditemukan.');
+                setPoDetailError({ summary: 'Detail PO tidak ditemukan.', detail: undefined, status: 404 });
             }
         } catch (error) {
-            setPoDetailError(error.message || 'Gagal memuat detail PO.');
+            setPoDetailError(normalizeApiError(error, 'Gagal memuat detail PO.'));
             setPoDetails([]);
             setPoHeader(null);
         } finally {
@@ -306,12 +329,13 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
 
     const openInvoiceDetail = async (noDoc) => {
         if (!noDoc) return;
+        setLastInvoiceNoDoc(noDoc);
         if (paidModalOpen) {
             setPaidModalOpen(false);
         }
         setInvoiceModalOpen(true);
         setInvoiceLoading(true);
-        setInvoiceError('');
+        setInvoiceError(null);
         setInvoiceItems([]);
         setInvoiceDetail(null);
         setInvoiceCurrentPage(1);
@@ -319,17 +343,17 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
             const res = await fetch(`/pembelian/invoice-masuk/${encodeURIComponent(noDoc)}`, {
                 headers: { Accept: 'application/json' },
             });
-            if (!res.ok) throw new Error('Gagal memuat detail invoice.');
+            if (!res.ok) throw await readApiError(res);
             const data = await res.json();
             setInvoiceDetail(data?.header ?? null);
             const items = Array.isArray(data?.items) ? data.items : [];
             const withNoGudang = items.map((row) => ({...row, no_gudang: row.no_gudang ?? data?.header?.no_gudang ?? null}));
             setInvoiceItems(withNoGudang);
             if (!data?.header) {
-                setInvoiceError('Data invoice tidak ditemukan.');
+                setInvoiceError({ summary: 'Data invoice tidak ditemukan.', detail: undefined, status: 404 });
             }
         } catch (err) {
-            setInvoiceError(err.message || 'Gagal memuat detail invoice.');
+            setInvoiceError(normalizeApiError(err, 'Gagal memuat detail invoice.'));
             setInvoiceDetail(null);
             setInvoiceItems([]);
         } finally {
@@ -502,29 +526,32 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                         </div>
                     </CardHeader>
                     <CardContent className="overflow-x-auto">
-                        {loading && <p className="text-sm text-muted-foreground">Memuat data...</p>}
-                        {!loading && error && <p className="text-sm text-rose-600">{error}</p>}
                         <Table>
-                            <TableHeader>
+                            <TableHeader className="sticky top-0 z-10 bg-background">
                                 <TableRow>
                                     <TableHead>No FI</TableHead>
                                     <TableHead>Date</TableHead>
                                     <TableHead>Inv Date</TableHead>
                                     <TableHead>Ref PO</TableHead>
                                     <TableHead>Vendor</TableHead>
+                                    <TableHead>Status</TableHead>
                                     <TableHead className="text-right">Total Invoice</TableHead>
                                     <TableHead className="text-center">Aksi</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                                        {displayed.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={7} className="text-center text-muted-foreground">
-                                            {initialLoaded ? "Tidak ada data." : "Klik Muat data untuk menampilkan."}
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                                {displayed.map((row) => (
+                                <ShadcnTableStateRows
+                                    columns={8}
+                                    loading={loading}
+                                    error={error}
+                                    onRetry={fetchInvoices}
+                                    isEmpty={!loading && !error && displayed.length === 0}
+                                    emptyTitle="Belum ada data invoice."
+                                    emptyDescription="Silakan tambah FI baru atau ubah filter/pencarian."
+                                    emptyActionLabel="Tambah FI"
+                                    emptyActionHref="/pembelian/invoice-masuk/create"
+                                />
+                                {!loading && !error && displayed.map((row) => (
                                     <TableRow key={`${row.no_doc}-${row.doc_rec}`}>
                                         <TableCell>{row.no_doc ?? '-'}</TableCell>
                                         <TableCell>{formatDate(row.doc_rec)}</TableCell>
@@ -542,15 +569,33 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                                                 '-' )}
                                         </TableCell>
                                         <TableCell>{row.nm_vdr ?? '-'}</TableCell>
-                                        <TableCell className="text-right">Rp {formatNumber(row.total ?? 0)}</TableCell>
+                                        <TableCell>
+                                            {(() => {
+                                                const status = getInvoiceStatus(row);
+                                                return (
+                                                    <Badge variant={status.variant}>
+                                                        {status.label}
+                                                    </Badge>
+                                                );
+                                            })()}
+                                        </TableCell>
+                                        <TableCell className="text-right whitespace-nowrap">Rp {formatNumber(row.total ?? 0)}</TableCell>
                                         <TableCell className="text-center">
                                             <div className="flex items-center justify-center gap-2">
-                                                <Button size="icon" variant="outline" onClick={() => openInvoiceDetail(row.no_doc)}>
+                                                <ActionIconButton
+                                                    label="Detail"
+                                                    variant="outline"
+                                                    onClick={() => openInvoiceDetail(row.no_doc)}
+                                                >
                                                     <Eye className="h-4 w-4" />
-                                                </Button>
-                                                <Button size="icon" variant="outline">
+                                                </ActionIconButton>
+                                                <ActionIconButton
+                                                    label="Cetak (belum tersedia)"
+                                                    variant="outline"
+                                                    disabled
+                                                >
                                                     <Printer className="h-4 w-4" />
-                                                </Button>
+                                                </ActionIconButton>
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -604,7 +649,14 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                             <p className="text-sm text-muted-foreground">Memuat detail...</p>
                         )}
                         {!poDetailLoading && poDetailError && (
-                            <p className="text-sm text-rose-600">{poDetailError}</p>
+                            <ErrorState
+                                error={poDetailError}
+                                onRetry={
+                                    selectedRefPo
+                                        ? () => openPoDetail(selectedRefPo)
+                                        : undefined
+                                }
+                            />
                         )}
                         {!poDetailLoading && !poDetailError && poDetails.length === 0 && (
                             <p className="text-sm text-muted-foreground">Detail tidak tersedia.</p>
@@ -726,6 +778,8 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                         )}
                     </div>
                 </DialogContent>
+            </Dialog>
+
             <Dialog open={unbilledModalOpen} onOpenChange={setUnbilledModalOpen}>
                 <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-hidden">
                     <DialogHeader>
@@ -763,25 +817,26 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                         </div>
                         <div className="flex-1 overflow-auto rounded-lg border border-sidebar-border/70">
                             <Table>
-                                <TableHeader>
+                                <TableHeader className="sticky top-0 z-10 bg-background">
                                     <TableRow>
                                         <TableHead>No FI</TableHead>
                                         <TableHead>Date</TableHead>
                                         <TableHead>Inv Date</TableHead>
                                         <TableHead>Ref PO</TableHead>
                                         <TableHead>Vendor</TableHead>
+                                        <TableHead>Status</TableHead>
                                         <TableHead className="text-right">Total Invoice</TableHead>
                                         <TableHead className="text-center">Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {unbilledModalOpen && displayedUnbilled.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={6} className="text-center text-muted-foreground">
-                                                Tidak ada data.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
+                                    <ShadcnTableStateRows
+                                        columns={8}
+                                        loading={false}
+                                        error={null}
+                                        isEmpty={unbilledModalOpen && displayedUnbilled.length === 0}
+                                        emptyTitle="Tidak ada data."
+                                    />
                                     {displayedUnbilled.map((row) => (
                                         <TableRow key={`${row.no_doc}-${row.doc_rec}`}>
                                             <TableCell>{row.no_doc ?? '-'}</TableCell>
@@ -789,17 +844,26 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                                             <TableCell>{formatDate(row.inv_d)}</TableCell>
                                             <TableCell>{row.ref_po ?? '-'}</TableCell>
                                             <TableCell>{row.nm_vdr ?? '-'}</TableCell>
-                                            <TableCell className="text-right">Rp {formatNumber(row.total ?? 0)}</TableCell>
+                                            <TableCell>
+                                                <Badge variant="destructive">
+                                                    Belum dibayar
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right whitespace-nowrap">Rp {formatNumber(row.total ?? 0)}</TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <Link href={`/pembelian/invoice-masuk/${row.no_doc}/edit`}>
-                                                        <Button size="icon" variant="outline">
+                                                    <ActionIconButton label="Edit" variant="outline" asChild>
+                                                        <Link href={`/pembelian/invoice-masuk/${row.no_doc}/edit`}>
                                                             <Pencil className="h-4 w-4" />
-                                                        </Button>
-                                                    </Link>
-                                                    <Button size="icon" variant="outline" onClick={() => handleDeleteInvoice(row)}>
-                                                        <Trash className="h-4 w-4 text-rose-500" />
-                                                    </Button>
+                                                        </Link>
+                                                    </ActionIconButton>
+                                                    <ActionIconButton
+                                                        label="Hapus"
+                                                        variant="outline"
+                                                        onClick={() => handleDeleteInvoice(row)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4 text-rose-500" />
+                                                    </ActionIconButton>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -838,8 +902,6 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                 </DialogContent>
             </Dialog>
 
-            </Dialog>
-
             <Dialog open={invoiceModalOpen} onOpenChange={setInvoiceModalOpen}>
                 <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-hidden">
                     <DialogHeader>
@@ -847,13 +909,20 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                         <DialogDescription>Informasi header dan detail invoice masuk.</DialogDescription>
                     </DialogHeader>
                     <div className="flex flex-col gap-4 h-[calc(100vh-8rem)]">
-                        <div className="grid gap-4 lg:grid-cols-2 rounded-lg border border-sidebar-border/70 p-4 text-sm overflow-auto">
-                            {invoiceLoading && <p className="text-muted-foreground">Memuat detail...</p>}
-                            {!invoiceLoading && invoiceError && (
-                                <p className="text-rose-600">{invoiceError}</p>
-                            )}
-                            {!invoiceLoading && !invoiceError && invoiceDetail && (
-                                <>
+                            <div className="grid gap-4 lg:grid-cols-2 rounded-lg border border-sidebar-border/70 p-4 text-sm overflow-auto">
+                                {invoiceLoading && <p className="text-muted-foreground">Memuat detail...</p>}
+                                {!invoiceLoading && invoiceError && (
+                                <ErrorState
+                                    error={invoiceError}
+                                    onRetry={
+                                        lastInvoiceNoDoc
+                                            ? () => openInvoiceDetail(lastInvoiceNoDoc)
+                                            : undefined
+                                    }
+                                />
+                                )}
+                                {!invoiceLoading && !invoiceError && invoiceDetail && (
+                                    <>
                                     <div className="space-y-2">
                                         <div className="grid grid-cols-[150px_1fr] gap-2">
                                             <span className="text-muted-foreground">No FI</span>
@@ -1062,15 +1131,9 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                             </Select>
                         </div>
 
-                        {paidError ? (
-                            <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                                {paidError}
-                            </div>
-                        ) : null}
-
                         <div className="flex-1 overflow-auto rounded-lg border border-sidebar-border/70">
                             <Table>
-                                <TableHeader>
+                                <TableHeader className="sticky top-0 z-10 bg-background">
                                     <TableRow>
                                         <TableHead>No FI</TableHead>
                                         <TableHead>Tgl Bayar</TableHead>
@@ -1078,6 +1141,7 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                                         <TableHead>Inv Date</TableHead>
                                         <TableHead>Ref PO</TableHead>
                                         <TableHead>Vendor</TableHead>
+                                        <TableHead>Status</TableHead>
                                         <TableHead className="text-right">Total Invoice</TableHead>
                                         <TableHead className="text-right">Pembayaran</TableHead>
                                         <TableHead className="text-right">Sisa</TableHead>
@@ -1085,43 +1149,46 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {paidLoading ? (
-                                        <TableRow>
-                                            <TableCell colSpan={10} className="text-center text-muted-foreground">
-                                                Memuat data...
+                                    <ShadcnTableStateRows
+                                        columns={11}
+                                        loading={paidLoading}
+                                        error={paidError}
+                                        onRetry={() => fetchPaid(paidPeriod, paidSearch)}
+                                        isEmpty={!paidLoading && !paidError && displayedPaid.length === 0}
+                                        emptyTitle="Tidak ada data."
+                                    />
+                                    {!paidLoading && !paidError && displayedPaid.map((row) => (
+                                        <TableRow key={`${row.no_doc}-${row.tgl_bayar}`}>
+                                            <TableCell>{row.no_doc ?? '-'}</TableCell>
+                                            <TableCell>{formatDate(row.tgl_bayar)}</TableCell>
+                                            <TableCell>{formatDate(row.doc_rec)}</TableCell>
+                                            <TableCell>{formatDate(row.inv_d)}</TableCell>
+                                            <TableCell>{row.ref_po ?? '-'}</TableCell>
+                                            <TableCell>{row.nm_vdr ?? '-'}</TableCell>
+                                            <TableCell>
+                                                {(() => {
+                                                    const status = getInvoiceStatus(row);
+                                                    return (
+                                                        <Badge variant={status.variant}>
+                                                            {status.label}
+                                                        </Badge>
+                                                    );
+                                                })()}
+                                            </TableCell>
+                                            <TableCell className="text-right whitespace-nowrap">Rp {formatNumber(row.total ?? 0)}</TableCell>
+                                            <TableCell className="text-right whitespace-nowrap">Rp {formatNumber(row.pembayaran ?? 0)}</TableCell>
+                                            <TableCell className="text-right whitespace-nowrap">Rp {formatNumber(row.sisa_bayar ?? 0)}</TableCell>
+                                            <TableCell className="text-center">
+                                                <ActionIconButton
+                                                    label="Detail"
+                                                    variant="outline"
+                                                    onClick={() => openInvoiceDetail(row.no_doc)}
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </ActionIconButton>
                                             </TableCell>
                                         </TableRow>
-                                    ) : displayedPaid.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={10} className="text-center text-muted-foreground">
-                                                Tidak ada data.
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        displayedPaid.map((row) => (
-                                            <TableRow key={`${row.no_doc}-${row.tgl_bayar}`}>
-                                                <TableCell>{row.no_doc ?? '-'}</TableCell>
-                                                <TableCell>{formatDate(row.tgl_bayar)}</TableCell>
-                                                <TableCell>{formatDate(row.doc_rec)}</TableCell>
-                                                <TableCell>{formatDate(row.inv_d)}</TableCell>
-                                                <TableCell>{row.ref_po ?? '-'}</TableCell>
-                                                <TableCell>{row.nm_vdr ?? '-'}</TableCell>
-                                                <TableCell className="text-right">Rp {formatNumber(row.total ?? 0)}</TableCell>
-                                                <TableCell className="text-right">Rp {formatNumber(row.pembayaran ?? 0)}</TableCell>
-                                                <TableCell className="text-right">Rp {formatNumber(row.sisa_bayar ?? 0)}</TableCell>
-                                                <TableCell className="text-center">
-                                                    <Button
-                                                        size="icon"
-                                                        variant="outline"
-                                                        onClick={() => openInvoiceDetail(row.no_doc)}
-                                                        title="Detail Invoice"
-                                                    >
-                                                        <Eye className="h-4 w-4" />
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    )}
+                                        ))}
                                 </TableBody>
                             </Table>
                         </div>
