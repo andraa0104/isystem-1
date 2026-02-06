@@ -19,9 +19,11 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
-import { Eye, Pencil, Printer, Trash } from 'lucide-react';
+import { ActionIconButton } from '@/components/action-icon-button';
+import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import Swal from 'sweetalert2';
+import { confirmDelete } from '@/lib/confirm-delete';
+import { canDeleteRow } from '@/lib/can-delete';
 
 const STATUS_OPTIONS = [
     { value: 'all', label: 'Semua data' },
@@ -412,30 +414,11 @@ export default function BiayaKirimPenjualanIndex({
 
     const handleDeleteBkp = async (noBkp) => {
         if (!noBkp) return;
-        const prevBodyPointerEvents = document.body.style.pointerEvents;
-        const result = await Swal.fire({
+        const ok = await confirmDelete({
             title: 'Hapus BKJ?',
             text: 'Data BKJ yang dihapus tidak bisa dikembalikan.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, hapus',
-            cancelButtonText: 'Batal',
-            reverseButtons: true,
-            heightAuto: false,
-            didOpen: () => {
-                const container = Swal.getContainer();
-                if (container) {
-                    container.style.zIndex = '9999';
-                    container.style.pointerEvents = 'auto';
-                }
-                document.body.style.pointerEvents = 'auto';
-            },
-            willClose: () => {
-                document.body.style.pointerEvents = prevBodyPointerEvents || '';
-            },
         });
-
-        if (!result.isConfirmed) return;
+        if (!ok) return;
 
         router.delete(
             `/pembayaran/biaya-kirim-penjualan/${encodeURIComponent(noBkp)}`,
@@ -642,10 +625,8 @@ export default function BiayaKirimPenjualanIndex({
                                                 </TableCell>
                                                 <TableCell className="text-center">
                                                     <div className="flex items-center justify-center gap-2">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            title="Lihat"
+                                                        <ActionIconButton
+                                                            label="Detail"
                                                             onClick={() =>
                                                                 handleOpenViewModal(
                                                                     row.no_bkj,
@@ -653,13 +634,8 @@ export default function BiayaKirimPenjualanIndex({
                                                             }
                                                         >
                                                             <Eye className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                            asChild
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            title="Cetak"
-                                                        >
+                                                        </ActionIconButton>
+                                                        <ActionIconButton label="Cetak" asChild>
                                                             <a
                                                                 href={`/pembayaran/biaya-kirim-penjualan/${encodeURIComponent(
                                                                     row.no_bkj,
@@ -669,7 +645,7 @@ export default function BiayaKirimPenjualanIndex({
                                                             >
                                                                 <Printer className="h-4 w-4" />
                                                             </a>
-                                                        </Button>
+                                                        </ActionIconButton>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
@@ -874,40 +850,35 @@ export default function BiayaKirimPenjualanIndex({
                                                                 </TableCell>
                                                                 <TableCell className="text-center">
                                                                     <div className="flex items-center justify-center gap-2">
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            title="Edit"
+                                                                        <ActionIconButton
+                                                                            label="Edit"
                                                                             onClick={() => {
-                                                                                setIsNavigating(
-                                                                                    true,
-                                                                                );
+                                                                                setIsNavigating(true);
                                                                                 router.visit(
                                                                                     `/pembayaran/biaya-kirim-penjualan/${row.no_bkj}/edit`,
                                                                                     {
-                                                                                        onFinish:
-                                                                                            () =>
-                                                                                                setIsNavigating(
-                                                                                                    false,
-                                                                                                ),
+                                                                                        onFinish: () =>
+                                                                                            setIsNavigating(
+                                                                                                false,
+                                                                                            ),
                                                                                     },
                                                                                 );
                                                                             }}
                                                                         >
                                                                             <Pencil className="h-4 w-4" />
-                                                                        </Button>
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            title="Hapus"
-                                                                            onClick={() =>
-                                                                                handleDeleteBkp(
-                                                                                    row.no_bkj,
-                                                                                )
-                                                                            }
-                                                                        >
-                                                                            <Trash className="h-4 w-4" />
-                                                                        </Button>
+                                                                        </ActionIconButton>
+                                                                        {canDeleteRow(row, { journalKeys: ['jurnal'] }) ? (
+                                                                            <ActionIconButton
+                                                                                label="Hapus"
+                                                                                onClick={() =>
+                                                                                    handleDeleteBkp(
+                                                                                        row.no_bkj,
+                                                                                    )
+                                                                                }
+                                                                            >
+                                                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                                            </ActionIconButton>
+                                                                        ) : null}
                                                                     </div>
                                                                 </TableCell>
                                                             </TableRow>

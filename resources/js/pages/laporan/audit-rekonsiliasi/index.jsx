@@ -55,15 +55,15 @@ const getPeriodLabel = (periodType, period) => {
 function StatCard({ label, value, hint, accent = 'default', icon: Icon }) {
     const accentClass =
         accent === 'positive'
-            ? 'text-emerald-400'
+            ? 'text-emerald-700 dark:text-emerald-400'
             : accent === 'negative'
-              ? 'text-rose-400'
+              ? 'text-rose-700 dark:text-rose-400'
               : accent === 'warning'
-                ? 'text-amber-300'
-                : 'text-white';
+                ? 'text-amber-700 dark:text-amber-300'
+                : 'text-foreground';
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-card p-4">
+        <div className="rounded-2xl border border-border bg-card p-4">
             <div className="flex items-start justify-between gap-3">
                 <div>
                     <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -75,8 +75,8 @@ function StatCard({ label, value, hint, accent = 'default', icon: Icon }) {
                     ) : null}
                 </div>
                 {Icon ? (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                        <Icon className="h-5 w-5 text-white/70" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
+                        <Icon className="h-5 w-5 text-muted-foreground" />
                     </div>
                 ) : null}
             </div>
@@ -274,10 +274,10 @@ export default function AuditRekonsiliasiIndex() {
 
     const aiStatusPillClass =
         aiStatus === 'healthy'
-            ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+            ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
             : aiStatus === 'critical'
-              ? 'border border-rose-500/30 bg-rose-500/10 text-rose-200'
-              : 'border border-amber-500/30 bg-amber-500/10 text-amber-200';
+              ? 'border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+              : 'border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300';
 
     const trxFindingsTitle = findingsMode === 'all' ? 'Dokumen TRX (Top 10)' : 'Temuan TRX Tidak Seimbang';
     const trxFindingsSubtitle =
@@ -294,11 +294,11 @@ export default function AuditRekonsiliasiIndex() {
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                     <div>
                         <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5">
-                                <ClipboardCheck className="h-5 w-5 text-white/70" />
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-muted/30 dark:bg-white/5">
+                                <ClipboardCheck className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="text-xl font-semibold text-white">Audit &amp; Rekonsiliasi</div>
+                                <div className="text-xl font-semibold text-foreground">Audit &amp; Rekonsiliasi</div>
                                 <div className="text-sm text-muted-foreground">
                                     Quality check akuntansi periodik (TRX, AJP, Neraca, Modal).
                                 </div>
@@ -306,13 +306,13 @@ export default function AuditRekonsiliasiIndex() {
                         </div>
 
                         <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-1 text-xs text-muted-foreground">
                                 <span>Periode:</span>
-                                <span className="font-medium text-white/80">
+                                <span className="font-medium text-foreground/80">
                                     {meta?.period_label || getPeriodLabel(periodType, period) || '—'}
                                 </span>
                                 {periodType === 'year' && meta?.effective_period ? (
-                                    <span className="text-white/50">
+                                    <span className="text-muted-foreground">
                                         • Snapshot akhir: {meta?.effective_period_label || meta.effective_period}
                                     </span>
                                 ) : null}
@@ -376,10 +376,10 @@ export default function AuditRekonsiliasiIndex() {
                 </div>
 
                 {error ? (
-                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
-                        <div className="mt-2 text-xs text-rose-200/80">
+                        <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
                             Pastikan tabel tersedia: `tb_jurnal`, `tb_jurnaldetail`, `tb_jurnalpenyesuaian`, `tb_nabbrekap`.
                         </div>
                     </div>
@@ -416,14 +416,14 @@ export default function AuditRekonsiliasiIndex() {
                     />
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-card p-4">
+                <div className="rounded-2xl border border-border bg-card p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                                <Sparkles className="h-5 w-5 text-white/70" />
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
+                                <Sparkles className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="font-semibold text-white">AI Summary KPI</div>
+                                <div className="font-semibold text-foreground">AI Summary KPI</div>
                                 <div className="text-xs text-muted-foreground">
                                     Ringkasan otomatis (rule-based) untuk prioritas investigasi.
                                 </div>
@@ -464,14 +464,14 @@ export default function AuditRekonsiliasiIndex() {
                 </div>
 
                 <div ref={findingsRef} className="space-y-4">
-                    <div className="rounded-2xl border border-white/10 bg-card">
-                        <div className="border-b border-white/10 px-4 py-3">
-                            <div className="text-sm font-semibold text-white">{trxFindingsTitle}</div>
+                    <div className="rounded-2xl border border-border bg-card">
+                        <div className="border-b border-border px-4 py-3">
+                            <div className="text-sm font-semibold text-foreground">{trxFindingsTitle}</div>
                             <div className="text-xs text-muted-foreground">{trxFindingsSubtitle}</div>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="min-w-full text-sm">
-                                <thead className="bg-white/5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                <thead className="bg-muted/30 text-[11px] uppercase tracking-wide text-muted-foreground dark:bg-white/5">
                                     <tr>
                                         <th className="px-3 py-3 text-left">Tanggal</th>
                                         <th className="px-3 py-3 text-left">Kode Jurnal</th>
@@ -491,13 +491,13 @@ export default function AuditRekonsiliasiIndex() {
                                         </tr>
                                     ) : findings?.unbalanced_journals?.length ? (
                                         findings.unbalanced_journals.map((r, idx) => (
-                                            <tr key={`${r?.kode_jurnal ?? idx}-${idx}`} className="border-t border-white/5">
+                                            <tr key={`${r?.kode_jurnal ?? idx}-${idx}`} className="border-t border-border/50">
                                                 {(() => {
                                                     const selisih = Number(r?.selisih ?? 0);
                                                     const selisihClass =
                                                         selisih === 0
-                                                            ? 'text-white/70'
-                                                            : 'text-rose-300';
+                                                            ? 'text-muted-foreground'
+                                                            : 'text-rose-700 dark:text-rose-300';
                                                     return (
                                                         <>
                                                 <td className="px-3 py-2">{r?.date}</td>
@@ -508,14 +508,14 @@ export default function AuditRekonsiliasiIndex() {
                                                             period,
                                                             kodeJurnal: r?.kode_jurnal ?? '',
                                                         })}
-                                                        className="text-amber-300 hover:underline"
+                                                        className="text-amber-700 hover:underline dark:text-amber-300"
                                                     >
                                                         {r?.kode_jurnal}
                                                     </Link>
                                                 </td>
                                                 <td className="px-3 py-2">{r?.kode_voucher}</td>
                                                 <td className="px-3 py-2">
-                                                    <div className="max-w-[520px] truncate text-white/80">{r?.remark}</div>
+                                                    <div className="max-w-[520px] truncate text-foreground/80">{r?.remark}</div>
                                                 </td>
                                                 <td className="px-3 py-2 text-right">{formatRupiah(r?.total_debit)}</td>
                                                 <td className="px-3 py-2 text-right">{formatRupiah(r?.total_kredit)}</td>
@@ -537,14 +537,14 @@ export default function AuditRekonsiliasiIndex() {
                         </div>
                     </div>
 
-                    <div className="rounded-2xl border border-white/10 bg-card">
-                        <div className="border-b border-white/10 px-4 py-3">
-                            <div className="text-sm font-semibold text-white">{ajpFindingsTitle}</div>
+                    <div className="rounded-2xl border border-border bg-card">
+                        <div className="border-b border-border px-4 py-3">
+                            <div className="text-sm font-semibold text-foreground">{ajpFindingsTitle}</div>
                             <div className="text-xs text-muted-foreground">{ajpFindingsSubtitle}</div>
                         </div>
                         <div className="overflow-x-auto">
                             <table className="min-w-full text-sm">
-                                <thead className="bg-white/5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                <thead className="bg-muted/30 text-[11px] uppercase tracking-wide text-muted-foreground dark:bg-white/5">
                                     <tr>
                                         <th className="px-3 py-3 text-left">Periode</th>
                                         <th className="px-3 py-3 text-left">Kode Jurnal</th>
@@ -564,20 +564,20 @@ export default function AuditRekonsiliasiIndex() {
                                         </tr>
                                     ) : findings?.unbalanced_ajp_docs?.length ? (
                                         findings.unbalanced_ajp_docs.map((r, idx) => (
-                                            <tr key={`${r?.kode_jurnal ?? idx}-${idx}`} className="border-t border-white/5">
+                                            <tr key={`${r?.kode_jurnal ?? idx}-${idx}`} className="border-t border-border/50">
                                                 {(() => {
                                                     const selisih = Number(r?.selisih ?? 0);
                                                     const selisihClass =
                                                         selisih === 0
-                                                            ? 'text-white/70'
-                                                            : 'text-rose-300';
+                                                            ? 'text-muted-foreground'
+                                                            : 'text-rose-700 dark:text-rose-300';
                                                     return (
                                                         <>
                                                 <td className="px-3 py-2">{r?.periode}</td>
                                                 <td className="px-3 py-2 font-medium">{r?.kode_jurnal}</td>
                                                 <td className="px-3 py-2">{r?.posting_date}</td>
                                                 <td className="px-3 py-2">
-                                                    <div className="max-w-[520px] truncate text-white/80">{r?.remark}</div>
+                                                    <div className="max-w-[520px] truncate text-foreground/80">{r?.remark}</div>
                                                 </td>
                                                 <td className="px-3 py-2 text-right">{formatRupiah(r?.total_debit)}</td>
                                                 <td className="px-3 py-2 text-right">{formatRupiah(r?.total_kredit)}</td>
@@ -599,15 +599,15 @@ export default function AuditRekonsiliasiIndex() {
                         </div>
                     </div>
 
-                    <div className="grid gap-4 lg:grid-cols-2">
-                        <div className="rounded-2xl border border-white/10 bg-card">
-                            <div className="border-b border-white/10 px-4 py-3">
-                                <div className="text-sm font-semibold text-white">Anomali Neraca (saldo berlawanan)</div>
+                        <div className="grid gap-4 lg:grid-cols-2">
+                        <div className="rounded-2xl border border-border bg-card">
+                            <div className="border-b border-border px-4 py-3">
+                                <div className="text-sm font-semibold text-foreground">Anomali Neraca (saldo berlawanan)</div>
                                 <div className="text-xs text-muted-foreground">Top 10 berdasarkan ABS saldo</div>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="min-w-full text-sm">
-                                    <thead className="bg-white/5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                    <thead className="bg-muted/30 text-[11px] uppercase tracking-wide text-muted-foreground dark:bg-white/5">
                                         <tr>
                                             <th className="px-3 py-3 text-left">Kode Akun</th>
                                             <th className="px-3 py-3 text-left">Nama Akun</th>
@@ -617,7 +617,7 @@ export default function AuditRekonsiliasiIndex() {
                                     <tbody>
                                         {findings?.neraca_anomalies?.length ? (
                                             findings.neraca_anomalies.map((r, idx) => (
-                                                <tr key={`${r?.kode_akun ?? idx}-${idx}`} className="border-t border-white/5">
+                                                <tr key={`${r?.kode_akun ?? idx}-${idx}`} className="border-t border-border/50">
                                                     <td className="px-3 py-2 font-medium">
                                                         <Link
                                                             href={buildBukuBesarUrl({
@@ -625,13 +625,13 @@ export default function AuditRekonsiliasiIndex() {
                                                                 period,
                                                                 kodeAkun: r?.kode_akun ?? '',
                                                             })}
-                                                            className="text-amber-300 hover:underline"
+                                                            className="text-amber-700 hover:underline dark:text-amber-300"
                                                         >
                                                             {r?.kode_akun}
                                                         </Link>
                                                     </td>
-                                                    <td className="px-3 py-2 text-white/80">{r?.nama_akun}</td>
-                                                    <td className="px-3 py-2 text-right font-medium text-amber-200">
+                                                    <td className="px-3 py-2 text-foreground/80">{r?.nama_akun}</td>
+                                                    <td className="px-3 py-2 text-right font-medium text-amber-700 dark:text-amber-300">
                                                         {formatRupiah(r?.saldo_raw)}
                                                     </td>
                                                 </tr>
@@ -648,14 +648,14 @@ export default function AuditRekonsiliasiIndex() {
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border border-white/10 bg-card">
-                            <div className="border-b border-white/10 px-4 py-3">
-                                <div className="text-sm font-semibold text-white">Top Pergerakan Ekuitas</div>
+                        <div className="rounded-2xl border border-border bg-card">
+                            <div className="border-b border-border px-4 py-3">
+                                <div className="text-sm font-semibold text-foreground">Top Pergerakan Ekuitas</div>
                                 <div className="text-xs text-muted-foreground">Top 10 berdasarkan ABS net</div>
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="min-w-full text-sm">
-                                    <thead className="bg-white/5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                    <thead className="bg-muted/30 text-[11px] uppercase tracking-wide text-muted-foreground dark:bg-white/5">
                                         <tr>
                                             <th className="px-3 py-3 text-left">Kode Akun</th>
                                             <th className="px-3 py-3 text-left">Nama Akun</th>
@@ -667,7 +667,7 @@ export default function AuditRekonsiliasiIndex() {
                                     <tbody>
                                         {findings?.equity_movements_top?.length ? (
                                             findings.equity_movements_top.map((r, idx) => (
-                                                <tr key={`${r?.kode_akun ?? idx}-${idx}`} className="border-t border-white/5">
+                                                <tr key={`${r?.kode_akun ?? idx}-${idx}`} className="border-t border-border/50">
                                                     <td className="px-3 py-2 font-medium">
                                                         <Link
                                                             href={buildBukuBesarUrl({
@@ -675,15 +675,15 @@ export default function AuditRekonsiliasiIndex() {
                                                                 period,
                                                                 kodeAkun: r?.kode_akun ?? '',
                                                             })}
-                                                            className="text-amber-300 hover:underline"
+                                                            className="text-amber-700 hover:underline dark:text-amber-300"
                                                         >
                                                             {r?.kode_akun}
                                                         </Link>
                                                     </td>
-                                                    <td className="px-3 py-2 text-white/80">{r?.nama_akun}</td>
+                                                    <td className="px-3 py-2 text-foreground/80">{r?.nama_akun}</td>
                                                     <td className="px-3 py-2 text-right">{formatRupiah(r?.debit)}</td>
                                                     <td className="px-3 py-2 text-right">{formatRupiah(r?.kredit)}</td>
-                                                    <td className="px-3 py-2 text-right font-medium text-white">
+                                                    <td className="px-3 py-2 text-right font-medium text-foreground">
                                                         {formatRupiah(r?.net)}
                                                     </td>
                                                 </tr>

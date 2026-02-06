@@ -10,6 +10,72 @@ use Inertia\Inertia;
 
 class DashboardController
 {
+    private function hasKasBreakdownColumns(): array
+    {
+        if (!Schema::hasTable('tb_kas')) {
+            return [
+                'has_breakdown' => false,
+                'has_b1' => false,
+                'has_b2' => false,
+                'has_b3' => false,
+                'has_jenis1' => false,
+                'has_jenis2' => false,
+                'has_jenis3' => false,
+            ];
+        }
+
+        $cols = Schema::getColumnListing('tb_kas');
+        $hasB1 = in_array('Kode_Akun1', $cols, true) && in_array('Nominal1', $cols, true);
+        $hasB2 = in_array('Kode_Akun2', $cols, true) && in_array('Nominal2', $cols, true);
+        $hasB3 = in_array('Kode_Akun3', $cols, true) && in_array('Nominal3', $cols, true);
+        $hasJenis1 = in_array('Jenis_Beban1', $cols, true);
+        $hasJenis2 = in_array('Jenis_Beban2', $cols, true);
+        $hasJenis3 = in_array('Jenis_Beban3', $cols, true);
+
+        return [
+            'has_breakdown' => $hasB1 || $hasB2 || $hasB3,
+            'has_b1' => $hasB1,
+            'has_b2' => $hasB2,
+            'has_b3' => $hasB3,
+            'has_jenis1' => $hasJenis1,
+            'has_jenis2' => $hasJenis2,
+            'has_jenis3' => $hasJenis3,
+        ];
+    }
+
+    private function biayaSelectSumSql(array $flags): string
+    {
+        // Prefer breakdown columns (Kode_Akun1..3 + Nominal1..3). Fallback to tb_kas.Kode_Akun + Mutasi_Kas.
+        $parts = [];
+
+        if (!empty($flags['has_b1'])) {
+            $parts[] = "CASE WHEN k.Kode_Akun1 LIKE '51%' THEN COALESCE(k.Nominal1,0) ELSE 0 END";
+        }
+        if (!empty($flags['has_b2'])) {
+            $parts[] = "CASE WHEN k.Kode_Akun2 LIKE '51%' THEN COALESCE(k.Nominal2,0) ELSE 0 END";
+        }
+        if (!empty($flags['has_b3'])) {
+            $parts[] = "CASE WHEN k.Kode_Akun3 LIKE '51%' THEN COALESCE(k.Nominal3,0) ELSE 0 END";
+        }
+
+        // Some datasets store expense "51" into Jenis_Beban* instead of Kode_Akun*.
+        if (!empty($flags['has_jenis1']) && !empty($flags['has_b1'])) {
+            $parts[] = "CASE WHEN k.Jenis_Beban1 LIKE '51%' THEN COALESCE(k.Nominal1,0) ELSE 0 END";
+        }
+        if (!empty($flags['has_jenis2']) && !empty($flags['has_b2'])) {
+            $parts[] = "CASE WHEN k.Jenis_Beban2 LIKE '51%' THEN COALESCE(k.Nominal2,0) ELSE 0 END";
+        }
+        if (!empty($flags['has_jenis3']) && !empty($flags['has_b3'])) {
+            $parts[] = "CASE WHEN k.Jenis_Beban3 LIKE '51%' THEN COALESCE(k.Nominal3,0) ELSE 0 END";
+        }
+
+        if (count($parts) > 0) {
+            return implode(' + ', $parts);
+        }
+
+        return "CASE WHEN k.Kode_Akun LIKE '51%' AND COALESCE(k.Mutasi_Kas,0) < 0 THEN -COALESCE(k.Mutasi_Kas,0) ELSE 0 END";
+    }
+
     public function index()
     {
         // Initial props dikosongkan untuk mempercepat load. Data akan di-fetch per-card.
@@ -329,6 +395,7 @@ class DashboardController
             'summary' => [
                 'sales_total' => 0,
                 'hpp_total' => 0,
+                'biaya_total' => 0,
                 'last_update' => null,
             ],
             'debug' => [
@@ -340,6 +407,8 @@ class DashboardController
 
         $salesLastUpdate = null;
         $hppLastUpdate = null;
+        $biayaLastUpdate = null;
+        $kasFlags = $this->hasKasBreakdownColumns();
 
         if ($group === 'week') {
             $endWeekStart = Carbon::now()->startOfWeek(Carbon::MONDAY);
@@ -381,6 +450,27 @@ class DashboardController
                 $hppLastUpdate = $hppLastUpdateRaw;
             }
 
+            // Biaya (Beban) grouped by week (Kode_Akun starts with 51, only outflow)
+            $biayaData = [];
+            if (Schema::hasTable('tb_kas')
+                && Schema::hasColumn('tb_kas', 'Tgl_Voucher')
+                && (Schema::hasColumn('tb_kas', 'Kode_Akun') || $kasFlags['has_breakdown'])
+                && (Schema::hasColumn('tb_kas', 'Mutasi_Kas') || $kasFlags['has_breakdown'])) {
+                $sumSql = $this->biayaSelectSumSql($kasFlags);
+                $biayaData = DB::table('tb_kas as k')
+                    ->selectRaw("YEARWEEK(k.Tgl_Voucher, 1) as week_key, SUM($sumSql) as total")
+                    ->where('k.Tgl_Voucher', '>=', $startWeekStart->toDateString())
+                    ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
+                    ->groupBy('week_key')
+                    ->pluck('total', 'week_key');
+
+                $biayaLastUpdate = DB::table('tb_kas as k')
+                    ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
+                    ->where('k.Tgl_Voucher', '>=', $startWeekStart->toDateString())
+                    ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
+                    ->value('last_update');
+            }
+
             // Build series by week
             $cursor = $startWeekStart->copy();
             while ($cursor->lte($endWeekStart)) {
@@ -391,16 +481,19 @@ class DashboardController
 
                 $sales = (float) ($salesData[$weekKey] ?? 0);
                 $hpp = (float) ($hppData[$weekKey] ?? 0);
+                $biaya = (float) ($biayaData[$weekKey] ?? 0);
 
                 $result['series'][] = [
                     'period' => $key,
                     'label' => sprintf('W%02d %d', $isoWeek, $isoYear),
                     'sales' => $sales,
                     'hpp' => $hpp,
+                    'biaya' => $biaya,
                 ];
 
                 $result['summary']['sales_total'] += $sales;
                 $result['summary']['hpp_total'] += $hpp;
+                $result['summary']['biaya_total'] += $biaya;
 
                 $cursor->addWeek();
             }
@@ -408,6 +501,9 @@ class DashboardController
             $lastUpdate = $salesLastUpdate;
             if ($hppLastUpdate && (!$lastUpdate || $hppLastUpdate > $lastUpdate)) {
                 $lastUpdate = $hppLastUpdate;
+            }
+            if ($biayaLastUpdate && (!$lastUpdate || $biayaLastUpdate > $lastUpdate)) {
+                $lastUpdate = $biayaLastUpdate;
             }
             $result['summary']['last_update'] = $lastUpdate;
 
@@ -448,6 +544,27 @@ class DashboardController
             $hppLastUpdate = $hppLastUpdateRaw;
         }
 
+        // Biaya (Beban) grouped by month (Kode_Akun starts with 51, only outflow)
+        $biayaData = [];
+        if (Schema::hasTable('tb_kas')
+            && Schema::hasColumn('tb_kas', 'Tgl_Voucher')
+            && (Schema::hasColumn('tb_kas', 'Kode_Akun') || $kasFlags['has_breakdown'])
+            && (Schema::hasColumn('tb_kas', 'Mutasi_Kas') || $kasFlags['has_breakdown'])) {
+            $sumSql = $this->biayaSelectSumSql($kasFlags);
+            $biayaData = DB::table('tb_kas as k')
+                ->selectRaw("DATE_FORMAT(k.Tgl_Voucher, '%Y-%m') as month_key, SUM($sumSql) as total")
+                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
+                ->where('k.Tgl_Voucher', '<=', $now->toDateString())
+                ->groupBy('month_key')
+                ->pluck('total', 'month_key');
+
+            $biayaLastUpdate = DB::table('tb_kas as k')
+                ->selectRaw("MAX(k.Tgl_Voucher) as last_update")
+                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
+                ->where('k.Tgl_Voucher', '<=', $now->toDateString())
+                ->value('last_update');
+        }
+
         // Build series
         for ($i = 0; $i < $months; $i++) {
             $currentMonth = $start->copy()->addMonths($i);
@@ -455,22 +572,28 @@ class DashboardController
             
             $sales = (float) ($salesData[$key] ?? 0);
             $hpp = (float) ($hppData[$key] ?? 0);
+            $biaya = (float) ($biayaData[$key] ?? 0);
 
             $result['series'][] = [
                 'period' => $key,
                 'label' => $currentMonth->locale('id')->translatedFormat('M Y'),
                 'sales' => $sales,
                 'hpp' => $hpp,
+                'biaya' => $biaya,
             ];
 
             $result['summary']['sales_total'] += $sales;
             $result['summary']['hpp_total'] += $hpp;
+            $result['summary']['biaya_total'] += $biaya;
         }
 
         // Determine overall last update
         $lastUpdate = $salesLastUpdate;
         if ($hppLastUpdate && (!$lastUpdate || $hppLastUpdate > $lastUpdate)) {
             $lastUpdate = $hppLastUpdate;
+        }
+        if ($biayaLastUpdate && (!$lastUpdate || $biayaLastUpdate > $lastUpdate)) {
+            $lastUpdate = $biayaLastUpdate;
         }
         $result['summary']['last_update'] = $lastUpdate;
 
@@ -481,11 +604,13 @@ class DashboardController
     {
         $end = Carbon::now()->startOfDay();
         $start = $end->copy()->subDays(6);
+        $kasFlags = $this->hasKasBreakdownColumns();
 
         $result = [
             'summary' => [
                 'sales_total' => 0,
                 'hpp_total' => 0,
+                'biaya_total' => 0,
                 'last_update' => null,
             ],
             'series' => [],
@@ -523,25 +648,52 @@ class DashboardController
                 ->value('last_update');
         }
 
+        $biayaData = [];
+        $biayaLastUpdate = null;
+        if (Schema::hasTable('tb_kas')
+            && Schema::hasColumn('tb_kas', 'Tgl_Voucher')
+            && (Schema::hasColumn('tb_kas', 'Kode_Akun') || $kasFlags['has_breakdown'])
+            && (Schema::hasColumn('tb_kas', 'Mutasi_Kas') || $kasFlags['has_breakdown'])) {
+            $sumSql = $this->biayaSelectSumSql($kasFlags);
+            $biayaData = DB::table('tb_kas as k')
+                ->selectRaw("DATE_FORMAT(k.Tgl_Voucher, '%Y-%m-%d') as day_key, SUM($sumSql) as total")
+                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
+                ->where('k.Tgl_Voucher', '<=', $end->toDateString())
+                ->groupBy('day_key')
+                ->pluck('total', 'day_key');
+
+            $biayaLastUpdate = DB::table('tb_kas as k')
+                ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
+                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
+                ->where('k.Tgl_Voucher', '<=', $end->toDateString())
+                ->value('last_update');
+        }
+
         for ($i = 0; $i < 7; $i += 1) {
             $day = $start->copy()->addDays($i);
             $key = $day->format('Y-m-d');
             $sales = (float) ($salesData[$key] ?? 0);
             $hpp = (float) ($hppData[$key] ?? 0);
+            $biaya = (float) ($biayaData[$key] ?? 0);
 
             $result['series'][] = [
                 'period' => $key,
                 'label' => $day->locale('id')->translatedFormat('d M'),
                 'sales' => $sales,
                 'hpp' => $hpp,
+                'biaya' => $biaya,
             ];
             $result['summary']['sales_total'] += $sales;
             $result['summary']['hpp_total'] += $hpp;
+            $result['summary']['biaya_total'] += $biaya;
         }
 
         $lastUpdate = $salesLastUpdate;
         if ($hppLastUpdate && (!$lastUpdate || $hppLastUpdate > $lastUpdate)) {
             $lastUpdate = $hppLastUpdate;
+        }
+        if ($biayaLastUpdate && (!$lastUpdate || $biayaLastUpdate > $lastUpdate)) {
+            $lastUpdate = $biayaLastUpdate;
         }
         $result['summary']['last_update'] = $lastUpdate;
 
@@ -553,11 +705,13 @@ class DashboardController
         // 4 minggu berjalan (termasuk minggu ini)
         $endWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
         $startWeek = $endWeek->copy()->subWeeks(3);
+        $kasFlags = $this->hasKasBreakdownColumns();
 
         $result = [
             'summary' => [
                 'sales_total' => 0,
                 'hpp_total' => 0,
+                'biaya_total' => 0,
                 'last_update' => null,
             ],
             'series' => [],
@@ -595,6 +749,27 @@ class DashboardController
                 ->value('last_update');
         }
 
+        $biayaData = [];
+        $biayaLastUpdate = null;
+        if (Schema::hasTable('tb_kas')
+            && Schema::hasColumn('tb_kas', 'Tgl_Voucher')
+            && (Schema::hasColumn('tb_kas', 'Kode_Akun') || $kasFlags['has_breakdown'])
+            && (Schema::hasColumn('tb_kas', 'Mutasi_Kas') || $kasFlags['has_breakdown'])) {
+            $sumSql = $this->biayaSelectSumSql($kasFlags);
+            $biayaData = DB::table('tb_kas as k')
+                ->selectRaw("YEARWEEK(k.Tgl_Voucher, 1) as week_key, SUM($sumSql) as total")
+                ->where('k.Tgl_Voucher', '>=', $startWeek->toDateString())
+                ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
+                ->groupBy('week_key')
+                ->pluck('total', 'week_key');
+
+            $biayaLastUpdate = DB::table('tb_kas as k')
+                ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
+                ->where('k.Tgl_Voucher', '>=', $startWeek->toDateString())
+                ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
+                ->value('last_update');
+        }
+
         $cursor = $startWeek->copy();
         while ($cursor->lte($endWeek)) {
             $isoYear = (int) $cursor->isoWeekYear();
@@ -604,16 +779,19 @@ class DashboardController
 
             $sales = (float) ($salesData[$weekKey] ?? 0);
             $hpp = (float) ($hppData[$weekKey] ?? 0);
+            $biaya = (float) ($biayaData[$weekKey] ?? 0);
 
             $result['series'][] = [
                 'period' => $key,
                 'label' => sprintf('W%02d %d', $isoWeek, $isoYear),
                 'sales' => $sales,
                 'hpp' => $hpp,
+                'biaya' => $biaya,
             ];
 
             $result['summary']['sales_total'] += $sales;
             $result['summary']['hpp_total'] += $hpp;
+            $result['summary']['biaya_total'] += $biaya;
 
             $cursor->addWeek();
         }
@@ -621,6 +799,9 @@ class DashboardController
         $lastUpdate = $salesLastUpdate;
         if ($hppLastUpdate && (!$lastUpdate || $hppLastUpdate > $lastUpdate)) {
             $lastUpdate = $hppLastUpdate;
+        }
+        if ($biayaLastUpdate && (!$lastUpdate || $biayaLastUpdate > $lastUpdate)) {
+            $lastUpdate = $biayaLastUpdate;
         }
         $result['summary']['last_update'] = $lastUpdate;
 

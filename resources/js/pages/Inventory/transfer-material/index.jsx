@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { ErrorState } from '@/components/data-states/ErrorState';
+import { readApiError, normalizeApiError } from '@/lib/api-error';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -33,6 +35,7 @@ export default function TransferMaterialIndex() {
     const [rows, setRows] = useState([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [pageSize, setPageSize] = useState(5);
@@ -56,6 +59,7 @@ export default function TransferMaterialIndex() {
         if (!nextMode) return;
 
         setLoading(true);
+        setError(null);
         try {
             const params = new URLSearchParams();
             params.set('search', nextSearch);
@@ -66,10 +70,12 @@ export default function TransferMaterialIndex() {
                     ? `/inventory/transfer-material/mis-list?${params.toString()}`
                     : `/inventory/transfer-material/mib-list?${params.toString()}`;
             const res = await fetch(url, { headers: { Accept: 'application/json' } });
+            if (!res.ok) throw await readApiError(res);
             const data = await res.json();
             setRows(Array.isArray(data?.rows) ? data.rows : []);
             setTotal(Number(data?.total ?? 0));
-        } catch {
+        } catch (err) {
+            setError(normalizeApiError(err, 'Gagal memuat data transfer.'));
             setRows([]);
             setTotal(0);
         } finally {
@@ -319,56 +325,63 @@ export default function TransferMaterialIndex() {
                             </div>
                         </div>
 
-                        <div className="relative overflow-x-auto rounded-xl border border-white/10 bg-card">
-                    {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
-                            </div>
-                        </div>
-                    )}
-                    <table className="min-w-full text-sm text-left">
-                        <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
-                            <tr>
-                                {mode === 'mis' ? (
-                                    <>
-                                        <th className="px-3 py-3">No MI</th>
-                                        <th className="px-3 py-3">No PO</th>
-                                        <th className="px-3 py-3">Ref PR</th>
-                                        <th className="px-3 py-3">Kode Material</th>
-                                        <th className="px-3 py-3">Material</th>
-                                        <th className="px-3 py-3">MIS</th>
-                                        <th className="px-3 py-3">Remaining After</th>
-                                        <th className="px-3 py-3">Unit</th>
-                                        <th className="px-3 py-3">Price</th>
-                                        <th className="px-3 py-3">Qty Transfer</th>
-                                    </>
-                                ) : (
-                                    <>
-                                        <th className="px-3 py-3">No MIB</th>
-                                        <th className="px-3 py-3">No PO</th>
-                                        <th className="px-3 py-3">Kode Material</th>
-                                        <th className="px-3 py-3">Material</th>
-                                        <th className="px-3 py-3">Sisa Qty</th>
-                                        <th className="px-3 py-3">Remaining After</th>
-                                        <th className="px-3 py-3">Unit</th>
-                                        <th className="px-3 py-3">Price</th>
-                                        <th className="px-3 py-3">Qty Transfer</th>
-                                    </>
-                                )}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.length === 0 && !loading && (
-                                <tr>
-                                    <td
-                                        colSpan={mode === 'mis' ? 10 : 9}
-                                        className="px-3 py-6 text-center text-muted-foreground"
-                                    >
-                                        Tidak ada data.
-                                    </td>
-                                </tr>
-                            )}
+	                        <div className="relative overflow-hidden rounded-xl border border-white/10 bg-card">
+	                            {loading && (
+	                                <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
+	                                    <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
+	                                        <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+	                                    </div>
+	                                </div>
+	                            )}
+	                            <div className="max-h-[65vh] overflow-auto overscroll-contain">
+	                                <table className="min-w-full text-sm text-left">
+	                                    <thead className="sticky top-0 z-[1] bg-background/95 text-muted-foreground uppercase text-[11px] tracking-wide backdrop-blur supports-[backdrop-filter]:bg-background/80">
+	                            <tr>
+	                                {mode === 'mis' ? (
+	                                    <>
+	                                        <th className="border-b px-3 py-3">No MI</th>
+	                                        <th className="border-b px-3 py-3">No PO</th>
+	                                        <th className="border-b px-3 py-3">Ref PR</th>
+	                                        <th className="border-b px-3 py-3">Kode Material</th>
+	                                        <th className="border-b px-3 py-3">Material</th>
+	                                        <th className="border-b px-3 py-3 text-right">MIS</th>
+	                                        <th className="border-b px-3 py-3 text-right">Remaining After</th>
+	                                        <th className="px-3 py-3">Unit</th>
+	                                        <th className="border-b px-3 py-3 text-right">Price</th>
+	                                        <th className="border-b px-3 py-3 text-right">Qty Transfer</th>
+	                                    </>
+	                                ) : (
+	                                    <>
+	                                        <th className="border-b px-3 py-3">No MIB</th>
+	                                        <th className="border-b px-3 py-3">No PO</th>
+	                                        <th className="border-b px-3 py-3">Kode Material</th>
+	                                        <th className="border-b px-3 py-3">Material</th>
+	                                        <th className="border-b px-3 py-3 text-right">Sisa Qty</th>
+	                                        <th className="border-b px-3 py-3 text-right">Remaining After</th>
+	                                        <th className="px-3 py-3">Unit</th>
+	                                        <th className="border-b px-3 py-3 text-right">Price</th>
+	                                        <th className="border-b px-3 py-3 text-right">Qty Transfer</th>
+	                                    </>
+	                                )}
+	                            </tr>
+	                        </thead>
+	                        <tbody>
+	                            {rows.length === 0 && !loading && (
+	                                <tr>
+	                                    <td
+	                                        colSpan={mode === 'mis' ? 10 : 9}
+	                                        className="px-3 py-6 text-center text-muted-foreground"
+	                                    >
+	                                        {error ? (
+	                                            <div className="mx-auto max-w-2xl">
+	                                                <ErrorState error={error} onRetry={() => fetchList()} />
+	                                            </div>
+	                                        ) : (
+	                                            'Tidak ada data.'
+	                                        )}
+	                                    </td>
+	                                </tr>
+	                            )}
                             {rows.map((r, idx) => {
                                 const key = `${r.no_doc}__${r.kd_mat}`;
                                 const maxQty =
@@ -386,26 +399,26 @@ export default function TransferMaterialIndex() {
                                                 <td className="px-3 py-2">{r.ref_pr}</td>
                                                 <td className="px-3 py-2">{r.kd_mat}</td>
                                                 <td className="px-3 py-2">{r.material}</td>
-                                                <td className="px-3 py-2">{formatNumber(r.mis)}</td>
-                                                <td className="px-3 py-2">{formatNumber(remainingAfter)}</td>
-                                                <td className="px-3 py-2">{r.unit}</td>
-                                                <td className="px-3 py-2">{formatNumber(r.price)}</td>
-                                            </>
-                                        ) : (
+	                                                <td className="px-3 py-2 text-right">{formatNumber(r.mis)}</td>
+	                                                <td className="px-3 py-2 text-right">{formatNumber(remainingAfter)}</td>
+	                                                <td className="px-3 py-2">{r.unit}</td>
+	                                                <td className="px-3 py-2 text-right">{formatNumber(r.price)}</td>
+	                                            </>
+	                                        ) : (
                                             <>
                                                 <td className="px-3 py-2">{r.no_doc}</td>
                                                 <td className="px-3 py-2">{r.ref_po}</td>
                                                 <td className="px-3 py-2">{r.kd_mat}</td>
                                                 <td className="px-3 py-2">{r.material}</td>
-                                                <td className="px-3 py-2">{formatNumber(maxQty)}</td>
-                                                <td className="px-3 py-2">{formatNumber(remainingAfter)}</td>
-                                                <td className="px-3 py-2">{r.unit}</td>
-                                                <td className="px-3 py-2">{formatNumber(r.price)}</td>
-                                            </>
-                                        )}
-                                        <td className="px-3 py-2">
-                                            <Input
-                                                value={qtyByKey[key] ?? ''}
+	                                                <td className="px-3 py-2 text-right">{formatNumber(maxQty)}</td>
+	                                                <td className="px-3 py-2 text-right">{formatNumber(remainingAfter)}</td>
+	                                                <td className="px-3 py-2">{r.unit}</td>
+	                                                <td className="px-3 py-2 text-right">{formatNumber(r.price)}</td>
+	                                            </>
+	                                        )}
+	                                        <td className="px-3 py-2 text-right">
+	                                            <Input
+	                                                value={qtyByKey[key] ?? ''}
                                                 onChange={(e) =>
                                                     setQtyByKey((prev) => ({
                                                         ...prev,
@@ -419,13 +432,14 @@ export default function TransferMaterialIndex() {
                                             <div className="mt-1 text-[11px] text-muted-foreground">
                                                 Max: {formatNumber(maxQty)}
                                             </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                        </div>
+	                                        </td>
+	                                    </tr>
+	                                );
+	                            })}
+	                        </tbody>
+	                                </table>
+	                            </div>
+	                        </div>
 
                         <div className="flex flex-col items-start justify-between gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center">
                             <span>Total data: {formatNumber(total)}</span>

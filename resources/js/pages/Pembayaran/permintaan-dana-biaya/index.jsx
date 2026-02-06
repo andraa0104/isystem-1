@@ -19,6 +19,7 @@ import {
     DialogDescription,
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ActionIconButton } from '@/components/action-icon-button';
 import { Eye, Loader2, Plus, Printer } from 'lucide-react';
 
 const breadcrumbs = [
@@ -334,20 +335,12 @@ export default function PermintaanDanaBiayaIndex() {
                                                 <TableCell>{formatRupiah(row?.sisa)}</TableCell>
                                                 <TableCell className="text-center">
                                                     <div className="flex items-center justify-center gap-2">
-                                                        <Button
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            onClick={() => openDetail(row?.no_pdb)}
-                                                        >
+                                                        <ActionIconButton label="Detail" onClick={() => openDetail(row?.no_pdb)}>
                                                             <Eye className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            onClick={() => printPdb(row?.no_pdb)}
-                                                        >
+                                                        </ActionIconButton>
+                                                        <ActionIconButton label="Cetak" onClick={() => printPdb(row?.no_pdb)}>
                                                             <Printer className="h-4 w-4" />
-                                                        </Button>
+                                                        </ActionIconButton>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>

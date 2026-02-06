@@ -16,7 +16,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router, useForm } from '@inertiajs/react';
-import { Eye, Pencil, Plus, Trash } from 'lucide-react';
+import { ActionIconButton } from '@/components/action-icon-button';
+import { ErrorState } from '@/components/data-states/ErrorState';
+import { confirmDelete } from '@/lib/confirm-delete';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { Eye, Pencil, Plus, Printer, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -71,7 +75,8 @@ export default function VendorIndex({ vendors = [] }) {
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [viewVendor, setViewVendor] = useState(null);
     const [viewLoading, setViewLoading] = useState(false);
-    const [viewError, setViewError] = useState('');
+    const [viewError, setViewError] = useState(null);
+    const [viewTab, setViewTab] = useState('profil'); // profil | riwayat
     const [poHistory, setPoHistory] = useState([]);
     const [poSearchTerm, setPoSearchTerm] = useState('');
     const [poPageSize, setPoPageSize] = useState(5);
@@ -80,7 +85,7 @@ export default function VendorIndex({ vendors = [] }) {
     const [editStep, setEditStep] = useState(1);
     const [editVendorId, setEditVendorId] = useState(null);
     const [editLoading, setEditLoading] = useState(false);
-    const [editError, setEditError] = useState('');
+    const [editError, setEditError] = useState(null);
 
     const {
         data: createData,
@@ -171,11 +176,10 @@ export default function VendorIndex({ vendors = [] }) {
 
     const fetchVendorDetail = async (kdVendor) => {
         const response = await fetch(
-            `/master-data/vendor/${encodeURIComponent(kdVendor)}`
+            `/master-data/vendor/${encodeURIComponent(kdVendor)}`,
+            { headers: { Accept: 'application/json' } },
         );
-        if (!response.ok) {
-            throw new Error('Gagal memuat data vendor.');
-        }
+        if (!response.ok) throw await readApiError(response);
         return response.json();
     };
 
@@ -185,7 +189,7 @@ export default function VendorIndex({ vendors = [] }) {
         }
         setIsViewModalOpen(true);
         setViewLoading(true);
-        setViewError('');
+        setViewError(null);
         setViewVendor(null);
         setPoHistory([]);
         setPoSearchTerm('');
@@ -196,7 +200,7 @@ export default function VendorIndex({ vendors = [] }) {
             setViewVendor(payload.vendor ?? null);
             setPoHistory(payload.purchaseOrders ?? []);
         } catch (error) {
-            setViewError(error.message);
+            setViewError(normalizeApiError(error, 'Gagal memuat data vendor.'));
         } finally {
             setViewLoading(false);
         }
@@ -208,7 +212,7 @@ export default function VendorIndex({ vendors = [] }) {
         }
         setIsEditModalOpen(true);
         setEditLoading(true);
-        setEditError('');
+        setEditError(null);
         setEditStep(1);
         setEditVendorId(vendor.kd_vdr);
         try {
@@ -218,33 +222,59 @@ export default function VendorIndex({ vendors = [] }) {
                 ...payload.vendor,
             });
         } catch (error) {
-            setEditError(error.message);
+            setEditError(normalizeApiError(error, 'Gagal memuat data vendor.'));
         } finally {
             setEditLoading(false);
         }
     };
 
-    const handleDelete = (vendor) => {
+    const handleDelete = async (vendor) => {
         if (!vendor?.kd_vdr) {
             return;
         }
-        Swal.fire({
-            title: 'Hapus data vendor?',
-            text: 'Data yang dihapus tidak dapat dikembalikan.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, hapus',
-            cancelButtonText: 'Batal',
-        }).then((result) => {
-            if (!result.isConfirmed) {
+        try {
+            const payload = await fetchVendorDetail(vendor.kd_vdr);
+            const poCount = Array.isArray(payload?.purchaseOrders)
+                ? payload.purchaseOrders.length
+                : 0;
+            if (poCount > 0) {
+                await Swal.fire({
+                    icon: 'info',
+                    title: 'Tidak bisa dihapus',
+                    text: `Vendor ini sudah dipakai di ${poCount} PO.`,
+                });
                 return;
             }
-            router.delete(
-                `/master-data/vendor/${encodeURIComponent(vendor.kd_vdr)}`,
-                {
-                    preserveScroll: true,
-                }
+        } catch (error) {
+            const normalized = normalizeApiError(
+                error,
+                'Gagal memeriksa relasi transaksi vendor.',
             );
+            await Swal.fire({
+                icon: 'error',
+                title:
+                    normalized.summary ||
+                    'Gagal memeriksa relasi transaksi vendor.',
+                html: normalized.detail
+                    ? `<pre style="text-align:left;white-space:pre-wrap;max-height:240px;overflow:auto;margin:0;">${String(
+                          normalized.detail,
+                      )
+                          .replace(/&/g, '&amp;')
+                          .replace(/</g, '&lt;')
+                          .replace(/>/g, '&gt;')}</pre>`
+                    : undefined,
+            });
+            return;
+        }
+
+        const ok = await confirmDelete({
+            title: 'Hapus data vendor?',
+            text: 'Data yang dihapus tidak dapat dikembalikan.',
+        });
+        if (!ok) return;
+
+        router.delete(`/master-data/vendor/${encodeURIComponent(vendor.kd_vdr)}`, {
+            preserveScroll: true,
         });
     };
 
@@ -537,23 +567,24 @@ export default function VendorIndex({ vendors = [] }) {
                             </label>
                         </div>
 
-                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                        <div className="overflow-hidden rounded-xl border border-sidebar-border/70">
+                            <div className="max-h-[65vh] overflow-auto overscroll-contain">
                             <table className="w-full text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
+                                <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                     <tr>
                                         <th className="px-4 py-3 text-left">
                                             No
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="sticky left-0 z-[2] w-[160px] bg-background/95 px-4 py-3 text-left">
                                             Kode Vendor
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="sticky left-[160px] z-[2] min-w-[240px] bg-background/95 px-4 py-3 text-left">
                                             Nama Vendor
                                         </th>
                                         <th className="px-4 py-3 text-left">
                                             Alamat
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="sticky right-0 z-[2] bg-background/95 px-4 py-3 text-center">
                                             Aksi
                                         </th>
                                     </tr>
@@ -565,7 +596,16 @@ export default function VendorIndex({ vendors = [] }) {
                                                 className="px-4 py-6 text-center text-muted-foreground"
                                                 colSpan={5}
                                             >
-                                                Data vendor belum tersedia.
+                                                <div>Data vendor belum tersedia.</div>
+                                                <div className="mt-3">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        onClick={() => setIsCreateModalOpen(true)}
+                                                    >
+                                                        Tambah Vendor
+                                                    </Button>
+                                                </div>
                                             </td>
                                         </tr>
                                     )}
@@ -581,50 +621,33 @@ export default function VendorIndex({ vendors = [] }) {
                                                           pageSize +
                                                       index) + 1}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
                                                 {renderValue(item.kd_vdr)}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
                                                 {renderValue(item.nm_vdr)}
                                             </td>
                                             <td className="px-4 py-3">
                                                 {renderValue(item.almt_vdr)}
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex flex-wrap gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleView(item)
-                                                        }
-                                                    >
+                                            <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <ActionIconButton label="Detail" onClick={() => handleView(item)}>
                                                         <Eye className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleEdit(item)
-                                                        }
-                                                    >
+                                                    </ActionIconButton>
+                                                    <ActionIconButton label="Edit" onClick={() => handleEdit(item)}>
                                                         <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleDelete(item)
-                                                        }
-                                                    >
-                                                        <Trash className="h-4 w-4" />
-                                                    </Button>
+                                                    </ActionIconButton>
+                                                    <ActionIconButton label="Hapus" onClick={() => handleDelete(item)}>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </ActionIconButton>
                                                 </div>
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
 
                         {pageSize !== Infinity && totalItems > 0 && (
@@ -752,7 +775,8 @@ export default function VendorIndex({ vendors = [] }) {
                         setIsViewModalOpen(open);
                         if (!open) {
                             setViewVendor(null);
-                            setViewError('');
+                            setViewError(null);
+                            setViewTab('profil');
                             setPoHistory([]);
                             setPoSearchTerm('');
                             setPoCurrentPage(1);
@@ -770,7 +794,7 @@ export default function VendorIndex({ vendors = [] }) {
                             </p>
                         )}
                         {!viewLoading && viewError && (
-                            <p className="text-sm text-rose-600">{viewError}</p>
+                            <ErrorState error={viewError} />
                         )}
                         {!viewLoading && !viewError && !viewVendor && (
                             <p className="text-sm text-muted-foreground">
@@ -779,6 +803,25 @@ export default function VendorIndex({ vendors = [] }) {
                         )}
                         {!viewLoading && viewVendor && (
                             <div className="space-y-6 text-sm">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={viewTab === 'profil' ? 'default' : 'outline'}
+                                        onClick={() => setViewTab('profil')}
+                                    >
+                                        Profil
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={viewTab === 'riwayat' ? 'default' : 'outline'}
+                                        onClick={() => setViewTab('riwayat')}
+                                    >
+                                        Riwayat PO
+                                    </Button>
+                                </div>
+                                {viewTab === 'profil' ? (
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div>
                                         <span className="text-muted-foreground">
@@ -909,11 +952,11 @@ export default function VendorIndex({ vendors = [] }) {
                                         </div>
                                     </div>
                                 </div>
+                                ) : null}
 
+                                {viewTab === 'riwayat' ? (
                                 <div className="space-y-3">
-                                    <h3 className="text-base font-semibold">
-                                        Riwayat PO
-                                    </h3>
+                                    <h3 className="text-base font-semibold">Riwayat PO</h3>
                                     <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                         <label>
                                             Tampilkan
@@ -963,21 +1006,21 @@ export default function VendorIndex({ vendors = [] }) {
                                         <table className="w-full text-sm">
                                             <thead className="bg-muted/50 text-muted-foreground">
                                                 <tr>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Nomor PO
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Sub Total
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        PPN
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Grand Total
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Aksi
-                                                    </th>
+												<th className="px-4 py-3 text-left">
+													Nomor PO
+												</th>
+												<th className="px-4 py-3 text-right">
+													Sub Total
+												</th>
+												<th className="px-4 py-3 text-right">
+													PPN
+												</th>
+												<th className="px-4 py-3 text-right">
+													Grand Total
+												</th>
+												<th className="px-4 py-3 text-left">
+													Aksi
+												</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1004,48 +1047,44 @@ export default function VendorIndex({ vendors = [] }) {
                                                                     item.no_po
                                                                 )}
                                                             </td>
-                                                            <td className="px-4 py-3">
-                                                                {formatRupiah(
-                                                                    item.s_total
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {formatRupiah(
-                                                                    item.h_ppn
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {formatRupiah(
-                                                                    item.g_total
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    asChild
-                                                                >
-                                                                    <a
-                                                                        href={`/pembelian/purchase-order/${encodeURIComponent(
-                                                                            item.no_po
-                                                                        )}/print`}
-                                                                        target="_blank"
-                                                                        rel="noreferrer"
-                                                                    >
-                                                                        Print
-                                                                    </a>
-                                                                </Button>
-                                                            </td>
-                                                        </tr>
-                                                    )
-                                                )}
+															<td className="px-4 py-3 text-right tabular-nums">
+																{formatRupiah(
+																	item.s_total
+																)}
+															</td>
+															<td className="px-4 py-3 text-right tabular-nums">
+																{formatRupiah(
+																	item.h_ppn
+																)}
+															</td>
+															<td className="px-4 py-3 text-right tabular-nums">
+																{formatRupiah(
+																	item.g_total
+																)}
+															</td>
+																<td className="px-4 py-3">
+																	<ActionIconButton label="Cetak" asChild>
+																		<a
+																			href={`/pembelian/purchase-order/${encodeURIComponent(
+																				item.no_po
+																			)}/print`}
+																			target="_blank"
+																			rel="noreferrer"
+																		>
+																			<Printer className="h-4 w-4" />
+																		</a>
+																	</ActionIconButton>
+																</td>
+														</tr>
+													)
+												)}
                                             </tbody>
                                         </table>
                                     </div>
 
-                                    {poPageSize !== Infinity &&
-                                        poTotalItems > 0 && (
-                                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+	                                    {poPageSize !== Infinity &&
+	                                        poTotalItems > 0 && (
+	                                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                                 <span>
                                                     Menampilkan{' '}
                                                     {Math.min(
@@ -1063,10 +1102,10 @@ export default function VendorIndex({ vendors = [] }) {
                                                     dari {poTotalItems} data
                                                 </span>
                                                 <div className="flex items-center gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
+	                                                    <Button
+	                                                        variant="outline"
+	                                                        size="sm"
+	                                                        onClick={() =>
                                                             setPoCurrentPage(
                                                                 (page) =>
                                                                     Math.max(
@@ -1101,15 +1140,16 @@ export default function VendorIndex({ vendors = [] }) {
                                                             poCurrentPage ===
                                                             poTotalPages
                                                         }
-                                                    >
-                                                        Berikutnya
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        )}
-                                </div>
-                            </div>
-                        )}
+	                                                    >
+	                                                        Berikutnya
+	                                                    </Button>
+	                                                </div>
+	                                            </div>
+	                                        )}
+	                                </div>
+	                                ) : null}
+	                            </div>
+	                        )}
                     </DialogContent>
                 </Dialog>
             )}
@@ -1123,7 +1163,7 @@ export default function VendorIndex({ vendors = [] }) {
                             resetEdit();
                             setEditVendorId(null);
                             setEditStep(1);
-                            setEditError('');
+                            setEditError(null);
                         }
                     }}
                 >
@@ -1137,9 +1177,7 @@ export default function VendorIndex({ vendors = [] }) {
                             </p>
                         )}
                         {!editLoading && editError && (
-                            <p className="text-sm text-rose-600">
-                                {editError}
-                            </p>
+                            <ErrorState error={editError} />
                         )}
                         {!editLoading && !editError && (
                             <form

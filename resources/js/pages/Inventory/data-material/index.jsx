@@ -8,11 +8,15 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { ActionIconButton } from '@/components/action-icon-button';
 import AppLayout from '@/layouts/app-layout';
 import { Head } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Loader2, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { confirmDelete } from '@/lib/confirm-delete';
+import { readApiError, normalizeApiError } from '@/lib/api-error';
+import { ErrorState } from '@/components/data-states/ErrorState';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -41,6 +45,7 @@ function SectionCollapse({ id, label }) {
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [total, setTotal] = useState(0);
+    const [error, setError] = useState(null);
 
     // Debounce search so typing doesn't spam requests / steal focus.
     useEffect(() => {
@@ -60,6 +65,7 @@ function SectionCollapse({ id, label }) {
         let cancelled = false;
         const load = async () => {
             setLoading(true);
+            setError(null);
             try {
                 const params = new URLSearchParams();
                 params.set('key', id);
@@ -71,6 +77,7 @@ function SectionCollapse({ id, label }) {
                     `/inventory/data-material/rows?${params.toString()}`,
                     { headers: { Accept: 'application/json' } },
                 );
+                if (!res.ok) throw await readApiError(res);
                 const data = await res.json();
                 if (!cancelled) {
                     setRows(Array.isArray(data?.rows) ? data.rows : []);
@@ -78,6 +85,7 @@ function SectionCollapse({ id, label }) {
                 }
             } catch (err) {
                 if (!cancelled) {
+                    setError(normalizeApiError(err, 'Gagal memuat data.'));
                     setRows([]);
                     setTotal(0);
                 }
@@ -94,6 +102,7 @@ function SectionCollapse({ id, label }) {
     const reload = async () => {
         if (!open) return;
         setLoading(true);
+        setError(null);
         try {
             const params = new URLSearchParams();
             params.set('key', id);
@@ -104,10 +113,12 @@ function SectionCollapse({ id, label }) {
             const res = await fetch(`/inventory/data-material/rows?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
             });
+            if (!res.ok) throw await readApiError(res);
             const data = await res.json();
             setRows(Array.isArray(data?.rows) ? data.rows : []);
             setTotal(Number(data?.total ?? 0));
-        } catch {
+        } catch (err) {
+            setError(normalizeApiError(err, 'Gagal memuat data.'));
             setRows([]);
             setTotal(0);
         } finally {
@@ -119,17 +130,11 @@ function SectionCollapse({ id, label }) {
         const rowId = row?.id;
         if (!rowId) return;
 
-        const result = await Swal.fire({
+        const ok = await confirmDelete({
             title: 'Hapus data?',
             text: 'Data yang dihapus tidak bisa dikembalikan.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, hapus',
-            cancelButtonText: 'Batal',
-            reverseButtons: true,
         });
-
-        if (!result.isConfirmed) return;
+        if (!ok) return;
 
         try {
             const res = await fetch('/inventory/data-material/row', {
@@ -143,11 +148,8 @@ function SectionCollapse({ id, label }) {
                 credentials: 'same-origin',
                 body: JSON.stringify({ key: id, id: rowId }),
             });
+            if (!res.ok) throw await readApiError(res);
             const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-                const msg = data?.errors?.general || data?.message || 'Gagal menghapus data.';
-                throw new Error(msg);
-            }
             await Swal.fire({
                 toast: true,
                 position: 'top-end',
@@ -159,14 +161,18 @@ function SectionCollapse({ id, label }) {
             });
             await reload();
         } catch (e) {
+            const normalized = normalizeApiError(e, 'Gagal menghapus data.');
             await Swal.fire({
-                toast: true,
-                position: 'top-end',
                 icon: 'error',
-                title: e?.message || 'Gagal menghapus data.',
-                showConfirmButton: false,
-                timer: 3500,
-                timerProgressBar: true,
+                title: normalized.summary || 'Gagal menghapus data.',
+                html: normalized.detail
+                    ? `<pre style="text-align:left;white-space:pre-wrap;max-height:240px;overflow:auto;margin:0;">${String(
+                          normalized.detail,
+                      )
+                          .replace(/&/g, '&amp;')
+                          .replace(/</g, '&lt;')
+                          .replace(/>/g, '&gt;')}</pre>`
+                    : undefined,
             });
         }
     };
@@ -259,7 +265,7 @@ function SectionCollapse({ id, label }) {
                                                 {columns.map((col, i, arr) => (
                                                     <th
                                                         key={col}
-                                                        className={`border-b px-3 py-2 font-semibold ${i === 0 ? 'rounded-tl-xl' : ''} ${i === arr.length - 1 ? 'rounded-tr-xl' : ''} ${col === 'Aksi' ? 'text-center' : 'text-left'}`}
+                                                        className={`border-b px-3 py-2 font-semibold ${i === 0 ? 'rounded-tl-xl' : ''} ${i === arr.length - 1 ? 'rounded-tr-xl' : ''} ${col === 'Aksi' ? 'sticky right-0 z-[2] w-16 bg-background/95 text-center shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.6)]' : 'text-left'}`}
                                                     >
                                                         {col}
                                                     </th>
@@ -273,7 +279,13 @@ function SectionCollapse({ id, label }) {
                                                         colSpan={columns.length}
                                                         className="px-3 py-8 text-center text-muted-foreground"
                                                     >
-                                                        Tidak ada data.
+                                                        {error ? (
+                                                            <div className="mx-auto max-w-2xl">
+                                                                <ErrorState error={error} onRetry={reload} />
+                                                            </div>
+                                                        ) : (
+                                                            'Tidak ada data.'
+                                                        )}
                                                     </td>
                                                 </tr>
                                             )}
@@ -352,30 +364,18 @@ function SectionCollapse({ id, label }) {
                                                                         : row.miu,
                                                                 )}
                                                             </td>
-                                                            <td className="whitespace-nowrap border-b px-3 py-2 text-center align-top">
+                                                            <td className="sticky right-0 whitespace-nowrap border-b border-l bg-background/95 px-3 py-2 text-center align-top shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.6)]">
                                                                 {id === 'mi' ? (
                                                                     Number(row.inv ?? 0) === 0 && (
-                                                                        <Button
-                                                                            type="button"
-                                                                            size="icon"
-                                                                            variant="ghost"
-                                                                            className="h-8 w-8 text-muted-foreground hover:text-red-400"
-                                                                            onClick={() => handleDelete(row)}
-                                                                        >
-                                                                            <Trash2 className="h-4 w-4" />
-                                                                        </Button>
+                                                                        <ActionIconButton label="Hapus" onClick={() => handleDelete(row)}>
+                                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                                        </ActionIconButton>
                                                                     )
                                                                 ) : (
                                                                     Number(row.qty) === Number(row.mis) && (
-                                                                        <Button
-                                                                            type="button"
-                                                                            size="icon"
-                                                                            variant="ghost"
-                                                                            className="h-8 w-8 text-muted-foreground hover:text-red-400"
-                                                                            onClick={() => handleDelete(row)}
-                                                                        >
-                                                                            <Trash2 className="h-4 w-4" />
-                                                                        </Button>
+                                                                        <ActionIconButton label="Hapus" onClick={() => handleDelete(row)}>
+                                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                                        </ActionIconButton>
                                                                     )
                                                                 )}
                                                             </td>

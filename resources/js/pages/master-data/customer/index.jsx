@@ -16,7 +16,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router, useForm } from '@inertiajs/react';
-import { Eye, Pencil, Plus, Trash } from 'lucide-react';
+import { ActionIconButton } from '@/components/action-icon-button';
+import { ErrorState } from '@/components/data-states/ErrorState';
+import { confirmDelete } from '@/lib/confirm-delete';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { formatDateId } from '@/lib/formatters';
+import { Eye, Pencil, Plus, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -57,9 +62,10 @@ export default function CustomerIndex({ customers = [] }) {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [viewCustomer, setViewCustomer] = useState(null);
     const [viewLoading, setViewLoading] = useState(false);
-    const [viewError, setViewError] = useState('');
+    const [viewError, setViewError] = useState(null);
+    const [viewTab, setViewTab] = useState('profil'); // profil | riwayat
     const [editLoading, setEditLoading] = useState(false);
-    const [editError, setEditError] = useState('');
+    const [editError, setEditError] = useState(null);
     const [editCustomerId, setEditCustomerId] = useState(null);
     const [doHistory, setDoHistory] = useState([]);
     const [doSearchTerm, setDoSearchTerm] = useState('');
@@ -155,11 +161,10 @@ export default function CustomerIndex({ customers = [] }) {
 
     const fetchCustomerDetail = async (kdCustomer) => {
         const response = await fetch(
-            `/master-data/customer/${encodeURIComponent(kdCustomer)}`
+            `/master-data/customer/${encodeURIComponent(kdCustomer)}`,
+            { headers: { Accept: 'application/json' } },
         );
-        if (!response.ok) {
-            throw new Error('Gagal memuat data customer.');
-        }
+        if (!response.ok) throw await readApiError(response);
         return response.json();
     };
 
@@ -169,7 +174,7 @@ export default function CustomerIndex({ customers = [] }) {
         }
         setIsViewModalOpen(true);
         setViewLoading(true);
-        setViewError('');
+        setViewError(null);
         setViewCustomer(null);
         setDoHistory([]);
         setDoSearchTerm('');
@@ -180,7 +185,7 @@ export default function CustomerIndex({ customers = [] }) {
             setViewCustomer(payload.customer ?? null);
             setDoHistory(payload.deliveryOrders ?? []);
         } catch (error) {
-            setViewError(error.message);
+            setViewError(normalizeApiError(error, 'Gagal memuat data customer.'));
         } finally {
             setViewLoading(false);
         }
@@ -192,7 +197,7 @@ export default function CustomerIndex({ customers = [] }) {
         }
         setIsEditModalOpen(true);
         setEditLoading(true);
-        setEditError('');
+        setEditError(null);
         setEditCustomerId(customer.kd_cs);
         try {
             const payload = await fetchCustomerDetail(customer.kd_cs);
@@ -201,33 +206,59 @@ export default function CustomerIndex({ customers = [] }) {
                 ...payload.customer,
             });
         } catch (error) {
-            setEditError(error.message);
+            setEditError(normalizeApiError(error, 'Gagal memuat data customer.'));
         } finally {
             setEditLoading(false);
         }
     };
 
-    const handleDelete = (customer) => {
+    const handleDelete = async (customer) => {
         if (!customer?.kd_cs) {
             return;
         }
-        Swal.fire({
-            title: 'Hapus data customer?',
-            text: 'Data yang dihapus tidak dapat dikembalikan.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, hapus',
-            cancelButtonText: 'Batal',
-        }).then((result) => {
-            if (!result.isConfirmed) {
+        try {
+            const payload = await fetchCustomerDetail(customer.kd_cs);
+            const doCount = Array.isArray(payload?.deliveryOrders)
+                ? payload.deliveryOrders.length
+                : 0;
+            if (doCount > 0) {
+                await Swal.fire({
+                    icon: 'info',
+                    title: 'Tidak bisa dihapus',
+                    text: `Customer ini sudah dipakai di ${doCount} DO.`,
+                });
                 return;
             }
-            router.delete(
-                `/master-data/customer/${encodeURIComponent(customer.kd_cs)}`,
-                {
-                    preserveScroll: true,
-                }
+        } catch (error) {
+            const normalized = normalizeApiError(
+                error,
+                'Gagal memeriksa relasi transaksi customer.',
             );
+            await Swal.fire({
+                icon: 'error',
+                title:
+                    normalized.summary ||
+                    'Gagal memeriksa relasi transaksi customer.',
+                html: normalized.detail
+                    ? `<pre style="text-align:left;white-space:pre-wrap;max-height:240px;overflow:auto;margin:0;">${String(
+                          normalized.detail,
+                      )
+                          .replace(/&/g, '&amp;')
+                          .replace(/</g, '&lt;')
+                          .replace(/>/g, '&gt;')}</pre>`
+                    : undefined,
+            });
+            return;
+        }
+
+        const ok = await confirmDelete({
+            title: 'Hapus data customer?',
+            text: 'Data yang dihapus tidak dapat dikembalikan.',
+        });
+        if (!ok) return;
+
+        router.delete(`/master-data/customer/${encodeURIComponent(customer.kd_cs)}`, {
+            preserveScroll: true,
         });
     };
 
@@ -346,23 +377,24 @@ export default function CustomerIndex({ customers = [] }) {
                             </label>
                         </div>
 
-                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                        <div className="overflow-hidden rounded-xl border border-sidebar-border/70">
+                            <div className="max-h-[65vh] overflow-auto overscroll-contain">
                             <table className="w-full text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
+                                <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                     <tr>
                                         <th className="px-4 py-3 text-left">
                                             No
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="sticky left-0 z-[2] w-[160px] bg-background/95 px-4 py-3 text-left">
                                             Kode CS
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="sticky left-[160px] z-[2] min-w-[240px] bg-background/95 px-4 py-3 text-left">
                                             Nama CS
                                         </th>
                                         <th className="px-4 py-3 text-left">
                                             Alamat
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="sticky right-0 z-[2] bg-background/95 px-4 py-3 text-center">
                                             Aksi
                                         </th>
                                     </tr>
@@ -374,7 +406,16 @@ export default function CustomerIndex({ customers = [] }) {
                                                 className="px-4 py-6 text-center text-muted-foreground"
                                                 colSpan={5}
                                             >
-                                                Data customer belum tersedia.
+                                                <div>Data customer belum tersedia.</div>
+                                                <div className="mt-3">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        onClick={() => setIsCreateModalOpen(true)}
+                                                    >
+                                                        Tambah Customer
+                                                    </Button>
+                                                </div>
                                             </td>
                                         </tr>
                                     )}
@@ -390,50 +431,33 @@ export default function CustomerIndex({ customers = [] }) {
                                                           pageSize +
                                                       index) + 1}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
                                                 {renderValue(item.kd_cs)}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
                                                 {renderValue(item.nm_cs)}
                                             </td>
                                             <td className="px-4 py-3">
                                                 {renderValue(item.alamat_cs)}
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex flex-wrap gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleView(item)
-                                                        }
-                                                    >
+                                            <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <ActionIconButton label="Detail" onClick={() => handleView(item)}>
                                                         <Eye className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleEdit(item)
-                                                        }
-                                                    >
+                                                    </ActionIconButton>
+                                                    <ActionIconButton label="Edit" onClick={() => handleEdit(item)}>
                                                         <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleDelete(item)
-                                                        }
-                                                    >
-                                                        <Trash className="h-4 w-4" />
-                                                    </Button>
+                                                    </ActionIconButton>
+                                                    <ActionIconButton label="Hapus" onClick={() => handleDelete(item)}>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </ActionIconButton>
                                                 </div>
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
 
                         {pageSize !== Infinity && totalItems > 0 && (
@@ -658,7 +682,8 @@ export default function CustomerIndex({ customers = [] }) {
                         setIsViewModalOpen(open);
                         if (!open) {
                             setViewCustomer(null);
-                            setViewError('');
+                            setViewError(null);
+                            setViewTab('profil');
                             setDoHistory([]);
                             setDoSearchTerm('');
                             setDoPageSize(5);
@@ -676,7 +701,7 @@ export default function CustomerIndex({ customers = [] }) {
                             </p>
                         )}
                         {!viewLoading && viewError && (
-                            <p className="text-sm text-rose-600">{viewError}</p>
+                            <ErrorState error={viewError} />
                         )}
                         {!viewLoading && !viewError && !viewCustomer && (
                             <p className="text-sm text-muted-foreground">
@@ -685,6 +710,24 @@ export default function CustomerIndex({ customers = [] }) {
                         )}
                         {!viewLoading && viewCustomer && (
                             <div className="space-y-6 text-sm">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={viewTab === 'profil' ? 'default' : 'outline'}
+                                        onClick={() => setViewTab('profil')}
+                                    >
+                                        Profil
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={viewTab === 'riwayat' ? 'default' : 'outline'}
+                                        onClick={() => setViewTab('riwayat')}
+                                    >
+                                        Riwayat DO
+                                    </Button>
+                                </div>
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div>
                                         <span className="text-muted-foreground">
@@ -774,10 +817,9 @@ export default function CustomerIndex({ customers = [] }) {
                                     </div>
                                 </div>
 
+                                {viewTab === 'riwayat' ? (
                                 <div className="space-y-3">
-                                    <h3 className="text-base font-semibold">
-                                        Riwayat Delivery Order
-                                    </h3>
+                                    <h3 className="text-base font-semibold">Riwayat Delivery Order</h3>
                                     <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                         <label>
                                             Tampilkan
@@ -865,43 +907,37 @@ export default function CustomerIndex({ customers = [] }) {
                                                                     item.no_do
                                                                 )}
                                                             </td>
-                                                            <td className="px-4 py-3">
-                                                                {renderValue(
-                                                                    item.date
-                                                                )}
-                                                            </td>
+															<td className="px-4 py-3">
+																{formatDateId(item.date)}
+															</td>
                                                             <td className="px-4 py-3">
                                                                 {renderValue(
                                                                     item.ref_po
                                                                 )}
                                                             </td>
-                                                            <td className="px-4 py-3">
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    asChild
-                                                                >
-                                                                    <a
-                                                                        href={`/marketing/delivery-order/${encodeURIComponent(
-                                                                            item.no_do
-                                                                        )}/print`}
-                                                                        target="_blank"
-                                                                        rel="noreferrer"
-                                                                    >
-                                                                        Print
-                                                                    </a>
-                                                                </Button>
-                                                            </td>
-                                                        </tr>
-                                                    )
-                                                )}
+															<td className="px-4 py-3">
+																<ActionIconButton label="Cetak" asChild>
+																	<a
+																		href={`/marketing/delivery-order/${encodeURIComponent(
+																			item.no_do
+																		)}/print`}
+																		target="_blank"
+																		rel="noreferrer"
+																	>
+																		<Printer className="h-4 w-4" />
+																	</a>
+																</ActionIconButton>
+															</td>
+														</tr>
+													)
+												)}
                                             </tbody>
                                         </table>
                                     </div>
 
-                                    {doPageSize !== Infinity &&
-                                        doTotalItems > 0 && (
-                                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+	                                    {doPageSize !== Infinity &&
+	                                        doTotalItems > 0 && (
+	                                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                                 <span>
                                                     Menampilkan{' '}
                                                     {Math.min(
@@ -941,31 +977,32 @@ export default function CustomerIndex({ customers = [] }) {
                                                         Halaman {doCurrentPage}{' '}
                                                         dari {doTotalPages}
                                                     </span>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            setDoCurrentPage(
-                                                                (page) =>
-                                                                    Math.min(
-                                                                        doTotalPages,
-                                                                        page + 1
-                                                                    )
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            doCurrentPage ===
-                                                            doTotalPages
-                                                        }
-                                                    >
-                                                        Berikutnya
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        )}
-                                </div>
-                            </div>
-                        )}
+	                                                    <Button
+	                                                        variant="outline"
+	                                                        size="sm"
+	                                                        onClick={() =>
+	                                                            setDoCurrentPage(
+	                                                                (page) =>
+	                                                                    Math.min(
+	                                                                        doTotalPages,
+	                                                                        page + 1
+	                                                                    )
+	                                                            )
+	                                                        }
+	                                                        disabled={
+	                                                            doCurrentPage ===
+	                                                            doTotalPages
+	                                                        }
+	                                                    >
+	                                                        Berikutnya
+	                                                    </Button>
+	                                                </div>
+	                                            </div>
+	                                        )}
+	                                </div>
+	                                ) : null}
+	                            </div>
+	                        )}
                     </DialogContent>
                 </Dialog>
             )}
@@ -978,7 +1015,7 @@ export default function CustomerIndex({ customers = [] }) {
                         if (!open) {
                             resetEdit();
                             setEditCustomerId(null);
-                            setEditError('');
+                            setEditError(null);
                         }
                     }}
                 >
@@ -992,9 +1029,7 @@ export default function CustomerIndex({ customers = [] }) {
                             </p>
                         )}
                         {!editLoading && editError && (
-                            <p className="text-sm text-rose-600">
-                                {editError}
-                            </p>
+                            <ErrorState error={editError} />
                         )}
                         {!editLoading && !editError && (
                             <form

@@ -22,11 +22,17 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { ActionIconButton } from '@/components/action-icon-button';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, ReceiptText, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
+import { ErrorState } from '@/components/data-states/ErrorState';
+import { canDeleteRow } from '@/lib/can-delete';
+import { confirmDelete } from '@/lib/confirm-delete';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { formatDateId } from '@/lib/formatters';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -109,7 +115,7 @@ export default function FakturPenjualanIndex({
 }) {
     const [invoicesData, setInvoicesData] = useState([]);
     const [invoicesLoading, setInvoicesLoading] = useState(false);
-    const [invoicesError, setInvoicesError] = useState('');
+    const [invoicesError, setInvoicesError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
@@ -145,74 +151,65 @@ export default function FakturPenjualanIndex({
 
     const fetchInvoices = () => {
         setInvoicesLoading(true);
-        setInvoicesError('');
+        setInvoicesError(null);
         fetch('/penjualan/faktur-penjualan/data', {
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
-                if (!response.ok) {
-                    throw new Error('Request failed');
-                }
+                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
                 return response.json();
             })
             .then((data) => {
                 setInvoicesData(Array.isArray(data?.data) ? data.data : []);
             })
-            .catch(() => {
-                setInvoicesError('Gagal memuat data faktur.');
+            .catch((err) => {
+                setInvoicesError(normalizeApiError(err, 'Gagal memuat data faktur.'));
             })
             .finally(() => setInvoicesLoading(false));
     };
 
-    const handleDeleteInvoice = (invoice) => {
+    const handleDeleteInvoice = async (invoice) => {
         // Tutup modal agar overlay Radix tidak menimpa SweetAlert
         setIsNoReceiptOpen(false);
         setIsKwitansiOpen(false);
 
-        Swal.fire({
+        const ok = await confirmDelete({
             title: 'Hapus Invoice?',
             text: `No Invoice: ${invoice.no_fakturpenjualan}`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, hapus',
-            cancelButtonText: 'Batal',
-        }).then((result) => {
-            if (!result.isConfirmed) return;
-            router.delete(
-                `/penjualan/faktur-penjualan/${encodeURIComponent(
-                    invoice.no_fakturpenjualan,
-                )}`,
-                {
-                    preserveScroll: true,
-                    preserveState: true,
-                    onSuccess: () => {
-                        setInvoicesData((prev) =>
-                            prev.filter(
-                                (row) =>
-                                    row.no_fakturpenjualan !==
-                                    invoice.no_fakturpenjualan,
-                            ),
-                        );
-                    },
-                    onError: (errors) => {
-                        const message =
-                            errors?.message ||
-                            (errors &&
-                                typeof errors === 'object' &&
-                                Object.values(errors)[0]) ||
-                            'Gagal menghapus invoice.';
-                        Swal.fire({
-                            toast: true,
-                            position: 'top-end',
-                            icon: 'error',
-                            title: String(message),
-                            showConfirmButton: false,
-                            timer: 3000,
-                        });
-                    },
-                },
-            );
         });
+        if (!ok) return;
+
+        router.delete(
+            `/penjualan/faktur-penjualan/${encodeURIComponent(invoice.no_fakturpenjualan)}`,
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: () => {
+                    setInvoicesData((prev) =>
+                        prev.filter(
+                            (row) =>
+                                row.no_fakturpenjualan !== invoice.no_fakturpenjualan,
+                        ),
+                    );
+                },
+                onError: (errors) => {
+                    const message =
+                        errors?.message ||
+                        (errors &&
+                            typeof errors === 'object' &&
+                            Object.values(errors)[0]) ||
+                        'Gagal menghapus invoice.';
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: 'error',
+                        title: String(message),
+                        showConfirmButton: false,
+                        timer: 3000,
+                    });
+                },
+            },
+        );
     };
 
     useEffect(() => {
@@ -836,15 +833,24 @@ export default function FakturPenjualanIndex({
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="rounded-md border">
+                        <div className="overflow-hidden rounded-md border">
+                            <div className="max-h-[65vh] overflow-auto overscroll-contain">
                             <Table>
-                                <TableHeader>
+                                <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                     <TableRow>
-                                        <TableHead>No Invoice</TableHead>
+                                        <TableHead className="sticky left-0 z-[2] w-[180px] bg-background/95">
+                                            No Invoice
+                                        </TableHead>
                                         <TableHead>Date</TableHead>
-                                        <TableHead>Customer</TableHead>
+                                        <TableHead className="sticky left-[180px] z-[2] bg-background/95">
+                                            Customer
+                                        </TableHead>
                                         <TableHead>Ref PO</TableHead>
-                                        <TableHead className="text-right">
+                                        <TableHead className="text-right">Total</TableHead>
+                                        <TableHead className="text-right">Dibayar</TableHead>
+                                        <TableHead className="text-right">Sisa</TableHead>
+                                        <TableHead>Jatuh Tempo</TableHead>
+                                        <TableHead className="sticky right-0 z-[2] bg-background/95 text-right">
                                             Aksi
                                         </TableHead>
                                     </TableRow>
@@ -852,15 +858,15 @@ export default function FakturPenjualanIndex({
                                 <TableBody>
                                     {invoicesLoading && (
                                         <TableRow>
-                                            <TableCell colSpan={5}>
+                                            <TableCell colSpan={9}>
                                                 Memuat data invoice...
                                             </TableCell>
                                         </TableRow>
                                     )}
                                     {!invoicesLoading && invoicesError && (
                                         <TableRow>
-                                            <TableCell colSpan={5}>
-                                                {invoicesError}
+                                            <TableCell colSpan={9}>
+                                                <ErrorState error={invoicesError} onRetry={fetchInvoices} />
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -868,8 +874,15 @@ export default function FakturPenjualanIndex({
                                         !invoicesError &&
                                         displayedInvoices.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={5}>
-                                                Tidak ada data invoice.
+                                            <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
+                                                <div>Tidak ada data invoice.</div>
+                                                <div className="mt-3">
+                                                    <Button asChild size="sm">
+                                                        <Link href="/penjualan/faktur-penjualan/create">
+                                                            Buat Faktur
+                                                        </Link>
+                                                    </Button>
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -879,25 +892,49 @@ export default function FakturPenjualanIndex({
                                         <TableRow
                                             key={`inv-${item.no_fakturpenjualan}`}
                                         >
-                                            <TableCell>
+                                            <TableCell className="sticky left-0 z-[1] w-[180px] bg-background/95 font-medium">
                                                 {item.no_fakturpenjualan}
                                             </TableCell>
-                                            <TableCell>{item.tgl_doc}</TableCell>
-                                            <TableCell>{item.nm_cs}</TableCell>
+                                            <TableCell>{formatDateId(item.tgl_doc)}</TableCell>
+                                            <TableCell className="sticky left-[180px] z-[1] bg-background/95">
+                                                {item.nm_cs}
+                                            </TableCell>
                                             <TableCell>{item.ref_po}</TableCell>
                                             <TableCell className="text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            handleOpenDetail(item)
-                                                        }
+                                                {formatRupiah(item.g_total)}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                {formatRupiah(item.total_bayaran)}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                {(() => {
+                                                    const total = parseCurrency(item.g_total);
+                                                    const paid = parseCurrency(item.total_bayaran);
+                                                    const sisa = Math.max(0, total - paid);
+                                                    const dueDate = item.jth_tempo ? new Date(item.jth_tempo) : null;
+                                                    const today = new Date();
+                                                    today.setHours(0, 0, 0, 0);
+                                                    if (dueDate) dueDate.setHours(0, 0, 0, 0);
+                                                    const overdue = Boolean(dueDate && sisa > 0 && dueDate <= today);
+                                                    return (
+                                                        <span className={overdue ? 'font-semibold text-destructive' : ''}>
+                                                            {formatRupiah(sisa)}
+                                                        </span>
+                                                    );
+                                                })()}
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.jth_tempo ? formatDateId(item.jth_tempo) : '-'}
+                                            </TableCell>
+                                            <TableCell className="sticky right-0 z-[1] bg-background/95 text-right">
+                                                <div className="inline-flex items-center justify-end gap-2">
+                                                    <ActionIconButton
+                                                        label="Detail"
+                                                        onClick={() => handleOpenDetail(item)}
                                                     >
                                                         <Eye className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button asChild variant="ghost" size="icon">
+                                                    </ActionIconButton>
+                                                    <ActionIconButton label="Cetak" asChild>
                                                         <a
                                                             href={`/penjualan/faktur-penjualan/${encodeURIComponent(
                                                                 item.no_fakturpenjualan ?? '',
@@ -907,13 +944,14 @@ export default function FakturPenjualanIndex({
                                                         >
                                                             <Printer className="h-4 w-4" />
                                                         </a>
-                                                    </Button>
+                                                    </ActionIconButton>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
                             </Table>
+                            </div>
                         </div>
 
                         {pageSize !== Infinity && totalItems > 0 && (
@@ -1298,42 +1336,35 @@ export default function FakturPenjualanIndex({
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="inline-flex items-center justify-end gap-2">
-                                                    <Link
-                                                        href={`/penjualan/faktur-penjualan/${encodeURIComponent(
-                                                            item.no_fakturpenjualan ?? '',
-                                                        )}/edit`}
-                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:text-foreground"
-                                                        aria-label="Edit INV"
-                                                        title="Edit INV"
-                                                        onClick={() => {
-                                                            setIsNoReceiptOpen(false);
-                                                            setIsKwitansiOpen(false);
-                                                        }}
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Link>
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8"
-                                                        onClick={() =>
-                                                            openKwitansiModal(item)
-                                                        }
-                                                        aria-label="Buat Kwitansi"
-                                                        title="Buat Kwitansi"
+                                                    <ActionIconButton label="Edit" asChild>
+                                                        <Link
+                                                            href={`/penjualan/faktur-penjualan/${encodeURIComponent(
+                                                                item.no_fakturpenjualan ?? '',
+                                                            )}/edit`}
+                                                            onClick={() => {
+                                                                setIsNoReceiptOpen(false);
+                                                                setIsKwitansiOpen(false);
+                                                            }}
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Link>
+                                                    </ActionIconButton>
+                                                    <ActionIconButton
+                                                        label="Buat Kwitansi"
+                                                        onClick={() => openKwitansiModal(item)}
                                                     >
                                                         <ReceiptText className="h-4 w-4" />
-                                                    </Button>
-                                                    <button
-                                                        type="button"
-                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-destructive transition hover:text-red-600"
-                                                        aria-label="Hapus Invoice"
-                                                        title="Hapus Invoice"
-                                                        onClick={() => handleDeleteInvoice(item)}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
+                                                    </ActionIconButton>
+                                                    {canDeleteRow(item, {
+                                                        journalKeys: ['trx_jurnal', 'no_jurnal', 'jurnal'],
+                                                    }) ? (
+                                                        <ActionIconButton
+                                                            label="Hapus"
+                                                            onClick={() => handleDeleteInvoice(item)}
+                                                        >
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </ActionIconButton>
+                                                    ) : null}
                                                 </div>
                                             </TableCell>
                                         </TableRow>

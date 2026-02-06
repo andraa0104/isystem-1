@@ -10,10 +10,13 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { ActionIconButton } from '@/components/action-icon-button';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
 import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { confirmDelete } from '@/lib/confirm-delete';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -647,17 +650,20 @@ export default function FakturPenjualanEdit({
                                                     {formatRupiah(item.total_hpp)}
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={(event) => {
+                                                    <ActionIconButton
+                                                        label="Hapus"
+                                                        onClick={async (event) => {
                                                             event.stopPropagation();
+                                                            const ok = await confirmDelete({
+                                                                title: 'Hapus baris material?',
+                                                                text: 'Data yang dihapus tidak bisa dikembalikan.',
+                                                            });
+                                                            if (!ok) return;
                                                             handleDeleteRow(item);
                                                         }}
                                                     >
-                                                        Hapus
-                                                    </Button>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </ActionIconButton>
                                                 </TableCell>
                                             </TableRow>
                                         ))}

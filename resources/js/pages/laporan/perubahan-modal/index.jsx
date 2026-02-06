@@ -72,10 +72,10 @@ function StatCard({ label, value, accent = 'default', icon: Icon, helper }) {
             ? 'text-emerald-400'
             : accent === 'negative'
               ? 'text-rose-400'
-              : 'text-white';
+              : 'text-foreground';
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-card p-4">
+        <div className="rounded-2xl border border-border bg-card p-4">
             <div className="flex items-start justify-between gap-3">
                 <div>
                     <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -87,8 +87,8 @@ function StatCard({ label, value, accent = 'default', icon: Icon, helper }) {
                     ) : null}
                 </div>
                 {Icon ? (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                        <Icon className="h-5 w-5 text-white/70" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
+                        <Icon className="h-5 w-5 text-muted-foreground" />
                     </div>
                 ) : null}
             </div>
@@ -285,24 +285,24 @@ export default function PerubahanModalIndex() {
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                     <div>
                         <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5">
-                                <Landmark className="h-5 w-5 text-white/70" />
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-muted/30 dark:bg-white/5">
+                                <Landmark className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="text-xl font-semibold text-white">Perubahan Modal</div>
+                                <div className="text-xl font-semibold text-foreground">Perubahan Modal</div>
                                 <div className="text-sm text-muted-foreground">
                                     Rekonsiliasi modal (ekuitas) periodik — snapshot `tb_nabbrekap` + perhitungan jurnal.
                                 </div>
                             </div>
                         </div>
 
-                        <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                        <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 dark:bg-white/5 px-3 py-1 text-xs text-muted-foreground">
                             <span>Periode:</span>
-                            <span className="font-medium text-white/80">
+                            <span className="font-medium text-foreground/80">
                                 {getPeriodLabel(periodType, period) || '—'}
                             </span>
                             {periodType === 'year' && effectivePeriod ? (
-                                <span className="text-white/50">
+                                <span className="text-muted-foreground">
                                     • Snapshot akhir: {effectivePeriodLabel || effectivePeriod}
                                 </span>
                             ) : null}
@@ -448,14 +448,14 @@ export default function PerubahanModalIndex() {
                     />
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-card p-4">
+                <div className="rounded-2xl border border-border bg-card p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                                <Sparkles className="h-5 w-5 text-white/70" />
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
+                                <Sparkles className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="font-semibold text-white">AI Summary KPI</div>
+                                <div className="font-semibold text-foreground">AI Summary KPI</div>
                                 <div className="text-xs text-muted-foreground">
                                     Penilaian otomatis (rule-based) untuk membantu membaca perubahan modal.
                                 </div>
@@ -465,24 +465,24 @@ export default function PerubahanModalIndex() {
                             className={[
                                 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs',
                                 isMatch
-                                    ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                                    : 'border border-rose-500/30 bg-rose-500/10 text-rose-200',
+                                    ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                    : 'border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300',
                             ].join(' ')}
                         >
                             {isMatch ? 'Rekonsiliasi OK' : 'Mismatch'}
-                            <span className="text-white/50">•</span>
-                            <span className="text-white/80">
+                            <span className="text-muted-foreground">•</span>
+                            <span className="text-foreground/80">
                                 Selisih: {formatRupiah(diff)}
                             </span>
                         </div>
                     </div>
 
                     <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                        <div className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2">
                             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                                 Growth Modal
                             </div>
-                            <div className="mt-1 text-sm font-semibold text-white">
+                            <div className="mt-1 text-sm font-semibold text-foreground">
                                 {summary?.opening_equity
                                     ? new Intl.NumberFormat('id-ID', { style: 'percent', maximumFractionDigits: 1 }).format(
                                           (computedEnding - Number(summary?.opening_equity ?? 0)) /
@@ -491,27 +491,27 @@ export default function PerubahanModalIndex() {
                                     : '0.0%'}
                             </div>
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                        <div className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2">
                             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                                 Kontribusi/Prive
                             </div>
-                            <div className="mt-1 text-sm font-semibold text-white">
+                            <div className="mt-1 text-sm font-semibold text-foreground">
                                 {formatRupiah(Number(summary?.contributions ?? 0) - Number(summary?.withdrawals ?? 0))}
                             </div>
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                        <div className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2">
                             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                                 Laba Bersih
                             </div>
-                            <div className="mt-1 text-sm font-semibold text-white">
+                            <div className="mt-1 text-sm font-semibold text-foreground">
                                 {formatRupiah(summary?.net_income)}
                             </div>
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+                        <div className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2">
                             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                                 Toleransi
                             </div>
-                            <div className="mt-1 text-sm font-semibold text-white">
+                            <div className="mt-1 text-sm font-semibold text-foreground">
                                 {formatRupiah(tolerance)}
                             </div>
                         </div>
@@ -525,26 +525,26 @@ export default function PerubahanModalIndex() {
                 </div>
 
                 {error ? (
-                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
-                        <div className="mt-2 text-xs text-rose-200/80">
+                        <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
                             Pastikan tabel tersedia: `tb_nabbrekap` (Kode_NaBB, Kode_Akun, Saldo), `tb_jurnal` + `tb_jurnaldetail`, dan `tb_jurnalpenyesuaian`.
                         </div>
                     </div>
                 ) : null}
 
-                <div className="relative overflow-x-auto rounded-2xl border border-white/10 bg-card">
+                <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
                             </div>
                         </div>
                     )}
 
                     <table className="min-w-full text-sm text-left">
-                        <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
                             <tr>
                                 <th className="px-3 py-3">Kode Akun</th>
                                 <th className="px-3 py-3">Nama Akun</th>
@@ -570,7 +570,7 @@ export default function PerubahanModalIndex() {
                                     <tr
                                         key={`${kodeAkun}-${idx}`}
                                         className={[
-                                            'border-t border-white/5',
+                                            'border-t border-border/50',
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
@@ -583,8 +583,8 @@ export default function PerubahanModalIndex() {
                                                     href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
                                                     }
                                                 >
                                                     {kodeAkun}
@@ -602,7 +602,7 @@ export default function PerubahanModalIndex() {
                                             className={[
                                                 'px-3 py-2 text-right',
                                                 cellClass,
-                                                net > 0 ? 'text-emerald-300' : net < 0 ? 'text-rose-300' : 'text-white/80',
+                                                net > 0 ? 'text-emerald-700 dark:text-emerald-300' : net < 0 ? 'text-rose-700 dark:text-rose-300' : 'text-foreground/80',
                                             ].join(' ')}
                                         >
                                             {formatRupiah(net)}

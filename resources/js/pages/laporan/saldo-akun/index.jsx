@@ -57,9 +57,9 @@ function StatCard({ label, value, sublabel, accent = 'default' }) {
             ? 'text-emerald-400'
             : accent === 'negative'
               ? 'text-rose-400'
-              : 'text-white';
+              : 'text-foreground';
     return (
-        <div className="rounded-2xl border border-white/10 bg-card p-4">
+        <div className="rounded-2xl border border-border bg-card p-4">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 {label}
             </div>
@@ -270,8 +270,8 @@ export default function SaldoAkunIndex() {
         [
             'rounded-full px-3 py-1 text-xs ring-1 transition',
             active
-                ? 'bg-white/10 text-white ring-white/20'
-                : 'bg-white/5 text-muted-foreground ring-white/10 hover:bg-white/10 hover:text-white/80',
+                ? 'bg-muted/30 text-foreground ring-border dark:bg-white/10 dark:ring-white/20'
+                : 'bg-muted/30 dark:bg-white/5 text-muted-foreground ring-border hover:bg-muted/40 hover:text-foreground/80 dark:ring-white/10 dark:hover:bg-white/10',
         ].join(' ');
 
     return (
@@ -282,11 +282,11 @@ export default function SaldoAkunIndex() {
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                     <div>
                         <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5">
-                                <BookText className="h-5 w-5 text-white/70" />
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-muted/30 dark:bg-white/5">
+                                <BookText className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="text-xl font-semibold text-white">Saldo Akun (NABB)</div>
+                                <div className="text-xl font-semibold text-foreground">Saldo Akun (NABB)</div>
                                 <div className="text-sm text-muted-foreground">
                                     Ringkasan saldo per akun dari `tb_nabb` (snapshot).
                                 </div>
@@ -418,14 +418,14 @@ export default function SaldoAkunIndex() {
                     />
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-card p-4">
+                <div className="rounded-2xl border border-border bg-card p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                                <Sparkles className="h-5 w-5 text-white/70" />
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
+                                <Sparkles className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="font-semibold text-white">AI Summary KPI</div>
+                                <div className="font-semibold text-foreground">AI Summary KPI</div>
                                 <div className="text-xs text-muted-foreground">
                                     Ringkasan otomatis (rule-based) untuk komposisi saldo akun.
                                 </div>
@@ -436,10 +436,10 @@ export default function SaldoAkunIndex() {
                             className={[
                                 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs',
                                 ai.status === 'healthy'
-                                    ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                                    ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                                     : ai.status === 'check'
-                                      ? 'border border-amber-500/30 bg-amber-500/10 text-amber-200'
-                                      : 'border border-white/10 bg-white/5 text-muted-foreground',
+                                      ? 'border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                      : 'border border-border bg-muted/30 dark:bg-white/5 text-muted-foreground',
                             ].join(' ')}
                         >
                             {ai.status === 'healthy' ? (
@@ -460,12 +460,12 @@ export default function SaldoAkunIndex() {
                         {ai.chips.map((c) => (
                             <div
                                 key={c.label}
-                                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2"
+                                className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2"
                             >
                                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                                     {c.label}
                                 </div>
-                                <div className="mt-1 text-sm font-semibold text-white">{c.value}</div>
+                                <div className="mt-1 text-sm font-semibold text-foreground">{c.value}</div>
                             </div>
                         ))}
                     </div>
@@ -492,8 +492,8 @@ export default function SaldoAkunIndex() {
 
                     {aiShowTop ? (
                         <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                            <div className="rounded-2xl border border-white/10 bg-white/5">
-                                <div className="border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/70">
+                            <div className="rounded-2xl border border-border bg-muted/30 dark:bg-white/5">
+                                <div className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                     Top (+)
                                 </div>
                                 <div className="overflow-x-auto">
@@ -507,17 +507,17 @@ export default function SaldoAkunIndex() {
                                         <tbody>
                                             {ai.topPositive?.length ? (
                                                 ai.topPositive.map((r, idx) => (
-                                                    <tr key={`${r?.Kode_Akun ?? idx}-${idx}`} className="border-t border-white/10">
+                                                    <tr key={`${r?.Kode_Akun ?? idx}-${idx}`} className="border-t border-border">
                                                         <td className="px-3 py-2">
                                                             <Link
                                                                 href={buildBukuBesarUrl({ kodeAkun: r?.Kode_Akun ?? '' })}
-                                                                className="font-medium text-amber-300 hover:underline"
+                                                                className="font-medium text-amber-700 dark:text-amber-300 hover:underline"
                                                             >
                                                                 {r?.Kode_Akun}
                                                             </Link>
                                                             <div className="text-xs text-muted-foreground">{r?.Nama_Akun}</div>
                                                         </td>
-                                                        <td className="px-3 py-2 text-right font-medium text-emerald-300">
+                                                        <td className="px-3 py-2 text-right font-medium text-emerald-700 dark:text-emerald-300">
                                                             {formatRupiah(r?.Saldo)}
                                                         </td>
                                                     </tr>
@@ -534,8 +534,8 @@ export default function SaldoAkunIndex() {
                                 </div>
                             </div>
 
-                            <div className="rounded-2xl border border-white/10 bg-white/5">
-                                <div className="border-b border-white/10 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-white/70">
+                            <div className="rounded-2xl border border-border bg-muted/30 dark:bg-white/5">
+                                <div className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                     Top (−)
                                 </div>
                                 <div className="overflow-x-auto">
@@ -549,17 +549,17 @@ export default function SaldoAkunIndex() {
                                         <tbody>
                                             {ai.topNegative?.length ? (
                                                 ai.topNegative.map((r, idx) => (
-                                                    <tr key={`${r?.Kode_Akun ?? idx}-${idx}`} className="border-t border-white/10">
+                                                    <tr key={`${r?.Kode_Akun ?? idx}-${idx}`} className="border-t border-border">
                                                         <td className="px-3 py-2">
                                                             <Link
                                                                 href={buildBukuBesarUrl({ kodeAkun: r?.Kode_Akun ?? '' })}
-                                                                className="font-medium text-amber-300 hover:underline"
+                                                                className="font-medium text-amber-700 dark:text-amber-300 hover:underline"
                                                             >
                                                                 {r?.Kode_Akun}
                                                             </Link>
                                                             <div className="text-xs text-muted-foreground">{r?.Nama_Akun}</div>
                                                         </td>
-                                                        <td className="px-3 py-2 text-right font-medium text-rose-300">
+                                                        <td className="px-3 py-2 text-right font-medium text-rose-700 dark:text-rose-300">
                                                             {formatRupiah(r?.Saldo)}
                                                         </td>
                                                     </tr>
@@ -580,26 +580,26 @@ export default function SaldoAkunIndex() {
                 </div>
 
                 {error ? (
-                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
-                        <div className="mt-2 text-xs text-rose-200/80">
+                        <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
                             Pastikan `tb_nabb` ada (Kode_Akun, Nama_Akun, NA_Debit, NA_Kredit, Saldo).
                         </div>
                     </div>
                 ) : null}
 
-                <div className="relative overflow-x-auto rounded-2xl border border-white/10 bg-card">
+                <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
                             </div>
                         </div>
                     )}
 
                     <table className="min-w-full text-sm text-left">
-                        <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
                             <tr>
                                 <th className="px-3 py-3">Kode Akun</th>
                                 <th className="px-3 py-3">Nama Akun</th>
@@ -624,7 +624,7 @@ export default function SaldoAkunIndex() {
                                     <tr
                                         key={`${kodeAkun}-${idx}`}
                                         className={[
-                                            'border-t border-white/5',
+                                            'border-t border-border/50',
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
@@ -637,8 +637,8 @@ export default function SaldoAkunIndex() {
                                                     href={buildBukuBesarUrl({ kodeAkun })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
                                                     }
                                                 >
                                                     {kodeAkun}

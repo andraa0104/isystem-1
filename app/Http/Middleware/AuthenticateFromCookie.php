@@ -20,16 +20,18 @@ class AuthenticateFromCookie
         $database = $request->session()->get('tenant.database')
             ?? $request->cookie('tenant_database');
         $timeoutSeconds = (int) env('BROWSER_ACTIVE_TIMEOUT_SECONDS', 120);
-        $isStale = function (?string $username) use ($database, $timeoutSeconds): bool {
+        $isStale = function (?string $username, bool $treatMissingAsActive) use ($database, $timeoutSeconds): bool {
             if (!$username) {
                 return true;
             }
             $key = 'browser_active:' . ($database ?: 'default') . ':' . $username;
             $lastSeen = Cache::store('file')->get($key);
-            // Jika belum ada heartbeat sama sekali, anggap masih aktif dan biarkan request ini membuatnya.
             if (!$lastSeen) {
-                Cache::store('file')->put($key, time(), now()->addMinutes(10));
-                return false;
+                if ($treatMissingAsActive) {
+                    Cache::store('file')->put($key, time(), now()->addMinutes(10));
+                    return false;
+                }
+                return true;
             }
             return (time() - (int) $lastSeen) > $timeoutSeconds;
         };
@@ -38,7 +40,7 @@ class AuthenticateFromCookie
         // paksa logout supaya tidak "terlogin" saat browser dibuka lagi.
         if (Auth::check()) {
             $currentUsername = $request->user()?->getAuthIdentifier();
-            if ($isStale($currentUsername)) {
+            if ($isStale($currentUsername, true)) {
                 $this->updateLastOnline($database, $currentUsername);
                 Auth::logout();
                 try {
@@ -64,7 +66,7 @@ class AuthenticateFromCookie
             return $next($request);
         }
 
-        if ($isStale($username)) {
+        if ($isStale($username, false)) {
             $this->updateLastOnline($database, $username);
             $response = $next($request);
             Cookie::queue(Cookie::forget('login_user'));

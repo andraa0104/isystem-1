@@ -74,10 +74,10 @@ function StatCard({ label, value, accent = 'default', icon: Icon }) {
             ? 'text-emerald-400'
             : accent === 'negative'
               ? 'text-rose-400'
-              : 'text-white';
+              : 'text-foreground';
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-card p-4">
+        <div className="rounded-2xl border border-border bg-card p-4">
             <div className="flex items-start justify-between gap-3">
                 <div>
                     <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -86,8 +86,8 @@ function StatCard({ label, value, accent = 'default', icon: Icon }) {
                     <div className={`mt-2 text-xl font-semibold ${accentClass}`}>{value}</div>
                 </div>
                 {Icon ? (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                        <Icon className="h-5 w-5 text-white/70" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
+                        <Icon className="h-5 w-5 text-muted-foreground" />
                     </div>
                 ) : null}
             </div>
@@ -97,10 +97,10 @@ function StatCard({ label, value, accent = 'default', icon: Icon }) {
 
 function SectionHeaderRow({ title, subtitle }) {
     return (
-        <tr className="bg-white/5">
+        <tr className="bg-muted/30 dark:bg-white/5">
             <td colSpan={3} className="px-3 py-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-white/80">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
                         {title}
                     </div>
                     {subtitle ? (
@@ -114,11 +114,11 @@ function SectionHeaderRow({ title, subtitle }) {
 
 function TotalRow({ label, value, emphasis = false }) {
     return (
-        <tr className="border-t border-white/10 bg-black/20">
+        <tr className="border-t border-border bg-muted/30 dark:bg-black/20">
             <td className={`px-3 py-2 ${emphasis ? 'font-semibold' : 'text-muted-foreground'}`} colSpan={2}>
                 {label}
             </td>
-            <td className={`px-3 py-2 text-right ${emphasis ? 'font-semibold text-white' : 'text-white/80'}`}>
+            <td className={`px-3 py-2 text-right ${emphasis ? 'font-semibold text-foreground' : 'text-foreground/80'}`}>
                 {value}
             </td>
         </tr>
@@ -322,27 +322,27 @@ export default function NeracaAkhirIndex() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <div className="flex items-center gap-2">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                                <Landmark className="h-5 w-5 text-white/80" />
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
+                                <Landmark className="h-5 w-5 text-foreground/80" />
                             </div>
                             <h1 className="text-xl font-semibold">Neraca Akhir</h1>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
                             Posisi aset, liabilitas, dan ekuitas pada akhir periode (periodik)
                         </p>
-                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 dark:bg-white/5 px-3 py-1 text-xs text-muted-foreground">
                             Periode:{' '}
-                            <span className="text-white/80">{getPeriodLabel(periodType, period)}</span>
+                            <span className="text-foreground/80">{getPeriodLabel(periodType, period)}</span>
                             {periodType === 'month' && period ? (
-                                <span className="text-white/60">({period})</span>
+                                <span className="text-muted-foreground">({period})</span>
                             ) : periodType === 'month' ? (
-                                <span className="text-white/60">(-)</span>
+                                <span className="text-muted-foreground">(-)</span>
                             ) : null}
                             {periodType === 'year' && period ? (
-                                <span className="text-white/60">({period})</span>
+                                <span className="text-muted-foreground">({period})</span>
                             ) : null}
                             {periodType === 'year' && effectivePeriod ? (
-                                <span className="text-white/60">
+                                <span className="text-muted-foreground">
                                     • Posisi: {effectivePeriodLabel || effectivePeriod} ({effectivePeriod})
                                 </span>
                             ) : null}
@@ -471,12 +471,12 @@ export default function NeracaAkhirIndex() {
                     <StatCard label="Selisih (Aset - (L+E))" value={formatRupiah(summary.selisih)} accent={selisihAccent} />
                 </div>
 
-                <div className="overflow-hidden rounded-2xl border border-white/10 bg-card">
-                    <div className="border-b border-white/10 bg-gradient-to-br from-white/10 via-white/5 to-transparent p-4">
+                <div className="overflow-hidden rounded-2xl border border-border bg-card">
+                    <div className="border-b border-border bg-gradient-to-br from-white/10 via-white/5 to-transparent p-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="flex items-center gap-2">
-                                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/10">
-                                    <Sparkles className="h-5 w-5 text-white/80" />
+                                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 ring-1 ring-border dark:bg-white/10 dark:ring-white/10">
+                                    <Sparkles className="h-5 w-5 text-foreground/80" />
                                 </div>
                                 <div>
                                     <div className="text-sm font-semibold">AI Summary KPI</div>
@@ -491,8 +491,8 @@ export default function NeracaAkhirIndex() {
                                     className={[
                                         'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1',
                                         aiMetrics.isBalanced
-                                            ? 'bg-emerald-500/10 text-emerald-200 ring-emerald-500/20'
-                                            : 'bg-rose-500/10 text-rose-200 ring-rose-500/20',
+                                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20'
+                                            : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20',
                                     ].join(' ')}
                                 >
                                     {aiMetrics.isBalanced ? (
@@ -504,7 +504,7 @@ export default function NeracaAkhirIndex() {
                                 </div>
                                 <div className="text-xs text-muted-foreground">
                                     Total aset:{' '}
-                                    <span className="text-white/80">{formatRupiah(aiMetrics.totalAset)}</span>
+                                    <span className="text-foreground/80">{formatRupiah(aiMetrics.totalAset)}</span>
                                 </div>
                             </div>
                         </div>
@@ -513,10 +513,10 @@ export default function NeracaAkhirIndex() {
                             {aiMetrics.chips.map((c) => (
                                 <div
                                     key={c.label}
-                                    className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                                    className="flex items-center justify-between gap-2 rounded-xl border border-border bg-muted/30 dark:bg-black/20 px-3 py-2"
                                 >
                                     <div className="text-xs text-muted-foreground">{c.label}</div>
-                                    <div className="text-sm font-semibold text-white/90">{c.value}</div>
+                                    <div className="text-sm font-semibold text-foreground">{c.value}</div>
                                 </div>
                             ))}
                         </div>
@@ -527,7 +527,7 @@ export default function NeracaAkhirIndex() {
                             {aiInsights.map((t, i) => (
                                 <li key={i} className="flex gap-3">
                                     <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
-                                    <span className="text-white/80">{t}</span>
+                                    <span className="text-foreground/80">{t}</span>
                                 </li>
                             ))}
                         </ul>
@@ -535,26 +535,26 @@ export default function NeracaAkhirIndex() {
                 </div>
 
                 {error ? (
-                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
-                        <div className="mt-2 text-xs text-rose-200/80">
+                        <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
                             Sumber data menggunakan `tb_nabbrekap` (saldo akhir per akun per periode). Nama akun diambil dari `tb_nabb.Nama_Akun` bila tersedia.
                         </div>
                     </div>
                 ) : null}
 
-                <div className="relative overflow-x-auto rounded-2xl border border-white/10 bg-card">
+                <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
                             </div>
                         </div>
                     )}
 
                     <table className="min-w-full text-sm text-left">
-                        <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
                             <tr>
                                 <th className="px-3 py-3">Kode Akun</th>
                                 <th className="px-3 py-3">Nama Akun</th>
@@ -579,7 +579,7 @@ export default function NeracaAkhirIndex() {
                                     <tr
                                         key={`aset-${kodeAkun}-${idx}`}
                                         className={[
-                                            'border-t border-white/5',
+                                            'border-t border-border/50',
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
@@ -592,8 +592,8 @@ export default function NeracaAkhirIndex() {
                                                     href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
                                                     }
                                                 >
                                                     {kodeAkun}
@@ -603,12 +603,12 @@ export default function NeracaAkhirIndex() {
                                         <td className={`px-3 py-2 ${cellClass}`}>
                                             {r?.Nama_Akun}
                                             {r?.is_other ? (
-                                                <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/70 ring-1 ring-white/10">
+                                                <span className="ml-2 rounded-full bg-muted/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border dark:bg-white/10 dark:ring-white/10">
                                                     lainnya
                                                 </span>
                                             ) : null}
                                             {r?.is_anomaly ? (
-                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-300 ring-1 ring-rose-500/30">
+                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/30">
                                                     anomali
                                                 </span>
                                             ) : null}
@@ -630,7 +630,7 @@ export default function NeracaAkhirIndex() {
                                     <tr
                                         key={`liab-${kodeAkun}-${idx}`}
                                         className={[
-                                            'border-t border-white/5',
+                                            'border-t border-border/50',
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
@@ -643,8 +643,8 @@ export default function NeracaAkhirIndex() {
                                                     href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
                                                     }
                                                 >
                                                     {kodeAkun}
@@ -654,12 +654,12 @@ export default function NeracaAkhirIndex() {
                                         <td className={`px-3 py-2 ${cellClass}`}>
                                             {r?.Nama_Akun}
                                             {r?.is_other ? (
-                                                <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/70 ring-1 ring-white/10">
+                                                <span className="ml-2 rounded-full bg-muted/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border dark:bg-white/10 dark:ring-white/10">
                                                     lainnya
                                                 </span>
                                             ) : null}
                                             {r?.is_anomaly ? (
-                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-300 ring-1 ring-rose-500/30">
+                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/30">
                                                     anomali
                                                 </span>
                                             ) : null}
@@ -681,7 +681,7 @@ export default function NeracaAkhirIndex() {
                                     <tr
                                         key={`eq-${kodeAkun}-${idx}`}
                                         className={[
-                                            'border-t border-white/5',
+                                            'border-t border-border/50',
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
@@ -694,8 +694,8 @@ export default function NeracaAkhirIndex() {
                                                     href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
                                                     }
                                                 >
                                                     {kodeAkun}
@@ -705,12 +705,12 @@ export default function NeracaAkhirIndex() {
                                         <td className={`px-3 py-2 ${cellClass}`}>
                                             {r?.Nama_Akun}
                                             {r?.is_other ? (
-                                                <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/70 ring-1 ring-white/10">
+                                                <span className="ml-2 rounded-full bg-muted/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border dark:bg-white/10 dark:ring-white/10">
                                                     lainnya
                                                 </span>
                                             ) : null}
                                             {r?.is_anomaly ? (
-                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-300 ring-1 ring-rose-500/30">
+                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/30">
                                                     anomali
                                                 </span>
                                             ) : null}

@@ -16,8 +16,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router, useForm } from '@inertiajs/react';
-import { Pencil, Plus, Trash } from 'lucide-react';
+import { ActionIconButton } from '@/components/action-icon-button';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { confirmDelete } from '@/lib/confirm-delete';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -156,13 +158,15 @@ export default function MaterialIndex({ materials = [] }) {
         });
     };
 
-    const handleDelete = (material) => {
+    const handleDelete = async (material) => {
         if (!material?.kd_material) {
             return;
         }
-        if (!window.confirm('Hapus data material ini?')) {
-            return;
-        }
+        const ok = await confirmDelete({
+            title: 'Hapus material?',
+            text: `Kode material: ${material.kd_material}`,
+        });
+        if (!ok) return;
         router.delete(`/master-data/material/${encodeURIComponent(material.kd_material)}`, {
             preserveScroll: true,
         });
@@ -289,47 +293,57 @@ export default function MaterialIndex({ materials = [] }) {
                             </label>
                         </div>
 
-                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                        <div className="overflow-hidden rounded-xl border border-sidebar-border/70">
+                            <div className="max-h-[65vh] overflow-auto overscroll-contain">
                             <table className="w-full text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
+                                <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                     <tr>
                                         <th className="px-4 py-3 text-left">
                                             No
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="sticky left-0 z-[2] w-[160px] bg-background/95 px-4 py-3 text-left">
                                             Kode Material
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="sticky left-[160px] z-[2] min-w-[240px] bg-background/95 px-4 py-3 text-left">
                                             Nama Material
                                         </th>
                                         <th className="px-4 py-3 text-left">
                                             Satuan
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="px-4 py-3 text-right">
                                             Stok
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="px-4 py-3 text-right">
                                             Harga
                                         </th>
                                         <th className="px-4 py-3 text-left">
                                             Remark
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="sticky right-0 z-[2] bg-background/95 px-4 py-3 text-center">
                                             Aksi
                                         </th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {displayedMaterials.length === 0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={7}
-                                            >
-                                                Data material belum tersedia.
-                                            </td>
-                                        </tr>
-                                    )}
+									{displayedMaterials.length === 0 && (
+										<tr>
+											<td
+												className="px-4 py-6 text-center text-muted-foreground"
+												colSpan={7}
+											>
+												<div>Data material belum tersedia.</div>
+												<div className="mt-3">
+													<Button
+														type="button"
+														size="sm"
+														onClick={() => setIsModalOpen(true)}
+													>
+														Tambah Material
+													</Button>
+												</div>
+											</td>
+										</tr>
+									)}
                                     {displayedMaterials.map((item, index) => (
                                         <tr
                                             key={`${item.kd_material}-${index}`}
@@ -342,52 +356,39 @@ export default function MaterialIndex({ materials = [] }) {
                                                           pageSize +
                                                       index) + 1}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
                                                 {renderValue(item.kd_material)}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
                                                 {renderValue(item.material)}
                                             </td>
                                             <td className="px-4 py-3">
                                                 {renderValue(item.unit)}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-4 py-3 text-right tabular-nums">
                                                 {renderValue(item.stok)}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-4 py-3 text-right tabular-nums">
                                                 {renderValue(item.harga)}
                                             </td>
                                             <td className="px-4 py-3">
                                                 {renderValue(item.remark)}
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex flex-wrap gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleEdit(item)
-                                                        }
-                                                        title="Edit"
-                                                    >
+                                            <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <ActionIconButton label="Edit" onClick={() => handleEdit(item)}>
                                                         <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleDelete(item)
-                                                        }
-                                                        title="Hapus"
-                                                    >
-                                                        <Trash className="h-4 w-4" />
-                                                    </Button>
+                                                    </ActionIconButton>
+                                                    <ActionIconButton label="Hapus" onClick={() => handleDelete(item)}>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </ActionIconButton>
                                                 </div>
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
 
                         {pageSize !== Infinity && totalItems > 0 && (

@@ -34,6 +34,9 @@ use App\Http\Controllers\Laporan\BukuKasController;
 use App\Http\Controllers\Laporan\PerubahanModalController;
 use App\Http\Controllers\Laporan\SaldoAkunController;
 use App\Http\Controllers\Laporan\AuditRekonsiliasiController;
+use App\Http\Controllers\Keuangan\InputPembelianController;
+use App\Http\Controllers\Keuangan\InputPenjualanController;
+use App\Http\Controllers\Keuangan\MutasiKasController;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Illuminate\Http\Request;
@@ -92,6 +95,10 @@ Route::post('/login-simple', function (Request $request) {
     Pengguna::on($connection)
         ->where('pengguna', $user->pengguna)
         ->update(['Sesi' => 'Y']);
+
+    // Inisialisasi heartbeat supaya request pertama setelah redirect tidak dianggap "stale"
+    $key = 'browser_active:' . ($database ?: 'default') . ':' . $user->pengguna;
+    Cache::store('file')->put($key, time(), now()->addMinutes(10));
 
     // Cookie persisten supaya tidak gampang terlogout sendiri (mobile sering membuang session-cookie).
     // Status login "aktif" tetap dikontrol oleh heartbeat (lihat /heartbeat-simple).
@@ -695,6 +702,47 @@ Route::post('pembelian/invoice-masuk/{noDoc}', [InvoiceMasukController::class, '
     ->name('pembelian.invoice-masuk.update');
 Route::post('pembelian/invoice-masuk/{noDoc}/delete', [InvoiceMasukController::class, 'destroy'])
     ->name('pembelian.invoice-masuk.destroy');
+
+Route::get('keuangan/input-pembelian', [InputPembelianController::class, 'index'])
+    ->name('keuangan.input-pembelian.index');
+Route::get('keuangan/input-pembelian/create', [InputPembelianController::class, 'create'])
+    ->name('keuangan.input-pembelian.create');
+Route::get('keuangan/input-pembelian/rows', [InputPembelianController::class, 'rows'])
+    ->name('keuangan.input-pembelian.rows');
+Route::get('keuangan/input-pembelian/fi-rows', [InputPembelianController::class, 'fiRows'])
+    ->name('keuangan.input-pembelian.fi-rows');
+Route::get('keuangan/input-pembelian/fi-detail/{noDoc}', [InputPembelianController::class, 'fiDetail'])
+    ->name('keuangan.input-pembelian.fi-detail');
+Route::get('keuangan/input-pembelian/suggest/{noDoc}', [InputPembelianController::class, 'suggest'])
+    ->name('keuangan.input-pembelian.suggest');
+Route::post('keuangan/input-pembelian', [InputPembelianController::class, 'store'])
+    ->name('keuangan.input-pembelian.store');
+
+Route::get('keuangan/input-penjualan', [InputPenjualanController::class, 'index'])
+    ->name('keuangan.input-penjualan.index');
+Route::get('keuangan/input-penjualan/create', [InputPenjualanController::class, 'create'])
+    ->name('keuangan.input-penjualan.create');
+Route::get('keuangan/input-penjualan/rows', [InputPenjualanController::class, 'rows'])
+    ->name('keuangan.input-penjualan.rows');
+Route::get('keuangan/input-penjualan/invoice-rows', [InputPenjualanController::class, 'invoiceRows'])
+    ->name('keuangan.input-penjualan.invoice-rows');
+Route::get('keuangan/input-penjualan/invoice-detail/{noFaktur}', [InputPenjualanController::class, 'invoiceDetail'])
+    ->name('keuangan.input-penjualan.invoice-detail');
+Route::get('keuangan/input-penjualan/suggest/{noFaktur}', [InputPenjualanController::class, 'suggest'])
+    ->name('keuangan.input-penjualan.suggest');
+Route::post('keuangan/input-penjualan', [InputPenjualanController::class, 'store'])
+    ->name('keuangan.input-penjualan.store');
+
+Route::get('keuangan/mutasi-kas', [MutasiKasController::class, 'index'])
+    ->name('keuangan.mutasi-kas.index');
+Route::get('keuangan/mutasi-kas/create', [MutasiKasController::class, 'create'])
+    ->name('keuangan.mutasi-kas.create');
+Route::get('keuangan/mutasi-kas/rows', [MutasiKasController::class, 'rows'])
+    ->name('keuangan.mutasi-kas.rows');
+Route::get('keuangan/mutasi-kas/suggest', [MutasiKasController::class, 'suggest'])
+    ->name('keuangan.mutasi-kas.suggest');
+Route::post('keuangan/mutasi-kas', [MutasiKasController::class, 'store'])
+    ->name('keuangan.mutasi-kas.store');
 Route::get('pembayaran/biaya-kirim-pembelian', [BiayaKirimPembelianController::class, 'index'])
     ->name('pembayaran.biaya-kirim-pembelian.index');
 Route::get('pembayaran/biaya-kirim-pembelian/create', [BiayaKirimPembelianController::class, 'create'])

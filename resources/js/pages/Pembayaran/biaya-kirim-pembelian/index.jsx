@@ -7,8 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Eye, Pencil, Printer, Trash } from 'lucide-react';
-import Swal from 'sweetalert2';
+import { ActionIconButton } from '@/components/action-icon-button';
+import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
+import { confirmDelete } from '@/lib/confirm-delete';
+import { canDeleteRow } from '@/lib/can-delete';
+import { readApiError } from '@/lib/api-error';
 
 const STATUS_OPTIONS = [
     { value: 'all', label: 'Semua data' },
@@ -63,6 +66,8 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
     const [unpaidSearch, setUnpaidSearch] = useState('');
     const [unpaidPageSize, setUnpaidPageSize] = useState(5);
     const [unpaidCurrentPage, setUnpaidCurrentPage] = useState(1);
+    const [unpaidLoading, setUnpaidLoading] = useState(false);
+    const [unpaidError, setUnpaidError] = useState('');
     const [viewModalOpen, setViewModalOpen] = useState(false);
     const [viewLoading, setViewLoading] = useState(false);
     const [viewError, setViewError] = useState('');
@@ -184,13 +189,32 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
 
     useEffect(() => {
         if (!unpaidModalOpen) return;
-        setUnpaidData(
-            sortedItems.filter(
-                (row) => String(row.Total_Biaya ?? '') === String(row.pembayaran ?? '')
-            )
-        );
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [unpaidModalOpen, sortedItems]);
+        let cancelled = false;
+        const load = async () => {
+            setUnpaidLoading(true);
+            setUnpaidError('');
+            try {
+                const params = new URLSearchParams({ search: '', status: 'belum_dibayar' });
+                const res = await fetch(`/pembayaran/biaya-kirim-pembelian/data?${params.toString()}`, {
+                    headers: { Accept: 'application/json' },
+                });
+                if (!res.ok) throw await readApiError(res);
+                const data = await res.json();
+                if (cancelled) return;
+                setUnpaidData(Array.isArray(data?.items) ? data.items : []);
+            } catch (err) {
+                if (cancelled) return;
+                setUnpaidData([]);
+                setUnpaidError(err?.summary || err?.message || 'Gagal memuat daftar BKP belum dibayar.');
+            } finally {
+                if (!cancelled) setUnpaidLoading(false);
+            }
+        };
+        load();
+        return () => {
+            cancelled = true;
+        };
+    }, [unpaidModalOpen]);
 
     const totalPages = useMemo(() => {
         if (pageSize === Infinity) return 1;
@@ -284,30 +308,11 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
 
     const handleDeleteBkp = async (noBkp) => {
         if (!noBkp) return;
-        const prevBodyPointerEvents = document.body.style.pointerEvents;
-        const result = await Swal.fire({
+        const ok = await confirmDelete({
             title: 'Hapus BKP?',
             text: 'Data BKP yang dihapus tidak bisa dikembalikan.',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, hapus',
-            cancelButtonText: 'Batal',
-            reverseButtons: true,
-            heightAuto: false,
-            didOpen: () => {
-                const container = Swal.getContainer();
-                if (container) {
-                    container.style.zIndex = '9999';
-                    container.style.pointerEvents = 'auto';
-                }
-                document.body.style.pointerEvents = 'auto';
-            },
-            willClose: () => {
-                document.body.style.pointerEvents = prevBodyPointerEvents || '';
-            },
         });
-
-        if (!result.isConfirmed) return;
+        if (!ok) return;
 
         router.delete(`/pembayaran/biaya-kirim-pembelian/${encodeURIComponent(noBkp)}`, {
             preserveScroll: true,
@@ -562,10 +567,15 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                 </Select>
                             </div>
 
-                            <div className="flex-1 min-h-0 h-full overflow-y-auto px-4 py-4 sm:px-6">
-                                <div className="overflow-hidden rounded-2xl border bg-background shadow-sm">
-                                    <div className="w-full overflow-x-auto">
-                                        <Table className="min-w-[720px]">
+	                            <div className="flex-1 min-h-0 h-full overflow-y-auto px-4 py-4 sm:px-6">
+	                                {unpaidError ? (
+	                                    <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+	                                        {unpaidError}
+	                                    </div>
+	                                ) : null}
+	                                <div className="overflow-hidden rounded-2xl border bg-background shadow-sm">
+	                                    <div className="w-full overflow-x-auto">
+	                                        <Table className="min-w-[720px]">
                                         <TableHeader className="sticky top-0 z-10 bg-muted/50 backdrop-blur">
                                             <TableRow>
                                                 <TableHead className="w-[180px]">No BKP</TableHead>
@@ -575,15 +585,21 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                 <TableHead>No Inv In</TableHead>
                                                 <TableHead className="w-[120px] text-center">Aksi</TableHead>
                                             </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {displayedUnpaidItems.length === 0 ? (
-                                                <TableRow>
-                                                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
-                                                        Tidak ada data.
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : (
+	                                        </TableHeader>
+	                                        <TableBody>
+	                                            {unpaidLoading ? (
+	                                                <TableRow>
+	                                                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+	                                                        Memuat data...
+	                                                    </TableCell>
+	                                                </TableRow>
+	                                            ) : displayedUnpaidItems.length === 0 ? (
+	                                                <TableRow>
+	                                                    <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
+	                                                        Tidak ada data.
+	                                                    </TableCell>
+	                                                </TableRow>
+	                                            ) : (
                                                 displayedUnpaidItems.map((row, idx) => (
                                                     <TableRow
                                                         key={`unpaid-${row.no_bkp}`}
@@ -596,27 +612,40 @@ export default function BiayaKirimPembelianIndex({ items = [], summary = {}, fil
                                                         <TableCell>{renderValue(row.no_inv)}</TableCell>
                                                         <TableCell className="text-center">
                                                             <div className="flex items-center justify-center gap-2">
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            title="Edit"
-                                                            onClick={() => {
-                                                                setIsNavigating(true);
-                                                                router.visit(`/pembayaran/biaya-kirim-pembelian/${row.no_bkp}/edit`, {
-                                                                    onFinish: () => setIsNavigating(false),
-                                                                });
-                                                            }}
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Button>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    title="Hapus"
-                                                                    onClick={() => handleDeleteBkp(row.no_bkp)}
+                                                                <ActionIconButton
+                                                                    label="Edit"
+                                                                    onClick={() => {
+                                                                        setIsNavigating(
+                                                                            true,
+                                                                        );
+                                                                        router.visit(
+                                                                            `/pembayaran/biaya-kirim-pembelian/${row.no_bkp}/edit`,
+                                                                            {
+                                                                                onFinish:
+                                                                                    () =>
+                                                                                        setIsNavigating(
+                                                                                            false,
+                                                                                        ),
+                                                                            },
+                                                                        );
+                                                                    }}
                                                                 >
-                                                                    <Trash className="h-4 w-4" />
-                                                                </Button>
+                                                                    <Pencil className="h-4 w-4" />
+                                                                </ActionIconButton>
+                                                                {canDeleteRow(row, {
+                                                                    journalKeys: ['trx_kas', 'jurnal'],
+                                                                }) ? (
+                                                                    <ActionIconButton
+                                                                        label="Hapus"
+                                                                        onClick={() =>
+                                                                            handleDeleteBkp(
+                                                                                row.no_bkp,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                                    </ActionIconButton>
+                                                                ) : null}
                                                             </div>
                                                         </TableCell>
                                                     </TableRow>

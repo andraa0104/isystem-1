@@ -15,11 +15,15 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { ActionIconButton } from '@/components/action-icon-button';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link } from '@inertiajs/react';
 import { Eye, Printer } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
+import { ErrorState } from '@/components/data-states/ErrorState';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { formatDateId } from '@/lib/formatters';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -56,7 +60,7 @@ const isBlank = (value) => {
 export default function TandaTerimaInvoiceIndex() {
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState(null);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(5);
@@ -65,7 +69,7 @@ export default function TandaTerimaInvoiceIndex() {
 
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false);
-    const [detailError, setDetailError] = useState('');
+    const [detailError, setDetailError] = useState(null);
     const [detailHeader, setDetailHeader] = useState(null);
     const [detailItems, setDetailItems] = useState([]);
     const [detailGrandTotal, setDetailGrandTotal] = useState(0);
@@ -91,19 +95,19 @@ export default function TandaTerimaInvoiceIndex() {
 
     const fetchRows = () => {
         setLoading(true);
-        setError('');
+        setError(null);
         fetch('/penjualan/tanda-terima-invoice/data', {
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
-                if (!response.ok) throw new Error('Request failed');
+                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
                 return response.json();
             })
             .then((data) => {
                 setRows(Array.isArray(data?.data) ? data.data : []);
             })
-            .catch(() => {
-                setError('Gagal memuat data tanda terima.');
+            .catch((err) => {
+                setError(normalizeApiError(err, 'Gagal memuat data tanda terima.'));
             })
             .finally(() => setLoading(false));
     };
@@ -226,7 +230,7 @@ export default function TandaTerimaInvoiceIndex() {
         if (!noTtInv) return;
         setIsDetailOpen(true);
         setDetailLoading(true);
-        setDetailError('');
+        setDetailError(null);
         setDetailHeader(null);
         setDetailItems([]);
         setDetailGrandTotal(0);
@@ -240,7 +244,7 @@ export default function TandaTerimaInvoiceIndex() {
         },
         )
             .then((response) => {
-                if (!response.ok) throw new Error('Request failed');
+                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
                 return response.json();
             })
             .then((data) => {
@@ -248,7 +252,7 @@ export default function TandaTerimaInvoiceIndex() {
                 setDetailItems(Array.isArray(data?.items) ? data.items : []);
                 setDetailGrandTotal(toNumber(data?.grand_total));
             })
-            .catch(() => setDetailError('Gagal memuat detail tanda terima.'))
+            .catch((err) => setDetailError(normalizeApiError(err, 'Gagal memuat detail tanda terima.')))
             .finally(() => setDetailLoading(false));
     };
 
@@ -265,7 +269,7 @@ export default function TandaTerimaInvoiceIndex() {
         },
         )
             .then((response) => {
-                if (!response.ok) throw new Error('Request failed');
+                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
                 return response.json();
             })
             .then((data) => {
@@ -278,10 +282,19 @@ export default function TandaTerimaInvoiceIndex() {
                     tgl_terima: new Date().toISOString().slice(0, 10),
                 });
             })
-            .catch(() => {
+            .catch((err) => {
+                const normalized = normalizeApiError(err, 'Gagal memuat data penerimaan.');
                 Swal.fire({
                     icon: 'error',
-                    title: 'Gagal memuat data penerimaan.',
+                    title: normalized.summary || 'Gagal memuat data penerimaan.',
+                    html: normalized.detail
+                        ? `<pre style="text-align:left;white-space:pre-wrap;max-height:240px;overflow:auto;margin:0;">${String(
+                              normalized.detail,
+                          )
+                              .replace(/&/g, '&amp;')
+                              .replace(/</g, '&lt;')
+                              .replace(/>/g, '&gt;')}</pre>`
+                        : undefined,
                 });
                 setIsReceiveOpen(false);
             })
@@ -395,32 +408,41 @@ export default function TandaTerimaInvoiceIndex() {
                         />
                     </div>
                     <div className="px-4 pb-4">
-                        <div className="rounded-md border">
+                        <div className="overflow-hidden rounded-md border">
+                            <div className="max-h-[65vh] overflow-auto overscroll-contain">
                             <Table>
-                                <TableHeader>
+                                <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                     <TableRow>
-                                        <TableHead>Nomor Tanda Terima</TableHead>
+                                        <TableHead className="sticky left-0 z-[2] w-[220px] bg-background/95">
+                                            Nomor Tanda Terima
+                                        </TableHead>
                                         <TableHead>Date</TableHead>
-                                        <TableHead>Qty Invoice</TableHead>
-                                        <TableHead className="text-right">Aksi</TableHead>
+                                        <TableHead className="text-right">Qty Invoice</TableHead>
+                                        <TableHead className="sticky right-0 z-[2] bg-background/95 text-right">
+                                            Aksi
+                                        </TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {loading && (
                                         <TableRow>
-                                            <TableCell colSpan={5}>
+                                            <TableCell colSpan={4}>
                                                 Memuat data...
                                             </TableCell>
                                         </TableRow>
                                     )}
                                     {!loading && error && (
                                         <TableRow>
-                                            <TableCell colSpan={5}>{error}</TableCell>
+                                            <TableCell colSpan={4}>
+                                                <ErrorState error={error} onRetry={fetchRows} />
+                                            </TableCell>
                                         </TableRow>
                                     )}
                                     {!loading && !error && displayedRows.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={5}>Tidak ada data.</TableCell>
+                                            <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
+                                                Tidak ada data.
+                                            </TableCell>
                                         </TableRow>
                                     )}
                                     {!loading &&
@@ -429,35 +451,39 @@ export default function TandaTerimaInvoiceIndex() {
                                             <TableRow
                                                 key={`${row.no_ttinv}-${row.tgl}-${row.nm_cs}-${index}`}
                                             >
-                                                <TableCell>{row.no_ttinv}</TableCell>
-                                                <TableCell>{row.tgl_doc}</TableCell>
-                                                <TableCell>{formatNumber(row.qty_invoice)}</TableCell>
-                                                <TableCell className="text-right">
+                                                <TableCell className="sticky left-0 z-[1] w-[220px] bg-background/95 font-medium">
+                                                    {row.no_ttinv}
+                                                </TableCell>
+                                                <TableCell>{formatDateId(row.tgl_doc)}</TableCell>
+                                                <TableCell className="text-right tabular-nums">
+                                                    {formatNumber(row.qty_invoice)}
+                                                </TableCell>
+                                                <TableCell className="sticky right-0 z-[1] bg-background/95 text-right">
                                                     <div className="inline-flex items-center justify-end gap-2">
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
+                                                        <ActionIconButton
+                                                            label="Detail"
                                                             onClick={() => openDetail(row.no_ttinv)}
                                                         >
                                                             <Eye className="h-4 w-4" />
-                                                        </Button>
-                                                        <a
-                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:text-foreground"
-                                                            href={`/penjualan/tanda-terima-invoice/print?no_ttinv=${encodeURIComponent(
-                                                                row.no_ttinv ?? '',
-                                                            )}`}
-                                                            target="_blank"
-                                                            rel="noreferrer"
-                                                        >
-                                                            <Printer className="h-4 w-4" />
-                                                        </a>
+                                                        </ActionIconButton>
+                                                        <ActionIconButton label="Cetak" asChild>
+                                                            <a
+                                                                href={`/penjualan/tanda-terima-invoice/print?no_ttinv=${encodeURIComponent(
+                                                                    row.no_ttinv ?? '',
+                                                                )}`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                            >
+                                                                <Printer className="h-4 w-4" />
+                                                            </a>
+                                                        </ActionIconButton>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
                                 </TableBody>
                             </Table>
+                            </div>
                         </div>
 
                         {pageSize !== Infinity && totalItems > 0 && (
@@ -506,7 +532,9 @@ export default function TandaTerimaInvoiceIndex() {
                     {detailLoading ? (
                         <div className="py-6 text-sm text-muted-foreground">Memuat detail...</div>
                     ) : detailError ? (
-                        <div className="py-6 text-sm text-destructive">{detailError}</div>
+                        <div className="py-4">
+                            <ErrorState error={detailError} />
+                        </div>
                     ) : detailHeader ? (
                         <div className="space-y-6">
                             <div className="grid gap-4 md:grid-cols-2 text-sm">

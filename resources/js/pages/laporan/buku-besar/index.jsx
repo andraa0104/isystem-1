@@ -78,10 +78,10 @@ function StatCard({ label, value, helper, accent = 'default' }) {
             ? 'text-emerald-400'
             : accent === 'negative'
               ? 'text-rose-400'
-              : 'text-white';
+              : 'text-foreground';
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-card p-4">
+        <div className="rounded-2xl border border-border bg-card p-4">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 {label}
             </div>
@@ -341,11 +341,11 @@ export default function BukuBesarLedgerIndex() {
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
                     <div>
                         <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5">
-                                <BookOpenText className="h-5 w-5 text-white/70" />
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-muted/30 dark:bg-white/5">
+                                <BookOpenText className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="text-xl font-semibold text-white">Buku Besar</div>
+                                <div className="text-xl font-semibold text-foreground">Buku Besar</div>
                                 <div className="text-sm text-muted-foreground">
                                     Ledger detail per akun (TRX + AJP) — periodik.
                                 </div>
@@ -353,9 +353,9 @@ export default function BukuBesarLedgerIndex() {
                         </div>
 
                         <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 dark:bg-white/5 px-3 py-1 text-xs text-muted-foreground">
                                 <span>Periode:</span>
-                                <span className="font-medium text-white/80">
+                                <span className="font-medium text-foreground/80">
                                     {getPeriodLabel(periodType, period) || '—'}
                                 </span>
                             </div>
@@ -363,19 +363,19 @@ export default function BukuBesarLedgerIndex() {
                                 className={[
                                     'inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs',
                                     has00Account
-                                        ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-                                        : 'border-white/10 bg-white/5 text-muted-foreground',
+                                        ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                        : 'border-border bg-muted/30 dark:bg-white/5 text-muted-foreground',
                                 ].join(' ')}
                             >
                                 {has00Account ? (
                                     <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                 ) : null}
-                                <span className={has00Account ? 'text-amber-200' : ''}>
+                                <span className={has00Account ? 'text-amber-700 dark:text-amber-300' : ''}>
                                     Akun: {accountLabel}
                                 </span>
                             </div>
                             {summary?.opening_warning ? (
-                                <div className="inline-flex items-center gap-2 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs text-rose-200">
+                                <div className="inline-flex items-center gap-2 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs text-rose-700 dark:text-rose-300">
                                     <AlertTriangle className="h-4 w-4" />
                                     Saldo awal tidak ditemukan (opening=0)
                                 </div>
@@ -516,14 +516,14 @@ export default function BukuBesarLedgerIndex() {
                     />
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-card p-4">
+                <div className="rounded-2xl border border-border bg-card p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                                <Sparkles className="h-5 w-5 text-white/70" />
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
+                                <Sparkles className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="font-semibold text-white">AI Summary KPI</div>
+                                <div className="font-semibold text-foreground">AI Summary KPI</div>
                                 <div className="text-xs text-muted-foreground">
                                     Ringkasan otomatis (rule-based) untuk membaca mutasi & saldo akun.
                                 </div>
@@ -535,8 +535,8 @@ export default function BukuBesarLedgerIndex() {
                                 className={[
                                     'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs',
                                     summary?.opening_warning
-                                        ? 'border border-rose-500/30 bg-rose-500/10 text-rose-200'
-                                        : 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-200',
+                                        ? 'border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+                                        : 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
                                 ].join(' ')}
                             >
                                 {summary?.opening_warning ? (
@@ -549,15 +549,15 @@ export default function BukuBesarLedgerIndex() {
                                     </>
                                 )}
                             </div>
-                            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 dark:bg-white/5 px-3 py-1 text-xs text-muted-foreground">
                                 <span>Net:</span>
-                                <span className="font-medium text-white/80">
+                                <span className="font-medium text-foreground/80">
                                     {formatSaldoWithSide(aiMetrics.netChange)}
                                 </span>
                                 {aiMetrics.netChange >= 0 ? (
-                                    <TrendingUp className="h-4 w-4 text-emerald-300" />
+                                    <TrendingUp className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
                                 ) : (
-                                    <TrendingDown className="h-4 w-4 text-rose-300" />
+                                    <TrendingDown className="h-4 w-4 text-rose-700 dark:text-rose-300" />
                                 )}
                             </div>
                         </div>
@@ -567,12 +567,12 @@ export default function BukuBesarLedgerIndex() {
                         {aiMetrics.chips.map((c) => (
                             <div
                                 key={c.label}
-                                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2"
+                                className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2"
                             >
                                 <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                                     {c.label}
                                 </div>
-                                <div className="mt-1 text-sm font-semibold text-white">{c.value}</div>
+                                <div className="mt-1 text-sm font-semibold text-foreground">{c.value}</div>
                             </div>
                         ))}
                     </div>
@@ -584,39 +584,39 @@ export default function BukuBesarLedgerIndex() {
                     </ul>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-card px-4 py-3 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
                     <div className="inline-flex items-center gap-2">
                         <SlidersHorizontal className="h-4 w-4" />
                         <span>Jumlah baris: {formatNumber(summary?.line_count ?? total)}</span>
                     </div>
                     <div className="inline-flex items-center gap-3">
                         <span>Sumber: {source === 'all' ? 'TRX + AJP' : source.toUpperCase()}</span>
-                        <span className="text-white/30">•</span>
+                        <span className="text-foreground/30">•</span>
                         <span>Periode: {getPeriodLabel(periodType, period) || '—'}</span>
                     </div>
                 </div>
 
                 {error ? (
-                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
-                        <div className="mt-2 text-xs text-rose-200/80">
+                        <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
                             Pastikan tabel tersedia: `tb_nabb`, `tb_jurnal`, `tb_jurnaldetail`, `tb_jurnalpenyesuaian` (dan `tb_nabbrekap` untuk saldo awal).
                         </div>
                     </div>
                 ) : null}
 
-                <div className="relative overflow-x-auto rounded-2xl border border-white/10 bg-card">
+                <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
                             </div>
                         </div>
                     )}
 
                     <table className="min-w-full text-sm text-left">
-                        <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
                             <tr>
                                 <th className="px-3 py-3">Tanggal</th>
                                 <th className="px-3 py-3">Sumber</th>
@@ -642,13 +642,13 @@ export default function BukuBesarLedgerIndex() {
                                     <tr
                                         key={`${r?.date ?? idx}-${r?.kode_jurnal ?? idx}-${idx}`}
                                         className={[
-                                            'border-t border-white/5',
+                                            'border-t border-border/50',
                                             has00Account ? markedRowClass : '',
                                         ].join(' ')}
                                     >
                                         <td className={`px-3 py-2 ${cellClass}`}>{r?.date}</td>
                                         <td className={`px-3 py-2 ${cellClass}`}>
-                                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">
+                                            <span className="rounded-full border border-border bg-muted/30 dark:bg-white/5 px-2 py-0.5 text-xs text-muted-foreground">
                                                 {r?.source}
                                             </span>
                                         </td>

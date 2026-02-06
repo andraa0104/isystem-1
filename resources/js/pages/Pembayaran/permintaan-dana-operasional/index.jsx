@@ -20,6 +20,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ActionIconButton } from '@/components/action-icon-button';
 import { Eye, Loader2, Plus, Printer } from 'lucide-react';
 
 const breadcrumbs = [
@@ -415,34 +416,30 @@ export default function PermintaanDanaOperasionalIndex() {
                                             <td className="px-3 py-2 text-right">{formatRupiah(r?.jumlah_ditransfer)}</td>
                                             <td className="px-3 py-2 text-right">{formatRupiah(r?.sisa_pdo)}</td>
                                             <td className="px-3 py-2 text-center">
-                                                <button
-                                                    type="button"
-                                                    className="inline-flex items-center justify-center rounded-md p-2 text-muted-foreground hover:bg-white/5 hover:text-white"
-                                                    onClick={() => {
-                                                        setPdoNo(r.no_pdo);
-                                                        setPdoPage(1);
-                                                        setPdoPageSize(5);
-                                                        setPdoModalOpen(true);
-                                                    }}
-                                                    title="Lihat Detail"
-                                                >
-                                                    <Eye className="h-4 w-4" />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="inline-flex items-center justify-center rounded-md p-2 text-muted-foreground hover:bg-white/5 hover:text-white"
-                                                    onClick={() =>
-                                                        window.open(
-                                                            `/pembayaran/permintaan-dana-operasional/${encodeURIComponent(
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <ActionIconButton
+                                                        label="Detail"
+                                                        onClick={() => {
+                                                            setPdoNo(r.no_pdo);
+                                                            setPdoPage(1);
+                                                            setPdoPageSize(5);
+                                                            setPdoModalOpen(true);
+                                                        }}
+                                                    >
+                                                        <Eye className="h-4 w-4" />
+                                                    </ActionIconButton>
+                                                    <ActionIconButton label="Cetak" asChild>
+                                                        <a
+                                                            href={`/pembayaran/permintaan-dana-operasional/${encodeURIComponent(
                                                                 r.no_pdo,
-                                                            )}/print`,
-                                                            '_blank',
-                                                        )
-                                                    }
-                                                    title="Print PDO"
-                                                >
-                                                    <Printer className="h-4 w-4" />
-                                                </button>
+                                                            )}/print`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            <Printer className="h-4 w-4" />
+                                                        </a>
+                                                    </ActionIconButton>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}

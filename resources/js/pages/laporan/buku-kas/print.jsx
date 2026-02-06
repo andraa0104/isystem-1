@@ -1,5 +1,5 @@
 import { Head, usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 
 const formatRupiah = (value, dashIfNull = false) => {
@@ -270,4 +270,3 @@ export default function BukuKasPrint() {
         </div>
     );
 }
-

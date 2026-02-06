@@ -139,8 +139,8 @@ export default function NeracaLajurIndex() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <div className="flex items-center gap-2">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                                <FileSpreadsheet className="h-5 w-5 text-white/80" />
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
+                                <FileSpreadsheet className="h-5 w-5 text-foreground/80" />
                             </div>
                             <h1 className="text-xl font-semibold">Neraca Lajur</h1>
                         </div>
@@ -205,28 +205,28 @@ export default function NeracaLajurIndex() {
                 </div>
 
                 {error ? (
-                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
-                        <div className="mt-2 text-xs text-rose-200/80">
+                        <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
                             Pastikan tabel/kolom `tb_neracalajur` sesuai (Kode_Akun, Nama_Akun, Saldo/AJP/NSSP/RL/NA
                             Debit-Kredit).
                         </div>
                     </div>
                 ) : null}
 
-                <div className="relative overflow-x-auto rounded-2xl border border-white/10 bg-card">
+                <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
                             </div>
                         </div>
                     )}
 
                     <table className="min-w-[1200px] w-full text-sm text-left">
-                        <thead className="bg-white/5">
-                            <tr className="border-b border-white/10">
+                        <thead className="bg-muted/30 dark:bg-white/5">
+                            <tr className="border-b border-border">
                                 <th
                                     rowSpan={2}
                                     className="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
@@ -245,7 +245,7 @@ export default function NeracaLajurIndex() {
                                 <ColGroupHeader title="RL" />
                                 <ColGroupHeader title="NA" />
                             </tr>
-                            <tr className="border-b border-white/10">
+                            <tr className="border-b border-border">
                                 <ColHeader title="Debit" />
                                 <ColHeader title="Kredit" />
                                 <ColHeader title="Debit" />
@@ -278,7 +278,7 @@ export default function NeracaLajurIndex() {
                                         <tr
                                             key={`${r?.Kode_Akun ?? idx}-${idx}`}
                                             className={[
-                                                'border-t border-white/5',
+                                                'border-t border-border/50',
                                                 has00 ? markedRowClass : '',
                                             ].join(' ')}
                                         >
@@ -291,8 +291,8 @@ export default function NeracaLajurIndex() {
                                                         href={buildBukuBesarUrl({ kodeAkun })}
                                                         className={
                                                             has00
-                                                                ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                                : 'text-amber-300 hover:underline'
+                                                                ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                                : 'text-amber-700 dark:text-amber-300 hover:underline'
                                                         }
                                                     >
                                                         {kodeAkun}

@@ -15,11 +15,15 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { ActionIconButton } from '@/components/action-icon-button';
 import AppLayout from '@/layouts/app-layout';
 import { Head } from '@inertiajs/react';
 import { Printer, ReceiptText } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
+import { ErrorState } from '@/components/data-states/ErrorState';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { formatDateId } from '@/lib/formatters';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -54,11 +58,11 @@ export default function KwitansiIndex() {
     const [currentPage, setCurrentPage] = useState(1);
     const [kwitansiData, setKwitansiData] = useState([]);
     const [kwitansiLoading, setKwitansiLoading] = useState(false);
-    const [kwitansiError, setKwitansiError] = useState('');
+    const [kwitansiError, setKwitansiError] = useState(null);
 
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false);
-    const [detailError, setDetailError] = useState('');
+    const [detailError, setDetailError] = useState(null);
     const [detailInvoice, setDetailInvoice] = useState(null);
     const [detailItems, setDetailItems] = useState([]);
     const [detailSearch, setDetailSearch] = useState('');
@@ -79,29 +83,27 @@ export default function KwitansiIndex() {
     const [noReceiptCurrentPage, setNoReceiptCurrentPage] = useState(1);
     const [noReceiptSearch, setNoReceiptSearch] = useState('');
     const [noReceiptLoading, setNoReceiptLoading] = useState(false);
-    const [noReceiptError, setNoReceiptError] = useState('');
+    const [noReceiptError, setNoReceiptError] = useState(null);
     const [noReceiptInvoices, setNoReceiptInvoices] = useState([]);
 
     useEffect(() => {
         let isMounted = true;
         setKwitansiLoading(true);
-        setKwitansiError('');
+        setKwitansiError(null);
         fetch('/penjualan/faktur-penjualan/kwitansi/data', {
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
-                if (!response.ok) {
-                    throw new Error('Request failed');
-                }
+                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
                 return response.json();
             })
             .then((data) => {
                 if (!isMounted) return;
                 setKwitansiData(Array.isArray(data?.data) ? data.data : []);
             })
-            .catch(() => {
+            .catch((err) => {
                 if (!isMounted) return;
-                setKwitansiError('Gagal memuat data kwitansi.');
+                setKwitansiError(normalizeApiError(err, 'Gagal memuat data kwitansi.'));
             })
             .finally(() => {
                 if (!isMounted) return;
@@ -156,7 +158,7 @@ export default function KwitansiIndex() {
         if (!refFaktur) return;
         setIsDetailOpen(true);
         setDetailLoading(true);
-        setDetailError('');
+        setDetailError(null);
         setDetailInvoice(null);
         setDetailItems([]);
         setDetailSearch('');
@@ -172,17 +174,15 @@ export default function KwitansiIndex() {
             },
         )
             .then((response) => {
-                if (!response.ok) {
-                    throw new Error('Request failed');
-                }
+                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
                 return response.json();
             })
             .then((data) => {
                 setDetailInvoice(data?.invoice ?? null);
                 setDetailItems(Array.isArray(data?.items) ? data.items : []);
             })
-            .catch(() => {
-                setDetailError('Gagal memuat detail invoice.');
+            .catch((err) => {
+                setDetailError(normalizeApiError(err, 'Gagal memuat detail invoice.'));
             })
             .finally(() => setDetailLoading(false));
     };
@@ -264,14 +264,12 @@ export default function KwitansiIndex() {
         if (!isNoReceiptOpen) return;
         if (noReceiptInvoices.length > 0) return;
         setNoReceiptLoading(true);
-        setNoReceiptError('');
+        setNoReceiptError(null);
         fetch('/penjualan/faktur-penjualan/kwitansi/no-receipt', {
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
-                if (!response.ok) {
-                    throw new Error('Request failed');
-                }
+                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
                 return response.json();
             })
             .then((data) => {
@@ -279,8 +277,8 @@ export default function KwitansiIndex() {
                     Array.isArray(data?.data) ? data.data : [],
                 );
             })
-            .catch(() => {
-                setNoReceiptError('Gagal memuat invoice tanpa kwitansi.');
+            .catch((err) => {
+                setNoReceiptError(normalizeApiError(err, 'Gagal memuat invoice tanpa kwitansi.'));
             })
             .finally(() => setNoReceiptLoading(false));
     }, [isNoReceiptOpen, noReceiptInvoices.length]);
@@ -414,16 +412,17 @@ export default function KwitansiIndex() {
                     />
                 </div>
 
-                <div className="rounded-xl border border-border/60 bg-card">
+                <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
+                    <div className="max-h-[65vh] overflow-auto overscroll-contain">
                     <Table>
-                        <TableHeader>
+                        <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                             <TableRow>
-                                <TableHead>No Kwitansi</TableHead>
+                                <TableHead className="sticky left-0 z-[2] w-[180px] bg-background/95">No Kwitansi</TableHead>
                                 <TableHead>Ref Invoice</TableHead>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Customer</TableHead>
-                                <TableHead>Total Price</TableHead>
-                                <TableHead className="text-right">
+                                <TableHead className="text-right">Total Price</TableHead>
+                                <TableHead className="sticky right-0 z-[2] bg-background/95 text-right">
                                     Aksi
                                 </TableHead>
                             </TableRow>
@@ -439,7 +438,7 @@ export default function KwitansiIndex() {
                             {!kwitansiLoading && kwitansiError && (
                                 <TableRow>
                                     <TableCell colSpan={6}>
-                                        {kwitansiError}
+                                        <ErrorState error={kwitansiError} />
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -447,8 +446,13 @@ export default function KwitansiIndex() {
                                 !kwitansiError &&
                                 displayedKwitansi.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={6}>
-                                        Tidak ada data kwitansi.
+                                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                                        <div>Tidak ada data kwitansi.</div>
+                                        <div className="mt-3">
+                                            <Button type="button" size="sm" onClick={openKwitansiModal}>
+                                                Buat Kwitansi
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -458,7 +462,7 @@ export default function KwitansiIndex() {
                                 <TableRow
                                     key={`kwitansi-${item.no_kwitansi}`}
                                 >
-                                    <TableCell>{item.no_kwitansi}</TableCell>
+                                    <TableCell className="sticky left-0 z-[1] w-[180px] bg-background/95 font-medium">{item.no_kwitansi}</TableCell>
                                     <TableCell>
                                         <button
                                             type="button"
@@ -470,29 +474,31 @@ export default function KwitansiIndex() {
                                             {item.ref_faktur}
                                         </button>
                                     </TableCell>
-                                    <TableCell>{item.tgl}</TableCell>
+                                    <TableCell>{formatDateId(item.tgl)}</TableCell>
                                     <TableCell>{item.cs}</TableCell>
-                                    <TableCell>
+                                    <TableCell className="text-right tabular-nums">
                                         {formatRupiah(item.ttl_faktur)}
                                     </TableCell>
-                                    <TableCell className="text-right">
-                                        <a
-                                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition hover:text-foreground"
-                                            href={`/penjualan/faktur-penjualan/kwitansi/${encodeURIComponent(
-                                                item.no_kwitansi ?? '',
-                                            )}/print`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            aria-label="Print"
-                                            title="Print"
-                                        >
-                                            <Printer className="size-4" />
-                                        </a>
+                                    <TableCell className="sticky right-0 z-[1] bg-background/95 text-right">
+                                        <div className="inline-flex items-center justify-end gap-2">
+                                            <ActionIconButton label="Cetak" asChild>
+                                                <a
+                                                    href={`/penjualan/faktur-penjualan/kwitansi/${encodeURIComponent(
+                                                        item.no_kwitansi ?? '',
+                                                    )}/print`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                >
+                                                    <Printer className="h-4 w-4" />
+                                                </a>
+                                            </ActionIconButton>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
+                    </div>
                 </div>
 
                 {pageSize !== Infinity && totalItems > 0 && (
@@ -546,8 +552,8 @@ export default function KwitansiIndex() {
                             Memuat detail invoice...
                         </div>
                     ) : detailError ? (
-                        <div className="py-6 text-sm text-destructive">
-                            {detailError}
+                        <div className="py-4">
+                            <ErrorState error={detailError} />
                         </div>
                     ) : detailInvoice ? (
                         <div className="space-y-6">
@@ -919,7 +925,7 @@ export default function KwitansiIndex() {
                                     {!noReceiptLoading && noReceiptError && (
                                         <TableRow>
                                             <TableCell colSpan={5}>
-                                                {noReceiptError}
+                                                <ErrorState error={noReceiptError} />
                                             </TableCell>
                                         </TableRow>
                                     )}

@@ -57,7 +57,6 @@ export default function Dashboard({
     salesHppStats: initialSalesHppStats = { summary: {}, series: [] },
 }) {
     const [quotationRange, setQuotationRange] = useState('1_week'); // 1_week|1_month|3_months|5_months|1_year
-    const [selectedSaldo, setSelectedSaldo] = useState(null);
     const [activeDeliveryTab, setActiveDeliveryTab] = useState('pdb');
 
     // Sales HPP State
@@ -183,7 +182,16 @@ export default function Dashboard({
         const series = salesHppData?.series || [];
         if (series.length === 0) return { max: 1, series: [] };
 
-        const max = Math.max(1, ...series.map((d) => Math.max(d.sales, d.hpp)));
+        const max = Math.max(
+            1,
+            ...series.map((d) =>
+                Math.max(
+                    Number(d.sales ?? 0),
+                    Number(d.hpp ?? 0),
+                    Number(d.biaya ?? 0),
+                ),
+            ),
+        );
         return { max, series };
     }, [salesHppData]);
 
@@ -197,13 +205,20 @@ export default function Dashboard({
             (sum, item) => sum + Number(item.hpp ?? 0),
             0,
         );
+        const totalBiaya = series.reduce(
+            (sum, item) => sum + Number(item.biaya ?? 0),
+            0,
+        );
         const grossProfit = totalSales - totalHpp;
+        const profitAfterBiaya = grossProfit - totalBiaya;
         return {
             max: salesHppChartData.max ?? 1,
             series,
             totalSales,
             totalHpp,
+            totalBiaya,
             grossProfit,
+            profitAfterBiaya,
         };
     }, [salesHppChartData]);
     const isDenseSalesHpp = salesHppDerived.series.length > 8;
@@ -211,6 +226,7 @@ export default function Dashboard({
         salesHppDerived.series.length > 0 && salesHppDerived.series.length <= 3;
     const isShortSalesHpp =
         salesHppDerived.series.length > 0 && salesHppDerived.series.length <= 5;
+    const hideInBarValues = false;
     const denseLabelParts = (label) => {
         const raw = String(label ?? '').trim();
         if (!raw) return { top: '-', bottom: '' };
@@ -514,97 +530,63 @@ export default function Dashboard({
                                         Data saldo belum tersedia.
                                     </div>
                                 ) : (
-                                    <div className="flex flex-1 items-end gap-3 overflow-x-auto pb-2">
+                                    <div className="flex flex-1 items-end gap-1 overflow-x-auto pb-2">
                                         {saldoSeries.map((item) => {
-                                            const height =
+                                            const heightRaw =
                                                 maxSaldo > 0
-                                                    ? Math.round(
-                                                          ((item.saldo ?? 0) /
-                                                              maxSaldo) *
-                                                              100,
-                                                      )
+                                                    ? (Number(item.saldo ?? 0) /
+                                                          maxSaldo) *
+                                                      100
                                                     : 0;
+                                            const valueNumber = Number(
+                                                item.saldo ?? 0,
+                                            );
+                                            const barHeight =
+                                                valueNumber > 0
+                                                    ? Math.max(heightRaw, 8)
+                                                    : 4;
+
                                             const tooltip = `${item.label}\nSaldo: ${formatNumber(item.saldo)}\nTransaksi terakhir: ${formatDate(item.last_voucher)}`;
+
                                             return (
                                                 <div
                                                     key={item.code}
-                                                    className="flex min-w-[80px] flex-col items-center gap-2"
+                                                    className="flex min-h-[210px] min-w-[110px] flex-col items-center gap-3 rounded-xl border border-sidebar-border/70 bg-muted/10 p-3 outline-none transition hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring"
                                                     title={tooltip}
-                                                    role="button"
-                                                    onClick={() =>
-                                                        setSelectedSaldo((prev) =>
-                                                            prev?.code === item.code
-                                                                ? null
-                                                                : item,
-                                                        )
-                                                    }
-                                                    tabIndex={0}
-                                                    onKeyDown={(e) => {
-                                                        if (
-                                                            e.key === 'Enter' ||
-                                                            e.key === ' '
-                                                        ) {
-                                                            e.preventDefault();
-                                                            setSelectedSaldo(
-                                                                (prev) =>
-                                                                    prev?.code ===
-                                                                    item.code
-                                                                        ? null
-                                                                        : item,
-                                                            );
-                                                        }
-                                                    }}
                                                 >
-                                                    <div className="flex h-32 w-full items-end">
-                                                        <div
-                                                            className="flex w-full items-end justify-center rounded-md bg-blue-500/80 text-[12px] font-semibold text-black dark:text-white"
-                                                            style={{
-                                                                height: `${Math.max(
-                                                                    height,
-                                                                    8,
-                                                                )}%`,
-                                                            }}
-                                                        >
-                                                            <span className="pb-1">
-                                                                {formatNumber(
-                                                                    item.saldo,
-                                                                )}
-                                                            </span>
+                                                    <div className="h-5 w-full text-center text-xs font-bold tabular-nums leading-tight text-foreground">
+                                                        Rp {formatNumber(item.saldo)}
+                                                    </div>
+
+                                                    <div className="flex h-39 w-full items-end">
+                                                        <div className="relative flex h-full w-full items-end rounded-lg bg-muted/30 p-1">
+                                                            <div
+                                                                className="w-full rounded-md bg-blue-500/80"
+                                                                style={{
+                                                                    height: `${Math.min(
+                                                                        100,
+                                                                        barHeight,
+                                                                    )}%`,
+                                                                }}
+                                                            />
                                                         </div>
                                                     </div>
-                                                    <span className="text-center text-[11px] font-medium text-foreground">
-                                                        {item.label}
-                                                    </span>
-                                                    <span className="text-[10px] text-muted-foreground">
-                                                        Last:{' '}
-                                                        {formatDate(
-                                                            item.last_voucher,
-                                                        )}
-                                                    </span>
+
+                                                    <div className="h-1 w-full text-center text-[12px] font-medium leading-tight text-foreground/90">
+                                                        <span className="block truncate">
+                                                            {item.label}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="mt-auto w-full text-center text-[11px] text-muted-foreground">
+                                                        {formatDate(item.last_voucher)}
+                                                    </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 )}
 
-                                {selectedSaldo && (
-                                    <div className="mt-3 rounded-lg border border-sidebar-border/70 bg-muted/30 p-3 text-sm">
-                                        <div className="font-semibold text-foreground">
-                                            {selectedSaldo.label} (
-                                            {selectedSaldo.code})
-                                        </div>
-                                        <div className="text-muted-foreground">
-                                            Saldo:{' '}
-                                            <span className="font-medium text-foreground">
-                                                {formatNumber(selectedSaldo.saldo)}
-                                            </span>
-                                        </div>
-                                        <div className="text-muted-foreground">
-                                            Transaksi terakhir:{' '}
-                                            {formatDate(selectedSaldo.last_voucher)}
-                                        </div>
-                                    </div>
-                                )}
                             </CardContent>
                         </Card>
                     </div>
@@ -727,9 +709,9 @@ export default function Dashboard({
                         <CardHeader className="space-y-4">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div className="space-y-1">
-                                    <CardTitle>Penjualan &amp; HPP</CardTitle>
+                                    <CardTitle>Ringkasan Penjualan</CardTitle>
                                     <p className="text-sm text-muted-foreground">
-                                        Perbandingan Total Penjualan dan HPP per{' '}
+                                        Perbandingan Penjualan, HPP, dan Biaya per{' '}
                                         {salesHppGranularityLabel}{' '}
                                         berdasarkan periode.
                                     </p>
@@ -823,12 +805,34 @@ export default function Dashboard({
                                         </div>
                                         <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
                                             <span className="text-muted-foreground">
+                                                Total Biaya:{' '}
+                                            </span>
+                                            <span className="font-semibold text-foreground">
+                                                Rp{' '}
+                                                {formatNumber(
+                                                    salesHppDerived.totalBiaya,
+                                                )}
+                                            </span>
+                                        </div>
+                                        <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
+                                            <span className="text-muted-foreground">
                                                 Gross Profit:{' '}
                                             </span>
                                             <span className="font-semibold text-foreground">
                                                 Rp{' '}
                                                 {formatNumber(
                                                     salesHppDerived.grossProfit,
+                                                )}
+                                            </span>
+                                        </div>
+                                        <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
+                                            <span className="text-muted-foreground">
+                                                Profit Setelah Biaya:{' '}
+                                            </span>
+                                            <span className="font-semibold text-foreground">
+                                                Rp{' '}
+                                                {formatNumber(
+                                                    salesHppDerived.profitAfterBiaya,
                                                 )}
                                             </span>
                                         </div>
@@ -843,6 +847,10 @@ export default function Dashboard({
                                     <div className="flex items-center gap-2">
                                         <span className="h-2 w-2 rounded-full bg-red-500" />
                                         <span>HPP</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="h-2 w-2 rounded-full bg-orange-500" />
+                                        <span>Biaya</span>
                                     </div>
                                 </div>
                             </div>
@@ -888,6 +896,14 @@ export default function Dashboard({
                                         </span>
                                         <span className="font-semibold">
                                             {formatNumber(salesHppHover.hpp)}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="font-semibold text-orange-600 dark:text-orange-400">
+                                            Biaya
+                                        </span>
+                                        <span className="font-semibold">
+                                            {formatNumber(salesHppHover.biaya)}
                                         </span>
                                     </div>
                                 </div>
@@ -959,6 +975,18 @@ export default function Dashboard({
                                                                       100,
                                                               )
                                                             : 0;
+                                                    const biayaWidth =
+                                                        salesHppDerived.max > 0
+                                                            ? Math.min(
+                                                                  100,
+                                                                  (Number(
+                                                                      item.biaya ??
+                                                                          0,
+                                                                  ) /
+                                                                      salesHppDerived.max) *
+                                                                      100,
+                                                              )
+                                                            : 0;
                                                     return (
                                                         <div
                                                             key={item.period}
@@ -989,6 +1017,14 @@ export default function Dashboard({
                                                                             )}
                                                                         </span>
                                                                     </div>
+                                                                    <div>
+                                                                        Biaya:{' '}
+                                                                        <span className="font-medium text-foreground">
+                                                                            {formatNumber(
+                                                                                item.biaya,
+                                                                            )}
+                                                                        </span>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                             <div className="mt-3 space-y-2">
@@ -1010,6 +1046,17 @@ export default function Dashboard({
                                                                             width: `${Math.max(
                                                                                 2,
                                                                                 hppWidth,
+                                                                            )}%`,
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                                <div className="h-2 w-full rounded bg-muted/40">
+                                                                    <div
+                                                                        className="h-2 rounded bg-orange-500/80"
+                                                                        style={{
+                                                                            width: `${Math.max(
+                                                                                2,
+                                                                                biayaWidth,
                                                                             )}%`,
                                                                         }}
                                                                     />
@@ -1074,6 +1121,7 @@ export default function Dashboard({
                                                         label: item.label,
                                                         sales: item.sales,
                                                         hpp: item.hpp,
+                                                        biaya: item.biaya,
                                                     });
                                                 }}
                                                 onMouseMove={(event) => {
@@ -1093,7 +1141,7 @@ export default function Dashboard({
                                             >
                                                 <div className="relative flex h-48 w-full items-end justify-center gap-2">
                                                     <div
-                                                        className="relative flex w-full flex-col items-center justify-end rounded-t-sm bg-green-500/80 transition-colors hover:bg-green-500"
+                                                        className="relative flex flex-1 min-w-0 flex-col items-center justify-end overflow-hidden rounded-t-sm bg-green-500/80 transition-colors hover:bg-green-500"
                                                         style={{
                                                             height: `${Math.max(
                                                                 12,
@@ -1106,33 +1154,29 @@ export default function Dashboard({
                                                             )}%`,
                                                         }}
                                                     >
-                                                        {!isDenseSalesHpp &&
+                                                        {!hideInBarValues &&
+                                                            !isDenseSalesHpp &&
                                                             Number(
                                                                 item.sales ?? 0,
                                                             ) > 0 && (
                                                                 <span
-                                                                    className={`mb-1 px-1 text-center font-bold tabular-nums leading-none text-black dark:text-white ${
+                                                                    className={`mb-1 w-full overflow-hidden text-ellipsis whitespace-nowrap px-0.5 text-center font-bold tabular-nums leading-none text-black dark:text-white ${
                                                                         isVeryShortSalesHpp
-                                                                            ? 'block text-base sm:text-lg md:text-xl'
+                                                                            ? 'block text-[10px] sm:text-xs'
                                                                             : isShortSalesHpp
                                                                               ? 'block text-xs sm:text-sm'
                                                                               : 'hidden text-[12px] md:block'
                                                                     }`}
                                                                 >
-                                                                    {isShortSalesHpp &&
-                                                                    !isVeryShortSalesHpp
-                                                                        ? formatCompactNumber(
-                                                                              item.sales,
-                                                                          )
-                                                                        : formatNumber(
-                                                                              item.sales,
-                                                                          )}
+                                                                    {isShortSalesHpp
+                                                                        ? formatCompactNumber(item.sales)
+                                                                        : formatNumber(item.sales)}
                                                                 </span>
                                                             )}
                                                     </div>
 
                                                     <div
-                                                        className="relative flex w-full flex-col items-center justify-end rounded-t-sm bg-red-500/80 transition-colors hover:bg-red-500"
+                                                        className="relative flex flex-1 min-w-0 flex-col items-center justify-end overflow-hidden rounded-t-sm bg-red-500/80 transition-colors hover:bg-red-500"
                                                         style={{
                                                             height: `${Math.max(
                                                                 12,
@@ -1145,27 +1189,58 @@ export default function Dashboard({
                                                             )}%`,
                                                         }}
                                                     >
-                                                        {!isDenseSalesHpp &&
+                                                        {!hideInBarValues &&
+                                                            !isDenseSalesHpp &&
                                                             Number(
                                                                 item.hpp ?? 0,
                                                             ) > 0 && (
                                                                 <span
-                                                                    className={`mb-1 px-1 text-center font-bold tabular-nums leading-none text-black dark:text-white ${
+                                                                    className={`mb-1 w-full overflow-hidden text-ellipsis whitespace-nowrap px-0.5 text-center font-bold tabular-nums leading-none text-black dark:text-white ${
                                                                         isVeryShortSalesHpp
-                                                                            ? 'block text-base sm:text-lg md:text-xl'
+                                                                            ? 'block text-[10px] sm:text-xs'
                                                                             : isShortSalesHpp
                                                                               ? 'block text-xs sm:text-sm'
                                                                               : 'hidden text-[12px] md:block'
                                                                     }`}
                                                                 >
-                                                                    {isShortSalesHpp &&
-                                                                    !isVeryShortSalesHpp
-                                                                        ? formatCompactNumber(
-                                                                              item.hpp,
-                                                                          )
-                                                                        : formatNumber(
-                                                                              item.hpp,
-                                                                          )}
+                                                                    {isShortSalesHpp
+                                                                        ? formatCompactNumber(item.hpp)
+                                                                        : formatNumber(item.hpp)}
+                                                                </span>
+                                                            )}
+                                                    </div>
+
+                                                    <div
+                                                        className="relative flex flex-1 min-w-0 flex-col items-center justify-end overflow-hidden rounded-t-sm bg-orange-500/80 transition-colors hover:bg-orange-500"
+                                                        style={{
+                                                            height: `${Math.max(
+                                                                2,
+                                                                (Number(
+                                                                    item.biaya ??
+                                                                        0,
+                                                                ) /
+                                                                    salesHppDerived.max) *
+                                                                    100,
+                                                            )}%`,
+                                                        }}
+                                                    >
+                                                        {!hideInBarValues &&
+                                                            !isDenseSalesHpp &&
+                                                            Number(
+                                                                item.biaya ?? 0,
+                                                            ) > 0 && (
+                                                                <span
+                                                                    className={`mb-1 w-full overflow-hidden text-ellipsis whitespace-nowrap px-0.5 text-center font-bold tabular-nums leading-none text-black dark:text-white ${
+                                                                        isVeryShortSalesHpp
+                                                                            ? 'block text-[10px] sm:text-xs'
+                                                                            : isShortSalesHpp
+                                                                              ? 'block text-xs sm:text-sm'
+                                                                              : 'hidden text-[12px] md:block'
+                                                                    }`}
+                                                                >
+                                                                    {isShortSalesHpp
+                                                                        ? formatCompactNumber(item.biaya)
+                                                                        : formatNumber(item.biaya)}
                                                                 </span>
                                                             )}
                                                     </div>

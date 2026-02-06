@@ -79,10 +79,10 @@ function StatCard({ label, value, hint, accent = 'default' }) {
             ? 'text-emerald-400'
             : accent === 'negative'
               ? 'text-rose-400'
-              : 'text-white';
+              : 'text-foreground';
 
     return (
-        <div className="rounded-2xl border border-white/10 bg-card p-4">
+        <div className="rounded-2xl border border-border bg-card p-4">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 {label}
             </div>
@@ -235,12 +235,12 @@ export default function JurnalPenyesuaianIndex() {
         if (unbalanced > 0) {
             return {
                 label: `${formatNumber(balanced)} seimbang • ${formatNumber(unbalanced)} tidak`,
-                className: 'bg-rose-500/10 text-rose-200 ring-rose-500/20',
+                className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20',
             };
         }
         return {
             label: `${formatNumber(balanced)} seimbang`,
-            className: 'bg-emerald-500/10 text-emerald-200 ring-emerald-500/20',
+            className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20',
         };
     }, [summary]);
 
@@ -286,18 +286,18 @@ export default function JurnalPenyesuaianIndex() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <div className="flex items-center gap-2">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                                <FileCog className="h-5 w-5 text-white/80" />
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
+                                <FileCog className="h-5 w-5 text-foreground/80" />
                             </div>
                             <h1 className="text-xl font-semibold">Jurnal Penyesuaian</h1>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
                             AJP periodik dari `tb_jurnalpenyesuaian` (header per Kode Jurnal)
                         </p>
-                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 dark:bg-white/5 px-3 py-1 text-xs text-muted-foreground">
                             <Search className="h-3.5 w-3.5" />
-                            Periode: <span className="text-white/80">{getPeriodLabel(periodType, period)}</span>
-                            {period ? <span className="text-white/60">({period})</span> : <span className="text-white/60">(-)</span>}
+                            Periode: <span className="text-foreground/80">{getPeriodLabel(periodType, period)}</span>
+                            {period ? <span className="text-muted-foreground">({period})</span> : <span className="text-muted-foreground">(-)</span>}
                         </div>
                     </div>
 
@@ -445,10 +445,10 @@ export default function JurnalPenyesuaianIndex() {
                     />
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-card p-4">
+                <div className="rounded-2xl border border-border bg-card p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <div className="text-sm font-semibold text-white/90">Ringkasan Status</div>
+                            <div className="text-sm font-semibold text-foreground">Ringkasan Status</div>
                             <div className="mt-0.5 text-xs text-muted-foreground">
                                 Seimbang jika total debit = total kredit (per dokumen AJP).
                             </div>
@@ -470,26 +470,26 @@ export default function JurnalPenyesuaianIndex() {
                 </div>
 
                 {error ? (
-                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
-                        <div className="mt-2 text-xs text-rose-200/80">
+                        <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
                             Sumber: `tb_jurnalpenyesuaian` (AJP).
                         </div>
                     </div>
                 ) : null}
 
-                <div className="relative overflow-x-auto rounded-2xl border border-white/10 bg-card">
+                <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
                             </div>
                         </div>
                     )}
 
                     <table className="min-w-full text-sm text-left">
-                        <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
                             <tr>
                                 <th className="px-3 py-3 w-12" />
                                 <th className="px-3 py-3">Periode</th>
@@ -520,8 +520,8 @@ export default function JurnalPenyesuaianIndex() {
                                 const cellClass = has00 ? markedCellClass : '';
 
                                 const statusClass = r?.is_balanced
-                                    ? 'bg-emerald-500/10 text-emerald-200 ring-emerald-500/20'
-                                    : 'bg-rose-500/10 text-rose-200 ring-rose-500/20';
+                                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20'
+                                    : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20';
                                 const statusText = r?.is_balanced ? 'Seimbang' : 'Tidak';
 
                                 const detail = detailMap[docKey];
@@ -533,7 +533,7 @@ export default function JurnalPenyesuaianIndex() {
                                     <Fragment key={`${docKey}-${idx}`}>
                                         <tr
                                             className={[
-                                                'border-t border-white/5',
+                                                'border-t border-border/50',
                                                 has00 ? markedRowClass : '',
                                             ].join(' ')}
                                         >
@@ -574,7 +574,7 @@ export default function JurnalPenyesuaianIndex() {
                                                     <span
                                                         className={
                                                             has00
-                                                                ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30'
+                                                                ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30'
                                                                 : ''
                                                         }
                                                     >
@@ -583,7 +583,7 @@ export default function JurnalPenyesuaianIndex() {
                                                 </div>
                                             </td>
                                             <td className={`px-3 py-2 ${cellClass}`}>
-                                                <div className="max-w-[520px] truncate text-white/80">
+                                                <div className="max-w-[520px] truncate text-foreground/80">
                                                     {r?.Remark || '-'}
                                                 </div>
                                             </td>
@@ -614,11 +614,11 @@ export default function JurnalPenyesuaianIndex() {
                                         </tr>
 
                                         {open ? (
-                                            <tr className="border-t border-white/5">
+                                            <tr className="border-t border-border/50">
                                                 <td colSpan={9} className="px-3 pb-4 pt-0">
-                                                    <div className="mt-3 rounded-2xl border border-white/10 bg-black/20">
-                                                        <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-3">
-                                                            <div className="text-sm font-semibold text-white/90">
+                                                    <div className="mt-3 rounded-2xl border border-border bg-muted/30 dark:bg-black/20">
+                                                        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+                                                            <div className="text-sm font-semibold text-foreground">
                                                                 Detail Akun
                                                             </div>
                                                             <div className="text-xs text-muted-foreground">
@@ -631,14 +631,14 @@ export default function JurnalPenyesuaianIndex() {
                                                         </div>
 
                                                         {detErr && !detLoading ? (
-                                                            <div className="border-b border-white/10 px-4 py-3 text-sm text-rose-200">
+                                                            <div className="border-b border-border px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
                                                                 {detErr}
                                                             </div>
                                                         ) : null}
 
                                                         <div className="overflow-x-auto">
                                                             <table className="min-w-full text-sm">
-                                                                <thead className="bg-white/5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                                                <thead className="bg-muted/30 dark:bg-white/5 text-[11px] uppercase tracking-wide text-muted-foreground">
                                                                     <tr>
                                                                         <th className="px-4 py-2 text-left">
                                                                             Kode Akun
@@ -683,7 +683,7 @@ export default function JurnalPenyesuaianIndex() {
                                                                                 <tr
                                                                                     key={`${docKey}-${kodeAkun}-${di}`}
                                                                                     className={[
-                                                                                        'border-t border-white/5',
+                                                                                        'border-t border-border/50',
                                                                                         has00Detail ? markedRowClass : '',
                                                                                     ].join(' ')}
                                                                                 >
@@ -696,8 +696,8 @@ export default function JurnalPenyesuaianIndex() {
                                                                                                 href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
                                                                                                 className={
                                                                                                     has00Detail
-                                                                                                        ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                                                                        : 'text-amber-300 hover:underline'
+                                                                                                        ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                                                                        : 'text-amber-700 dark:text-amber-300 hover:underline'
                                                                                                 }
                                                                                             >
                                                                                                 {kodeAkun}
@@ -733,7 +733,7 @@ export default function JurnalPenyesuaianIndex() {
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="text-sm text-muted-foreground">
-                        Total data: <span className="text-white/80">{formatNumber(total)}</span>
+                        Total data: <span className="text-foreground/80">{formatNumber(total)}</span>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button
@@ -745,7 +745,7 @@ export default function JurnalPenyesuaianIndex() {
                         </Button>
                         <div className="text-sm text-muted-foreground">
                             Halaman{' '}
-                            <span className="text-white/80">
+                            <span className="text-foreground/80">
                                 {pageSize === 'all' ? 1 : page}
                             </span>
                             /{totalPages}

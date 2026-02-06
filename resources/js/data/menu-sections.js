@@ -93,9 +93,9 @@ export const menuSections = [
         title: 'Keuangan',
         icon: Banknote,
         items: [
-            { title: 'Mutasi Kas', href: '#' },
-            { title: 'Input Pembelian', href: '#' },
-            { title: 'Input Penjualan', href: '#' },
+            { title: 'Mutasi Kas', href: '/keuangan/mutasi-kas' },
+            { title: 'Input Pembelian', href: '/keuangan/input-pembelian' },
+            { title: 'Input Penjualan', href: '/keuangan/input-penjualan' },
             { title: 'Penyesuaian', href: '#' },
             { title: 'Jurnal Lainnya', href: '#' },
         ],

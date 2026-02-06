@@ -18,6 +18,10 @@ import {
 } from '@/components/ui/dialog';
 import { Loader2, Search, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
+import { ActionIconButton } from '@/components/action-icon-button';
+import { ErrorState } from '@/components/data-states/ErrorState';
+import { confirmDelete } from '@/lib/confirm-delete';
+import { readApiError, normalizeApiError } from '@/lib/api-error';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -46,6 +50,7 @@ export default function PenerimaanMaterialIndex() {
     // Modal PO list (lazy)
     const [poModalOpen, setPoModalOpen] = useState(false);
     const [poLoading, setPoLoading] = useState(false);
+    const [poError, setPoError] = useState(null);
     const [poRows, setPoRows] = useState([]);
     const [poTotal, setPoTotal] = useState(0);
     const [poSearch, setPoSearch] = useState('');
@@ -58,6 +63,11 @@ export default function PenerimaanMaterialIndex() {
         mi: { loading: false, rows: [] },
         mis: { loading: false, rows: [] },
         mib: { loading: false, rows: [] },
+    }));
+    const [poMaterialsErrorByMode, setPoMaterialsErrorByMode] = useState(() => ({
+        mi: null,
+        mis: null,
+        mib: null,
     }));
 
     // Selected material fields (per mode)
@@ -128,6 +138,7 @@ export default function PenerimaanMaterialIndex() {
         let cancelled = false;
         const load = async () => {
             setPoLoading(true);
+            setPoError(null);
             try {
                 const params = new URLSearchParams();
                 params.set('search', poDebouncedSearch);
@@ -137,12 +148,14 @@ export default function PenerimaanMaterialIndex() {
                     `/inventory/penerimaan-material/po-list?${params.toString()}`,
                     { headers: { Accept: 'application/json' } },
                 );
+                if (!res.ok) throw await readApiError(res);
                 const data = await res.json();
                 if (cancelled) return;
                 setPoRows(Array.isArray(data?.rows) ? data.rows : []);
                 setPoTotal(Number(data?.total ?? 0));
-            } catch {
+            } catch (err) {
                 if (cancelled) return;
+                setPoError(normalizeApiError(err, 'Gagal memuat data PO.'));
                 setPoRows([]);
                 setPoTotal(0);
             } finally {
@@ -172,12 +185,14 @@ export default function PenerimaanMaterialIndex() {
                 ...prev,
                 [mode]: { ...prev[mode], loading: true },
             }));
+            setPoMaterialsErrorByMode((prev) => ({ ...prev, [mode]: null }));
             try {
                 const params = new URLSearchParams({ no_po: currentNoPo });
                 const res = await fetch(
                     `/inventory/penerimaan-material/po-materials?${params.toString()}`,
                     { headers: { Accept: 'application/json' } },
                 );
+                if (!res.ok) throw await readApiError(res);
                 const data = await res.json();
                 if (cancelled) return;
                 setPoMaterialsByMode((prev) => ({
@@ -187,8 +202,12 @@ export default function PenerimaanMaterialIndex() {
                         rows: Array.isArray(data?.rows) ? data.rows : [],
                     },
                 }));
-            } catch {
+            } catch (err) {
                 if (cancelled) return;
+                setPoMaterialsErrorByMode((prev) => ({
+                    ...prev,
+                    [mode]: normalizeApiError(err, 'Gagal memuat material PO.'),
+                }));
                 setPoMaterialsByMode((prev) => ({
                     ...prev,
                     [mode]: { ...prev[mode], rows: [] },
@@ -465,6 +484,7 @@ export default function PenerimaanMaterialIndex() {
     const currentHeader = mode ? headerByMode[mode] : null;
     const currentMaterial = mode ? materialByMode[mode] : null;
     const currentPoMaterials = mode ? poMaterialsByMode[mode] : { loading: false, rows: [] };
+    const currentPoMaterialsError = mode ? poMaterialsErrorByMode[mode] : null;
     const currentRows = mode ? rowsByMode[mode] : [];
     const modeLabel = mode === 'mis' ? 'MIS' : mode === 'mi' ? 'MI' : mode?.toUpperCase();
 
@@ -569,16 +589,28 @@ export default function PenerimaanMaterialIndex() {
                                     </span>
                                 )}
                             </div>
-                            <div className="overflow-x-auto rounded-xl border border-white/10">
+                            {currentPoMaterialsError ? (
+                                <div className="mb-3">
+                                    <ErrorState
+                                        error={currentPoMaterialsError}
+                                        onRetry={() => {
+                                            const currentNoPo = headerByMode?.[mode]?.noPo ?? '';
+                                            if (!currentNoPo) return;
+                                            setHeaderByMode((prev) => ({ ...prev }));
+                                        }}
+                                    />
+                                </div>
+                            ) : null}
+                            <div className="max-h-[55vh] overflow-auto overscroll-contain rounded-xl border border-white/10">
                                 <table className="min-w-full text-sm text-left">
-                                    <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                                    <thead className="sticky top-0 z-[1] bg-background/95 text-muted-foreground uppercase text-[11px] tracking-wide backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                         <tr>
-                                            <th className="px-3 py-3">No</th>
+                                            <th className="border-b px-3 py-3">No</th>
                                             <th className="px-3 py-3">Kode Material</th>
                                             <th className="px-3 py-3">Material</th>
-                                            <th className="px-3 py-3">Qty</th>
+                                            <th className="px-3 py-3 text-right">Qty</th>
                                             <th className="px-3 py-3">Satuan</th>
-                                            <th className="px-3 py-3">Price</th>
+                                            <th className="px-3 py-3 text-right">Price</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -601,9 +633,9 @@ export default function PenerimaanMaterialIndex() {
                                                 <td className="px-3 py-2">{idx + 1}</td>
                                                 <td className="px-3 py-2">{row.kd_mat}</td>
                                                 <td className="px-3 py-2">{row.material}</td>
-                                                <td className="px-3 py-2">{formatNumber(row.qty)}</td>
+                                                <td className="px-3 py-2 text-right">{formatNumber(row.qty)}</td>
                                                 <td className="px-3 py-2">{row.unit}</td>
-                                                <td className="px-3 py-2">{formatNumber(row.price)}</td>
+                                                <td className="px-3 py-2 text-right">{formatNumber(row.price)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -707,9 +739,9 @@ export default function PenerimaanMaterialIndex() {
                                     <Button type="button">Simpan Data {modeLabel}</Button>
                                 )}
                             </div>
-                            <div className="overflow-x-auto rounded-xl border border-white/10">
+                            <div className="max-h-[55vh] overflow-auto overscroll-contain rounded-xl border border-white/10">
                                 <table className="min-w-full text-sm text-left">
-                                    <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                                    <thead className="sticky top-0 z-[1] bg-background/95 text-muted-foreground uppercase text-[11px] tracking-wide backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                         <tr>
                                             <th className="px-3 py-3">No</th>
                                             <th className="px-3 py-3">Kode Material</th>
@@ -717,13 +749,15 @@ export default function PenerimaanMaterialIndex() {
                                             <th className="px-3 py-3">Qty In PO</th>
                                             <th className="px-3 py-3">Qty</th>
                                             <th className="px-3 py-3">Satuan</th>
-                                            <th className="px-3 py-3">Price</th>
+                                            <th className="px-3 py-3 text-right">Price</th>
                                             <th className="px-3 py-3">Total Price In PO</th>
                                             <th className="px-3 py-3">Total Price</th>
                                             <th className="px-3 py-3">Last Stock</th>
                                             <th className="px-3 py-3">Stock Now</th>
                                             {mode === 'mib' && <th className="px-3 py-3">Remark</th>}
-                                            <th className="px-3 py-3">Aksi</th>
+                                            <th className="sticky right-0 z-[2] border-b border-l bg-background/95 px-3 py-3 text-center shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.6)]">
+                                                Aksi
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -748,21 +782,26 @@ export default function PenerimaanMaterialIndex() {
                                                 <td className="px-3 py-2">{formatNumber(r.qtyInPo)}</td>
                                                 <td className="px-3 py-2">{formatNumber(r.qty)}</td>
                                                 <td className="px-3 py-2">{r.unit}</td>
-                                                <td className="px-3 py-2">{r.priceRaw}</td>
+                                                <td className="px-3 py-2 text-right">{r.priceRaw}</td>
                                                 <td className="px-3 py-2">{formatNumber(r.totalPriceInPo)}</td>
                                                 <td className="px-3 py-2">{formatNumber(r.totalPrice)}</td>
                                                 <td className="px-3 py-2">{formatNumber(r.lastStock)}</td>
                                                 <td className="px-3 py-2">{formatNumber(r.stockNow)}</td>
                                                 {mode === 'mib' && <td className="px-3 py-2">{r.remark}</td>}
-                                                <td className="px-3 py-2">
-                                                    <button
-                                                        type="button"
-                                                        className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-white/10"
-                                                        onClick={() => removeMiRow(idx)}
-                                                        aria-label="Hapus"
+                                                <td className="sticky right-0 border-b border-l bg-background/95 px-3 py-2 text-center shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.6)]">
+                                                    <ActionIconButton
+                                                        label="Hapus"
+                                                        onClick={async () => {
+                                                            const ok = await confirmDelete({
+                                                                title: 'Hapus baris?',
+                                                                text: 'Baris material ini akan dihapus dari draft input.',
+                                                            });
+                                                            if (!ok) return;
+                                                            removeMiRow(idx);
+                                                        }}
                                                     >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </ActionIconButton>
                                                 </td>
                                             </tr>
                                         ))}
@@ -840,7 +879,13 @@ export default function PenerimaanMaterialIndex() {
                                             {poRows.length === 0 && !poLoading && (
                                                 <tr>
                                                     <td colSpan={3} className="px-3 py-4 text-center text-muted-foreground">
-                                                        Tidak ada data.
+                                                        {poError ? (
+                                                            <div className="mx-auto max-w-2xl">
+                                                                <ErrorState error={poError} />
+                                                            </div>
+                                                        ) : (
+                                                            'Tidak ada data.'
+                                                        )}
                                                     </td>
                                                 </tr>
                                             )}

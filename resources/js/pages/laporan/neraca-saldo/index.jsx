@@ -45,11 +45,11 @@ const markedCellClass = 'bg-amber-500/10';
 
 function StatCard({ label, value }) {
     return (
-        <div className="rounded-2xl border border-white/10 bg-card p-4">
+        <div className="rounded-2xl border border-border bg-card p-4">
             <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 {label}
             </div>
-            <div className="mt-2 text-xl font-semibold text-white">{value}</div>
+            <div className="mt-2 text-xl font-semibold text-foreground">{value}</div>
         </div>
     );
 }
@@ -146,8 +146,8 @@ export default function NeracaSaldoIndex() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <div className="flex items-center gap-2">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5">
-                                <Scale className="h-5 w-5 text-white/80" />
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
+                                <Scale className="h-5 w-5 text-foreground/80" />
                             </div>
                             <h1 className="text-xl font-semibold">Neraca Saldo</h1>
                         </div>
@@ -218,26 +218,26 @@ export default function NeracaSaldoIndex() {
                 </div>
 
                 {error ? (
-                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-200">
+                    <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
-                        <div className="mt-2 text-xs text-rose-200/80">
+                        <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
                             Pastikan `tb_neracasaldo` ada (Kode_Akun, Debit, Kredit) dan `tb_nabb` ada (Nama_Akun).
                         </div>
                     </div>
                 ) : null}
 
-                <div className="relative overflow-x-auto rounded-2xl border border-white/10 bg-card">
+                <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
                             </div>
                         </div>
                     )}
 
                     <table className="min-w-full text-sm text-left">
-                        <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
                             <tr>
                                 <th className="px-3 py-3">Kode Akun</th>
                                 <th className="px-3 py-3">Nama Akun</th>
@@ -261,7 +261,7 @@ export default function NeracaSaldoIndex() {
                                     <tr
                                         key={`${r?.Kode_Akun ?? idx}-${idx}`}
                                         className={[
-                                            'border-t border-white/5',
+                                            'border-t border-border/50',
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
@@ -274,8 +274,8 @@ export default function NeracaSaldoIndex() {
                                                     href={buildBukuBesarUrl({ kodeAkun })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
+                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
                                                     }
                                                 >
                                                     {kodeAkun}
