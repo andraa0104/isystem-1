@@ -422,6 +422,29 @@ class PermintaanDanaOperasionalController
             abort(404);
         }
 
+        if (Schema::hasTable('tb_kdpdo')) {
+            $kdpdoHeader = DB::table('tb_kdpdo')
+                ->where('no_pdo', $noPdo)
+                ->first();
+
+            if ($kdpdoHeader) {
+                $headerArray = (array) $header;
+                $kdpdoArray = (array) $kdpdoHeader;
+
+                if (array_key_exists('kas_bank', $kdpdoArray)) {
+                    $headerArray['kas_bank'] = $kdpdoArray['kas_bank'];
+                }
+                if (array_key_exists('kas_tunai', $kdpdoArray)) {
+                    $headerArray['kas_tunai'] = $kdpdoArray['kas_tunai'];
+                }
+                if (array_key_exists('posting_date', $kdpdoArray)) {
+                    $headerArray['posting_date'] = $kdpdoArray['posting_date'];
+                }
+
+                $header = (object) $headerArray;
+            }
+        }
+
         $totals = [
             'jumlah_inv' => (int) $details->sum(function ($row) {
                 return (float) ($row->jumlah_inv ?? 0);

@@ -111,6 +111,11 @@ class DashboardController
         return response()->json($this->buildSaldoStats());
     }
 
+    public function receivablePayableStats()
+    {
+        return response()->json($this->buildReceivablePayableStats());
+    }
+
     public function deliveryStats()
     {
         return response()->json($this->buildDeliveryStats());
@@ -302,6 +307,98 @@ class DashboardController
         }
 
         return $saldoStats;
+    }
+
+    private function buildReceivablePayableStats(): array
+    {
+        $result = [
+            'piutang' => ['total' => 0.0, 'last_update' => null],
+            'hutang' => ['total' => 0.0, 'last_update' => null],
+            'meta' => ['source' => 'tb_nabb.saldo + tb_kas.tgl_voucher'],
+        ];
+
+        if (!Schema::hasTable('tb_nabb') || !Schema::hasTable('tb_kas')) {
+            return $result;
+        }
+
+        $nabbCols = Schema::getColumnListing('tb_nabb');
+        $kasCols = Schema::getColumnListing('tb_kas');
+        $lastUpdateAccountColumns = array_values(array_filter(
+            ['Kode_Akun1', 'Kode_Akun2', 'Kode_Akun3'],
+            fn (string $col) => in_array($col, $kasCols, true)
+        ));
+
+        $hasRequired = in_array('Kode_Akun', $nabbCols, true)
+            && in_array('Saldo', $nabbCols, true)
+            && in_array('Tgl_Voucher', $kasCols, true)
+            && count($lastUpdateAccountColumns) > 0;
+
+        if (!$hasRequired) {
+            return $result;
+        }
+
+        $calcTotalFromNabb = function (callable $accountMatch): float {
+            $rows = DB::table('tb_nabb')
+                ->select(['Kode_Akun', 'Saldo'])
+                ->whereNotNull('Kode_Akun')
+                ->get();
+
+            $total = 0.0;
+            foreach ($rows as $row) {
+                $code = trim((string) ($row->Kode_Akun ?? ''));
+                if ($code === '' || !(bool) $accountMatch($code)) {
+                    continue;
+                }
+                $total += (float) ($row->Saldo ?? 0);
+            }
+
+            return $total;
+        };
+
+        $lastUpdateFromKas = function (array $accountCodes) use ($lastUpdateAccountColumns): ?string {
+            if (count($accountCodes) === 0) {
+                return null;
+            }
+
+            $lastUpdate = DB::table('tb_kas')
+                ->where(function ($query) use ($lastUpdateAccountColumns, $accountCodes) {
+                    foreach ($lastUpdateAccountColumns as $index => $col) {
+                        if ($index === 0) {
+                            $query->whereIn($col, $accountCodes);
+                            continue;
+                        }
+                        $query->orWhereIn($col, $accountCodes);
+                    }
+                })
+                ->max('Tgl_Voucher');
+
+            return $lastUpdate ?: null;
+        };
+
+        try {
+            $is1109ad = function (string $code): bool {
+                $normalized = strtolower(trim((string) $code));
+                return $normalized === '1109ad';
+            };
+
+            $is2101ak = function (string $code): bool {
+                $normalized = strtolower(trim((string) $code));
+                return $normalized === '2101ak';
+            };
+
+            $result['piutang'] = [
+                'total' => $calcTotalFromNabb($is1109ad),
+                'last_update' => $lastUpdateFromKas(['1109AD']),
+            ];
+
+            $result['hutang'] = [
+                'total' => $calcTotalFromNabb($is2101ak),
+                'last_update' => $lastUpdateFromKas(['2101AK']),
+            ];
+            return $result;
+        } catch (\Throwable) {
+            return $result;
+        }
     }
 
     private function buildDeliveryStats(): array

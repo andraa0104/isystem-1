@@ -768,7 +768,7 @@ export default function PermintaanDanaOperasionalIndex() {
                                                 <td className="px-3 py-2">{renderValue(r?.vendor)}</td>
                                                 <td className="px-3 py-2 text-right">{formatRupiah(r?.jumlah_inv)}</td>
                                                 <td className="px-3 py-2 text-right">{formatRupiah(r?.jumlah_bayar)}</td>
-                                                <td className="px-3 py-2">{renderValue(r?.tgl_bayar)}</td>
+                                                <td className="px-3 py-2">{formatDate(r?.tgl_bayar)}</td>
                                                 <td className="px-3 py-2 text-right">{formatRupiah(r?.pdo_now)}</td>
                                                 <td className="px-3 py-2 text-right">{formatRupiah(r?.lastend_pdo)}</td>
                                                 <td className="px-3 py-2">{renderValue(r?.remark)}</td>

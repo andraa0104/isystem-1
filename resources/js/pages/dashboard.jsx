@@ -7,7 +7,7 @@ import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     {
@@ -49,6 +49,32 @@ const formatDate = (value) => {
     }).format(date);
 };
 
+const METRIC_COLORS = {
+    kas: {
+        bar: 'bg-blue-500/80',
+    },
+    piutang: {
+        accent: 'border-l-4 border-l-emerald-500',
+        value: 'text-emerald-400',
+    },
+    hutang: {
+        accent: 'border-l-4 border-l-amber-500',
+        value: 'text-amber-400',
+    },
+    sales: {
+        bar: 'bg-emerald-500/80',
+        dot: 'bg-emerald-500',
+    },
+    hpp: {
+        bar: 'bg-blue-500/80',
+        dot: 'bg-blue-500',
+    },
+    biaya: {
+        bar: 'bg-red-500/80',
+        dot: 'bg-red-500',
+    },
+};
+
 export default function Dashboard({
     quotationStats = [],
     saldoStats = [],
@@ -58,6 +84,7 @@ export default function Dashboard({
 }) {
     const [quotationRange, setQuotationRange] = useState('1_week'); // 1_week|1_month|3_months|5_months|1_year
     const [activeDeliveryTab, setActiveDeliveryTab] = useState('pdb');
+    const [prefetchPriorityCards, setPrefetchPriorityCards] = useState(false);
 
     // Sales HPP State
     const [salesHppRange, setSalesHppRange] = useState('1_week'); // 1_week|1_month|3_months|5_months|1_year
@@ -65,12 +92,22 @@ export default function Dashboard({
 
     const quotationView = useInView();
     const saldoView = useInView();
-    const deliveryView = useInView();
+    const receivablePayableView = useInView({ rootMargin: '0px' });
+    const deliveryView = useInView({ rootMargin: '0px' });
     const salesHppView = useInView();
+
+    useEffect(() => {
+        const rafId = window.requestAnimationFrame(() => {
+            window.setTimeout(() => {
+                setPrefetchPriorityCards(true);
+            }, 250);
+        });
+        return () => window.cancelAnimationFrame(rafId);
+    }, []);
 
     const quotationRequest = useCachedRequest({
         key: `quotation:v2:${quotationRange}`,
-        enabled: quotationView.inView,
+        enabled: quotationView.inView || prefetchPriorityCards,
         ttlMs: 120_000,
         initialData: Array.isArray(quotationStats) && quotationStats.length > 0 ? quotationStats : null,
         fetcher: async () => {
@@ -83,7 +120,7 @@ export default function Dashboard({
 
     const saldoRequest = useCachedRequest({
         key: 'saldo',
-        enabled: saldoView.inView,
+        enabled: saldoView.inView || prefetchPriorityCards,
         ttlMs: 120_000,
         initialData: Array.isArray(saldoStats) && saldoStats.length > 0 ? saldoStats : null,
         fetcher: async () => {
@@ -107,9 +144,19 @@ export default function Dashboard({
         },
     });
 
+    const receivablePayableRequest = useCachedRequest({
+        key: 'receivablePayable',
+        enabled: receivablePayableView.inView,
+        ttlMs: 120_000,
+        fetcher: async () => {
+            const response = await axios.get('/dashboard/receivable-payable-stats');
+            return response.data;
+        },
+    });
+
     const salesHppRequest = useCachedRequest({
         key: `salesHpp:v2:${salesHppRange}`,
-        enabled: salesHppView.inView,
+        enabled: salesHppView.inView || prefetchPriorityCards,
         ttlMs: 120_000,
         initialData:
             salesHppRange === '3_months' &&
@@ -134,6 +181,15 @@ export default function Dashboard({
     const deliveryData = deliveryRequest.data ?? {};
     const pdbData = deliveryData?.pdb ?? {};
     const pdoData = deliveryData?.pdo ?? {};
+    const receivablePayableData = receivablePayableRequest.data ?? {};
+    const piutangData = receivablePayableData?.piutang ?? {
+        total: 0,
+        last_update: null,
+    };
+    const hutangData = receivablePayableData?.hutang ?? {
+        total: 0,
+        last_update: null,
+    };
 
     const salesHppData =
         salesHppRequest.data ?? initialSalesHppStats ?? { summary: {}, series: [] };
@@ -264,7 +320,7 @@ export default function Dashboard({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
             <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4">
-                <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3 xl:items-stretch">
+                <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4 xl:items-stretch">
                     <div ref={quotationView.ref} className="min-w-0">
                         <Card className="flex h-full flex-col">
                             <CardHeader className="space-y-3">
@@ -361,15 +417,10 @@ export default function Dashboard({
                                 ) : (
                                     <>
                                         {/* Mobile: list (no horizontal scroll) */}
-                                        <div
-                                            className={`sm:hidden space-y-3 ${
-                                                displayedStats.length > 10
-                                                    ? 'max-h-[360px] overflow-y-auto pr-1'
-                                                    : ''
-                                            }`}
-                                        >
+                                        <div className="sm:hidden overflow-x-auto pb-2">
+                                            <div className="flex min-w-max items-end gap-3">
                                             {displayedStats.map((item) => {
-                                                const width =
+                                                const heightRaw =
                                                     maxTotal > 0
                                                         ? Math.min(
                                                               100,
@@ -381,41 +432,50 @@ export default function Dashboard({
                                                                   100,
                                                           )
                                                         : 0;
+                                                const valueNumber = Number(item.total ?? 0);
+                                                const barHeight =
+                                                    valueNumber > 0
+                                                        ? Math.max(heightRaw, 6)
+                                                        : 4;
+                                                const labelParts = denseLabelParts(item.label);
                                                 return (
                                                     <div
                                                         key={item.period}
-                                                        className="rounded-lg border border-sidebar-border/70 bg-muted/10 p-3"
+                                                        className="flex w-[86px] shrink-0 flex-col items-center gap-2"
                                                     >
-                                                        <div className="flex items-center justify-between gap-3">
-                                                            <div className="truncate text-sm font-semibold text-foreground">
-                                                                {item.label}
-                                                            </div>
-                                                            <div className="shrink-0 text-sm font-bold text-foreground">
-                                                                {item.total}
-                                                            </div>
+                                                        <div className="h-5 text-center text-xs font-semibold tabular-nums leading-none text-foreground">
+                                                            {formatNumber(item.total)}
                                                         </div>
-                                                        <div className="mt-3 h-2 w-full rounded bg-muted/40">
+                                                        <div className="flex h-28 w-full items-end rounded-lg bg-muted/30 p-1">
                                                             <div
-                                                                className="h-2 rounded bg-emerald-500/80"
+                                                                className={`${METRIC_COLORS.sales.bar} w-full rounded-md`}
                                                                 style={{
-                                                                    width: `${Math.max(
-                                                                        2,
-                                                                        width,
-                                                                    )}%`,
+                                                                    height: `${Math.max(barHeight, 4)}%`,
                                                                 }}
                                                             />
                                                         </div>
+                                                        <span className="w-full text-center text-[11px] leading-tight text-muted-foreground">
+                                                            <span className="inline-flex flex-col items-center">
+                                                                <span>{labelParts.top}</span>
+                                                                {labelParts.bottom ? (
+                                                                    <span className="text-[10px] text-muted-foreground/80">
+                                                                        {labelParts.bottom}
+                                                                    </span>
+                                                                ) : null}
+                                                            </span>
+                                                        </span>
                                                     </div>
                                                 );
                                             })}
+                                            </div>
                                         </div>
 
                                         {/* Desktop: bar chart (no scroll) */}
                                         <div
-                                            className={`hidden sm:flex items-end pb-2 ${
+                                            className={`hidden sm:flex items-end gap-3 overflow-x-auto pb-2 ${
                                                 isDenseQuotation
-                                                    ? 'gap-2'
-                                                    : 'gap-3'
+                                                    ? 'md:gap-2'
+                                                    : 'md:gap-3'
                                             }`}
                                         >
                                             {displayedStats.map((item) => {
@@ -440,7 +500,7 @@ export default function Dashboard({
                                                 return (
                                                     <div
                                                         key={item.period}
-                                                        className="flex min-w-0 flex-1 flex-col items-center gap-2"
+                                                        className="flex min-w-[78px] flex-col items-center gap-2 md:min-w-0 md:flex-1"
                                                     >
                                                         <div
                                                             className={`h-5 min-w-0 text-center font-semibold tabular-nums leading-none text-foreground ${
@@ -456,7 +516,7 @@ export default function Dashboard({
                                                         <div className="flex h-36 w-full items-end">
                                                             <div className="relative flex h-full w-full items-end rounded-lg bg-muted/30 p-1">
                                                                 <div
-                                                                    className="w-full rounded-md bg-emerald-500/80"
+                                                                    className={`w-full rounded-md ${METRIC_COLORS.sales.bar}`}
                                                                     style={{
                                                                         height: `${Math.max(
                                                                             barHeight,
@@ -561,7 +621,7 @@ export default function Dashboard({
                                                     <div className="flex h-39 w-full items-end">
                                                         <div className="relative flex h-full w-full items-end rounded-lg bg-muted/30 p-1">
                                                             <div
-                                                                className="w-full rounded-md bg-blue-500/80"
+                                                                className={`w-full rounded-md ${METRIC_COLORS.kas.bar}`}
                                                                 style={{
                                                                     height: `${Math.min(
                                                                         100,
@@ -591,7 +651,70 @@ export default function Dashboard({
                         </Card>
                     </div>
 
-                    <div ref={deliveryView.ref} className="min-w-0 lg:col-span-2 xl:col-span-1">
+                    <div ref={receivablePayableView.ref} className="min-w-0">
+                        <Card className="flex h-full flex-col">
+                            <CardHeader className="space-y-2">
+                                <CardTitle>Piutang & Hutang Usaha</CardTitle>
+                                <p className="text-sm text-muted-foreground">
+                                    Total saldo akun 1109AD dan 2101AK.
+                                </p>
+                            </CardHeader>
+                            <CardContent>
+                                {receivablePayableRequest.status === 'error' ? (
+                                    <DashboardCardError
+                                        message={receivablePayableRequest.error}
+                                        onRetry={receivablePayableRequest.retry}
+                                    />
+                                ) : receivablePayableRequest.status !== 'success' ? (
+                                    <div className="space-y-3">
+                                        {Array.from({ length: 2 }).map((_, idx) => (
+                                            <div
+                                                key={idx}
+                                                className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4"
+                                            >
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="h-4 w-28 rounded bg-muted" />
+                                                    <div className="h-8 w-40 rounded bg-muted" />
+                                                </div>
+                                                <div className="mt-3 h-3 w-44 rounded bg-muted" />
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <div className={`rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 ${METRIC_COLORS.piutang.accent}`}>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                                    Piutang Usaha
+                                                </div>
+                                                <div className={`text-xl font-bold tracking-tight ${METRIC_COLORS.piutang.value}`}>
+                                                    Rp {formatNumber(piutangData?.total ?? 0)}
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 text-xs text-muted-foreground">
+                                                Last update: {formatDate(piutangData?.last_update)}
+                                            </div>
+                                        </div>
+                                        <div className={`rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 ${METRIC_COLORS.hutang.accent}`}>
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                                    Hutang Usaha
+                                                </div>
+                                                <div className={`text-xl font-bold tracking-tight ${METRIC_COLORS.hutang.value}`}>
+                                                    Rp {formatNumber(hutangData?.total ?? 0)}
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 text-xs text-muted-foreground">
+                                                Last update: {formatDate(hutangData?.last_update)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    <div ref={deliveryView.ref} className="min-w-0 lg:col-span-1 xl:col-span-1">
                         <Card className="flex h-full flex-col">
                             <CardHeader className="space-y-3">
                                 <div className="flex items-start justify-between gap-3">
@@ -704,7 +827,7 @@ export default function Dashboard({
                     </div>
 
                     {/* Sales & HPP Card */}
-                    <div ref={salesHppView.ref} className="min-w-0 lg:col-span-2 xl:col-span-3">
+                    <div ref={salesHppView.ref} className="min-w-0 lg:col-span-2 xl:col-span-4">
                     <Card className="flex h-full flex-col">
                         <CardHeader className="space-y-4">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -841,15 +964,15 @@ export default function Dashboard({
 
                                 <div className="flex items-center gap-4 text-xs text-muted-foreground">
                                     <div className="flex items-center gap-2">
-                                        <span className="h-2 w-2 rounded-full bg-green-500" />
+                                        <span className={`h-2 w-2 rounded-full ${METRIC_COLORS.sales.dot}`} />
                                         <span>Sales</span>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="h-2 w-2 rounded-full bg-red-500" />
+                                        <span className={`h-2 w-2 rounded-full ${METRIC_COLORS.hpp.dot}`} />
                                         <span>HPP</span>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <span className="h-2 w-2 rounded-full bg-orange-500" />
+                                        <span className={`h-2 w-2 rounded-full ${METRIC_COLORS.biaya.dot}`} />
                                         <span>Biaya</span>
                                     </div>
                                 </div>
@@ -883,7 +1006,7 @@ export default function Dashboard({
                                         {salesHppHover.label}
                                     </div>
                                     <div className="mt-1 flex items-center justify-between gap-3">
-                                        <span className="font-semibold text-green-600 dark:text-green-400">
+                                        <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                                             Sales
                                         </span>
                                         <span className="font-semibold">
@@ -891,7 +1014,7 @@ export default function Dashboard({
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between gap-3">
-                                        <span className="font-semibold text-red-600 dark:text-red-400">
+                                        <span className="font-semibold text-blue-600 dark:text-blue-400">
                                             HPP
                                         </span>
                                         <span className="font-semibold">
@@ -899,7 +1022,7 @@ export default function Dashboard({
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between gap-3">
-                                        <span className="font-semibold text-orange-600 dark:text-orange-400">
+                                        <span className="font-semibold text-red-600 dark:text-red-400">
                                             Biaya
                                         </span>
                                         <span className="font-semibold">
@@ -1030,7 +1153,7 @@ export default function Dashboard({
                                                             <div className="mt-3 space-y-2">
                                                                 <div className="h-2 w-full rounded bg-muted/40">
                                                                     <div
-                                                                        className="h-2 rounded bg-green-500/80"
+                                                                        className={`h-2 rounded ${METRIC_COLORS.sales.bar}`}
                                                                         style={{
                                                                             width: `${Math.max(
                                                                                 2,
@@ -1041,7 +1164,7 @@ export default function Dashboard({
                                                                 </div>
                                                                 <div className="h-2 w-full rounded bg-muted/40">
                                                                     <div
-                                                                        className="h-2 rounded bg-red-500/80"
+                                                                        className={`h-2 rounded ${METRIC_COLORS.hpp.bar}`}
                                                                         style={{
                                                                             width: `${Math.max(
                                                                                 2,
@@ -1052,7 +1175,7 @@ export default function Dashboard({
                                                                 </div>
                                                                 <div className="h-2 w-full rounded bg-muted/40">
                                                                     <div
-                                                                        className="h-2 rounded bg-orange-500/80"
+                                                                        className={`h-2 rounded ${METRIC_COLORS.biaya.bar}`}
                                                                         style={{
                                                                             width: `${Math.max(
                                                                                 2,
@@ -1141,18 +1264,7 @@ export default function Dashboard({
                                             >
                                                 <div className="relative flex h-48 w-full items-end justify-center gap-2">
                                                     <div
-                                                        className="relative flex flex-1 min-w-0 flex-col items-center justify-end overflow-hidden rounded-t-sm bg-green-500/80 transition-colors hover:bg-green-500"
-                                                        style={{
-                                                            height: `${Math.max(
-                                                                12,
-                                                                (Number(
-                                                                    item.sales ??
-                                                                        0,
-                                                                ) /
-                                                                    salesHppDerived.max) *
-                                                                    100,
-                                                            )}%`,
-                                                        }}
+                                                        className="flex h-full flex-1 min-w-0 flex-col items-center justify-end"
                                                     >
                                                         {!hideInBarValues &&
                                                             !isDenseSalesHpp &&
@@ -1173,21 +1285,24 @@ export default function Dashboard({
                                                                         : formatNumber(item.sales)}
                                                                 </span>
                                                             )}
+                                                        <div
+                                                            className="w-full overflow-hidden rounded-t-sm bg-emerald-500/80 transition-colors hover:bg-emerald-500"
+                                                            style={{
+                                                                height: `${Math.max(
+                                                                    2,
+                                                                    (Number(
+                                                                        item.sales ??
+                                                                            0,
+                                                                    ) /
+                                                                        salesHppDerived.max) *
+                                                                        100,
+                                                                )}%`,
+                                                            }}
+                                                        />
                                                     </div>
 
                                                     <div
-                                                        className="relative flex flex-1 min-w-0 flex-col items-center justify-end overflow-hidden rounded-t-sm bg-red-500/80 transition-colors hover:bg-red-500"
-                                                        style={{
-                                                            height: `${Math.max(
-                                                                12,
-                                                                (Number(
-                                                                    item.hpp ??
-                                                                        0,
-                                                                ) /
-                                                                    salesHppDerived.max) *
-                                                                    100,
-                                                            )}%`,
-                                                        }}
+                                                        className="flex h-full flex-1 min-w-0 flex-col items-center justify-end"
                                                     >
                                                         {!hideInBarValues &&
                                                             !isDenseSalesHpp &&
@@ -1208,21 +1323,24 @@ export default function Dashboard({
                                                                         : formatNumber(item.hpp)}
                                                                 </span>
                                                             )}
+                                                        <div
+                                                            className="w-full overflow-hidden rounded-t-sm bg-blue-500/80 transition-colors hover:bg-blue-500"
+                                                            style={{
+                                                                height: `${Math.max(
+                                                                    2,
+                                                                    (Number(
+                                                                        item.hpp ??
+                                                                            0,
+                                                                    ) /
+                                                                        salesHppDerived.max) *
+                                                                        100,
+                                                                )}%`,
+                                                            }}
+                                                        />
                                                     </div>
 
                                                     <div
-                                                        className="relative flex flex-1 min-w-0 flex-col items-center justify-end overflow-hidden rounded-t-sm bg-orange-500/80 transition-colors hover:bg-orange-500"
-                                                        style={{
-                                                            height: `${Math.max(
-                                                                2,
-                                                                (Number(
-                                                                    item.biaya ??
-                                                                        0,
-                                                                ) /
-                                                                    salesHppDerived.max) *
-                                                                    100,
-                                                            )}%`,
-                                                        }}
+                                                        className="flex h-full flex-1 min-w-0 flex-col items-center justify-end"
                                                     >
                                                         {!hideInBarValues &&
                                                             !isDenseSalesHpp &&
@@ -1243,6 +1361,20 @@ export default function Dashboard({
                                                                         : formatNumber(item.biaya)}
                                                                 </span>
                                                             )}
+                                                        <div
+                                                            className="w-full overflow-hidden rounded-t-sm bg-red-500/80 transition-colors hover:bg-red-500"
+                                                            style={{
+                                                                height: `${Math.max(
+                                                                    2,
+                                                                    (Number(
+                                                                        item.biaya ??
+                                                                            0,
+                                                                    ) /
+                                                                        salesHppDerived.max) *
+                                                                        100,
+                                                                )}%`,
+                                                            }}
+                                                        />
                                                     </div>
                                                 </div>
                                                 {isDenseSalesHpp ? (

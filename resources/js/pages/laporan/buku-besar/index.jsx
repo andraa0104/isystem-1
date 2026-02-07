@@ -655,7 +655,9 @@ export default function BukuBesarLedgerIndex() {
                                         <td className={`px-3 py-2 font-medium ${cellClass}`}>{r?.kode_jurnal}</td>
                                         <td className={`px-3 py-2 ${cellClass}`}>{r?.kode_voucher}</td>
                                         <td className={`px-3 py-2 ${cellClass}`}>
-                                            <div className="max-w-[520px] truncate">{r?.remark}</div>
+                                            <div className="max-w-[520px] whitespace-normal break-words">
+                                                {r?.remark}
+                                            </div>
                                         </td>
                                         <td className={`px-3 py-2 text-right ${cellClass}`}>
                                             {formatRupiah(r?.debit)}

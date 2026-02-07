@@ -577,7 +577,7 @@ export default function JurnalUmumIndex() {
                                                     {r?.Kode_Voucher || '-'}
                                                 </td>
                                                 <td className={`px-3 py-2 ${cellClass}`}>
-                                                    <div className="max-w-[520px] truncate text-foreground/80">
+                                                    <div className="max-w-[520px] whitespace-normal break-words text-foreground/80">
                                                         {r?.Remark || '-'}
                                                     </div>
                                                 </td>

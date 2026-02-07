@@ -251,7 +251,7 @@ export default function DeliveryOrderPrint({
                     }
                     html, body, * {
                         /* Prioritize clarity over alignment: use common sans fonts for sharper output. */
-                        font-family: Arial, Helvetica, "Liberation Sans", sans-serif !important;
+                        font-family: Chivo !important;
                     }
                     body {
                         /* Slightly larger + heavier improves legibility on Epson LX. */
@@ -260,8 +260,9 @@ export default function DeliveryOrderPrint({
                         /* Avoid dot-matrix "bleeding" while staying readable. */
                         font-weight: 700 !important;
                         letter-spacing: 0 !important;
-                        -webkit-font-smoothing: none;
-                        text-rendering: optimizeSpeed;
+                        -webkit-font-smoothing: antialiased;
+                        -moz-osx-font-smoothing: grayscale;
+                        text-rendering: optimizeLegibility;
                     }
                     .print-address {
                         font-weight: 700 !important;

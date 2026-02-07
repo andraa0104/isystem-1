@@ -94,9 +94,9 @@ export default function PermintaanDanaBiayaPrint({
                         <thead>
                             <tr>
                                 <th style={{ width: '40px' }}>No</th>
-                                <th style={{ width: '160px' }}>No. Doc.</th>
+                                <th style={{ width: '110px' }}>No. Doc.</th>
                                 <th>Keterangan</th>
-                                <th style={{ width: '120px' }}>Total</th>
+                                <th style={{ width: '200px' }}>Total</th>
                             </tr>
                         </thead>
                         <tbody>

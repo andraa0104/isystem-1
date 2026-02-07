@@ -474,7 +474,6 @@ export default function PurchaseOrderEdit({
                 kd_vdr: formData.kodeVendor,
                 ppn: formData.ppn,
                 nm_vdr: formData.namaVendor,
-                kd_vdr: formData.kodeVendor,
                 payment_terms: formData.paymentTerms,
                 del_time: formData.deliveryTime,
                 franco_loco: formData.francoLoco,

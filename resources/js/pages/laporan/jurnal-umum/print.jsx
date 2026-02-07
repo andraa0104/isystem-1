@@ -193,7 +193,8 @@ export default function JurnalUmumPrint() {
                                                 Voucher: {j?.Kode_Voucher || '-'} • Lines: {new Intl.NumberFormat('id-ID').format(j?.lines ?? 0)}
                                             </div>
                                             <div className="mt-1 text-xs text-slate-600">
-                                                Remark: {j?.Remark || '-'}
+                                                <span className="font-medium">Remark:</span>{' '}
+                                                <span className="whitespace-normal break-words">{j?.Remark || '-'}</span>
                                             </div>
                                         </div>
                                         <div className="text-right text-xs text-slate-700">
@@ -263,4 +264,3 @@ export default function JurnalUmumPrint() {
         </div>
     );
 }
-

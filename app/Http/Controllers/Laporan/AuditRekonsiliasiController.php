@@ -76,6 +76,27 @@ class AuditRekonsiliasiController
         return $years[0] ?? null;
     }
 
+    private function resolveInitialPeriod(
+        string $periodType,
+        string $requestedPeriod,
+        ?string $defaultPeriod,
+        ?string $defaultYear,
+        array $periodOptions,
+        array $yearOptions
+    ): string {
+        if ($periodType === 'year') {
+            if ($requestedPeriod !== '' && in_array($requestedPeriod, $yearOptions, true)) {
+                return $requestedPeriod;
+            }
+            return $defaultYear ?: '';
+        }
+
+        if ($requestedPeriod !== '' && in_array($requestedPeriod, $periodOptions, true)) {
+            return $requestedPeriod;
+        }
+        return $defaultPeriod ?: '';
+    }
+
     private function parsePeriodToRange(string $periodType, ?string $period): ?array
     {
         if ($periodType === 'year') {
@@ -169,7 +190,9 @@ class AuditRekonsiliasiController
 
     public function index(Request $request)
     {
+        $periodOptions = $this->getPeriodOptions();
         $defaultPeriod = $this->getDefaultPeriod();
+        $yearOptions = $this->getYearOptions();
         $defaultYear = $this->getDefaultYear();
 
         $periodType = (string) $request->query('periodType', 'month');
@@ -178,9 +201,14 @@ class AuditRekonsiliasiController
         $findingsMode = (string) $request->query('findingsMode', 'unbalanced');
         $findingsMode = in_array($findingsMode, ['unbalanced', 'all'], true) ? $findingsMode : 'unbalanced';
 
-        $initialPeriod = $periodType === 'year'
-            ? ($requestedPeriod !== '' ? $requestedPeriod : ($defaultYear ?: ''))
-            : ($requestedPeriod !== '' ? $requestedPeriod : ($defaultPeriod ?: ''));
+        $initialPeriod = $this->resolveInitialPeriod(
+            $periodType,
+            $requestedPeriod,
+            $defaultPeriod,
+            $defaultYear,
+            $periodOptions,
+            $yearOptions
+        );
 
         return Inertia::render('laporan/audit-rekonsiliasi/index', [
             'initialQuery' => [
@@ -188,9 +216,9 @@ class AuditRekonsiliasiController
                 'period' => $initialPeriod,
                 'findingsMode' => $findingsMode,
             ],
-            'periodOptions' => $this->getPeriodOptions(),
+            'periodOptions' => $periodOptions,
             'defaultPeriod' => $defaultPeriod,
-            'yearOptions' => $this->getYearOptions(),
+            'yearOptions' => $yearOptions,
             'defaultYear' => $defaultYear,
         ]);
     }
@@ -215,15 +243,22 @@ class AuditRekonsiliasiController
     {
         $periodType = (string) $request->query('periodType', 'month');
         $periodType = in_array($periodType, ['month', 'year'], true) ? $periodType : 'month';
-        $period = (string) $request->query('period', '');
+        $requestedPeriod = (string) $request->query('period', '');
         $findingsMode = (string) $request->query('findingsMode', 'unbalanced');
         $findingsMode = in_array($findingsMode, ['unbalanced', 'all'], true) ? $findingsMode : 'unbalanced';
 
+        $periodOptions = $this->getPeriodOptions();
         $defaultPeriod = $this->getDefaultPeriod();
+        $yearOptions = $this->getYearOptions();
         $defaultYear = $this->getDefaultYear();
-        if ($period === '') {
-            $period = $periodType === 'year' ? ($defaultYear ?: '') : ($defaultPeriod ?: '');
-        }
+        $period = $this->resolveInitialPeriod(
+            $periodType,
+            $requestedPeriod,
+            $defaultPeriod,
+            $defaultYear,
+            $periodOptions,
+            $yearOptions
+        );
 
         $range = $this->parsePeriodToRange($periodType, $period);
         if (!$range) {
@@ -516,7 +551,7 @@ class AuditRekonsiliasiController
 
             // Equity movements top (abs net)
             $eqTop = $eqAgg
-                ->orderByRaw('ABS(net) desc')
+                ->orderByRaw('ABS(COALESCE(SUM(u.kredit - u.debit),0)) desc')
                 ->limit(10);
 
             if ($hasTbNabb) {

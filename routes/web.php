@@ -233,6 +233,8 @@ Route::get('dashboard/quotation-stats', [DashboardController::class, 'quotationS
     ->name('dashboard.quotation-stats');
 Route::get('dashboard/saldo-stats', [DashboardController::class, 'saldoStats'])
     ->name('dashboard.saldo-stats');
+Route::get('dashboard/receivable-payable-stats', [DashboardController::class, 'receivablePayableStats'])
+    ->name('dashboard.receivable-payable-stats');
 Route::get('dashboard/delivery-stats', [DashboardController::class, 'deliveryStats'])
     ->name('dashboard.delivery-stats');
 Route::get('dashboard/sales-hpp-stats/{period?}', [DashboardController::class, 'getSalesHppStats'])
