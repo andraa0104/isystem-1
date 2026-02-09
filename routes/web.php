@@ -741,6 +741,8 @@ Route::get('keuangan/mutasi-kas/create', [MutasiKasController::class, 'create'])
     ->name('keuangan.mutasi-kas.create');
 Route::get('keuangan/mutasi-kas/rows', [MutasiKasController::class, 'rows'])
     ->name('keuangan.mutasi-kas.rows');
+Route::get('keuangan/mutasi-kas/bayar-rows', [MutasiKasController::class, 'bayarRows'])
+    ->name('keuangan.mutasi-kas.bayar-rows');
 Route::get('keuangan/mutasi-kas/suggest', [MutasiKasController::class, 'suggest'])
     ->name('keuangan.mutasi-kas.suggest');
 Route::post('keuangan/mutasi-kas', [MutasiKasController::class, 'store'])

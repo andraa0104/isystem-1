@@ -8,6 +8,7 @@ import { dashboard } from '@/routes';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 
 const breadcrumbs = [
     {
@@ -38,6 +39,14 @@ const formatCompactNumber = (value) => {
     }
 };
 
+const formatPercent = (value) => {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return '0%';
+    return `${new Intl.NumberFormat('id-ID', {
+        maximumFractionDigits: 1,
+    }).format(numericValue)}%`;
+};
+
 const formatDate = (value) => {
     if (!value) return '-';
     const date = new Date(value);
@@ -46,6 +55,19 @@ const formatDate = (value) => {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
+    }).format(date);
+};
+
+const formatDateTime = (value) => {
+    if (!value) return '-';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return new Intl.DateTimeFormat('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
     }).format(date);
 };
 
@@ -85,6 +107,8 @@ export default function Dashboard({
     const [quotationRange, setQuotationRange] = useState('1_week'); // 1_week|1_month|3_months|5_months|1_year
     const [activeDeliveryTab, setActiveDeliveryTab] = useState('pdb');
     const [prefetchPriorityCards, setPrefetchPriorityCards] = useState(false);
+    const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+    const [isGlobalRefreshing, setIsGlobalRefreshing] = useState(false);
 
     // Sales HPP State
     const [salesHppRange, setSalesHppRange] = useState('1_week'); // 1_week|1_month|3_months|5_months|1_year
@@ -214,6 +238,37 @@ export default function Dashboard({
         [displayedStats],
     );
 
+    useEffect(() => {
+        if (lastRefreshedAt) return;
+        const anySuccess =
+            quotationRequest.status === 'success' ||
+            saldoRequest.status === 'success' ||
+            deliveryRequest.status === 'success' ||
+            receivablePayableRequest.status === 'success' ||
+            salesHppRequest.status === 'success';
+        if (anySuccess) setLastRefreshedAt(new Date());
+    }, [
+        lastRefreshedAt,
+        quotationRequest.status,
+        saldoRequest.status,
+        deliveryRequest.status,
+        receivablePayableRequest.status,
+        salesHppRequest.status,
+    ]);
+
+    const handleGlobalRefresh = async () => {
+        setIsGlobalRefreshing(true);
+        await Promise.allSettled([
+            quotationRequest.refresh(true),
+            saldoRequest.refresh(true),
+            deliveryRequest.refresh(true),
+            receivablePayableRequest.refresh(true),
+            salesHppRequest.refresh(true),
+        ]);
+        setLastRefreshedAt(new Date());
+        setIsGlobalRefreshing(false);
+    };
+
     const handleSalesHppRangeChange = (nextRange) => {
         setSalesHppHover(null);
         setSalesHppRange(nextRange);
@@ -267,6 +322,10 @@ export default function Dashboard({
         );
         const grossProfit = totalSales - totalHpp;
         const profitAfterBiaya = grossProfit - totalBiaya;
+        const grossMarginPct =
+            totalSales > 0 ? (grossProfit / totalSales) * 100 : 0;
+        const profitAfterBiayaPct =
+            totalSales > 0 ? (profitAfterBiaya / totalSales) * 100 : 0;
         return {
             max: salesHppChartData.max ?? 1,
             series,
@@ -275,6 +334,8 @@ export default function Dashboard({
             totalBiaya,
             grossProfit,
             profitAfterBiaya,
+            grossMarginPct,
+            profitAfterBiayaPct,
         };
     }, [salesHppChartData]);
     const isDenseSalesHpp = salesHppDerived.series.length > 8;
@@ -320,7 +381,30 @@ export default function Dashboard({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
             <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4">
-                <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4 xl:items-stretch">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm text-muted-foreground">
+                        Last refreshed:{' '}
+                        <span className="font-medium text-foreground">
+                            {formatDateTime(lastRefreshedAt)}
+                        </span>
+                    </div>
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={handleGlobalRefresh}
+                        disabled={isGlobalRefreshing}
+                        className="gap-2"
+                    >
+                        <RefreshCw
+                            className={`h-4 w-4 ${
+                                isGlobalRefreshing ? 'animate-spin' : ''
+                            }`}
+                        />
+                        Refresh
+                    </Button>
+                </div>
+                <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4 2xl:items-stretch">
                     <div ref={quotationView.ref} className="min-w-0">
                         <Card className="flex h-full flex-col">
                             <CardHeader className="space-y-3">
@@ -714,7 +798,7 @@ export default function Dashboard({
                         </Card>
                     </div>
 
-                    <div ref={deliveryView.ref} className="min-w-0 lg:col-span-1 xl:col-span-1">
+                    <div ref={deliveryView.ref} className="min-w-0 lg:col-span-1 2xl:col-span-1">
                         <Card className="flex h-full flex-col">
                             <CardHeader className="space-y-3">
                                 <div className="flex items-start justify-between gap-3">
@@ -827,7 +911,7 @@ export default function Dashboard({
                     </div>
 
                     {/* Sales & HPP Card */}
-                    <div ref={salesHppView.ref} className="min-w-0 lg:col-span-2 xl:col-span-4">
+                    <div ref={salesHppView.ref} className="min-w-0 lg:col-span-2 2xl:col-span-4">
                     <Card className="flex h-full flex-col">
                         <CardHeader className="space-y-4">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -946,17 +1030,23 @@ export default function Dashboard({
                                                 {formatNumber(
                                                     salesHppDerived.grossProfit,
                                                 )}
+                                                <span className="ml-1 text-muted-foreground">
+                                                    ({formatPercent(salesHppDerived.grossMarginPct)})
+                                                </span>
                                             </span>
                                         </div>
                                         <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
                                             <span className="text-muted-foreground">
-                                                Profit Setelah Biaya:{' '}
+                                                Laba Bersih:{' '}
                                             </span>
                                             <span className="font-semibold text-foreground">
                                                 Rp{' '}
                                                 {formatNumber(
                                                     salesHppDerived.profitAfterBiaya,
                                                 )}
+                                                <span className="ml-1 text-muted-foreground">
+                                                    ({formatPercent(salesHppDerived.profitAfterBiayaPct)})
+                                                </span>
                                             </span>
                                         </div>
                                     </div>
@@ -997,11 +1087,24 @@ export default function Dashboard({
                                             Math.max(12, salesHppHover.x + 12),
                                         ),
                                         top: Math.min(
-                                            window.innerHeight - 120,
+                                            window.innerHeight - 170,
                                             Math.max(12, salesHppHover.y - 12),
                                         ),
                                     }}
                                 >
+                                    {(() => {
+                                        const sales = Number(salesHppHover.sales ?? 0);
+                                        const hpp = Number(salesHppHover.hpp ?? 0);
+                                        const biaya = Number(salesHppHover.biaya ?? 0);
+                                        const grossProfit = sales - hpp;
+                                        const profitAfterBiaya = grossProfit - biaya;
+                                        const grossMarginPct =
+                                            sales > 0 ? (grossProfit / sales) * 100 : 0;
+                                        const profitAfterBiayaPct =
+                                            sales > 0 ? (profitAfterBiaya / sales) * 100 : 0;
+
+                                        return (
+                                            <>
                                     <div className="max-w-[220px] truncate font-medium">
                                         {salesHppHover.label}
                                     </div>
@@ -1029,6 +1132,32 @@ export default function Dashboard({
                                             {formatNumber(salesHppHover.biaya)}
                                         </span>
                                     </div>
+                                    <div className="my-2 h-px w-full bg-border/70" />
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="font-medium text-muted-foreground">
+                                            Gross Profit
+                                        </span>
+                                        <span className="font-semibold">
+                                            {formatNumber(grossProfit)}{' '}
+                                            <span className="font-medium text-muted-foreground">
+                                                ({formatPercent(grossMarginPct)})
+                                            </span>
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="font-medium text-muted-foreground">
+                                            Laba Bersih
+                                        </span>
+                                        <span className="font-semibold">
+                                            {formatNumber(profitAfterBiaya)}{' '}
+                                            <span className="font-medium text-muted-foreground">
+                                                ({formatPercent(profitAfterBiayaPct)})
+                                            </span>
+                                        </span>
+                                    </div>
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             )}
 

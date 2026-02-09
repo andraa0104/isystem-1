@@ -388,6 +388,61 @@ class MutasiKasController
         }
     }
 
+    public function bayarRows(Request $request)
+    {
+        try {
+            if (!Schema::hasTable('tb_bayar')) {
+                return response()->json(['rows' => [], 'total' => 0]);
+            }
+
+            $search = trim((string) $request->query('search', ''));
+
+            $q = DB::table('tb_bayar');
+
+            // Requirement: show only active/unposted rows per tb_bayar.Status.
+            // User requested Status = 'T'.
+            if (Schema::hasColumn('tb_bayar', 'Status')) {
+                $q->whereRaw("UPPER(TRIM(COALESCE(Status,''))) = 'T'");
+            }
+
+            if ($search !== '') {
+                $q->where(function ($w) use ($search) {
+                    $w->where('Kode_Bayar', 'like', '%' . $search . '%')
+                        ->orWhere('Keterangan', 'like', '%' . $search . '%')
+                        ->orWhere('beban_akun', 'like', '%' . $search . '%')
+                        ->orWhere('noduk_beban', 'like', '%' . $search . '%')
+                        ->orWhere('Penanggung', 'like', '%' . $search . '%');
+                });
+            }
+
+            $rows = $q->select([
+                'Kode_Bayar',
+                'No',
+                'Tgl_Bayar',
+                'Tgl_Posting',
+                'Keterangan',
+                'Penanggung',
+                'Total',
+                'Bayar',
+                'Sisa',
+                'beban_akun',
+                'noduk_beban',
+                'Status',
+            ])
+                ->orderByDesc('Kode_Bayar')
+                ->orderByDesc('No')
+                ->limit(1500)
+                ->get();
+
+            return response()->json([
+                'rows' => $rows,
+                'total' => $rows->count(),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
     private function tokenize(string $text): array
     {
         $t = strtolower(trim($text));
@@ -598,6 +653,57 @@ class MutasiKasController
         }
     }
 
+    private function suggestTransferKeterangan(string $source, string $dest): string
+    {
+        $source = trim($source);
+        $dest = trim($dest);
+        if ($source === '' || $dest === '') return '';
+
+        $srcLabel = $source;
+        $dstLabel = $dest;
+        if (Schema::hasTable('tb_nabb') && Schema::hasColumn('tb_nabb', 'Kode_Akun') && Schema::hasColumn('tb_nabb', 'Nama_Akun')) {
+            try {
+                $names = DB::table('tb_nabb')
+                    ->whereIn('Kode_Akun', [$source, $dest])
+                    ->pluck('Nama_Akun', 'Kode_Akun');
+                $srcName = trim((string) ($names[$source] ?? ''));
+                $dstName = trim((string) ($names[$dest] ?? ''));
+                if ($srcName !== '') $srcLabel = $srcName;
+                if ($dstName !== '') $dstLabel = $dstName;
+            } catch (\Throwable) {
+                // ignore and fallback to codes
+            }
+        }
+
+        // Prefer historical transfer-like redaction.
+        try {
+            $q = DB::table('tb_kas as k')
+                ->whereRaw('COALESCE(k.Mutasi_Kas,0) < 0')
+                ->whereRaw('TRIM(COALESCE(k.Kode_Akun, \'\')) = ?', [$source])
+                ->whereRaw('TRIM(COALESCE(k.Kode_Akun1, \'\')) = ?', [$dest])
+                ->whereNotNull('k.Keterangan')
+                ->orderByDesc('k.Tgl_Voucher')
+                ->orderByDesc('k.Kode_Voucher')
+                ->limit(50)
+                ->pluck('k.Keterangan')
+                ->map(fn ($v) => trim((string) $v))
+                ->filter()
+                ->values()
+                ->all();
+
+            foreach ($q as $ket) {
+                $low = strtolower($ket);
+                if (str_contains($low, 'transfer') || str_contains($low, 'mutasi') || str_contains($ket, '→')) {
+                    return $ket;
+                }
+            }
+        } catch (\Throwable) {
+            // ignore
+        }
+
+        return "PEMINDAHAN DANA DARI {$srcLabel} KE {$dstLabel}";
+    }
+
     public function suggest(Request $request)
     {
         try {
@@ -660,17 +766,28 @@ class MutasiKasController
                 $pair = $this->suggestTransferPair($keterangan);
                 $suggestSource = $pair['source'] ?? '';
                 $suggestDest = $pair['dest'] ?? '';
-                $keteranganOut = $keterangan;
-                if (trim($keteranganOut) === '') {
-                    $keteranganOut = "Mutasi/Transfer {$source}→{$dest}";
+                $finalSource = (string) ($suggestSource ?: $source);
+                $finalDest = (string) ($suggestDest ?: $dest);
+
+                // If caller sent unrelated keterangan (e.g. from previous mode), replace with transfer redaction.
+                $keteranganOut = trim((string) $keterangan);
+                $looksTransfer = $keteranganOut !== '' && (
+                    str_contains(strtolower($keteranganOut), 'transfer')
+                    || str_contains(strtolower($keteranganOut), 'mutasi')
+                    || str_contains($keteranganOut, '→')
+                    || str_contains(strtolower($keteranganOut), 'pindah')
+                );
+                if (!$looksTransfer) {
+                    $keteranganOut = $this->suggestTransferKeterangan($finalSource, $finalDest);
                 }
+
                 return response()->json([
                     'voucher_type' => $voucherType,
-                    'source' => (string) ($suggestSource ?: $source),
-                    'dest' => (string) ($suggestDest ?: $dest),
+                    'source' => $finalSource,
+                    'dest' => $finalDest,
                     'keterangan' => $keteranganOut,
                     'lines' => [
-                        ['akun' => $dest, 'jenis' => 'Debit', 'nominal' => $nominal],
+                        ['akun' => $finalDest, 'jenis' => 'Debit', 'nominal' => $nominal],
                     ],
                     'ppn_akun' => '',
                     'ppn_jenis' => 'Debit',

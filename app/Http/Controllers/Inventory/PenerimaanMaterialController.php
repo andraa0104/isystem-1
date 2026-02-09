@@ -163,6 +163,7 @@ class PenerimaanMaterialController
 
                 // Stock column is `stok` (tb_stok doesn't exist in this DB).
                 $stockColumn = Schema::hasColumn('tb_material', 'stok') ? 'stok' : null;
+                $priceColumn = Schema::hasColumn('tb_material', 'harga') ? 'harga' : null;
 
                 $detailMatColumn = Schema::hasColumn('tb_detailpo', 'kd_mat')
                     ? 'kd_mat'
@@ -239,6 +240,13 @@ class PenerimaanMaterialController
                             ->where('kd_material', $kdMat)
                             ->update([$stockColumn => $newStock]);
                     }
+
+                    // Update last price in tb_material to match PO price used.
+                    if ($priceColumn) {
+                        DB::table('tb_material')
+                            ->where('kd_material', $kdMat)
+                            ->update([$priceColumn => $row['price']]);
+                    }
                 }
             });
         } catch (\Throwable $e) {
@@ -277,6 +285,12 @@ class PenerimaanMaterialController
         if (!Schema::hasTable('tb_detailpo')) {
             throw ValidationException::withMessages([
                 'general' => 'Tabel tb_detailpo tidak ditemukan.',
+            ]);
+        }
+
+        if (!Schema::hasTable('tb_material')) {
+            throw ValidationException::withMessages([
+                'general' => 'Tabel tb_material tidak ditemukan.',
             ]);
         }
 
@@ -320,6 +334,8 @@ class PenerimaanMaterialController
                     throw new \RuntimeException('Kolom kd_mat/no_material tidak ditemukan di tb_detailpo.');
                 }
 
+                $priceColumn = Schema::hasColumn('tb_material', 'harga') ? 'harga' : null;
+
                 foreach (array_values($data['rows']) as $i => $row) {
                     $no = $i + 1;
                     $kdMat = (string) $row['kd_mat'];
@@ -360,6 +376,13 @@ class PenerimaanMaterialController
                         'transfer_mib' => 0,
                         'inv' => 0,
                     ]);
+
+                    // Update last price in tb_material to match PO price used.
+                    if ($priceColumn) {
+                        DB::table('tb_material')
+                            ->where('kd_material', $kdMat)
+                            ->update([$priceColumn => $row['price']]);
+                    }
                 }
             });
         } catch (\Throwable $e) {

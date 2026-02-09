@@ -38,6 +38,26 @@ const formatNumber = (value) => {
     );
 };
 
+const resolvePriceStatus = ({ lastStock, price, lastPrice }) => {
+    const stockNum = Number(lastStock);
+    const priceStr = String(price ?? '').trim();
+    const lastPriceStr = String(lastPrice ?? '').trim();
+
+    const priceNum = Number(priceStr);
+    const lastPriceNum = Number(lastPriceStr);
+    const bothNumeric =
+        Number.isFinite(priceNum) && Number.isFinite(lastPriceNum);
+    const isSame = bothNumeric
+        ? priceNum === lastPriceNum
+        : priceStr === lastPriceStr;
+
+    if (isSame) return { status: 'OK', blockedFor: null };
+
+    const hasStock = Number.isFinite(stockNum) ? stockNum !== 0 : false;
+    if (hasStock) return { status: 'Masuk MIB', blockedFor: 'mi_mis' };
+    return { status: 'Masuk MI/MIS', blockedFor: 'mib' };
+};
+
 export default function PenerimaanMaterialIndex() {
     const [mode, setMode] = useState(''); // mi | mis | mib
 
@@ -249,6 +269,31 @@ export default function PenerimaanMaterialIndex() {
         };
     }, [mode, materialByMode]);
 
+    const currentMaterialRule = useMemo(() => {
+        if (!mode) return { status: 'OK', blocked: false, message: '' };
+        const m = materialByMode?.[mode] ?? {};
+        const { status, blockedFor } = resolvePriceStatus({
+            lastStock: m.lastStock,
+            price: m.price,
+            lastPrice: m.lastPrice,
+        });
+
+        const blocked =
+            (mode === 'mi' || mode === 'mis')
+                ? blockedFor === 'mi_mis'
+                : mode === 'mib'
+                  ? blockedFor === 'mib'
+                  : false;
+
+        const message = blocked
+            ? blockedFor === 'mi_mis'
+                ? 'Harga material berbeda dan stok sudah ada. Material ini harus masuk MIB.'
+                : 'Harga material berbeda dan stok masih 0. Material ini harus masuk MI/MIS.'
+            : '';
+
+        return { status, blocked, message };
+    }, [mode, materialByMode]);
+
     useEffect(() => {
         if (!mode) return;
         setMaterialByMode((prev) => ({
@@ -299,20 +344,46 @@ export default function PenerimaanMaterialIndex() {
         const m = materialByMode?.[mode] ?? {};
         if (!m.kdMat || !m.material) return;
 
-        // MI/MIS only: if PO price differs from last price (tb_material.harga), block. Item should go to MIB.
+        const stockNum = Number(m.lastStock);
+        const priceStr = String(m.price ?? '').trim();
+        const lastPriceStr = String(m.lastPrice ?? '').trim();
+        const priceNum = Number(priceStr);
+        const lastPriceNum = Number(lastPriceStr);
+        const bothNumeric =
+            Number.isFinite(priceNum) && Number.isFinite(lastPriceNum);
+        const isSame = bothNumeric
+            ? priceNum === lastPriceNum
+            : priceStr === lastPriceStr;
+        const hasStock = Number.isFinite(stockNum) ? stockNum !== 0 : false;
+
+        // MI/MIS only: if stock already exists and PO price differs from last price (tb_material.harga),
+        // block and direct user to MIB. If stock == 0, allow even if price differs.
         if (mode === 'mi' || mode === 'mis') {
-            const priceStr = String(m.price ?? '').trim();
-            const lastPriceStr = String(m.lastPrice ?? '').trim();
-            const priceNum = Number(priceStr);
-            const lastPriceNum = Number(lastPriceStr);
-            const bothNumeric = Number.isFinite(priceNum) && Number.isFinite(lastPriceNum);
-            const isSame = bothNumeric ? priceNum === lastPriceNum : priceStr === lastPriceStr;
-            if (!isSame) {
+            if (hasStock && !isSame) {
                 Swal.fire({
                     toast: true,
                     position: 'top-end',
                     icon: 'warning',
-                    title: 'Price dan Last Price tidak sama. Barang masuk MIB.',
+                    title: 'Harga material berbeda (stok sudah ada). Barang masuk MIB.',
+                    text: 'Silakan pilih mode MIB untuk material ini.',
+                    showConfirmButton: false,
+                    timer: 3000,
+                    timerProgressBar: true,
+                });
+                return;
+            }
+        }
+
+        // MIB only: if stock is 0 and price differs, warn and direct user to MI/MIS.
+        if (mode === 'mib') {
+            const isZeroStock = Number.isFinite(stockNum) ? stockNum === 0 : true;
+            if (isZeroStock && !isSame) {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'warning',
+                    title: 'Harga material berbeda (stok masih 0). Barang masuk MI/MIS.',
+                    text: 'Silakan pilih mode MI atau MIS untuk material ini.',
                     showConfirmButton: false,
                     timer: 3000,
                     timerProgressBar: true,
@@ -611,33 +682,55 @@ export default function PenerimaanMaterialIndex() {
                                             <th className="px-3 py-3 text-right">Qty</th>
                                             <th className="px-3 py-3">Satuan</th>
                                             <th className="px-3 py-3 text-right">Price</th>
+                                            <th className="px-3 py-3">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {(!currentHeader?.noPo || currentPoMaterials.rows.length === 0) && (
                                             <tr>
                                                 <td
-                                                    colSpan={6}
+                                                    colSpan={7}
                                                     className="px-3 py-4 text-center text-muted-foreground"
                                                 >
                                                     {!currentHeader?.noPo ? 'Pilih PO terlebih dahulu.' : 'Tidak ada data.'}
                                                 </td>
                                             </tr>
                                         )}
-                                        {currentPoMaterials.rows.map((row, idx) => (
-                                            <tr
-                                                key={`${row.kd_mat ?? idx}-${idx}`}
-                                                className="cursor-pointer border-t border-white/5 hover:bg-white/5"
-                                                onClick={() => handlePickMaterial(row)}
-                                            >
-                                                <td className="px-3 py-2">{idx + 1}</td>
-                                                <td className="px-3 py-2">{row.kd_mat}</td>
-                                                <td className="px-3 py-2">{row.material}</td>
-                                                <td className="px-3 py-2 text-right">{formatNumber(row.qty)}</td>
-                                                <td className="px-3 py-2">{row.unit}</td>
-                                                <td className="px-3 py-2 text-right">{formatNumber(row.price)}</td>
-                                            </tr>
-                                        ))}
+                                        {currentPoMaterials.rows.map((row, idx) => {
+                                            const { status } = resolvePriceStatus({
+                                                lastStock: row?.last_stock,
+                                                price: row?.price,
+                                                lastPrice: row?.last_price,
+                                            });
+                                            const statusClass =
+                                                status === 'OK'
+                                                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                                    : status === 'Masuk MIB'
+                                                      ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                                      : 'bg-sky-500/10 text-sky-700 dark:text-sky-300';
+
+                                            return (
+                                                <tr
+                                                    key={`${row.kd_mat ?? idx}-${idx}`}
+                                                    className="cursor-pointer border-t border-white/5 hover:bg-white/5"
+                                                    onClick={() => handlePickMaterial(row)}
+                                                >
+                                                    <td className="px-3 py-2">{idx + 1}</td>
+                                                    <td className="px-3 py-2">{row.kd_mat}</td>
+                                                    <td className="px-3 py-2">{row.material}</td>
+                                                    <td className="px-3 py-2 text-right">{formatNumber(row.qty)}</td>
+                                                    <td className="px-3 py-2">{row.unit}</td>
+                                                    <td className="px-3 py-2 text-right">{formatNumber(row.price)}</td>
+                                                    <td className="px-3 py-2">
+                                                        <span
+                                                            className={`inline-flex items-center rounded-full px-2 py-1 text-[11px] font-medium ${statusClass}`}
+                                                        >
+                                                            {status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -646,7 +739,19 @@ export default function PenerimaanMaterialIndex() {
                         <div className="rounded-xl border bg-card p-4">
                             <div className="mb-3 flex items-center justify-between">
                                 <h2 className="text-base font-semibold">Input Material {modeLabel}</h2>
-                                <Button type="button" onClick={handleAddRow}>
+                                <Button
+                                    type="button"
+                                    onClick={handleAddRow}
+                                    disabled={
+                                        !currentMaterial?.kdMat ||
+                                        currentMaterialRule.blocked
+                                    }
+                                    title={
+                                        currentMaterialRule.blocked
+                                            ? currentMaterialRule.message
+                                            : undefined
+                                    }
+                                >
                                     Tambah Data
                                 </Button>
                             </div>
@@ -718,6 +823,11 @@ export default function PenerimaanMaterialIndex() {
                                     <Input value={formatNumber(currentMaterial?.stockNow)} readOnly />
                                 </div>
                             </div>
+                            {currentMaterialRule.blocked ? (
+                                <p className="mt-3 text-sm font-medium text-destructive">
+                                    {currentMaterialRule.message}
+                                </p>
+                            ) : null}
                         </div>
 
                         <div className="rounded-xl border bg-card p-4">

@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -28,13 +27,6 @@ const formatDate = (value) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
-};
-
-const directionBadge = (mutasi) => {
-    const v = Number(mutasi ?? 0);
-    if (v > 0) return { label: 'Masuk', variant: 'default' };
-    if (v < 0) return { label: 'Keluar', variant: 'destructive' };
-    return { label: 'Netral', variant: 'secondary' };
 };
 
 const getAccountLabel = (options, value) => {
@@ -128,6 +120,8 @@ export default function MutasiKasCreate({
     const [histTotal, setHistTotal] = useState(0);
     const [histLoading, setHistLoading] = useState(false);
     const [histError, setHistError] = useState(null);
+    const [selectedPay, setSelectedPay] = useState(null);
+    const [selectedPayRow, setSelectedPayRow] = useState(null);
 
     const [mode, setMode] = useState('out'); // out|in|transfer
     const [templateKey, setTemplateKey] = useState('');
@@ -197,19 +191,30 @@ export default function MutasiKasCreate({
     const selectedTemplate = useMemo(() => (templates ?? []).find((t) => String(t?.key ?? '') === String(templateKey)), [templates, templateKey]);
 
     const fetchHistory = async () => {
+        if (mode !== 'out') {
+            setHistRows([]);
+            setHistTotal(0);
+            setHistError(null);
+            setHistLoading(false);
+            return;
+        }
         setHistLoading(true);
         setHistError(null);
         try {
             const params = new URLSearchParams();
             if (histSearch) params.set('search', histSearch);
-            const acc = mode === 'transfer' ? sourceAkun : kodeAkun;
-            if (acc) params.set('account', acc);
-            // Do not force current month; "Riwayat terbaru" should show latest rows even if
-            // the last transactions are in previous periods.
-            // (Index page already supports period filtering.)
             params.set('pageSize', 'all');
 
-            const res = await fetch(`/keuangan/mutasi-kas/rows?${params.toString()}`, { headers: { Accept: 'application/json' } });
+            const isBayar = mode === 'out';
+            if (!isBayar) {
+                const acc = mode === 'transfer' ? sourceAkun : kodeAkun;
+                if (acc) params.set('account', acc);
+            } else {
+                // backend filters by tb_bayar.Status = 'T'
+            }
+
+            const url = isBayar ? `/keuangan/mutasi-kas/bayar-rows?${params.toString()}` : `/keuangan/mutasi-kas/rows?${params.toString()}`;
+            const res = await fetch(url, { headers: { Accept: 'application/json' } });
             if (!res.ok) throw await normalizeApiError(res);
             const json = await res.json();
             setHistRows(Array.isArray(json?.rows) ? json.rows : []);
@@ -234,6 +239,7 @@ export default function MutasiKasCreate({
     }, [mode, kodeAkun, sourceAkun]);
 
     useEffect(() => {
+        if (mode !== 'out') return () => {};
         const t = window.setTimeout(() => fetchHistory(), 350);
         return () => window.clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -253,6 +259,9 @@ export default function MutasiKasCreate({
     const runSuggest = async ({ reason } = {}) => {
         if (mode === 'transfer' && (!sourceAkun || !destAkun)) return;
         if ((mode === 'in' || mode === 'out') && !kodeAkun) return;
+        // Mode keluar: AI dan pengisian form berbasis Payment Cost (tb_bayar) yang dipilih.
+        // Jangan auto-isi saat halaman baru dibuka sebelum ada selection.
+        if (mode === 'out' && !selectedPay) return;
 
         setSuggestLoading(true);
         try {
@@ -266,7 +275,10 @@ export default function MutasiKasCreate({
             }
             if (templateKey) params.set('templateKey', templateKey);
             if (nominalNumber > 0) params.set('nominal', String(nominalNumber));
-            if (keterangan.trim()) params.set('keterangan', keterangan);
+            // For transfer, only send keterangan if user explicitly typed it (to avoid carrying unrelated text).
+            if (keterangan.trim() && !(mode === 'transfer' && !keteranganTouched)) {
+                params.set('keterangan', keterangan);
+            }
             params.set('hasPpn', String(hasPpn && ppnNumber > 0));
             if (ppnNumber > 0) params.set('ppnNominal', String(ppnNumber));
 
@@ -319,18 +331,21 @@ export default function MutasiKasCreate({
     // Auto-suggest triggers
     useEffect(() => {
         if (!templateKey) return;
+        if (mode === 'out' && !selectedPay) return () => {};
         const t = window.setTimeout(() => runSuggest({ reason: 'template' }), 200);
         return () => window.clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [templateKey]);
 
     useEffect(() => {
+        if (mode === 'out' && !selectedPay) return () => {};
         const t = window.setTimeout(() => runSuggest({ reason: 'typing' }), 500);
         return () => window.clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [keterangan, mode]);
 
     useEffect(() => {
+        if (mode === 'out' && !selectedPay) return () => {};
         const t = window.setTimeout(() => runSuggest({ reason: 'recalc' }), 250);
         return () => window.clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -364,6 +379,28 @@ export default function MutasiKasCreate({
         setHasPpn(false);
         setPpnNominal('');
         setPpnAkun('');
+        setPpnAkunTouched(false);
+
+        // Reset keterangan to allow transfer-specific suggestion (unless user already typed).
+        if (!keteranganTouched) {
+            setKeterangan('');
+        }
+    }, [mode]);
+
+    // Reset form fields when switching mode (avoid carrying unrelated previous values).
+    useEffect(() => {
+        setKeterangan('');
+        setKeteranganTouched(false);
+        setNominal('');
+        setHasPpn(false);
+        setPpnNominal('');
+        setPpnAkun('');
+        setPpnAkunTouched(false);
+        setLines([{ akun: '', jenis: mode === 'in' ? 'Kredit' : 'Debit', nominal: 0 }]);
+        setVoucherTypeTouched(false);
+        setSelectedPay(null);
+        setSelectedPayRow(null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mode]);
 
     const applyTemplateDefaults = (key) => {
@@ -444,144 +481,175 @@ export default function MutasiKasCreate({
 
             <div className="flex flex-col gap-4 p-4">
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-                    <Card className="lg:col-span-3">
-                        <CardHeader className="space-y-3">
-                            <div className="flex items-start justify-between gap-3">
-                                <div>
-                                    <CardTitle>Riwayat Mutasi Terbaru</CardTitle>
-                                    <div className="text-xs text-muted-foreground">
-                                        Referensi cepat dari <span className="font-mono">tb_kas</span> untuk akun yang dipilih.
+                    {mode === 'out' ? (
+                        <Card className="lg:col-span-3">
+                            <CardHeader className="space-y-3">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <CardTitle>Riwayat Payment Cost</CardTitle>
+                                        <div className="text-xs text-muted-foreground">
+                                            Mode <span className="font-medium">Keluar</span> menampilkan data dari <span className="font-mono">tb_bayar</span> (Status <span className="font-mono">T</span>).
+                                        </div>
                                     </div>
+                                    <Button type="button" variant="outline" onClick={() => router.visit('/keuangan/mutasi-kas')}>
+                                        Kembali
+                                    </Button>
                                 </div>
-                                <Button type="button" variant="outline" onClick={() => router.visit('/keuangan/mutasi-kas')}>
-                                    Kembali
-                                </Button>
-                            </div>
 
-                            <div className="flex flex-wrap gap-3">
-                                <Input
-                                    placeholder="Cari voucher / keterangan..."
-                                    value={histSearch}
-                                    onChange={(e) => setHistSearch(e.target.value)}
-                                    className="w-full max-w-xs"
-                                />
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    onClick={() => {
-                                        setHistPage(1);
-                                        fetchHistory();
-                                    }}
-                                >
-                                    Refresh
-                                </Button>
-                            </div>
-                        </CardHeader>
-
-                        <CardContent className="overflow-x-auto">
-                            <Table>
-                                <TableHeader className="sticky top-0 z-10 bg-background">
-                                    <TableRow>
-                                        <TableHead>Kode Voucher</TableHead>
-                                        <TableHead>Tgl</TableHead>
-                                        <TableHead>Keterangan</TableHead>
-                                        <TableHead className="text-right">Mutasi</TableHead>
-                                        <TableHead className="text-right">Saldo</TableHead>
-                                        <TableHead>Status</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    <ShadcnTableStateRows
-                                        columns={6}
-                                        loading={histLoading}
-                                        error={histError}
-                                        onRetry={fetchHistory}
-                                        isEmpty={!histLoading && !histError && histDisplayed.length === 0}
-                                        emptyTitle="Tidak ada riwayat."
-                                        emptyDescription="Ubah kata kunci atau pilih akun kas/bank."
+                                <div className="flex flex-wrap gap-3">
+                                    <Input
+                                        placeholder="Cari kode bayar / keterangan..."
+                                        value={histSearch}
+                                        onChange={(e) => setHistSearch(e.target.value)}
+                                        className="w-full max-w-xs"
                                     />
-                                    {!histLoading &&
-                                        !histError &&
-                                        histDisplayed.map((row) => {
-                                            const badge = directionBadge(row?.Mutasi_Kas);
-                                            const mut = Number(row?.Mutasi_Kas ?? 0);
-                                            return (
-                                                <TableRow
-                                                    key={row?.Kode_Voucher ?? Math.random()}
-                                                    className="cursor-pointer"
-                                                    onClick={() => {
-                                                        if (!keteranganTouched && row?.Keterangan) {
-                                                            setKeterangan(String(row.Keterangan));
-                                                        }
-                                                        if (nominal === '') {
-                                                            setNominal(String(Math.abs(mut)));
-                                                        }
-                                                        runSuggest({ reason: 'history' });
-                                                    }}
-                                                >
-                                                    <TableCell className="whitespace-pre-wrap font-mono text-xs">{String(row?.Kode_Voucher ?? '-')}</TableCell>
-                                                    <TableCell className="whitespace-nowrap">{formatDate(row?.Tgl_Voucher)}</TableCell>
-                                                    <TableCell className="whitespace-normal break-words text-sm">{String(row?.Keterangan ?? '') || '-'}</TableCell>
-                                                    <TableCell className={`whitespace-nowrap text-right ${mut < 0 ? 'text-destructive' : mut > 0 ? 'text-emerald-500' : ''}`}>
-                                                        Rp {formatNumber(mut)}
-                                                    </TableCell>
-                                                    <TableCell className="whitespace-nowrap text-right">Rp {formatNumber(row?.Saldo)}</TableCell>
-                                                    <TableCell>
-                                                        <Badge variant={badge.variant}>{badge.label}</Badge>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => {
+                                            setHistPage(1);
+                                            fetchHistory();
+                                        }}
+                                    >
+                                        Refresh
+                                    </Button>
+                                </div>
+                            </CardHeader>
+
+                            <CardContent className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader className="sticky top-0 z-10 bg-background">
+                                        <TableRow>
+                                            <TableHead className="w-[48px]">No</TableHead>
+                                            <TableHead>Kode Bayar</TableHead>
+                                            <TableHead>Tgl Bayar</TableHead>
+                                            <TableHead className="min-w-[360px]">Keterangan</TableHead>
+                                            <TableHead>Penanggung</TableHead>
+                                            <TableHead className="text-right">Bayar</TableHead>
+                                            <TableHead>Beban Akun</TableHead>
+                                            <TableHead>Dok</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        <ShadcnTableStateRows
+                                            columns={7}
+                                            loading={histLoading}
+                                            error={histError}
+                                            onRetry={fetchHistory}
+                                            isEmpty={!histLoading && !histError && histDisplayed.length === 0}
+                                            emptyTitle="Tidak ada riwayat."
+                                            emptyDescription="Ubah kata kunci pencarian."
+                                        />
+                                        {!histLoading &&
+                                            !histError &&
+                                            histDisplayed.map((row, idx) => {
+                                                const bayar = Number(row?.Bayar ?? 0);
+                                                const uniq =
+                                                    String(row?.No ?? row?.no ?? '').trim() ||
+                                                    String(row?.noduk_beban ?? '').trim() ||
+                                                    String(idx);
+                                                const key = `${String(row?.Kode_Bayar ?? '').trim()}-${uniq}`;
+                                                const active = selectedPay && selectedPay === key;
+                                                return (
+                                                    <TableRow
+                                                        key={key || Math.random()}
+                                                        className={`cursor-pointer ${active ? 'bg-primary/5' : ''}`}
+                                                        onClick={() => {
+                                                            setSelectedPay(key);
+                                                            setSelectedPayRow(row);
+                                                            // Selecting a Payment Cost should become the new base (do not keep old values).
+                                                            setKeterangan(String(row?.Keterangan ?? ''));
+                                                            // Treat keterangan from tb_bayar as authoritative; do not let AI override it.
+                                                            setKeteranganTouched(true);
+
+                                                            const bayarAbs = Math.abs(bayar);
+                                                            setNominal(bayarAbs > 0 ? String(bayarAbs) : '');
+
+                                                            // Prefer beban_akun from tb_bayar as the initial DPP line.
+                                                            const beban = String(row?.beban_akun ?? '').trim();
+                                                            if (beban) {
+                                                                setLines([{ akun: beban, jenis: 'Debit', nominal: bayarAbs }]);
+                                                            } else {
+                                                                setLines([{ akun: '', jenis: 'Debit', nominal: bayarAbs }]);
+                                                            }
+
+                                                            // Ensure suggest can update kas/bank + voucher type based on tb_kas history.
+                                                            setKodeAkunTouched(false);
+                                                            setVoucherTypeTouched(false);
+                                                            setHasPpn(false);
+                                                            setPpnNominal('');
+                                                            setPpnAkun('');
+                                                            setPpnAkunTouched(false);
+
+                                                            runSuggest({ reason: 'payment' });
+                                                        }}
+                                                    >
+                                                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                                                            {String(row?.No ?? '-')}
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-pre-wrap font-mono text-xs">{String(row?.Kode_Bayar ?? '-')}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{formatDate(row?.Tgl_Bayar)}</TableCell>
+                                                        <TableCell className="whitespace-normal break-words text-sm">{String(row?.Keterangan ?? '') || '-'}</TableCell>
+                                                        <TableCell className="whitespace-nowrap text-sm">{String(row?.Penanggung ?? '-') || '-'}</TableCell>
+                                                        <TableCell className="whitespace-nowrap text-right text-destructive">
+                                                            Rp {formatNumber(Math.abs(bayar))}
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap text-sm font-mono">{String(row?.beban_akun ?? '-') || '-'}</TableCell>
+                                                        <TableCell className="whitespace-nowrap text-sm font-mono">{String(row?.noduk_beban ?? '-') || '-'}</TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
                                 </TableBody>
                             </Table>
 
-                            <div className="mt-4 flex items-center justify-between gap-3">
-                                <div className="text-sm text-muted-foreground">Total data: {histTotal}</div>
-                                <div className="flex items-center gap-3">
-                                    <Select
-                                        value={histPageSize === Infinity ? 'all' : String(histPageSize)}
-                                        onValueChange={(v) => {
-                                            const num = v === 'all' ? Infinity : Number(v);
-                                            setHistPageSize(num);
-                                            setHistPage(1);
-                                        }}
-                                    >
-                                        <SelectTrigger className="w-[180px]">
-                                            <SelectValue placeholder="Per halaman" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {PAGE_SIZE_OPTIONS.map((opt) => (
-                                                <SelectItem key={opt.value} value={opt.value}>
-                                                    {opt.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        disabled={histPage <= 1 || histPageSize === Infinity}
-                                        onClick={() => setHistPage((p) => Math.max(1, p - 1))}
-                                    >
-                                        Prev
-                                    </Button>
-                                    <div className="min-w-[64px] text-center text-sm">
-                                        {histPage}/{histTotalPages}
+                                <div className="mt-4 flex items-center justify-between gap-3">
+                                    <div className="text-sm text-muted-foreground">Total data: {histTotal}</div>
+                                    <div className="flex items-center gap-3">
+                                        <Select
+                                            value={histPageSize === Infinity ? 'all' : String(histPageSize)}
+                                            onValueChange={(v) => {
+                                                const num = v === 'all' ? Infinity : Number(v);
+                                                setHistPageSize(num);
+                                                setHistPage(1);
+                                            }}
+                                        >
+                                            <SelectTrigger className="w-[180px]">
+                                                <SelectValue placeholder="Per halaman" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {PAGE_SIZE_OPTIONS.map((opt) => (
+                                                    <SelectItem key={opt.value} value={opt.value}>
+                                                        {opt.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            disabled={histPage <= 1 || histPageSize === Infinity}
+                                            onClick={() => setHistPage((p) => Math.max(1, p - 1))}
+                                        >
+                                            Prev
+                                        </Button>
+                                        <div className="min-w-[64px] text-center text-sm">
+                                            {histPage}/{histTotalPages}
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            disabled={histPage >= histTotalPages || histPageSize === Infinity}
+                                            onClick={() => setHistPage((p) => Math.min(histTotalPages, p + 1))}
+                                        >
+                                            Next
+                                        </Button>
                                     </div>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        disabled={histPage >= histTotalPages || histPageSize === Infinity}
-                                        onClick={() => setHistPage((p) => Math.min(histTotalPages, p + 1))}
-                                    >
-                                        Next
-                                    </Button>
                                 </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                            </CardContent>
+                        </Card>
+                    ) : null}
 
-                    <Card className="lg:col-span-2">
+                    <Card className={mode === 'out' ? 'lg:col-span-2' : 'lg:col-span-5'}>
                         <CardHeader className="space-y-2">
                             <CardTitle>Mutasi Kas</CardTitle>
                             <div className="text-xs text-muted-foreground">
@@ -589,6 +657,11 @@ export default function MutasiKasCreate({
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            {mode === 'out' && !selectedPay ? (
+                                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                                    Pilih salah satu <span className="font-medium">Payment Cost</span> di tabel kiri untuk mulai mengisi form mutasi.
+                                </div>
+                            ) : null}
                             <div className="space-y-2">
                                 <div className="text-sm font-medium">Mode transaksi</div>
                                 <div className="grid grid-cols-3 gap-2">
@@ -614,6 +687,11 @@ export default function MutasiKasCreate({
                                         Transfer
                                     </Button>
                                 </div>
+                                {mode !== 'out' ? (
+                                    <div className="mt-2 rounded-md bg-muted/30 p-3 text-xs text-muted-foreground">
+                                        Riwayat kiri disembunyikan untuk mode <span className="font-medium">{mode === 'in' ? 'Masuk' : 'Transfer'}</span>. AI tetap belajar dari <span className="font-mono">tb_kas</span>.
+                                    </div>
+                                ) : null}
                             </div>
 
                             <div className="space-y-2">
