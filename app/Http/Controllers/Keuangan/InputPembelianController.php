@@ -7,6 +7,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
+use App\Services\Keuangan\KasDss\KasDss;
 
 class InputPembelianController
 {
@@ -29,6 +30,9 @@ class InputPembelianController
      */
     private function getNaBBAccountWeights(int $maxPeriods = 24): array
     {
+        // Updated requirement: do not use tb_nabbrekap weighting; DSS learns from tb_kas + tb_jurnal/tb_jurnaldetail.
+        return [];
+
         $maxPeriods = max(1, min(60, $maxPeriods));
         if (!$this->nabbrekapAvailable()) return [];
 
@@ -202,6 +206,7 @@ class InputPembelianController
 
             $kodeKas = trim((string) ($kas->Kode_Akun ?? ''));
             if ($kodeKas !== '') $cashCounts[$kodeKas] = ($cashCounts[$kodeKas] ?? 0) + 1;
+            if (str_contains($voucher, '/CV/')) $typeCounts['CV'] = ($typeCounts['CV'] ?? 0) + 1;
             if (str_contains($voucher, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + 1;
             if (str_contains($voucher, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + 1;
 
@@ -383,12 +388,7 @@ class InputPembelianController
 
     private function guessVoucherType(string $kodeAkun): string
     {
-        // Heuristic: cash account -> GV, others -> BV
-        $kodeAkun = strtoupper(trim($kodeAkun));
-        if ($kodeAkun === '1101AD' || str_starts_with($kodeAkun, '1101')) {
-            return 'GV';
-        }
-        return 'BV';
+        return (new KasDss())->voucherTypeForAkun($kodeAkun);
     }
 
     private function buildKasSelect(): array
@@ -579,8 +579,10 @@ class InputPembelianController
             // "Input Pembelian" dikenali dari voucher type (GV/BV) + keterangan pembelian FI.
             // Catatan: data historis bisa memakai prefix berbeda (tanpa kode DB), jadi jangan dikunci ke $dbCode saja.
             $q->where(function ($qq) {
-                $qq->where('k.Kode_Voucher', 'like', '%/GV/%')
+                $qq->where('k.Kode_Voucher', 'like', '%/CV/%')
+                    ->orWhere('k.Kode_Voucher', 'like', '%/GV/%')
                     ->orWhere('k.Kode_Voucher', 'like', '%/BV/%')
+                    ->orWhere('k.Kode_Voucher', 'like', 'CV%')
                     ->orWhere('k.Kode_Voucher', 'like', 'GV%')
                     ->orWhere('k.Kode_Voucher', 'like', 'BV%');
             });
@@ -962,6 +964,7 @@ class InputPembelianController
             }
             $kv = trim((string) ($r->Kode_Voucher ?? ''));
             if ($kv !== '') {
+                if (str_contains($kv, '/CV/')) $typeCounts['CV'] = ($typeCounts['CV'] ?? 0) + 1;
                 if (str_contains($kv, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + 1;
                 if (str_contains($kv, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + 1;
             }
@@ -1268,6 +1271,7 @@ class InputPembelianController
             if ($kodeKas !== '') {
                 $cashCounts[$kodeKas] = ($cashCounts[$kodeKas] ?? 0) + $overlap;
             }
+            if (str_contains($voucher, '/CV/')) $typeCounts['CV'] = ($typeCounts['CV'] ?? 0) + $overlap;
             if (str_contains($voucher, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + $overlap;
             if (str_contains($voucher, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + $overlap;
 
@@ -1382,6 +1386,67 @@ class InputPembelianController
             $suggest = $poSuggest
                 ?? $invSuggest
                 ?? $this->suggestFromHistory($vendorKey, $hasPpn, (float) ($alloc['dpp'] ?? 0), (float) ($alloc['tax'] ?? 0));
+            $suggestSource = $poSuggest ? 'po' : ($invSuggest ? 'invoice' : 'kas');
+
+            // DSS (generic) based on similarity of keterangan:
+            // - learns from tb_kas (kNN), tb_jurnal/tb_jurnaldetail (fallback), and can be softly guided by FI history.
+            $seedAkun = '';
+            $seedFrom = is_array($suggest['beban_lines'] ?? null) ? $suggest['beban_lines'] : [];
+            if (is_array($seedFrom) && count($seedFrom) > 0) {
+                $seedAkun = trim((string) ($seedFrom[0]['akun'] ?? ''));
+            }
+
+            // Use FI fields (tb_kdinvin) to enrich the query text for DSS scoring.
+            // IMPORTANT: do not change the user-facing redaction; only enrich the internal query.
+            $keteranganDisplay = $this->suggestKeterangan($fi);
+            $keteranganForDss = trim(
+                $keteranganDisplay . ' '
+                    . (string) ($fi->nm_vdr ?? '') . ' '
+                    . (string) ($fi->ref_po ?? '') . ' '
+                    . (string) ($fi->no_doc ?? '')
+            );
+
+            $dss = (new KasDss())->suggest([
+                'mode' => 'out',
+                'keterangan' => $keteranganForDss,
+                'nominal' => (float) ($alloc['cash'] ?? 0),
+                'hasPpn' => $hasPpn,
+                'ppnNominal' => (float) ($alloc['tax'] ?? 0),
+                'seedAkun' => $seedAkun,
+            ]);
+
+            if (is_array($dss) && count($dss)) {
+                $confOverall = (float) ($dss['confidence']['overall'] ?? 0);
+                $allowOverrideLines = $suggestSource === 'kas' || $confOverall >= 0.35;
+
+                $dssKas = trim((string) ($dss['kode_akun'] ?? ''));
+                if ($dssKas !== '') {
+                    $suggest['kode_akun'] = $dssKas;
+                }
+
+                $dssVoucher = trim((string) ($dss['voucher_type'] ?? ''));
+                if ($dssVoucher !== '') {
+                    $suggest['voucher_type'] = $dssVoucher;
+                }
+
+                if ($hasPpn && trim((string) ($suggest['ppn_akun'] ?? '')) === '') {
+                    $dssPpn = trim((string) ($dss['ppn_akun'] ?? ''));
+                    if ($dssPpn !== '') $suggest['ppn_akun'] = $dssPpn;
+                }
+
+                $dssLines = is_array($dss['lines'] ?? null) ? $dss['lines'] : [];
+                if ($allowOverrideLines && count($dssLines) > 0) {
+                    $limit = $hasPpn ? 2 : 3;
+                    $suggest['beban_lines'] = collect(array_slice($dssLines, 0, $limit))
+                        ->map(fn ($l) => [
+                            'akun' => trim((string) ($l['akun'] ?? '')),
+                            'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? 'Debit')),
+                            'nominal' => (float) ($l['nominal'] ?? 0),
+                        ])
+                        ->values()
+                        ->all();
+                }
+            }
 
             if ($hasPpn && trim((string) ($suggest['ppn_akun'] ?? '')) === '') {
                 $suggest['ppn_akun'] = $this->getDefaultPpnAccount();
@@ -1423,7 +1488,9 @@ class InputPembelianController
                 'voucher_type' => (string) ($suggest['voucher_type'] ?? ''),
                 'ppn_akun' => (string) ($suggest['ppn_akun'] ?? ''),
                 'beban_lines' => $suggest['beban_lines'] ?? [],
-                'keterangan' => $this->suggestKeterangan($fi),
+                'keterangan' => $keteranganDisplay,
+                'confidence' => $dss['confidence'] ?? null,
+                'evidence' => $dss['evidence'] ?? [],
             ]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -1544,7 +1611,7 @@ class InputPembelianController
             return DB::transaction(function () use ($request, $kasCols, $kodeAkun, $ppnAkun, $cleanBeban, $tglVoucher, $nominal, $taxNominal, $keterangan, $header) {
                 $dbCode = $this->getDatabaseCode($request);
                 $voucherType = strtoupper(trim((string) $request->input('voucher_type', '')));
-                $voucherType = in_array($voucherType, ['GV', 'BV'], true) ? $voucherType : $this->guessVoucherType($kodeAkun);
+                $voucherType = in_array($voucherType, ['CV', 'GV', 'BV'], true) ? $voucherType : $this->guessVoucherType($kodeAkun);
 
                 $prefix = $dbCode . '/' . $voucherType . '/';
                 $last = '';

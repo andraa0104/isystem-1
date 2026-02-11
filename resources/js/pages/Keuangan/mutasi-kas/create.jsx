@@ -1,16 +1,35 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
-import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import AppLayout from '@/layouts/app-layout';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { Head, router } from '@inertiajs/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const PAGE_SIZE_OPTIONS = [
     { value: '10', label: '10' },
@@ -20,13 +39,19 @@ const PAGE_SIZE_OPTIONS = [
 ];
 
 const formatNumber = (value) =>
-    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value ?? 0);
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        value ?? 0,
+    );
 
 const formatDate = (value) => {
     if (!value) return '-';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
+    return new Intl.DateTimeFormat('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    }).format(date);
 };
 
 const getAccountLabel = (options, value) => {
@@ -36,7 +61,23 @@ const getAccountLabel = (options, value) => {
     return found?.label ?? v;
 };
 
-function AccountSearchDialog({ title, description, open, onOpenChange, options, value, onSelect }) {
+const getAccountName = (options, value) => {
+    const label = String(getAccountLabel(options, value) ?? '').trim();
+    if (!label) return '';
+    const parts = label.split('—').map((p) => p.trim());
+    if (parts.length >= 2 && parts[1]) return parts.slice(1).join(' — ').trim();
+    return label;
+};
+
+function AccountSearchDialog({
+    title,
+    description,
+    open,
+    onOpenChange,
+    options,
+    value,
+    onSelect,
+}) {
     const [q, setQ] = useState('');
 
     const filtered = useMemo(() => {
@@ -58,16 +99,23 @@ function AccountSearchDialog({ title, description, open, onOpenChange, options, 
             <DialogContent className="max-w-xl">
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
-                    {description ? <DialogDescription>{description}</DialogDescription> : null}
+                    {description ? (
+                        <DialogDescription>{description}</DialogDescription>
+                    ) : null}
                 </DialogHeader>
                 <div className="space-y-3">
-                    <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari berdasarkan kode akun atau nama akun..." />
+                    <Input
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        placeholder="Cari berdasarkan kode akun atau nama akun..."
+                    />
                     <div className="max-h-[360px] overflow-auto rounded-md border">
                         {filtered.length ? (
                             <div className="divide-y">
                                 {filtered.map((opt) => {
                                     const v = String(opt?.value ?? '');
-                                    const active = v !== '' && v === String(value ?? '');
+                                    const active =
+                                        v !== '' && v === String(value ?? '');
                                     return (
                                         <button
                                             key={v || opt?.label}
@@ -78,20 +126,30 @@ function AccountSearchDialog({ title, description, open, onOpenChange, options, 
                                                 onOpenChange(false);
                                             }}
                                         >
-                                            <div className="font-medium text-foreground">{opt?.label ?? v}</div>
+                                            <div className="font-medium text-foreground">
+                                                {opt?.label ?? v}
+                                            </div>
                                             {opt?.label && opt?.label !== v ? (
-                                                <div className="text-xs text-muted-foreground">{v}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {v}
+                                                </div>
                                             ) : null}
                                         </button>
                                     );
                                 })}
                             </div>
                         ) : (
-                            <div className="p-4 text-sm text-muted-foreground">Tidak ada hasil.</div>
+                            <div className="p-4 text-sm text-muted-foreground">
+                                Tidak ada hasil.
+                            </div>
                         )}
                     </div>
                     <div className="flex justify-end gap-2">
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => onOpenChange(false)}
+                        >
                             Tutup
                         </Button>
                     </div>
@@ -106,11 +164,20 @@ export default function MutasiKasCreate({
     accountOptions = [],
     defaultAccount = null,
     glAccountOptions = [],
-    templates = [],
 }) {
     const guessVoucherType = (kodeAkun) => {
-        const v = String(kodeAkun ?? '').trim().toUpperCase();
-        return v === '1101AD' || v.startsWith('1101') ? 'GV' : 'BV';
+        const v = String(kodeAkun ?? '').trim();
+        const option = accountOptions?.find((opt) => String(opt.value) === v);
+        const label = String(option?.label ?? '').toUpperCase();
+
+        if (label.includes('KAS TUNAI')) return 'CV';
+        if (label.includes('KAS BANK GIRO')) return 'GV';
+        if (label.includes('KAS BANK')) return 'BV';
+
+        // fallback
+        if (v === '1101AD' || v.startsWith('1101')) return 'CV';
+        if (v === '1102AD' || v.startsWith('1102')) return 'GV';
+        return 'BV';
     };
 
     const [histSearch, setHistSearch] = useState(filters?.search ?? '');
@@ -122,24 +189,33 @@ export default function MutasiKasCreate({
     const [histError, setHistError] = useState(null);
     const [selectedPay, setSelectedPay] = useState(null);
     const [selectedPayRow, setSelectedPayRow] = useState(null);
+    const selectedPayRowRef = useRef(null);
 
     const [mode, setMode] = useState('out'); // out|in|transfer
-    const [templateKey, setTemplateKey] = useState('');
 
     // in/out
-    const [kodeAkun, setKodeAkun] = useState(defaultAccount ?? (accountOptions?.[0]?.value ?? ''));
+    const [kodeAkun, setKodeAkun] = useState(
+        defaultAccount ?? accountOptions?.[0]?.value ?? '',
+    );
     const [kodeAkunTouched, setKodeAkunTouched] = useState(false);
 
     // transfer
-    const [sourceAkun, setSourceAkun] = useState(defaultAccount ?? (accountOptions?.[0]?.value ?? ''));
-    const [destAkun, setDestAkun] = useState(accountOptions?.[1]?.value ?? (accountOptions?.[0]?.value ?? ''));
+    const [sourceAkun, setSourceAkun] = useState(
+        defaultAccount ?? accountOptions?.[0]?.value ?? '',
+    );
+    const [destAkun, setDestAkun] = useState(
+        accountOptions?.[1]?.value ?? accountOptions?.[0]?.value ?? '',
+    );
     const [sourceTouched, setSourceTouched] = useState(false);
     const [destTouched, setDestTouched] = useState(false);
 
-    const [voucherType, setVoucherType] = useState(() => guessVoucherType(defaultAccount ?? (accountOptions?.[0]?.value ?? '')));
-    const [voucherTypeTouched, setVoucherTypeTouched] = useState(false);
+    const [voucherType, setVoucherType] = useState(() =>
+        guessVoucherType(defaultAccount ?? accountOptions?.[0]?.value ?? ''),
+    );
 
-    const [tglVoucher, setTglVoucher] = useState(() => new Date().toISOString().slice(0, 10));
+    const [tglVoucher, setTglVoucher] = useState(() =>
+        new Date().toISOString().slice(0, 10),
+    );
 
     const [nominal, setNominal] = useState('');
     const nominalNumber = useMemo(() => {
@@ -160,7 +236,9 @@ export default function MutasiKasCreate({
     const [ppnAkunTouched, setPpnAkunTouched] = useState(false);
     const [ppnDialogOpen, setPpnDialogOpen] = useState(false);
 
-    const [lines, setLines] = useState(() => [{ akun: '', jenis: 'Debit', nominal: 0 }]);
+    const [lines, setLines] = useState(() => [
+        { akun: '', jenis: 'Debit', nominal: 0 },
+    ]);
     const [lineDialogOpen, setLineDialogOpen] = useState(false);
     const [activeLineIndex, setActiveLineIndex] = useState(null);
 
@@ -185,10 +263,15 @@ export default function MutasiKasCreate({
         return idx + 1;
     };
 
-    const linesSum = useMemo(() => (lines ?? []).reduce((acc, l) => acc + Number(l?.nominal ?? 0), 0), [lines]);
-    const linesDiff = useMemo(() => Math.round((dppTarget - linesSum) * 100) / 100, [dppTarget, linesSum]);
-
-    const selectedTemplate = useMemo(() => (templates ?? []).find((t) => String(t?.key ?? '') === String(templateKey)), [templates, templateKey]);
+    const linesSum = useMemo(
+        () =>
+            (lines ?? []).reduce((acc, l) => acc + Number(l?.nominal ?? 0), 0),
+        [lines],
+    );
+    const linesDiff = useMemo(
+        () => Math.round((dppTarget - linesSum) * 100) / 100,
+        [dppTarget, linesSum],
+    );
 
     const fetchHistory = async () => {
         if (mode !== 'out') {
@@ -210,11 +293,15 @@ export default function MutasiKasCreate({
                 const acc = mode === 'transfer' ? sourceAkun : kodeAkun;
                 if (acc) params.set('account', acc);
             } else {
-                // backend filters by tb_bayar.Status = 'T'
+                // backend filters pending rows by `beban_akun` (NOT NULL; stored as single space when already booked)
             }
 
-            const url = isBayar ? `/keuangan/mutasi-kas/bayar-rows?${params.toString()}` : `/keuangan/mutasi-kas/rows?${params.toString()}`;
-            const res = await fetch(url, { headers: { Accept: 'application/json' } });
+            const url = isBayar
+                ? `/keuangan/mutasi-kas/bayar-rows?${params.toString()}`
+                : `/keuangan/mutasi-kas/rows?${params.toString()}`;
+            const res = await fetch(url, {
+                headers: { Accept: 'application/json' },
+            });
             if (!res.ok) throw await normalizeApiError(res);
             const json = await res.json();
             setHistRows(Array.isArray(json?.rows) ? json.rows : []);
@@ -256,12 +343,22 @@ export default function MutasiKasCreate({
         return Math.max(1, Math.ceil((histTotal ?? 0) / histPageSize));
     }, [histTotal, histPageSize]);
 
-    const runSuggest = async ({ reason } = {}) => {
+    const runSuggest = async ({ reason, payRow, overrideKeterangan, overrideNominal } = {}) => {
         if (mode === 'transfer' && (!sourceAkun || !destAkun)) return;
         if ((mode === 'in' || mode === 'out') && !kodeAkun) return;
         // Mode keluar: AI dan pengisian form berbasis Payment Cost (tb_bayar) yang dipilih.
         // Jangan auto-isi saat halaman baru dibuka sebelum ada selection.
-        if (mode === 'out' && !selectedPay) return;
+        const effectivePayRow = payRow ?? selectedPayRowRef.current ?? selectedPayRow;
+        if (mode === 'out' && !effectivePayRow) return;
+        if (
+            mode !== 'out' &&
+            nominalNumber <= 0 &&
+            !String(keterangan ?? '').trim() &&
+            !(hasPpn && ppnNumber > 0)
+        ) {
+            // Avoid pre-filling form on first open; only suggest after user provides a signal.
+            return;
+        }
 
         setSuggestLoading(true);
         try {
@@ -273,18 +370,36 @@ export default function MutasiKasCreate({
             } else {
                 params.set('account', kodeAkun);
             }
-            if (templateKey) params.set('templateKey', templateKey);
-            if (nominalNumber > 0) params.set('nominal', String(nominalNumber));
+            const effectiveNominal =
+                typeof overrideNominal === 'number'
+                    ? overrideNominal
+                    : nominalNumber;
+            if (effectiveNominal > 0)
+                params.set('nominal', String(effectiveNominal));
             // For transfer, only send keterangan if user explicitly typed it (to avoid carrying unrelated text).
-            if (keterangan.trim() && !(mode === 'transfer' && !keteranganTouched)) {
-                params.set('keterangan', keterangan);
-            }
+            const effectiveKeterangan =
+                typeof overrideKeterangan === 'string'
+                    ? overrideKeterangan
+                    : keterangan;
+            if (
+                effectiveKeterangan.trim() &&
+                !(mode === 'transfer' && !keteranganTouched)
+            )
+                params.set('keterangan', effectiveKeterangan);
+            // For mode keluar with Payment Cost, give seed akun beban to AI so it can stay consistent.
+            if (mode === 'out' && effectivePayRow?.beban_akun)
+                params.set('seedAkun', String(effectivePayRow.beban_akun));
             params.set('hasPpn', String(hasPpn && ppnNumber > 0));
             if (ppnNumber > 0) params.set('ppnNominal', String(ppnNumber));
 
-            const res = await fetch(`/keuangan/mutasi-kas/suggest?${params.toString()}`, { headers: { Accept: 'application/json' } });
+            const res = await fetch(
+                `/keuangan/mutasi-kas/suggest?${params.toString()}`,
+                { headers: { Accept: 'application/json' } },
+            );
             if (!res.ok) throw await normalizeApiError(res);
             const json = await res.json();
+
+            const paymentSelected = mode === 'out' && Boolean(effectivePayRow);
 
             if (mode === 'transfer') {
                 const s = String(json?.source ?? '').trim();
@@ -296,10 +411,10 @@ export default function MutasiKasCreate({
                 if (suggestedKas && !kodeAkunTouched) setKodeAkun(suggestedKas);
             }
 
-            if (!voucherTypeTouched && json?.voucher_type) {
+            if (json?.voucher_type) {
                 setVoucherType(String(json.voucher_type));
             }
-            if (!keteranganTouched && json?.keterangan) {
+            if (!paymentSelected && !keteranganTouched && json?.keterangan) {
                 setKeterangan(String(json.keterangan));
             }
             if (!ppnAkunTouched && hasPpn && ppnNumber > 0 && json?.ppn_akun) {
@@ -308,16 +423,36 @@ export default function MutasiKasCreate({
 
             const suggestedLines = Array.isArray(json?.lines) ? json.lines : [];
             if (mode === 'transfer') {
-                setLines([{ akun: destAkun, jenis: 'Debit', nominal: nominalNumber }]);
+                setLines([
+                    { akun: destAkun, jenis: 'Debit', nominal: nominalNumber },
+                ]);
             } else if (suggestedLines.length) {
                 setLines((prev) => {
-                    // only auto-fill if user hasn't manually set akun in first line yet
-                    const prevTouched = (prev ?? []).some((l) => String(l?.akun ?? '').trim() !== '');
+                    // Mode keluar + Payment Cost: always overwrite lines to keep balance,
+                    // but we do NOT override keterangan (source of truth = tb_bayar).
+                    if (paymentSelected) {
+                        return suggestedLines.slice(0, maxLines).map((l, idx) => ({
+                            akun: String(l?.akun ?? ''),
+                            jenis: String(l?.jenis ?? 'Debit'),
+                            nominal: Number(
+                                l?.nominal ?? (idx === 0 ? dppTarget : 0),
+                            ),
+                        }));
+                    }
+
+                    // Other modes: only auto-fill if user hasn't manually set akun in first line yet
+                    const prevTouched = (prev ?? []).some(
+                        (l) => String(l?.akun ?? '').trim() !== '',
+                    );
                     if (prevTouched && reason === 'typing') return prev;
                     return suggestedLines.slice(0, maxLines).map((l, idx) => ({
                         akun: String(l?.akun ?? ''),
-                        jenis: String(l?.jenis ?? (mode === 'in' ? 'Kredit' : 'Debit')),
-                        nominal: Number(l?.nominal ?? (idx === 0 ? dppTarget : 0)),
+                        jenis: String(
+                            l?.jenis ?? (mode === 'in' ? 'Kredit' : 'Debit'),
+                        ),
+                        nominal: Number(
+                            l?.nominal ?? (idx === 0 ? dppTarget : 0),
+                        ),
                     }));
                 });
             }
@@ -330,45 +465,78 @@ export default function MutasiKasCreate({
 
     // Auto-suggest triggers
     useEffect(() => {
-        if (!templateKey) return;
         if (mode === 'out' && !selectedPay) return () => {};
-        const t = window.setTimeout(() => runSuggest({ reason: 'template' }), 200);
-        return () => window.clearTimeout(t);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [templateKey]);
-
-    useEffect(() => {
-        if (mode === 'out' && !selectedPay) return () => {};
-        const t = window.setTimeout(() => runSuggest({ reason: 'typing' }), 500);
+        const t = window.setTimeout(
+            () => runSuggest({ reason: 'typing' }),
+            500,
+        );
         return () => window.clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [keterangan, mode]);
 
     useEffect(() => {
         if (mode === 'out' && !selectedPay) return () => {};
-        const t = window.setTimeout(() => runSuggest({ reason: 'recalc' }), 250);
+        const t = window.setTimeout(
+            () => runSuggest({ reason: 'recalc' }),
+            250,
+        );
         return () => window.clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [kodeAkun, sourceAkun, destAkun, nominalNumber, hasPpn, ppnNumber, mode]);
+    }, [
+        kodeAkun,
+        sourceAkun,
+        destAkun,
+        nominalNumber,
+        hasPpn,
+        ppnNumber,
+        mode,
+    ]);
 
     // Keep default voucher type when account changes (if not touched)
     useEffect(() => {
-        if (voucherTypeTouched) return;
         const acc = mode === 'transfer' ? sourceAkun : kodeAkun;
         setVoucherType(guessVoucherType(acc));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [kodeAkun, sourceAkun, mode]);
+
+    // Transfer: keep keterangan aligned with company redaction (unless user typed manual)
+    useEffect(() => {
+        if (mode !== 'transfer') return;
+        if (keteranganTouched) return;
+        if (!sourceAkun || !destAkun) return;
+        const srcName = getAccountName(accountOptions, sourceAkun);
+        const dstName = getAccountName(accountOptions, destAkun);
+        if (!srcName || !dstName) return;
+        setKeterangan(`PEMINDAHAN DANA DARI ${srcName} KE ${dstName}`);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mode, sourceAkun, destAkun, keteranganTouched, accountOptions]);
 
     // Keep lines count under maxLines and keep DPP allocation consistent
     useEffect(() => {
         setLines((prev) => {
             const next = Array.isArray(prev) ? prev.slice(0, maxLines) : [];
             if (next.length === 0) {
-                return [{ akun: '', jenis: mode === 'in' ? 'Kredit' : 'Debit', nominal: dppTarget }];
+                return [
+                    {
+                        akun: '',
+                        jenis: mode === 'in' ? 'Kredit' : 'Debit',
+                        nominal: dppTarget,
+                    },
+                ];
             }
-            const running = next.reduce((acc, l, i) => (i === next.length - 1 ? acc : acc + Number(l?.nominal ?? 0)), 0);
-            const lastNom = Math.max(0, Math.round((dppTarget - running) * 100) / 100);
-            next[next.length - 1] = { ...next[next.length - 1], nominal: lastNom };
+            const running = next.reduce(
+                (acc, l, i) =>
+                    i === next.length - 1 ? acc : acc + Number(l?.nominal ?? 0),
+                0,
+            );
+            const lastNom = Math.max(
+                0,
+                Math.round((dppTarget - running) * 100) / 100,
+            );
+            next[next.length - 1] = {
+                ...next[next.length - 1],
+                nominal: lastNom,
+            };
             return next;
         });
     }, [dppTarget, maxLines, mode]);
@@ -396,21 +564,14 @@ export default function MutasiKasCreate({
         setPpnNominal('');
         setPpnAkun('');
         setPpnAkunTouched(false);
-        setLines([{ akun: '', jenis: mode === 'in' ? 'Kredit' : 'Debit', nominal: 0 }]);
-        setVoucherTypeTouched(false);
+        setLines([
+            { akun: '', jenis: mode === 'in' ? 'Kredit' : 'Debit', nominal: 0 },
+        ]);
         setSelectedPay(null);
         setSelectedPayRow(null);
+        selectedPayRowRef.current = null;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mode]);
-
-    const applyTemplateDefaults = (key) => {
-        const t = (templates ?? []).find((x) => String(x?.key ?? '') === String(key));
-        if (!t) return;
-        if (t?.defaultMode && !['in', 'out', 'transfer'].includes(String(t.defaultMode))) return;
-        if (!t?.defaultMode) return;
-        setMode(String(t.defaultMode));
-        if (!keteranganTouched && t?.example) setKeterangan(String(t.example));
-    };
 
     const onSave = () => {
         if (saving) return;
@@ -423,7 +584,9 @@ export default function MutasiKasCreate({
             if (!kodeAkun) return;
             if (hasPpn && ppnNumber > 0 && !ppnAkun) return;
             if (linesDiff !== 0) return;
-            const missingAkun = (lines ?? []).some((l) => !String(l?.akun ?? '').trim());
+            const missingAkun = (lines ?? []).some(
+                (l) => !String(l?.akun ?? '').trim(),
+            );
             if (missingAkun) return;
         }
 
@@ -444,10 +607,19 @@ export default function MutasiKasCreate({
                 ppn_nominal: hasPpn && ppnNumber > 0 ? ppnNumber : 0,
                 lines:
                     mode === 'transfer'
-                        ? [{ akun: destAkun, jenis: 'Debit', nominal: nominalNumber }]
+                        ? [
+                              {
+                                  akun: destAkun,
+                                  jenis: 'Debit',
+                                  nominal: nominalNumber,
+                              },
+                          ]
                         : (lines ?? []).slice(0, maxLines).map((l) => ({
                               akun: String(l?.akun ?? ''),
-                              jenis: String(l?.jenis ?? (mode === 'in' ? 'Kredit' : 'Debit')),
+                              jenis: String(
+                                  l?.jenis ??
+                                      (mode === 'in' ? 'Kredit' : 'Debit'),
+                              ),
                               nominal: Number(l?.nominal ?? 0),
                           })),
             },
@@ -462,10 +634,19 @@ export default function MutasiKasCreate({
                     setPpnNominal('');
                     setPpnAkun('');
                     setPpnAkunTouched(false);
-                    setLines([{ akun: '', jenis: mode === 'in' ? 'Kredit' : 'Debit', nominal: 0 }]);
+                    setSelectedPay(null);
+                    setSelectedPayRow(null);
+                    selectedPayRowRef.current = null;
+                    setLines([
+                        {
+                            akun: '',
+                            jenis: mode === 'in' ? 'Kredit' : 'Debit',
+                            nominal: 0,
+                        },
+                    ]);
                     fetchHistory();
                 },
-            }
+            },
         );
     };
 
@@ -486,12 +667,28 @@ export default function MutasiKasCreate({
                             <CardHeader className="space-y-3">
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
-                                        <CardTitle>Riwayat Payment Cost</CardTitle>
+                                        <CardTitle>
+                                            Riwayat Payment Cost
+                                        </CardTitle>
                                         <div className="text-xs text-muted-foreground">
-                                            Mode <span className="font-medium">Keluar</span> menampilkan data dari <span className="font-mono">tb_bayar</span> (Status <span className="font-mono">T</span>).
+                                            Mode{' '}
+                                            <span className="font-medium">
+                                                Keluar
+                                            </span>{' '}
+                                            menampilkan data dari{' '}
+                                            <span className="font-mono">
+                                                tb_bayar
+                                            </span>{' '}
+                                            (belum dibukukan: beban_akun bukan spasi).
                                         </div>
                                     </div>
-                                    <Button type="button" variant="outline" onClick={() => router.visit('/keuangan/mutasi-kas')}>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                            router.visit('/keuangan/mutasi-kas')
+                                        }
+                                    >
                                         Kembali
                                     </Button>
                                 </div>
@@ -500,7 +697,9 @@ export default function MutasiKasCreate({
                                     <Input
                                         placeholder="Cari kode bayar / keterangan..."
                                         value={histSearch}
-                                        onChange={(e) => setHistSearch(e.target.value)}
+                                        onChange={(e) =>
+                                            setHistSearch(e.target.value)
+                                        }
                                         className="w-full max-w-xs"
                                     />
                                     <Button
@@ -520,12 +719,18 @@ export default function MutasiKasCreate({
                                 <Table>
                                     <TableHeader className="sticky top-0 z-10 bg-background">
                                         <TableRow>
-                                            <TableHead className="w-[48px]">No</TableHead>
+                                            <TableHead className="w-[48px]">
+                                                No
+                                            </TableHead>
                                             <TableHead>Kode Bayar</TableHead>
                                             <TableHead>Tgl Bayar</TableHead>
-                                            <TableHead className="min-w-[360px]">Keterangan</TableHead>
+                                            <TableHead className="min-w-[360px]">
+                                                Keterangan
+                                            </TableHead>
                                             <TableHead>Penanggung</TableHead>
-                                            <TableHead className="text-right">Bayar</TableHead>
+                                            <TableHead className="text-right">
+                                                Bayar
+                                            </TableHead>
                                             <TableHead>Beban Akun</TableHead>
                                             <TableHead>Dok</TableHead>
                                         </TableRow>
@@ -536,79 +741,189 @@ export default function MutasiKasCreate({
                                             loading={histLoading}
                                             error={histError}
                                             onRetry={fetchHistory}
-                                            isEmpty={!histLoading && !histError && histDisplayed.length === 0}
+                                            isEmpty={
+                                                !histLoading &&
+                                                !histError &&
+                                                histDisplayed.length === 0
+                                            }
                                             emptyTitle="Tidak ada riwayat."
                                             emptyDescription="Ubah kata kunci pencarian."
                                         />
                                         {!histLoading &&
                                             !histError &&
                                             histDisplayed.map((row, idx) => {
-                                                const bayar = Number(row?.Bayar ?? 0);
-                                                const uniq =
-                                                    String(row?.No ?? row?.no ?? '').trim() ||
-                                                    String(row?.noduk_beban ?? '').trim() ||
-                                                    String(idx);
-                                                const key = `${String(row?.Kode_Bayar ?? '').trim()}-${uniq}`;
-                                                const active = selectedPay && selectedPay === key;
+                                                const bayar = Number(
+                                                    row?.Bayar ?? 0,
+                                                );
+                                                const noStr = String(row?.No ?? row?.no ?? '').trim();
+                                                const dokStr = String(row?.noduk_beban ?? '').trim();
+                                                const ketStr = String(row?.Keterangan ?? '').trim().slice(0, 36);
+                                                const key = `${String(row?.Kode_Bayar ?? '').trim()}|${noStr}|${dokStr}|${ketStr}|${idx}`;
+                                                const active =
+                                                    selectedPay &&
+                                                    selectedPay === key;
                                                 return (
                                                     <TableRow
-                                                        key={key || Math.random()}
+                                                        key={
+                                                            key || Math.random()
+                                                        }
                                                         className={`cursor-pointer ${active ? 'bg-primary/5' : ''}`}
                                                         onClick={() => {
+                                                            selectedPayRowRef.current =
+                                                                row ?? null;
                                                             setSelectedPay(key);
-                                                            setSelectedPayRow(row);
+                                                            setSelectedPayRow(
+                                                                row,
+                                                            );
                                                             // Selecting a Payment Cost should become the new base (do not keep old values).
-                                                            setKeterangan(String(row?.Keterangan ?? ''));
+                                                            const nextKet =
+                                                                String(
+                                                                    row?.Keterangan ??
+                                                                        '',
+                                                                );
+                                                            setKeterangan(
+                                                                nextKet,
+                                                            );
                                                             // Treat keterangan from tb_bayar as authoritative; do not let AI override it.
-                                                            setKeteranganTouched(true);
+                                                            setKeteranganTouched(
+                                                                true,
+                                                            );
 
-                                                            const bayarAbs = Math.abs(bayar);
-                                                            setNominal(bayarAbs > 0 ? String(bayarAbs) : '');
+                                                            const bayarAbs =
+                                                                Math.abs(bayar);
+                                                            const nextNom =
+                                                                bayarAbs > 0
+                                                                    ? bayarAbs
+                                                                    : 0;
+                                                            setNominal(
+                                                                bayarAbs > 0
+                                                                    ? String(
+                                                                          bayarAbs,
+                                                                      )
+                                                                    : '',
+                                                            );
+                                                            const tgl = String(row?.Tgl_Bayar ?? '').slice(0, 10);
+                                                            if (tgl) {
+                                                                setTglVoucher(tgl);
+                                                            }
 
                                                             // Prefer beban_akun from tb_bayar as the initial DPP line.
-                                                            const beban = String(row?.beban_akun ?? '').trim();
+                                                            const beban =
+                                                                String(
+                                                                    row?.beban_akun ??
+                                                                        '',
+                                                                ).trim();
                                                             if (beban) {
-                                                                setLines([{ akun: beban, jenis: 'Debit', nominal: bayarAbs }]);
+                                                                setLines([
+                                                                    {
+                                                                        akun: beban,
+                                                                        jenis: 'Debit',
+                                                                        nominal:
+                                                                            bayarAbs,
+                                                                    },
+                                                                ]);
                                                             } else {
-                                                                setLines([{ akun: '', jenis: 'Debit', nominal: bayarAbs }]);
+                                                                setLines([
+                                                                    {
+                                                                        akun: '',
+                                                                        jenis: 'Debit',
+                                                                        nominal:
+                                                                            bayarAbs,
+                                                                    },
+                                                                ]);
                                                             }
 
                                                             // Ensure suggest can update kas/bank + voucher type based on tb_kas history.
-                                                            setKodeAkunTouched(false);
-                                                            setVoucherTypeTouched(false);
+                                                            setKodeAkunTouched(
+                                                                false,
+                                                            );
                                                             setHasPpn(false);
                                                             setPpnNominal('');
                                                             setPpnAkun('');
-                                                            setPpnAkunTouched(false);
+                                                            setPpnAkunTouched(
+                                                                false,
+                                                            );
 
-                                                            runSuggest({ reason: 'payment' });
+                                                            runSuggest({
+                                                                reason: 'payment',
+                                                                payRow: row,
+                                                                overrideKeterangan:
+                                                                    nextKet,
+                                                                overrideNominal:
+                                                                    nextNom,
+                                                            });
                                                         }}
                                                     >
-                                                        <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                                                            {String(row?.No ?? '-')}
+                                                        <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
+                                                            {String(
+                                                                row?.No ?? '-',
+                                                            )}
                                                         </TableCell>
-                                                        <TableCell className="whitespace-pre-wrap font-mono text-xs">{String(row?.Kode_Bayar ?? '-')}</TableCell>
-                                                        <TableCell className="whitespace-nowrap">{formatDate(row?.Tgl_Bayar)}</TableCell>
-                                                        <TableCell className="whitespace-normal break-words text-sm">{String(row?.Keterangan ?? '') || '-'}</TableCell>
-                                                        <TableCell className="whitespace-nowrap text-sm">{String(row?.Penanggung ?? '-') || '-'}</TableCell>
-                                                        <TableCell className="whitespace-nowrap text-right text-destructive">
-                                                            Rp {formatNumber(Math.abs(bayar))}
+                                                        <TableCell className="font-mono text-xs whitespace-pre-wrap">
+                                                            {String(
+                                                                row?.Kode_Bayar ??
+                                                                    '-',
+                                                            )}
                                                         </TableCell>
-                                                        <TableCell className="whitespace-nowrap text-sm font-mono">{String(row?.beban_akun ?? '-') || '-'}</TableCell>
-                                                        <TableCell className="whitespace-nowrap text-sm font-mono">{String(row?.noduk_beban ?? '-') || '-'}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            {formatDate(
+                                                                row?.Tgl_Bayar,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-sm break-words whitespace-normal">
+                                                            {String(
+                                                                row?.Keterangan ??
+                                                                    '',
+                                                            ) || '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-sm whitespace-nowrap">
+                                                            {String(
+                                                                row?.Penanggung ??
+                                                                    '-',
+                                                            ) || '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-right whitespace-nowrap text-destructive">
+                                                            Rp{' '}
+                                                            {formatNumber(
+                                                                Math.abs(bayar),
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="font-mono text-sm whitespace-nowrap">
+                                                            {row?.beban_akun
+                                                                ? getAccountLabel(
+                                                                      glAccountOptions,
+                                                                      row.beban_akun,
+                                                                  )
+                                                                : '-'}
+                                                        </TableCell>
+                                                        <TableCell className="font-mono text-sm whitespace-nowrap">
+                                                            {String(
+                                                                row?.noduk_beban ??
+                                                                    '-',
+                                                            ) || '-'}
+                                                        </TableCell>
                                                     </TableRow>
                                                 );
                                             })}
-                                </TableBody>
-                            </Table>
+                                    </TableBody>
+                                </Table>
 
                                 <div className="mt-4 flex items-center justify-between gap-3">
-                                    <div className="text-sm text-muted-foreground">Total data: {histTotal}</div>
+                                    <div className="text-sm text-muted-foreground">
+                                        Total data: {histTotal}
+                                    </div>
                                     <div className="flex items-center gap-3">
                                         <Select
-                                            value={histPageSize === Infinity ? 'all' : String(histPageSize)}
+                                            value={
+                                                histPageSize === Infinity
+                                                    ? 'all'
+                                                    : String(histPageSize)
+                                            }
                                             onValueChange={(v) => {
-                                                const num = v === 'all' ? Infinity : Number(v);
+                                                const num =
+                                                    v === 'all'
+                                                        ? Infinity
+                                                        : Number(v);
                                                 setHistPageSize(num);
                                                 setHistPage(1);
                                             }}
@@ -617,18 +932,30 @@ export default function MutasiKasCreate({
                                                 <SelectValue placeholder="Per halaman" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {PAGE_SIZE_OPTIONS.map((opt) => (
-                                                    <SelectItem key={opt.value} value={opt.value}>
-                                                        {opt.label}
-                                                    </SelectItem>
-                                                ))}
+                                                {PAGE_SIZE_OPTIONS.map(
+                                                    (opt) => (
+                                                        <SelectItem
+                                                            key={opt.value}
+                                                            value={opt.value}
+                                                        >
+                                                            {opt.label}
+                                                        </SelectItem>
+                                                    ),
+                                                )}
                                             </SelectContent>
                                         </Select>
                                         <Button
                                             type="button"
                                             variant="outline"
-                                            disabled={histPage <= 1 || histPageSize === Infinity}
-                                            onClick={() => setHistPage((p) => Math.max(1, p - 1))}
+                                            disabled={
+                                                histPage <= 1 ||
+                                                histPageSize === Infinity
+                                            }
+                                            onClick={() =>
+                                                setHistPage((p) =>
+                                                    Math.max(1, p - 1),
+                                                )
+                                            }
                                         >
                                             Prev
                                         </Button>
@@ -638,8 +965,18 @@ export default function MutasiKasCreate({
                                         <Button
                                             type="button"
                                             variant="outline"
-                                            disabled={histPage >= histTotalPages || histPageSize === Infinity}
-                                            onClick={() => setHistPage((p) => Math.min(histTotalPages, p + 1))}
+                                            disabled={
+                                                histPage >= histTotalPages ||
+                                                histPageSize === Infinity
+                                            }
+                                            onClick={() =>
+                                                setHistPage((p) =>
+                                                    Math.min(
+                                                        histTotalPages,
+                                                        p + 1,
+                                                    ),
+                                                )
+                                            }
                                         >
                                             Next
                                         </Button>
@@ -649,39 +986,63 @@ export default function MutasiKasCreate({
                         </Card>
                     ) : null}
 
-                    <Card className={mode === 'out' ? 'lg:col-span-2' : 'lg:col-span-5'}>
+                    <Card
+                        className={
+                            mode === 'out' ? 'lg:col-span-2' : 'lg:col-span-5'
+                        }
+                    >
                         <CardHeader className="space-y-2">
                             <CardTitle>Mutasi Kas</CardTitle>
                             <div className="text-xs text-muted-foreground">
-                                Standar perusahaan: PPN (jika ada) selalu di slot 2, dan DPP maksimal 2 baris (slot 1 & 3).
+                                Standar perusahaan: PPN (jika ada) selalu di
+                                slot 2, dan DPP maksimal 2 baris (slot 1 & 3).
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             {mode === 'out' && !selectedPay ? (
                                 <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                                    Pilih salah satu <span className="font-medium">Payment Cost</span> di tabel kiri untuk mulai mengisi form mutasi.
+                                    Pilih salah satu{' '}
+                                    <span className="font-medium">
+                                        Payment Cost
+                                    </span>{' '}
+                                    di tabel kiri untuk mulai mengisi form
+                                    mutasi.
                                 </div>
                             ) : null}
                             <div className="space-y-2">
-                                <div className="text-sm font-medium">Mode transaksi</div>
+                                <div className="text-sm font-medium">
+                                    Mode transaksi
+                                </div>
                                 <div className="grid grid-cols-3 gap-2">
                                     <Button
                                         type="button"
-                                        variant={mode === 'out' ? 'default' : 'outline'}
+                                        variant={
+                                            mode === 'out'
+                                                ? 'default'
+                                                : 'outline'
+                                        }
                                         onClick={() => setMode('out')}
                                     >
                                         Keluar
                                     </Button>
                                     <Button
                                         type="button"
-                                        variant={mode === 'in' ? 'default' : 'outline'}
+                                        variant={
+                                            mode === 'in'
+                                                ? 'default'
+                                                : 'outline'
+                                        }
                                         onClick={() => setMode('in')}
                                     >
                                         Masuk
                                     </Button>
                                     <Button
                                         type="button"
-                                        variant={mode === 'transfer' ? 'default' : 'outline'}
+                                        variant={
+                                            mode === 'transfer'
+                                                ? 'default'
+                                                : 'outline'
+                                        }
                                         onClick={() => setMode('transfer')}
                                     >
                                         Transfer
@@ -689,42 +1050,27 @@ export default function MutasiKasCreate({
                                 </div>
                                 {mode !== 'out' ? (
                                     <div className="mt-2 rounded-md bg-muted/30 p-3 text-xs text-muted-foreground">
-                                        Riwayat kiri disembunyikan untuk mode <span className="font-medium">{mode === 'in' ? 'Masuk' : 'Transfer'}</span>. AI tetap belajar dari <span className="font-mono">tb_kas</span>.
+                                        Riwayat kiri disembunyikan untuk mode{' '}
+                                        <span className="font-medium">
+                                            {mode === 'in'
+                                                ? 'Masuk'
+                                                : 'Transfer'}
+                                        </span>
+                                        . AI tetap belajar dari{' '}
+                                        <span className="font-mono">
+                                            tb_kas
+                                        </span>
+                                        .
                                     </div>
-                                ) : null}
-                            </div>
-
-                            <div className="space-y-2">
-                                <div className="text-sm font-medium">Template transaksi (opsional)</div>
-                                <Select
-                                    value={templateKey || 'none'}
-                                    onValueChange={(v) => {
-                                        const next = v === 'none' ? '' : v;
-                                        setTemplateKey(next);
-                                        if (next) applyTemplateDefaults(next);
-                                    }}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Pilih template" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">— Tanpa template —</SelectItem>
-                                        {(templates ?? []).map((t) => (
-                                            <SelectItem key={t.key} value={t.key}>
-                                                {String(t?.label ?? '').slice(0, 64)}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                {selectedTemplate?.label ? (
-                                    <div className="text-[11px] text-muted-foreground">Contoh: {String(selectedTemplate.example ?? selectedTemplate.label)}</div>
                                 ) : null}
                             </div>
 
                             {mode === 'transfer' ? (
                                 <div className="space-y-3">
                                     <div className="space-y-2">
-                                        <div className="text-sm font-medium">Akun sumber</div>
+                                        <div className="text-sm font-medium">
+                                            Akun sumber
+                                        </div>
                                         <Select
                                             value={sourceAkun}
                                             onValueChange={(v) => {
@@ -737,7 +1083,10 @@ export default function MutasiKasCreate({
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {accountOptions?.map((opt) => (
-                                                    <SelectItem key={opt.value} value={opt.value}>
+                                                    <SelectItem
+                                                        key={opt.value}
+                                                        value={opt.value}
+                                                    >
                                                         {opt.label}
                                                     </SelectItem>
                                                 ))}
@@ -745,7 +1094,9 @@ export default function MutasiKasCreate({
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <div className="text-sm font-medium">Akun tujuan</div>
+                                        <div className="text-sm font-medium">
+                                            Akun tujuan
+                                        </div>
                                         <Select
                                             value={destAkun}
                                             onValueChange={(v) => {
@@ -758,7 +1109,10 @@ export default function MutasiKasCreate({
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {accountOptions?.map((opt) => (
-                                                    <SelectItem key={opt.value} value={opt.value}>
+                                                    <SelectItem
+                                                        key={opt.value}
+                                                        value={opt.value}
+                                                    >
                                                         {opt.label}
                                                     </SelectItem>
                                                 ))}
@@ -768,7 +1122,9 @@ export default function MutasiKasCreate({
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    <div className="text-sm font-medium">Akun kas/bank</div>
+                                    <div className="text-sm font-medium">
+                                        Akun kas/bank
+                                    </div>
                                     <Select
                                         value={kodeAkun}
                                         onValueChange={(v) => {
@@ -781,7 +1137,10 @@ export default function MutasiKasCreate({
                                         </SelectTrigger>
                                         <SelectContent>
                                             {accountOptions?.map((opt) => (
-                                                <SelectItem key={opt.value} value={opt.value}>
+                                                <SelectItem
+                                                    key={opt.value}
+                                                    value={opt.value}
+                                                >
                                                     {opt.label}
                                                 </SelectItem>
                                             ))}
@@ -790,44 +1149,46 @@ export default function MutasiKasCreate({
                                 </div>
                             )}
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 gap-3">
                                 <div className="space-y-2">
-                                    <div className="text-sm font-medium">Tipe voucher</div>
-                                    <Select
-                                        value={voucherType}
-                                        onValueChange={(v) => {
-                                            setVoucherType(v);
-                                            setVoucherTypeTouched(true);
-                                        }}
-                                    >
-                                        <SelectTrigger className="w-full">
-                                            <SelectValue placeholder="GV/BV" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="GV">GV</SelectItem>
-                                            <SelectItem value="BV">BV</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <div className="text-sm font-medium">Tanggal voucher</div>
-                                    <Input type="date" value={tglVoucher} onChange={(e) => setTglVoucher(e.target.value)} />
+                                    <div className="text-sm font-medium">
+                                        Tgl voucher
+                                    </div>
+                                    <Input
+                                        type="date"
+                                        value={tglVoucher}
+                                        onChange={(e) =>
+                                            setTglVoucher(e.target.value)
+                                        }
+                                    />
                                 </div>
                             </div>
 
                             <div className="space-y-2">
-                                <div className="text-sm font-medium">Nominal</div>
+                                <div className="text-sm font-medium">
+                                    Nominal
+                                </div>
                                 <Input
                                     inputMode="numeric"
                                     value={nominal}
                                     onChange={(e) => setNominal(e.target.value)}
                                     placeholder="Contoh: 1500000"
                                 />
-                                <div className="text-[11px] text-muted-foreground">Mutasi {mode === 'in' ? 'masuk' : mode === 'out' ? 'keluar' : 'transfer'} otomatis dihitung dari nominal.</div>
+                                <div className="text-[11px] text-muted-foreground">
+                                    Mutasi{' '}
+                                    {mode === 'in'
+                                        ? 'masuk'
+                                        : mode === 'out'
+                                          ? 'keluar'
+                                          : 'transfer'}{' '}
+                                    otomatis dihitung dari nominal.
+                                </div>
                             </div>
 
                             <div className="space-y-2">
-                                <div className="text-sm font-medium">Keterangan</div>
+                                <div className="text-sm font-medium">
+                                    Keterangan
+                                </div>
                                 <Input
                                     value={keterangan}
                                     onChange={(e) => {
@@ -838,23 +1199,40 @@ export default function MutasiKasCreate({
                                 />
                                 <div className="flex items-center justify-between">
                                     <div className="text-[11px] text-muted-foreground">
-                                        {suggestLoading ? 'AI: menyusun rekomendasi…' : 'AI: auto-suggest aktif (template + keterangan).'}
+                                        {suggestLoading
+                                            ? 'AI: menyusun rekomendasi…'
+                                            : 'AI: auto-suggest aktif (keterangan).'}
                                     </div>
-                                    <Button type="button" variant="ghost" size="sm" onClick={() => runSuggest({ reason: 'manual' })}>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() =>
+                                            runSuggest({ reason: 'manual' })
+                                        }
+                                    >
                                         Refresh AI
                                     </Button>
                                 </div>
                             </div>
 
-                            <div className={`rounded-md border p-3 ${mode === 'transfer' ? 'opacity-60' : ''}`}>
+                            <div
+                                className={`rounded-md border p-3 ${mode === 'transfer' ? 'opacity-60' : ''}`}
+                            >
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <div className="text-sm font-medium">PPN (opsional)</div>
-                                        <div className="text-[11px] text-muted-foreground">Jika diisi, sistem pakai slot 2.</div>
+                                        <div className="text-sm font-medium">
+                                            PPN (opsional)
+                                        </div>
+                                        <div className="text-[11px] text-muted-foreground">
+                                            Jika diisi, sistem pakai slot 2.
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <Checkbox
-                                            checked={hasPpn && mode !== 'transfer'}
+                                            checked={
+                                                hasPpn && mode !== 'transfer'
+                                            }
                                             onCheckedChange={(v) => {
                                                 if (mode === 'transfer') return;
                                                 const on = Boolean(v);
@@ -875,20 +1253,54 @@ export default function MutasiKasCreate({
                                     <div className="mt-3 grid grid-cols-1 gap-3">
                                         <div className="space-y-2">
                                             <div className="flex items-center justify-between">
-                                                <Label className="text-sm">Akun PPN</Label>
-                                                <Button type="button" variant="outline" size="sm" onClick={() => setPpnDialogOpen(true)}>
+                                                <Label className="text-sm">
+                                                    Akun PPN
+                                                </Label>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setPpnDialogOpen(true)
+                                                    }
+                                                >
                                                     Cari
                                                 </Button>
                                             </div>
                                             <div className="rounded-md border px-3 py-2 text-sm">
-                                                {ppnAkun ? getAccountLabel(glAccountOptions, ppnAkun) : <span className="text-muted-foreground">Belum dipilih</span>}
+                                                {ppnAkun ? (
+                                                    getAccountLabel(
+                                                        glAccountOptions,
+                                                        ppnAkun,
+                                                    )
+                                                ) : (
+                                                    <span className="text-muted-foreground">
+                                                        Belum dipilih
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label className="text-sm">Nominal PPN</Label>
-                                            <Input inputMode="numeric" value={ppnNominal} onChange={(e) => setPpnNominal(e.target.value)} placeholder="0" />
+                                            <Label className="text-sm">
+                                                Nominal PPN
+                                            </Label>
+                                            <Input
+                                                inputMode="numeric"
+                                                value={ppnNominal}
+                                                onChange={(e) =>
+                                                    setPpnNominal(
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                placeholder="0"
+                                            />
                                             <div className="text-[11px] text-muted-foreground">
-                                                Jenis PPN otomatis: <span className="font-medium">{mode === 'in' ? 'Kredit' : 'Debit'}</span>
+                                                Jenis PPN otomatis:{' '}
+                                                <span className="font-medium">
+                                                    {mode === 'in'
+                                                        ? 'Kredit'
+                                                        : 'Debit'}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -898,19 +1310,39 @@ export default function MutasiKasCreate({
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <div className="text-sm font-medium">{mode === 'in' ? 'Akun lawan (Pendapatan/DPP)' : 'Akun lawan (Beban/DPP)'}</div>
-                                        <div className="text-[11px] text-muted-foreground">Total harus sama dengan target DPP.</div>
+                                        <div className="text-sm font-medium">
+                                            {mode === 'in'
+                                                ? 'Akun lawan (Pendapatan/DPP)'
+                                                : 'Akun lawan (Beban/DPP)'}
+                                        </div>
+                                        <div className="text-[11px] text-muted-foreground">
+                                            Total harus sama dengan target DPP.
+                                        </div>
                                     </div>
                                     <div className="flex gap-2">
                                         <Button
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            disabled={mode === 'transfer' || lines.length >= maxLines}
+                                            disabled={
+                                                mode === 'transfer' ||
+                                                lines.length >= maxLines
+                                            }
                                             onClick={() =>
                                                 setLines((prev) => {
-                                                    const next = Array.isArray(prev) ? [...prev] : [];
-                                                    next.push({ akun: '', jenis: mode === 'in' ? 'Kredit' : 'Debit', nominal: 0 });
+                                                    const next = Array.isArray(
+                                                        prev,
+                                                    )
+                                                        ? [...prev]
+                                                        : [];
+                                                    next.push({
+                                                        akun: '',
+                                                        jenis:
+                                                            mode === 'in'
+                                                                ? 'Kredit'
+                                                                : 'Debit',
+                                                        nominal: 0,
+                                                    });
                                                     return next;
                                                 })
                                             }
@@ -921,95 +1353,188 @@ export default function MutasiKasCreate({
                                 </div>
 
                                 <div className="space-y-2">
-                                    {(lines ?? []).slice(0, maxLines).map((l, idx) => (
-                                        <div key={idx} className="rounded-md border p-3">
-                                            <div className="flex items-center justify-between">
-                                                <div className="text-sm font-medium">
-                                                    {mode === 'in' ? 'Pendapatan' : 'Beban'} {getSlotLabel(idx)}
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Select
-                                                        value={String(l?.jenis ?? (mode === 'in' ? 'Kredit' : 'Debit'))}
-                                                        onValueChange={(v) =>
-                                                            setLines((prev) => {
-                                                                const next = [...(prev ?? [])];
-                                                                next[idx] = { ...next[idx], jenis: v };
-                                                                return next;
-                                                            })
-                                                        }
-                                                        disabled={mode === 'transfer'}
-                                                    >
-                                                        <SelectTrigger className="h-8 w-[120px]">
-                                                            <SelectValue placeholder="Jenis" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="Debit">Debit</SelectItem>
-                                                            <SelectItem value="Kredit">Kredit</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => {
-                                                            setActiveLineIndex(idx);
-                                                            setLineDialogOpen(true);
-                                                        }}
-                                                        disabled={mode === 'transfer'}
-                                                    >
-                                                        Cari
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        disabled={mode === 'transfer' || lines.length <= 1}
-                                                        onClick={() =>
-                                                            setLines((prev) => {
-                                                                const next = [...(prev ?? [])];
-                                                                next.splice(idx, 1);
-                                                                return next;
-                                                            })
-                                                        }
-                                                    >
-                                                        Hapus
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                            <div className="mt-2 grid grid-cols-1 gap-2">
-                                                <div className="rounded-md border px-3 py-2 text-sm">
-                                                    {l?.akun ? getAccountLabel(glAccountOptions, l.akun) : <span className="text-muted-foreground">Pilih akun</span>}
-                                                </div>
-                                                <Input
-                                                    inputMode="numeric"
-                                                    value={String(l?.nominal ?? '')}
-                                                    onChange={(e) =>
-                                                        setLines((prev) => {
-                                                            const next = [...(prev ?? [])];
-                                                            next[idx] = { ...next[idx], nominal: e.target.value === '' ? 0 : Number(e.target.value) };
-                                                            return next;
-                                                        })
-                                                    }
-                                                    placeholder="0"
-                                                    disabled={mode === 'transfer'}
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+	                                    {(lines ?? [])
+	                                        .slice(0, maxLines)
+	                                        .map((l, idx) => (
+	                                            <div
+	                                                key={idx}
+	                                                className="rounded-md border p-3"
+	                                            >
+		                                                <div className="flex items-center justify-between">
+		                                                    <div className="text-sm font-medium">
+		                                                        {mode === 'in'
+		                                                            ? 'Pendapatan'
+		                                                            : 'Beban'}{' '}
+		                                                        {getSlotLabel(idx)}
+		                                                    </div>
+		                                                    <div className="flex items-center gap-2">
+		                                                        <Select
+		                                                            value={String(
+		                                                                l?.jenis ??
+		                                                                    (mode ===
+		                                                                    'in'
+		                                                                        ? 'Kredit'
+		                                                                        : 'Debit'),
+		                                                            )}
+		                                                            onValueChange={(
+		                                                                v,
+		                                                            ) =>
+		                                                                setLines(
+		                                                                    (prev) => {
+		                                                                        const next =
+		                                                                            [
+		                                                                                ...(prev ??
+		                                                                                    []),
+		                                                                            ];
+		                                                                        next[
+		                                                                            idx
+		                                                                        ] = {
+		                                                                            ...next[
+		                                                                                idx
+		                                                                            ],
+		                                                                            jenis: v,
+		                                                                        };
+		                                                                        return next;
+		                                                                    },
+		                                                                )
+		                                                            }
+		                                                            disabled={
+		                                                                mode ===
+		                                                                'transfer'
+		                                                            }
+		                                                        >
+		                                                            <SelectTrigger className="h-8 w-[120px]">
+		                                                                <SelectValue placeholder="Jenis" />
+		                                                            </SelectTrigger>
+		                                                            <SelectContent>
+		                                                                <SelectItem value="Debit">
+		                                                                    Debit
+		                                                                </SelectItem>
+		                                                                <SelectItem value="Kredit">
+		                                                                    Kredit
+		                                                                </SelectItem>
+		                                                            </SelectContent>
+		                                                        </Select>
+		                                                        <Button
+		                                                            type="button"
+		                                                            variant="outline"
+		                                                            size="sm"
+                                                            onClick={() => {
+                                                                setActiveLineIndex(
+                                                                    idx,
+                                                                );
+                                                                setLineDialogOpen(
+                                                                    true,
+                                                                );
+                                                            }}
+                                                            disabled={
+                                                                mode ===
+                                                                'transfer'
+	                                                            }
+	                                                        >
+	                                                            Cari
+	                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            disabled={
+                                                                mode ===
+                                                                    'transfer' ||
+                                                                lines.length <=
+                                                                    1
+                                                            }
+                                                            onClick={() =>
+                                                                setLines(
+                                                                    (prev) => {
+                                                                        const next =
+                                                                            [
+                                                                                ...(prev ??
+                                                                                    []),
+                                                                            ];
+                                                                        next.splice(
+                                                                            idx,
+                                                                            1,
+                                                                        );
+                                                                        return next;
+                                                                    },
+                                                                )
+                                                            }
+                                                        >
+                                                            Hapus
+		                                                        </Button>
+		                                                    </div>
+		                                                </div>
+		                                                <div className="mt-2 grid grid-cols-1 gap-2">
+		                                                    <div className="rounded-md border px-3 py-2 text-sm">
+		                                                        {l?.akun ? (
+		                                                            getAccountLabel(
+		                                                                glAccountOptions,
+		                                                                l.akun,
+		                                                            )
+		                                                        ) : (
+		                                                            <span className="text-muted-foreground">
+		                                                                Pilih akun
+		                                                            </span>
+		                                                        )}
+		                                                    </div>
+		                                                    <Input
+		                                                        inputMode="numeric"
+		                                                        value={String(
+		                                                            l?.nominal ?? '',
+		                                                        )}
+		                                                        onChange={(e) =>
+		                                                            setLines((prev) => {
+		                                                                const next = [
+		                                                                    ...(prev ??
+		                                                                        []),
+		                                                                ];
+		                                                                next[idx] = {
+		                                                                    ...next[
+		                                                                        idx
+		                                                                    ],
+		                                                                    nominal:
+		                                                                        e.target
+		                                                                            .value ===
+		                                                                        ''
+		                                                                            ? 0
+		                                                                            : Number(
+		                                                                                  e
+		                                                                                      .target
+		                                                                                      .value,
+		                                                                              ),
+		                                                                };
+		                                                                return next;
+		                                                            })
+		                                                        }
+		                                                        placeholder="0"
+		                                                        disabled={
+		                                                            mode === 'transfer'
+		                                                        }
+		                                                    />
+		                                                </div>
+		                                            </div>
+		                                        ))}
+		                                </div>
 
                                 <div className="rounded-md bg-muted/30 p-3 text-sm">
                                     <div className="flex items-center justify-between">
                                         <span>Target DPP</span>
-                                        <span className="font-medium">Rp {formatNumber(dppTarget)}</span>
+                                        <span className="font-medium">
+                                            Rp {formatNumber(dppTarget)}
+                                        </span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span>Total DPP</span>
-                                        <span className="font-medium">Rp {formatNumber(linesSum)}</span>
+                                        <span className="font-medium">
+                                            Rp {formatNumber(linesSum)}
+                                        </span>
                                     </div>
                                     <div className="flex items-center justify-between">
                                         <span>Selisih</span>
-                                        <span className={`font-medium ${linesDiff === 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                                        <span
+                                            className={`font-medium ${linesDiff === 0 ? 'text-emerald-500' : 'text-destructive'}`}
+                                        >
                                             Rp {formatNumber(linesDiff)}
                                         </span>
                                     </div>
@@ -1017,7 +1542,12 @@ export default function MutasiKasCreate({
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
-                                <Button type="button" className="w-full" disabled={saving || suggestLoading} onClick={onSave}>
+                                <Button
+                                    type="button"
+                                    className="w-full"
+                                    disabled={saving || suggestLoading}
+                                    onClick={onSave}
+                                >
                                     {saving ? 'Menyimpan...' : 'Simpan'}
                                 </Button>
                                 <Button
@@ -1025,7 +1555,6 @@ export default function MutasiKasCreate({
                                     variant="outline"
                                     className="w-full"
                                     onClick={() => {
-                                        setTemplateKey('');
                                         setMode('out');
                                         setNominal('');
                                         setKeterangan('');
@@ -1034,9 +1563,16 @@ export default function MutasiKasCreate({
                                         setPpnNominal('');
                                         setPpnAkun('');
                                         setPpnAkunTouched(false);
-                                        setLines([{ akun: '', jenis: 'Debit', nominal: 0 }]);
-                                        setVoucherTypeTouched(false);
-                                        setVoucherType(guessVoucherType(kodeAkun));
+                                        setLines([
+                                            {
+                                                akun: '',
+                                                jenis: 'Debit',
+                                                nominal: 0,
+                                            },
+                                        ]);
+                                        setVoucherType(
+                                            guessVoucherType(kodeAkun),
+                                        );
                                         setKodeAkunTouched(false);
                                         setSourceTouched(false);
                                         setDestTouched(false);
@@ -1069,12 +1605,19 @@ export default function MutasiKasCreate({
                 open={lineDialogOpen}
                 onOpenChange={setLineDialogOpen}
                 options={glAccountOptions}
-                value={activeLineIndex !== null ? lines?.[activeLineIndex]?.akun : ''}
+                value={
+                    activeLineIndex !== null
+                        ? lines?.[activeLineIndex]?.akun
+                        : ''
+                }
                 onSelect={(v) => {
                     if (activeLineIndex === null) return;
                     setLines((prev) => {
                         const next = [...(prev ?? [])];
-                        next[activeLineIndex] = { ...next[activeLineIndex], akun: v };
+                        next[activeLineIndex] = {
+                            ...next[activeLineIndex],
+                            akun: v,
+                        };
                         return next;
                     });
                 }}

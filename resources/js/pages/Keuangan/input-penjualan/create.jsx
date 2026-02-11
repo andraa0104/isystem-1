@@ -4,6 +4,7 @@ import AppLayout from '@/layouts/app-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -145,8 +146,18 @@ export default function InputPenjualanCreate({
     glAccountOptions = [],
 }) {
     const guessVoucherType = (kodeAkun) => {
-        const v = String(kodeAkun ?? '').trim().toUpperCase();
-        return v === '1101AD' || v.startsWith('1101') ? 'GV' : 'BV';
+        const v = String(kodeAkun ?? '').trim();
+        const option = accountOptions?.find((opt) => String(opt.value) === v);
+        const label = String(option?.label ?? '').toUpperCase();
+
+        if (label.includes('KAS TUNAI')) return 'CV';
+        if (label.includes('KAS BANK GIRO')) return 'GV';
+        if (label.includes('KAS BANK')) return 'BV';
+
+        const upper = v.toUpperCase();
+        if (upper === '1101AD' || upper.startsWith('1101')) return 'CV';
+        if (upper === '1102AD' || upper.startsWith('1102')) return 'GV';
+        return 'BV';
     };
 
     const [search, setSearch] = useState(filters?.search ?? '');
@@ -164,8 +175,11 @@ export default function InputPenjualanCreate({
 
     const [kodeAkunAuto, setKodeAkunAuto] = useState(true);
     const [kodeAkun, setKodeAkun] = useState(defaultAccount ?? (accountOptions?.[0]?.value ?? ''));
-    const [voucherTypeAuto, setVoucherTypeAuto] = useState(true);
-    const [voucherType, setVoucherType] = useState(() => guessVoucherType(defaultAccount ?? (accountOptions?.[0]?.value ?? '')));
+    const voucherType = useMemo(
+        () => guessVoucherType(kodeAkun),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [kodeAkun, accountOptions],
+    );
 
     const [tglVoucher, setTglVoucher] = useState(() => new Date().toISOString().slice(0, 10));
     const [keterangan, setKeterangan] = useState('');
@@ -290,10 +304,7 @@ export default function InputPenjualanCreate({
             const suggestedKas = String(json?.kode_akun ?? '').trim();
             if (suggestedKas && kodeAkunAuto) setKodeAkun(suggestedKas);
 
-            const suggestedType = String(json?.voucher_type ?? '').trim().toUpperCase();
-            if (suggestedType && voucherTypeAuto && (suggestedType === 'GV' || suggestedType === 'BV')) {
-                setVoucherType(suggestedType);
-            }
+            // voucher_type is now derived from selected kas/bank account (no user selection)
 
             const beban = Array.isArray(json?.beban_lines) ? json.beban_lines : [];
             if (beban.length) {
@@ -337,6 +348,8 @@ export default function InputPenjualanCreate({
         applySuggestion({ noFaktur: no, cashNominal });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selected?.no_fakturpenjualan]);
+
+    // voucherType is derived from kodeAkun, no user selection
 
     const applySelectedToForm = (row) => {
         setSelected(row);
@@ -536,7 +549,7 @@ export default function InputPenjualanCreate({
                         <CardHeader className="space-y-2">
                             <CardTitle>Jurnal Penjualan ke Buku Kas</CardTitle>
                             <div className="text-xs text-muted-foreground">
-                                Voucher otomatis: <span className="font-mono">{'{DB}/{GV|BV}/00000001'}</span> (masuk).
+                                Voucher otomatis: <span className="font-mono">{'{DB}/{CV|GV|BV}/00000001'}</span> (masuk).
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -599,25 +612,6 @@ export default function InputPenjualanCreate({
                             </div>
 
                             <div className="space-y-2">
-                                <div className="text-sm font-medium">Tipe Voucher</div>
-                                <Select
-                                    value={voucherType}
-                                    onValueChange={(v) => {
-                                        setVoucherTypeAuto(false);
-                                        setVoucherType(v);
-                                    }}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Pilih tipe" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="GV">GV</SelectItem>
-                                        <SelectItem value="BV">BV</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
                                 <div className="text-sm font-medium">Pendapatan (DPP)</div>
                                 <div className="grid gap-3 rounded-lg border p-3">
                                     <div className="flex justify-end">
@@ -630,60 +624,72 @@ export default function InputPenjualanCreate({
                                             Tambah
                                         </Button>
                                     </div>
-                                    {(lines ?? []).map((line, idx) => (
-                                        <div key={idx} className="grid grid-cols-1 gap-2 rounded-md border bg-background p-2">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <div className="text-xs font-medium text-muted-foreground">{`Pendapatan ${getSlotLabel(idx)}`}</div>
-                                                {(lines?.length ?? 0) > 1 ? (
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        onClick={() => setLines((prev) => (prev ?? []).filter((_, i) => i !== idx))}
-                                                    >
-                                                        Hapus
-                                                    </Button>
-                                                ) : null}
-                                            </div>
-                                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    className="w-full justify-between"
-                                                    onClick={() => setActiveLineIndex(idx)}
-                                                >
-                                                    <span className="truncate">
-                                                        {line?.akun ? getAccountLabel(glAccountOptions, line.akun) : 'Pilih akun pendapatan'}
-                                                    </span>
-                                                    <span className="text-muted-foreground">Cari</span>
-                                                </Button>
-                                                <Select
-                                                    value={String(line?.jenis ?? '') || 'Kredit'}
-                                                    onValueChange={(v) =>
-                                                        setLines((prev) => (prev ?? []).map((l, i) => (i === idx ? { ...l, jenis: v } : l)))
-                                                    }
-                                                >
-                                                    <SelectTrigger className="w-full">
-                                                        <SelectValue placeholder="Jenis" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="Kredit">Kredit</SelectItem>
-                                                        <SelectItem value="Debit">Debit</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <Input
-                                                inputMode="numeric"
-                                                value={String(line?.nominal ?? '')}
-                                                onChange={(e) => {
-                                                    const v = e.target.value.replace(/[^\d.]/g, '');
-                                                    setLines((prev) =>
-                                                        (prev ?? []).map((l, i) => (i === idx ? { ...l, nominal: v === '' ? 0 : Number(v) } : l))
-                                                    );
-                                                }}
-                                                placeholder="Jumlah (Rp)"
-                                            />
-                                        </div>
-                                    ))}
+	                                    {(lines ?? []).map((line, idx) => (
+	                                        <div key={idx} className="grid grid-cols-1 gap-2 rounded-md border bg-background p-2">
+	                                            <div className="flex items-center justify-between gap-2">
+	                                                <div className="text-xs font-medium text-muted-foreground">{`Pendapatan ${getSlotLabel(idx)}`}</div>
+	                                                <div className="flex items-center gap-2">
+	                                                    {(lines?.length ?? 0) > 1 ? (
+	                                                        <Button
+	                                                            type="button"
+	                                                            variant="ghost"
+                                                            onClick={() => setLines((prev) => (prev ?? []).filter((_, i) => i !== idx))}
+                                                        >
+                                                            Hapus
+                                                        </Button>
+	                                                    ) : null}
+	                                                </div>
+	                                            </div>
+	                                            <div className="grid grid-cols-1 gap-2">
+	                                                <Button
+	                                                    type="button"
+	                                                    variant="outline"
+	                                                    className="h-auto w-full items-start justify-between gap-2 py-2"
+	                                                    onClick={() => setActiveLineIndex(idx)}
+	                                                >
+	                                                    <span className="text-left leading-snug break-words whitespace-normal">
+	                                                        {line?.akun ? getAccountLabel(glAccountOptions, line.akun) : 'Pilih akun pendapatan'}
+	                                                    </span>
+	                                                    <span className="shrink-0 text-muted-foreground">Cari</span>
+	                                                </Button>
+	                                            </div>
+	                                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+	                                                <div className="space-y-1">
+	                                                    <Label className="text-xs text-muted-foreground">Jenis</Label>
+	                                                    <Select
+	                                                        value={String(line?.jenis ?? '') || 'Kredit'}
+	                                                        onValueChange={(v) =>
+	                                                            setLines((prev) =>
+	                                                                (prev ?? []).map((l, i) => (i === idx ? { ...l, jenis: v } : l))
+	                                                            )
+	                                                        }
+	                                                    >
+	                                                        <SelectTrigger className="h-9">
+	                                                            <SelectValue placeholder="Jenis" />
+	                                                        </SelectTrigger>
+	                                                        <SelectContent>
+	                                                            <SelectItem value="Kredit">Kredit</SelectItem>
+	                                                            <SelectItem value="Debit">Debit</SelectItem>
+	                                                        </SelectContent>
+	                                                    </Select>
+	                                                </div>
+	                                                <div className="space-y-1">
+	                                                    <Label className="text-xs text-muted-foreground">Nominal</Label>
+	                                                    <Input
+	                                                        inputMode="numeric"
+	                                                        value={String(line?.nominal ?? '')}
+	                                                        onChange={(e) => {
+	                                                            const v = e.target.value.replace(/[^\d.]/g, '');
+	                                                            setLines((prev) =>
+	                                                                (prev ?? []).map((l, i) => (i === idx ? { ...l, nominal: v === '' ? 0 : Number(v) } : l))
+	                                                            );
+	                                                        }}
+	                                                        placeholder="Jumlah (Rp)"
+	                                                    />
+	                                                </div>
+	                                            </div>
+	                                        </div>
+	                                    ))}
                                     <div className="grid grid-cols-2 gap-2 text-sm">
                                         <div className="text-muted-foreground">DPP target</div>
                                         <div className="text-right font-medium">{`Rp ${formatNumber(calc.dppCash)}`}</div>

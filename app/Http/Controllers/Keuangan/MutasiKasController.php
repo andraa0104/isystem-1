@@ -7,6 +7,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
+use App\Services\Keuangan\KasDss\KasDss;
 
 class MutasiKasController
 {
@@ -122,11 +123,21 @@ class MutasiKasController
         return $db !== '' ? $db : 'SJA';
     }
 
+    private function getVoucherInfo(Request $request, string $kodeAkun): array
+    {
+        $dbCode = $this->getDatabaseCode($request);
+        $kodeAkun = trim($kodeAkun);
+        $type = (new KasDss())->voucherTypeForAkun($kodeAkun);
+
+        return [
+            'type' => $type,
+            'prefix' => "{$dbCode}/{$type}/",
+        ];
+    }
+
     private function guessVoucherType(string $kodeAkun): string
     {
-        $kodeAkun = strtoupper(trim($kodeAkun));
-        if ($kodeAkun === '1101AD' || str_starts_with($kodeAkun, '1101')) return 'GV';
-        return 'BV';
+        return (new KasDss())->voucherTypeForAkun($kodeAkun);
     }
 
     private function getAccountOptions(): array
@@ -242,64 +253,6 @@ class MutasiKasController
         ];
     }
 
-    private function normalizeTemplateText(string $keterangan): string
-    {
-        $k = trim($keterangan);
-        $k = preg_replace('/\\s+/', ' ', $k) ?? $k;
-        // replace voucher code patterns
-        $k = preg_replace('/\\b[A-Z]{2,5}\\/([GB]V)\\/\\d{4,}\\b/', '{VOUCHER}', $k) ?? $k;
-        // replace long digit sequences
-        $k = preg_replace('/\\b\\d{4,}\\b/', '{#}', $k) ?? $k;
-        return trim($k);
-    }
-
-    private function getTemplateOptions(): array
-    {
-        if (!Schema::hasTable('tb_kas') || !Schema::hasColumn('tb_kas', 'Keterangan')) return [];
-
-        try {
-            $rows = DB::table('tb_kas')
-                ->orderByDesc('Tgl_Voucher')
-                ->orderByDesc('Kode_Voucher')
-                ->limit(600)
-                ->get(['Keterangan', 'Mutasi_Kas']);
-
-            $map = [];
-            foreach ($rows as $r) {
-                $ket = trim((string) ($r->Keterangan ?? ''));
-                if ($ket === '') continue;
-                $norm = $this->normalizeTemplateText($ket);
-                if ($norm === '') continue;
-                $key = md5($norm);
-                $map[$key] = $map[$key] ?? [
-                    'key' => $key,
-                    'label' => $norm,
-                    'count' => 0,
-                    'pos' => 0,
-                    'neg' => 0,
-                    'example' => $ket,
-                ];
-                $map[$key]['count']++;
-                $m = (float) ($r->Mutasi_Kas ?? 0);
-                if ($m > 0) $map[$key]['pos']++;
-                if ($m < 0) $map[$key]['neg']++;
-            }
-
-            $list = array_values($map);
-            usort($list, fn ($a, $b) => ($b['count'] ?? 0) <=> ($a['count'] ?? 0));
-            $list = array_slice($list, 0, 24);
-            foreach ($list as &$t) {
-                $pos = (int) ($t['pos'] ?? 0);
-                $neg = (int) ($t['neg'] ?? 0);
-                $t['defaultMode'] = $pos >= $neg ? 'in' : 'out';
-            }
-            unset($t);
-            return $list;
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
     public function index(Request $request)
     {
         $accountOptions = $this->getAccountOptions();
@@ -324,7 +277,6 @@ class MutasiKasController
         $accountOptions = $this->getAccountOptions();
         $defaultAccount = $this->getDefaultAccount();
         $glAccountOptions = $this->getGlAccountOptions();
-        $templates = $this->getTemplateOptions();
 
         $filters = [
             'search' => (string) $request->query('search', ''),
@@ -335,7 +287,6 @@ class MutasiKasController
             'accountOptions' => $accountOptions,
             'defaultAccount' => $defaultAccount,
             'glAccountOptions' => $glAccountOptions,
-            'templates' => $templates,
         ]);
     }
 
@@ -399,10 +350,11 @@ class MutasiKasController
 
             $q = DB::table('tb_bayar');
 
-            // Requirement: show only active/unposted rows per tb_bayar.Status.
-            // User requested Status = 'T'.
-            if (Schema::hasColumn('tb_bayar', 'Status')) {
-                $q->whereRaw("UPPER(TRIM(COALESCE(Status,''))) = 'T'");
+            // Requirement: show only Payment Cost rows that are not yet booked to cash/bank.
+            // In this DB, `beban_akun` is NOT NULL and when "already booked" it is stored as a single space.
+            // So pending rows are: TRIM(beban_akun) <> ''.
+            if (Schema::hasColumn('tb_bayar', 'beban_akun')) {
+                $q->whereRaw("TRIM(COALESCE(beban_akun,'')) <> ''");
             }
 
             if ($search !== '') {
@@ -443,26 +395,105 @@ class MutasiKasController
         }
     }
 
-    private function tokenize(string $text): array
+    /**
+     * Tokenize with weights (simple "ML-lite" feature extraction).
+     *
+     * - Tokens inside parentheses (...) get higher weight.
+     * - Adds light synonym expansion for common finance words.
+     *
+     * @return array<string,float> token => weight
+     */
+    private function tokenizeWeighted(string $text): array
     {
-        $t = strtolower(trim($text));
-        $t = preg_replace('/[^a-z0-9]+/i', ' ', $t) ?? $t;
-        $parts = array_values(array_filter(array_map('trim', explode(' ', $t))));
-        $stop = ['dan', 'atau', 'ke', 'dari', 'yang', 'untuk', 'the', 'a', 'an', 'of', 'to', 'in'];
-        $filtered = [];
-        foreach ($parts as $p) {
-            if (strlen($p) < 3) continue;
-            if (in_array($p, $stop, true)) continue;
-            $filtered[] = $p;
+        $raw = trim((string) $text);
+        if ($raw === '') return [];
+
+        $rawLower = strtolower($raw);
+
+        // Parentheses terms are strong signals (e.g., BPJS, JHT, Kesehatan).
+        $strongText = '';
+        if (preg_match_all('/\\(([^\\)]{1,120})\\)/', $rawLower, $m)) {
+            $strongText = implode(' ', $m[1] ?? []);
         }
-        return array_values(array_unique($filtered));
+
+        $norm = preg_replace('/[^a-z0-9]+/i', ' ', $rawLower) ?? $rawLower;
+        $strongNorm = preg_replace('/[^a-z0-9]+/i', ' ', $strongText) ?? $strongText;
+
+        $stop = ['dan', 'atau', 'ke', 'dari', 'yang', 'untuk', 'the', 'a', 'an', 'of', 'to', 'in'];
+
+        $build = function (string $s, float $w) use ($stop): array {
+            $parts = array_values(array_filter(array_map('trim', explode(' ', $s))));
+            $out = [];
+            foreach ($parts as $p) {
+                if (strlen($p) < 3) continue;
+                if (in_array($p, $stop, true)) continue;
+                $out[$p] = max($out[$p] ?? 0, $w);
+            }
+            return $out;
+        };
+
+        $tokens = $build($norm, 1.0);
+        $strongTokens = $build($strongNorm, 2.0);
+        foreach ($strongTokens as $t => $w) {
+            $tokens[$t] = max($tokens[$t] ?? 0, $w);
+        }
+
+        // Light synonym expansion (keep small, deterministic).
+        $expand = function (string $token): array {
+            return match ($token) {
+                'bpjs' => ['bpjs', 'asuransi'],
+                'jht' => ['jht', 'bpjs', 'asuransi'],
+                'kesehatan' => ['kesehatan', 'bpjs', 'asuransi'],
+                'gaji' => ['gaji', 'upah'],
+                'upah' => ['upah', 'gaji'],
+                'asuransi' => ['asuransi', 'bpjs'],
+                default => [$token],
+            };
+        };
+
+        $expanded = [];
+        foreach ($tokens as $t => $w) {
+            foreach ($expand($t) as $e) {
+                $expanded[$e] = max($expanded[$e] ?? 0, $w);
+            }
+        }
+
+        // Cap to avoid too broad queries.
+        arsort($expanded);
+        return array_slice($expanded, 0, 12, true);
     }
 
-    private function suggestFromKasHistory(string $mode, string $kodeAkun, string $keterangan, bool $hasPpn, float $ppnNominal): array
+    /**
+     * @return string[] basic tokens (used for transfer pair heuristic)
+     */
+    private function tokenize(string $text): array
+    {
+        $raw = strtolower(trim((string) $text));
+        if ($raw === '') return [];
+        $raw = preg_replace('/[^a-z0-9]+/i', ' ', $raw) ?? $raw;
+        $raw = preg_replace('/\\s+/', ' ', $raw) ?? $raw;
+        $parts = array_values(array_filter(array_map('trim', explode(' ', $raw))));
+        $out = [];
+        foreach ($parts as $p) {
+            if (strlen($p) < 3) continue;
+            $out[] = $p;
+        }
+        return array_values(array_unique(array_slice($out, 0, 12)));
+    }
+
+    private function suggestFromKasHistory(
+        string $mode,
+        string $kodeAkun,
+        string $keterangan,
+        bool $hasPpn,
+        float $ppnNominal,
+        ?string $seedAkun = null
+    ): array
     {
         $mode = in_array($mode, ['in', 'out', 'transfer'], true) ? $mode : 'out';
         $kodeAkun = trim($kodeAkun);
-        $tokens = $this->tokenize($keterangan);
+        $tokenWeights = $this->tokenizeWeighted($keterangan);
+        $tokens = array_keys($tokenWeights);
 
         $q = DB::table('tb_kas as k');
         if ($kodeAkun !== '' && $kodeAkun !== 'all') {
@@ -502,21 +533,38 @@ class MutasiKasController
         $lawanCounts = [];
         $jenisMap = [];
         $bestKet = '';
+        $bestKetScore = -1.0;
+        $seedAkun = trim((string) $seedAkun);
 
         foreach ($rows as $r) {
             $kv = trim((string) ($r->Kode_Voucher ?? ''));
+            $ket = trim((string) ($r->Keterangan ?? ''));
+            $ketLower = strtolower($ket);
+
+            // Row match score based on weighted token hits.
+            $rowScore = 0.0;
+            foreach ($tokenWeights as $t => $w) {
+                if ($t !== '' && $ketLower !== '' && str_contains($ketLower, $t)) {
+                    $rowScore += (float) $w;
+                }
+            }
+            // If no query tokens, still allow some learning with low score.
+            if (count($tokenWeights) === 0) $rowScore = 0.5;
+
             if ($kv !== '') {
-                if (str_contains($kv, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + 1;
-                if (str_contains($kv, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + 1;
+                if (str_contains($kv, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + $rowScore;
+                if (str_contains($kv, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + $rowScore;
             }
 
-            $ket = trim((string) ($r->Keterangan ?? ''));
-            if ($bestKet === '' && $ket !== '') $bestKet = $ket;
+            if ($ket !== '' && $rowScore > $bestKetScore) {
+                $bestKet = $ket;
+                $bestKetScore = $rowScore;
+            }
 
             $nom2 = (float) ($r->Nominal2 ?? 0);
             $a2 = trim((string) ($r->Kode_Akun2 ?? ''));
             if ($nom2 > 0 && $a2 !== '') {
-                $ppnCounts[$a2] = ($ppnCounts[$a2] ?? 0) + 1;
+                $ppnCounts[$a2] = ($ppnCounts[$a2] ?? 0) + $rowScore;
             }
 
             $slots = ($hasPpn && $ppnNominal > 0) ? [1, 3] : [1, 2, 3];
@@ -525,7 +573,7 @@ class MutasiKasController
                 $nom = (float) ($r->{'Nominal' . $slot} ?? 0);
                 $jenis = trim((string) ($r->{'Jenis_Beban' . $slot} ?? ''));
                 if ($akun === '' || $nom <= 0) continue;
-                $lawanCounts[$akun] = ($lawanCounts[$akun] ?? 0) + 1;
+                $lawanCounts[$akun] = ($lawanCounts[$akun] ?? 0) + $rowScore;
                 if (!isset($jenisMap[$akun]) && $jenis !== '') {
                     $jenisMap[$akun] = $this->normalizeJenis($jenis, $mode === 'in' ? 'Kredit' : 'Debit');
                 }
@@ -547,14 +595,22 @@ class MutasiKasController
         $maxLines = ($hasPpn && $ppnNominal > 0) ? 2 : 3;
         $lines = [];
         if (count($lawanCounts)) {
+            // Seed account from external source (e.g. tb_bayar.beban_akun) should be strongly preferred.
+            if ($seedAkun !== '') {
+                $lawanCounts[$seedAkun] = ($lawanCounts[$seedAkun] ?? 0) + 50;
+            }
+
             $top = $this->rankAccountsWithNaBB($lawanCounts, $nabbWeights, $maxLines);
             foreach ($top as $akun) {
                 $lines[] = [
                     'akun' => $akun,
                     'jenis' => (string) (($jenisMap[$akun] ?? '') ?: ($mode === 'in' ? 'Kredit' : 'Debit')),
                     'nominal' => 0,
+                    'score' => (float) ($lawanCounts[$akun] ?? 0),
                 ];
             }
+        } elseif ($seedAkun !== '') {
+            $lines[] = ['akun' => $seedAkun, 'jenis' => ($mode === 'in' ? 'Kredit' : 'Debit'), 'nominal' => 0, 'score' => 100.0];
         }
 
         return [
@@ -568,7 +624,8 @@ class MutasiKasController
     private function suggestCashAccount(string $mode, string $keterangan): string
     {
         $mode = in_array($mode, ['in', 'out'], true) ? $mode : 'out';
-        $tokens = $this->tokenize($keterangan);
+        $tokenWeights = $this->tokenizeWeighted($keterangan);
+        $tokens = array_keys($tokenWeights);
         if (count($tokens) === 0) return '';
 
         try {
@@ -675,32 +732,6 @@ class MutasiKasController
             }
         }
 
-        // Prefer historical transfer-like redaction.
-        try {
-            $q = DB::table('tb_kas as k')
-                ->whereRaw('COALESCE(k.Mutasi_Kas,0) < 0')
-                ->whereRaw('TRIM(COALESCE(k.Kode_Akun, \'\')) = ?', [$source])
-                ->whereRaw('TRIM(COALESCE(k.Kode_Akun1, \'\')) = ?', [$dest])
-                ->whereNotNull('k.Keterangan')
-                ->orderByDesc('k.Tgl_Voucher')
-                ->orderByDesc('k.Kode_Voucher')
-                ->limit(50)
-                ->pluck('k.Keterangan')
-                ->map(fn ($v) => trim((string) $v))
-                ->filter()
-                ->values()
-                ->all();
-
-            foreach ($q as $ket) {
-                $low = strtolower($ket);
-                if (str_contains($low, 'transfer') || str_contains($low, 'mutasi') || str_contains($ket, '→')) {
-                    return $ket;
-                }
-            }
-        } catch (\Throwable) {
-            // ignore
-        }
-
         return "PEMINDAHAN DANA DARI {$srcLabel} KE {$dstLabel}";
     }
 
@@ -722,45 +753,13 @@ class MutasiKasController
             $nominal = max(0.0, $nominal);
 
             $keterangan = (string) $request->query('keterangan', '');
-            $templateKey = trim((string) $request->query('templateKey', ''));
             $hasPpn = filter_var($request->query('hasPpn', false), FILTER_VALIDATE_BOOLEAN);
             $ppnNominal = (float) $request->query('ppnNominal', 0);
             $ppnNominal = max(0.0, $ppnNominal);
-
-            $templates = $this->getTemplateOptions();
-            $template = null;
-            if ($templateKey !== '') {
-                foreach ($templates as $t) {
-                    if ((string) ($t['key'] ?? '') === $templateKey) {
-                        $template = $t;
-                        break;
-                    }
-                }
-            }
-
-            if (trim($keterangan) === '' && $template && isset($template['example'])) {
-                $keterangan = (string) $template['example'];
-            }
+            $seedAkun = trim((string) $request->query('seedAkun', ''));
 
             $kodeAkun = $account !== '' ? $account : ($source !== '' ? $source : '');
-            $voucherType = $this->guessVoucherType($kodeAkun);
             $ppnJenis = $mode === 'in' ? 'Kredit' : 'Debit';
-
-            $history = $this->suggestFromKasHistory(
-                $mode === 'transfer' ? 'out' : $mode,
-                $mode === 'transfer' ? $source : $account,
-                $keterangan,
-                $hasPpn,
-                $ppnNominal
-            );
-
-            if (trim((string) ($history['voucher_type'] ?? '')) !== '') {
-                $voucherType = (string) $history['voucher_type'];
-            }
-
-            $ppnAkun = (string) ($history['ppn_akun'] ?? '');
-            $lines = is_array($history['lines'] ?? null) ? $history['lines'] : [];
-            $ketSuggest = trim((string) ($history['keterangan'] ?? ''));
 
             if ($mode === 'transfer') {
                 $pair = $this->suggestTransferPair($keterangan);
@@ -781,8 +780,10 @@ class MutasiKasController
                     $keteranganOut = $this->suggestTransferKeterangan($finalSource, $finalDest);
                 }
 
+                $infoS = $this->getVoucherInfo($request, $finalSource);
+
                 return response()->json([
-                    'voucher_type' => $voucherType,
+                    'voucher_type' => $infoS['type'],
                     'source' => $finalSource,
                     'dest' => $finalDest,
                     'keterangan' => $keteranganOut,
@@ -791,46 +792,30 @@ class MutasiKasController
                     ],
                     'ppn_akun' => '',
                     'ppn_jenis' => 'Debit',
+                    'confidence' => ['overall' => 1.0],
+                    'evidence' => [],
                 ]);
             }
 
-            $suggestKas = $this->suggestCashAccount($mode, $keterangan);
-            if ($suggestKas !== '') {
-                $kodeAkun = $suggestKas;
-                if ($voucherType === '') {
-                    $voucherType = $this->guessVoucherType($kodeAkun);
-                }
-            }
-
-            $keteranganOut = trim($keterangan);
-            if ($keteranganOut === '') {
-                $keteranganOut = $ketSuggest !== '' ? $ketSuggest : ($mode === 'in' ? 'Mutasi/Kas Masuk' : 'Mutasi/Kas Keluar');
-            }
-
-            // Build nominal allocation for DPP lines (if we have any suggested lines).
-            $dppTarget = max(0.0, $nominal - ($hasPpn ? $ppnNominal : 0.0));
-            $maxLines = ($hasPpn && $ppnNominal > 0) ? 2 : 3;
-            $lines = array_slice($lines, 0, $maxLines);
-            if (count($lines) === 0) {
-                $lines = [['akun' => '', 'jenis' => $mode === 'in' ? 'Kredit' : 'Debit', 'nominal' => $dppTarget]];
-            }
-            $running = 0.0;
-            foreach ($lines as $i => &$l) {
-                $l['jenis'] = $this->normalizeJenis((string) ($l['jenis'] ?? ''), $mode === 'in' ? 'Kredit' : 'Debit');
-                $l['nominal'] = $i === (count($lines) - 1)
-                    ? round($dppTarget - $running, 2)
-                    : round($dppTarget / count($lines), 2);
-                $running += (float) $l['nominal'];
-            }
-            unset($l);
+            $dss = new KasDss();
+            $dssOut = $dss->suggest([
+                'mode' => $mode,
+                'keterangan' => $keterangan,
+                'nominal' => $nominal,
+                'hasPpn' => (bool) ($hasPpn && $ppnNominal > 0),
+                'ppnNominal' => $ppnNominal,
+                'seedAkun' => $seedAkun,
+            ]);
 
             return response()->json([
-                'kode_akun' => (string) $kodeAkun,
-                'voucher_type' => $voucherType,
-                'keterangan' => $keteranganOut,
-                'ppn_akun' => $hasPpn && $ppnNominal > 0 ? $ppnAkun : '',
-                'ppn_jenis' => $ppnJenis,
-                'lines' => $lines,
+                'kode_akun' => (string) ($dssOut['kode_akun'] ?? ''),
+                'voucher_type' => (string) ($dssOut['voucher_type'] ?? $this->guessVoucherType($kodeAkun)),
+                'keterangan' => (string) ($dssOut['keterangan'] ?? ''),
+                'ppn_akun' => (string) ($dssOut['ppn_akun'] ?? ''),
+                'ppn_jenis' => (string) ($dssOut['ppn_jenis'] ?? $ppnJenis),
+                'lines' => $dssOut['lines'] ?? [],
+                'confidence' => $dssOut['confidence'] ?? ['overall' => 0.0],
+                'evidence' => $dssOut['evidence'] ?? [],
             ]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -928,8 +913,7 @@ class MutasiKasController
             $nominal = max(0.0, (float) ($payload['nominal'] ?? 0));
             if ($nominal <= 0) return redirect()->back()->with('error', 'Nominal harus > 0.');
 
-            $voucherType = strtoupper(trim((string) ($payload['voucher_type'] ?? '')));
-            $voucherType = in_array($voucherType, ['GV', 'BV'], true) ? $voucherType : '';
+            $voucherType = ''; // Will be determined by getVoucherInfo based on account
 
             $hasPpn = (bool) ($payload['has_ppn'] ?? false);
             $ppnNominal = $hasPpn ? max(0.0, (float) ($payload['ppn_nominal'] ?? 0)) : 0.0;
@@ -988,8 +972,8 @@ class MutasiKasController
                         return redirect()->back()->with('error', 'Akun sumber dan tujuan tidak boleh sama.');
                     }
 
-                    $vt = $voucherType !== '' ? $voucherType : $this->guessVoucherType($source);
-                    $prefix = $dbCode . '/' . $vt . '/';
+                    $infoS = $this->getVoucherInfo($request, $source);
+                    $prefix = $infoS['prefix'];
                     [$voucherOut, $voucherIn] = $this->nextVoucherPair($prefix);
 
                     $ket = $keterangan;
@@ -1058,8 +1042,8 @@ class MutasiKasController
                     return redirect()->back()->with('error', 'Akun kas/bank wajib diisi.');
                 }
 
-                $vt = $voucherType !== '' ? $voucherType : $this->guessVoucherType($kodeAkun);
-                $prefix = $dbCode . '/' . $vt . '/';
+                $infoK = $this->getVoucherInfo($request, $kodeAkun);
+                $prefix = $infoK['prefix'];
                 $kodeVoucher = $this->nextVoucher($prefix);
 
                 $mutasi = $mode === 'in' ? abs($nominal) : (-1 * abs($nominal));

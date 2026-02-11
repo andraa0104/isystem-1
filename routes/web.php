@@ -37,6 +37,7 @@ use App\Http\Controllers\Laporan\AuditRekonsiliasiController;
 use App\Http\Controllers\Keuangan\InputPembelianController;
 use App\Http\Controllers\Keuangan\InputPenjualanController;
 use App\Http\Controllers\Keuangan\MutasiKasController;
+use App\Http\Controllers\Keuangan\JurnalPenyesuaianController as KeuanganJurnalPenyesuaianController;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Illuminate\Http\Request;
@@ -747,6 +748,19 @@ Route::get('keuangan/mutasi-kas/suggest', [MutasiKasController::class, 'suggest'
     ->name('keuangan.mutasi-kas.suggest');
 Route::post('keuangan/mutasi-kas', [MutasiKasController::class, 'store'])
     ->name('keuangan.mutasi-kas.store');
+
+Route::get('keuangan/penyesuaian', [KeuanganJurnalPenyesuaianController::class, 'index'])
+    ->name('keuangan.penyesuaian.index');
+Route::get('keuangan/penyesuaian/create', [KeuanganJurnalPenyesuaianController::class, 'create'])
+    ->name('keuangan.penyesuaian.create');
+Route::get('keuangan/penyesuaian/rows', [KeuanganJurnalPenyesuaianController::class, 'rows'])
+    ->name('keuangan.penyesuaian.rows');
+Route::get('keuangan/penyesuaian/details', [KeuanganJurnalPenyesuaianController::class, 'details'])
+    ->name('keuangan.penyesuaian.details');
+Route::get('keuangan/penyesuaian/suggest', [KeuanganJurnalPenyesuaianController::class, 'suggest'])
+    ->name('keuangan.penyesuaian.suggest');
+Route::post('keuangan/penyesuaian', [KeuanganJurnalPenyesuaianController::class, 'store'])
+    ->name('keuangan.penyesuaian.store');
 Route::get('pembayaran/biaya-kirim-pembelian', [BiayaKirimPembelianController::class, 'index'])
     ->name('pembayaran.biaya-kirim-pembelian.index');
 Route::get('pembayaran/biaya-kirim-pembelian/create', [BiayaKirimPembelianController::class, 'create'])

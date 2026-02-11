@@ -167,7 +167,7 @@ export default function InputPembelianIndex({ filters = {}, accountOptions = [],
                             <div>
                                 <CardTitle>Input Pembelian (Buku Kas)</CardTitle>
                                 <div className="text-xs text-muted-foreground">
-                                    Menampilkan data yang sudah tersimpan di <span className="font-mono">tb_kas</span> (voucher <span className="font-mono">{'{DB}/{GV|BV}/*'}</span>).
+                                    Menampilkan data yang sudah tersimpan di <span className="font-mono">tb_kas</span> (voucher <span className="font-mono">{'{DB}/{CV|GV|BV}/*'}</span>).
                                 </div>
                             </div>
                             <Button type="button" onClick={() => router.visit('/keuangan/input-pembelian/create')}>

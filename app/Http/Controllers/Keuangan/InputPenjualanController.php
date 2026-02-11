@@ -7,6 +7,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
+use App\Services\Keuangan\KasDss\KasDss;
 
 class InputPenjualanController
 {
@@ -29,6 +30,9 @@ class InputPenjualanController
      */
     private function getNaBBAccountWeights(int $maxPeriods = 24): array
     {
+        // Updated requirement: do not use tb_nabbrekap weighting; DSS learns from tb_kas + tb_jurnal/tb_jurnaldetail.
+        return [];
+
         $maxPeriods = max(1, min(60, $maxPeriods));
         if (!$this->nabbrekapAvailable()) return [];
 
@@ -164,11 +168,7 @@ class InputPenjualanController
 
     private function guessVoucherType(string $kodeAkun): string
     {
-        $kodeAkun = strtoupper(trim($kodeAkun));
-        if ($kodeAkun === '1101AD' || str_starts_with($kodeAkun, '1101')) {
-            return 'GV';
-        }
-        return 'BV';
+        return (new KasDss())->voucherTypeForAkun($kodeAkun);
     }
 
     private function kasBreakdownAvailable(): bool
@@ -401,8 +401,10 @@ class InputPenjualanController
 
             // Penjualan: voucher type GV/BV + keterangan terkait faktur.
             $q->where(function ($qq) {
-                $qq->where('k.Kode_Voucher', 'like', '%/GV/%')
+                $qq->where('k.Kode_Voucher', 'like', '%/CV/%')
+                    ->orWhere('k.Kode_Voucher', 'like', '%/GV/%')
                     ->orWhere('k.Kode_Voucher', 'like', '%/BV/%')
+                    ->orWhere('k.Kode_Voucher', 'like', 'CV%')
                     ->orWhere('k.Kode_Voucher', 'like', 'GV%')
                     ->orWhere('k.Kode_Voucher', 'like', 'BV%');
             });
@@ -604,6 +606,7 @@ class InputPenjualanController
 
             $kv = trim((string) ($r->Kode_Voucher ?? ''));
             if ($kv !== '') {
+                if (str_contains($kv, '/CV/')) $typeCounts['CV'] = ($typeCounts['CV'] ?? 0) + 1;
                 if (str_contains($kv, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + 1;
                 if (str_contains($kv, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + 1;
             }
@@ -736,6 +739,7 @@ class InputPenjualanController
             $kodeKas = trim((string) ($kas->Kode_Akun ?? ''));
             if ($kodeKas !== '') $cashCounts[$kodeKas] = ($cashCounts[$kodeKas] ?? 0) + 1;
 
+            if (str_contains($voucher, '/CV/')) $typeCounts['CV'] = ($typeCounts['CV'] ?? 0) + 1;
             if (str_contains($voucher, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + 1;
             if (str_contains($voucher, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + 1;
 
@@ -819,6 +823,138 @@ class InputPenjualanController
         return $ket;
     }
 
+    private function buildKeteranganTemplate(string $keterangan, object $header): string
+    {
+        $k = trim((string) $keterangan);
+        if ($k === '') return '';
+
+        $k = preg_replace('/\\s+/', ' ', $k) ?? $k;
+
+        $no = trim((string) ($header->no_fakturpenjualan ?? ''));
+        if ($no !== '') {
+            $k = str_ireplace($no, '{INV}', $k);
+        }
+
+        // Generic invoice patterns (examples: SJA.INV-0016414, INV-0016414, SJA/INV/00001234)
+        $k = preg_replace('/\\b[A-Z0-9]{2,8}[\\.\\/]INV[-\\/ ]?\\d{4,}\\b/i', '{INV}', $k) ?? $k;
+        $k = preg_replace('/\\bINV[-\\/ ]?\\d{4,}\\b/i', '{INV}', $k) ?? $k;
+
+        // PO placeholder
+        $k = preg_replace('/\\bPO\\s*[-:]?\\s*[A-Z0-9\\.\\-\\/]+\\b/i', 'PO {PO}', $k) ?? $k;
+
+        // Long numbers noise
+        $k = preg_replace('/\\b\\d{5,}\\b/', '{#}', $k) ?? $k;
+
+        return trim($k);
+    }
+
+    private function renderKeteranganFromTemplate(string $template, object $header): string
+    {
+        $no = trim((string) ($header->no_fakturpenjualan ?? ''));
+        $cs = trim((string) ($header->nm_cs ?? ''));
+        $ref = trim((string) ($header->ref_po ?? ''));
+
+        $out = $template !== '' ? $template : $this->buildDefaultKeterangan($header);
+        $out = str_replace('{INV}', $no !== '' ? $no : '{INV}', $out);
+        $out = str_replace('{PO}', $ref !== '' ? $ref : '{PO}', $out);
+        $out = preg_replace('/\\s+/', ' ', $out) ?? $out;
+
+        // If template doesn't include customer but we have it, add to keep clarity.
+        $low = strtolower($out);
+        if ($cs !== '' && !str_contains($low, strtolower($cs)) && str_contains($low, 'penjualan')) {
+            // Insert " — {CS}" after invoice number if possible.
+            $out = preg_replace('/(Penjualan\\/INV\\s+[^\\s\\)]+)(.*)$/i', '$1 — ' . $cs . '$2', $out, 1) ?? $out;
+        }
+
+        return trim($out);
+    }
+
+    private function pickEvidenceText(array $evidence): string
+    {
+        foreach ($evidence as $ev) {
+            if (!is_array($ev)) continue;
+            $ket = trim((string) ($ev['Keterangan'] ?? ''));
+            if ($ket !== '') return $ket;
+            $remark = trim((string) ($ev['Remark'] ?? ''));
+            if ($remark !== '') return $remark;
+        }
+        return '';
+    }
+
+    private function suggestKeteranganFromDss(object $header, array $dss, string $fallback): string
+    {
+        $no = trim((string) ($header->no_fakturpenjualan ?? ''));
+
+        $evidence = is_array($dss['evidence'] ?? null) ? $dss['evidence'] : [];
+        $bestText = $this->pickEvidenceText($evidence);
+
+        // If faktur has an existing journal number (trx_jurnal), prefer its wording:
+        // - If tb_jurnal has Kode_Voucher, try to pick tb_kas.Keterangan from that voucher.
+        // - Otherwise, use tb_jurnal.Remark as evidence.
+        $trxJurnal = trim((string) ($header->trx_jurnal ?? ''));
+        if ($trxJurnal !== '' && Schema::hasTable('tb_jurnal') && Schema::hasColumn('tb_jurnal', 'Kode_Jurnal')) {
+            $jCols = Schema::getColumnListing('tb_jurnal');
+            $hasVoucher = in_array('Kode_Voucher', $jCols, true);
+            $hasRemark = in_array('Remark', $jCols, true);
+
+            try {
+                $jr = DB::table('tb_jurnal')
+                    ->where('Kode_Jurnal', $trxJurnal)
+                    ->first([
+                        $hasVoucher ? 'Kode_Voucher' : DB::raw("'' as Kode_Voucher"),
+                        $hasRemark ? 'Remark' : DB::raw("'' as Remark"),
+                    ]);
+
+                if ($jr) {
+                    $jVoucher = trim((string) ($jr->Kode_Voucher ?? ''));
+                    $jRemark = trim((string) ($jr->Remark ?? ''));
+
+                    if (
+                        $jVoucher !== ''
+                        && Schema::hasTable('tb_kas')
+                        && Schema::hasColumn('tb_kas', 'Kode_Voucher')
+                        && Schema::hasColumn('tb_kas', 'Keterangan')
+                    ) {
+                        try {
+                            $ket = trim((string) (DB::table('tb_kas')->where('Kode_Voucher', $jVoucher)->value('Keterangan') ?? ''));
+                            if ($ket !== '') {
+                                $bestText = $ket;
+                            }
+                        } catch (\Throwable) {
+                            // ignore
+                        }
+                    }
+
+                    if ($bestText === '' && $jRemark !== '') {
+                        $bestText = $jRemark;
+                    }
+                }
+            } catch (\Throwable) {
+                // ignore
+            }
+        }
+
+        // Also accept DSS top keterangan if present.
+        if ($bestText === '') {
+            $bestText = trim((string) ($dss['keterangan'] ?? ''));
+        }
+
+        $tpl = $bestText !== '' ? $this->buildKeteranganTemplate($bestText, $header) : '';
+        if ($tpl === '') {
+            $tpl = $fallback !== '' ? $this->buildKeteranganTemplate($fallback, $header) : '';
+        }
+
+        $out = $this->renderKeteranganFromTemplate($tpl, $header);
+        if ($out === '') $out = $fallback !== '' ? $fallback : $this->buildDefaultKeterangan($header);
+
+        // Ensure invoice number is present for traceability, but do not discard DSS wording.
+        if ($no !== '' && !str_contains(strtoupper($out), strtoupper($no))) {
+            $out = trim($out);
+            $out = $out !== '' ? ($out . ' — ' . $no) : $no;
+        }
+        return $out;
+    }
+
     public function suggest(Request $request, string $noFaktur)
     {
         try {
@@ -842,8 +978,10 @@ class InputPenjualanController
             $customerKey = preg_replace('/\\s+/', ' ', $customerKey);
 
             $hasPpn = ($alloc['tax'] ?? 0) > 0;
-            $suggest = $this->suggestFromFakturHistory($customerKey, $hasPpn, (float) ($alloc['dpp'] ?? 0), (float) ($alloc['tax'] ?? 0))
+            $fakturSuggest = $this->suggestFromFakturHistory($customerKey, $hasPpn, (float) ($alloc['dpp'] ?? 0), (float) ($alloc['tax'] ?? 0));
+            $suggest = $fakturSuggest
                 ?? $this->suggestFromHistory($customerKey, $hasPpn, (float) ($alloc['dpp'] ?? 0), (float) ($alloc['tax'] ?? 0));
+            $suggestSource = $fakturSuggest ? 'faktur' : 'kas';
 
             if ($hasPpn && trim((string) ($suggest['ppn_akun'] ?? '')) === '') {
                 $suggest['ppn_akun'] = $this->getDefaultPpnKeluaranAccount();
@@ -880,13 +1018,78 @@ class InputPenjualanController
 
             if (trim((string) ($suggest['keterangan'] ?? '')) === '') {
                 $suggest['keterangan'] = $this->buildDefaultKeterangan($header);
-            } else {
-                // Ensure faktur number appears in keterangan
-                $no = trim((string) ($header->no_fakturpenjualan ?? ''));
-                if ($no !== '' && !str_contains(strtoupper((string) $suggest['keterangan']), strtoupper($no))) {
-                    $suggest['keterangan'] = $this->buildDefaultKeterangan($header);
+            }
+
+            // DSS (generic) based on similarity of keterangan:
+            // - learns from tb_kas (kNN) + tb_jurnal/tb_jurnaldetail fallback.
+            $seedAkun = '';
+            $seedFrom = is_array($suggest['beban_lines'] ?? null) ? $suggest['beban_lines'] : [];
+            if (is_array($seedFrom) && count($seedFrom) > 0) {
+                $seedAkun = trim((string) ($seedFrom[0]['akun'] ?? ''));
+            }
+
+            // Enrich internal DSS query using tb_kdfakturpenjualan fields (aligned with FakturPenjualanController).
+            // IMPORTANT: keep it neutral (do not force "Penjualan/INV ..."), so DSS can pick the best wording for paid/lunas cases too.
+            $ppnPct = '';
+            if (Schema::hasColumn('tb_kdfakturpenjualan', 'ppn')) {
+                $ppnPct = (string) ($header->ppn ?? '');
+            }
+            $keteranganForDss = trim(
+                (string) ($header->no_fakturpenjualan ?? '') . ' '
+                    . (string) ($header->nm_cs ?? '') . ' '
+                    . (string) ($header->ref_po ?? '') . ' '
+                    . (string) ($header->no_fakturpenjualan ?? '') . ' '
+                    . (string) ($header->trx_jurnal ?? '') . ' '
+                    . (string) ($header->no_kwitansi ?? '') . ' '
+                    . $ppnPct
+            );
+
+            $dss = (new KasDss())->suggest([
+                'mode' => 'in',
+                'keterangan' => $keteranganForDss,
+                'nominal' => (float) ($alloc['cash'] ?? 0),
+                'hasPpn' => $hasPpn,
+                'ppnNominal' => (float) ($alloc['tax'] ?? 0),
+                'seedAkun' => $seedAkun,
+            ]);
+
+            if (is_array($dss) && count($dss)) {
+                $confOverall = (float) ($dss['confidence']['overall'] ?? 0);
+                $allowOverride = $suggestSource === 'kas' || $confOverall >= 0.35;
+
+                if ($allowOverride) {
+                    $dssKas = trim((string) ($dss['kode_akun'] ?? ''));
+                    if ($dssKas !== '') $suggest['kode_akun'] = $dssKas;
+
+                    $dssVoucher = trim((string) ($dss['voucher_type'] ?? ''));
+                    if ($dssVoucher !== '') $suggest['voucher_type'] = $dssVoucher;
+
+                    if ($hasPpn && trim((string) ($suggest['ppn_akun'] ?? '')) === '') {
+                        $dssPpn = trim((string) ($dss['ppn_akun'] ?? ''));
+                        if ($dssPpn !== '') $suggest['ppn_akun'] = $dssPpn;
+                    }
+
+                    $dssLines = is_array($dss['lines'] ?? null) ? $dss['lines'] : [];
+                    if (count($dssLines) > 0) {
+                        $limit = $hasPpn ? 2 : 3;
+                        $suggest['beban_lines'] = collect(array_slice($dssLines, 0, $limit))
+                            ->map(fn ($l) => [
+                                'akun' => trim((string) ($l['akun'] ?? '')),
+                                'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? 'Kredit')),
+                                'nominal' => (float) ($l['nominal'] ?? 0),
+                            ])
+                            ->values()
+                            ->all();
+                    }
                 }
             }
+
+            // Keterangan uses DSS evidence (most similar) so wording follows history.
+            $suggest['keterangan'] = $this->suggestKeteranganFromDss(
+                $header,
+                is_array($dss) ? $dss : [],
+                (string) ($suggest['keterangan'] ?? '')
+            );
 
             return response()->json([
                 'allocation' => $alloc,
@@ -895,6 +1098,8 @@ class InputPenjualanController
                 'ppn_akun' => (string) ($suggest['ppn_akun'] ?? ''),
                 'beban_lines' => $suggest['beban_lines'] ?? [],
                 'keterangan' => (string) ($suggest['keterangan'] ?? ''),
+                'confidence' => $dss['confidence'] ?? null,
+                'evidence' => $dss['evidence'] ?? [],
             ]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -989,7 +1194,7 @@ class InputPenjualanController
             return DB::transaction(function () use ($request, $kasCols, $kodeAkun, $ppnAkun, $tglVoucher, $nominal, $taxNominal, $keterangan, $header, $clean) {
                 $dbCode = $this->getDatabaseCode($request);
                 $voucherType = strtoupper(trim((string) $request->input('voucher_type', '')));
-                $voucherType = in_array($voucherType, ['GV', 'BV'], true) ? $voucherType : $this->guessVoucherType($kodeAkun);
+                $voucherType = in_array($voucherType, ['CV', 'GV', 'BV'], true) ? $voucherType : $this->guessVoucherType($kodeAkun);
 
                 $prefix = $dbCode . '/' . $voucherType . '/';
                 $last = (string) (DB::table('tb_kas')

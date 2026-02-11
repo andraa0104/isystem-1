@@ -96,7 +96,7 @@ export const menuSections = [
             { title: 'Mutasi Kas', href: '/keuangan/mutasi-kas' },
             { title: 'Input Pembelian', href: '/keuangan/input-pembelian' },
             { title: 'Input Penjualan', href: '/keuangan/input-penjualan' },
-            { title: 'Penyesuaian', href: '#' },
+            { title: 'Penyesuaian', href: '/keuangan/penyesuaian' },
             { title: 'Jurnal Lainnya', href: '#' },
         ],
     },
