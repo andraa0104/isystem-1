@@ -21,8 +21,11 @@ import {
 } from 'lucide-react';
 import { buildBukuBesarUrl } from '@/lib/report-links';
 import {
+    buildTopFindings,
     buildRecommendations,
+    contextualizeFindings,
     contextualizeRecommendations,
+    findingLevelMeta,
     runFuzzyAhpTopsis,
 } from '@/lib/dss-fahp-topsis';
 
@@ -217,7 +220,14 @@ export default function AuditRekonsiliasiIndex() {
     );
     const dssTips = useMemo(
         () =>
-            contextualizeRecommendations(buildRecommendations(dssResult, 3), {
+            contextualizeRecommendations(buildRecommendations(dssResult, 5), {
+                periodLabel: meta?.period_label || getPeriodLabel(periodType, period),
+            }),
+        [dssResult, meta?.period_label, periodType, period],
+    );
+    const dssFindings = useMemo(
+        () =>
+            contextualizeFindings(buildTopFindings(dssResult, 5), {
                 periodLabel: meta?.period_label || getPeriodLabel(periodType, period),
             }),
         [dssResult, meta?.period_label, periodType, period],
@@ -375,17 +385,42 @@ export default function AuditRekonsiliasiIndex() {
                         </div>
                     </div>
 
+                    {dssFindings.length ? (
+                        <div className="mt-3 space-y-2">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+                                Temuan DSS (Top 5)
+                            </div>
+                            <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                                {dssFindings.map((item, idx) => (
+                                    <li key={`finding-${idx}`}>
+                                        <span className={`mr-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${findingLevelMeta(item?.level).className}`}>
+                                            {findingLevelMeta(item?.level).label}
+                                        </span>
+                                        {item.finding}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    ) : null}
+
                     {dssTips.length ? (
-                        <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
-                            {dssTips.map((tip, idx) => (
-                                <li key={idx}>{tip}</li>
-                            ))}
-                        </ul>
-                    ) : (
+                        <div className="mt-3 space-y-2">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+                                Saran / Rekomendasi (Top 5)
+                            </div>
+                            <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                                {dssTips.map((tip, idx) => (
+                                    <li key={idx}>{tip}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    ) : null}
+
+                    {!dssTips.length && !dssFindings.length ? (
                         <div className="mt-3 text-xs text-muted-foreground">
                             Tidak ada rekomendasi DSS untuk kondisi saat ini.
                         </div>
-                    )}
+                    ) : null}
 
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                         <Button

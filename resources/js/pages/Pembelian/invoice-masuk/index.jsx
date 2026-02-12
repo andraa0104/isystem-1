@@ -14,6 +14,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { Eye, Printer, Pencil, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
@@ -646,7 +647,11 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                     </DialogHeader>
                     <div className="max-h-[60vh] overflow-y-auto">
                         {poDetailLoading && (
-                            <p className="text-sm text-muted-foreground">Memuat detail...</p>
+                            <div className="space-y-3">
+                                <Skeleton className="h-4 w-48" />
+                                <Skeleton className="h-24 w-full" />
+                                <Skeleton className="h-40 w-full" />
+                            </div>
                         )}
                         {!poDetailLoading && poDetailError && (
                             <ErrorState
@@ -910,7 +915,13 @@ export default function InvoiceMasukIndex({ invoices = [], summary = {}, filters
                     </DialogHeader>
                     <div className="flex flex-col gap-4 h-[calc(100vh-8rem)]">
                             <div className="grid gap-4 lg:grid-cols-2 rounded-lg border border-sidebar-border/70 p-4 text-sm overflow-auto">
-                                {invoiceLoading && <p className="text-muted-foreground">Memuat detail...</p>}
+                                {invoiceLoading && (
+                                    <div className="space-y-3 lg:col-span-2">
+                                        <Skeleton className="h-4 w-48" />
+                                        <Skeleton className="h-20 w-full" />
+                                        <Skeleton className="h-20 w-full" />
+                                    </div>
+                                )}
                                 {!invoiceLoading && invoiceError && (
                                 <ErrorState
                                     error={invoiceError}

@@ -10,6 +10,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -715,18 +716,16 @@ export default function QuotationIndex({
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                            {displayedMaterialDetails.length === 0 && (
-                                                <tr>
-                                                    <td
-                                                        className="px-4 py-6 text-center text-muted-foreground"
-                                                        colSpan={8}
-                                                    >
-                                                        {detailLoading
-                                                            ? 'Memuat data material...'
-                                                            : 'Belum ada data material.'}
-                                                    </td>
-                                                </tr>
-                                            )}
+                                                <PlainTableStateRows
+                                                    loading={detailLoading}
+                                                    columns={8}
+                                                    rows={5}
+                                                    isEmpty={
+                                                        !detailLoading &&
+                                                        displayedMaterialDetails.length === 0
+                                                    }
+                                                    emptyMessage="Belum ada data material."
+                                                />
                                                 {displayedMaterialDetails.map(
                                                     (detail, index) => (
                                                     <tr

@@ -44,10 +44,32 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Redis;
 use App\Models\Pengguna;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+
+if (!function_exists('onlineUsersSetKey')) {
+    function onlineUsersSetKey(?string $database): string
+    {
+        return 'online_users:' . ($database ?: 'default');
+    }
+}
+
+if (!function_exists('onlineUserAliveKey')) {
+    function onlineUserAliveKey(?string $database, string $username): string
+    {
+        return 'online_user_alive:' . ($database ?: 'default') . ':' . $username;
+    }
+}
+
+if (!function_exists('onlineUserNameKey')) {
+    function onlineUserNameKey(?string $database, string $username): string
+    {
+        return 'online_user_name:' . ($database ?: 'default') . ':' . $username;
+    }
+}
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
@@ -97,6 +119,14 @@ Route::post('/login-simple', function (Request $request) {
         ->where('pengguna', $user->pengguna)
         ->update(['Sesi' => 'Y']);
 
+    $onlineTtlSeconds = 120;
+    $onlineSetKey = onlineUsersSetKey($database);
+    $onlineAliveKey = onlineUserAliveKey($database, $user->pengguna);
+    $onlineNameKey = onlineUserNameKey($database, $user->pengguna);
+    Redis::sadd($onlineSetKey, [$user->pengguna]);
+    Redis::setex($onlineAliveKey, $onlineTtlSeconds, (string) time());
+    Redis::setex($onlineNameKey, $onlineTtlSeconds, (string) ($user->name ?? $user->pengguna));
+
     // Inisialisasi heartbeat supaya request pertama setelah redirect tidak dianggap "stale"
     $key = 'browser_active:' . ($database ?: 'default') . ':' . $user->pengguna;
     Cache::store('file')->put($key, time(), now()->addMinutes(10));
@@ -140,6 +170,16 @@ Route::post('/heartbeat-simple', function (Request $request) {
     $key = 'browser_active:' . ($database ?: 'default') . ':' . $username;
     Cache::store('file')->put($key, time(), now()->addMinutes(10));
 
+    $onlineTtlSeconds = 120;
+    $onlineSetKey = onlineUsersSetKey($database);
+    $onlineAliveKey = onlineUserAliveKey($database, $username);
+    $onlineNameKey = onlineUserNameKey($database, $username);
+    $displayName = (string) ($request->cookie('login_user_name') ?: $username);
+
+    Redis::sadd($onlineSetKey, [$username]);
+    Redis::setex($onlineAliveKey, $onlineTtlSeconds, (string) time());
+    Redis::setex($onlineNameKey, $onlineTtlSeconds, $displayName);
+
     return response()->json(['ok' => true]);
 });
 
@@ -164,6 +204,12 @@ Route::match(['get', 'post'], '/logout-simple', function (Request $request) {
                     $column => now('Asia/Singapore'),
                     'Sesi' => 'T',
                 ]);
+
+            $onlineSetKey = onlineUsersSetKey($database);
+            $onlineAliveKey = onlineUserAliveKey($database, $username);
+            $onlineNameKey = onlineUserNameKey($database, $username);
+            Redis::srem($onlineSetKey, [$username]);
+            Redis::del([$onlineAliveKey, $onlineNameKey]);
         }
     }
 
@@ -186,19 +232,27 @@ Route::get('/online-users', function (Request $request) {
         return response()->json(['count' => 0, 'users' => []]);
     }
 
-    $connection = config('tenants.connection', config('database.default'));
-    config(['database.default' => $connection]);
-    DB::setDefaultConnection($connection);
-    config(["database.connections.$connection.database" => $database]);
-    DB::purge($connection);
-    DB::reconnect($connection);
+    $onlineSetKey = onlineUsersSetKey($database);
+    $usernames = Redis::smembers($onlineSetKey) ?: [];
+    $aliveUsers = [];
+    $staleUsers = [];
 
-    $users = DB::table('tb_pengguna')
-        ->whereRaw("upper(trim(coalesce(Sesi,''))) = 'Y'")
-        ->orderBy('nm_user')
-        ->pluck('nm_user')
-        ->map(fn ($name) => $name ?? '')
-        ->values();
+    foreach ($usernames as $username) {
+        $aliveKey = onlineUserAliveKey($database, (string) $username);
+        if (Redis::exists($aliveKey)) {
+            $name = Redis::get(onlineUserNameKey($database, (string) $username));
+            $aliveUsers[] = $name ?: $username;
+        } else {
+            $staleUsers[] = $username;
+        }
+    }
+
+    if (!empty($staleUsers)) {
+        Redis::srem($onlineSetKey, $staleUsers);
+    }
+
+    sort($aliveUsers, SORT_NATURAL | SORT_FLAG_CASE);
+    $users = collect($aliveUsers)->values();
 
     return response()->json([
         'count' => $users->count(),

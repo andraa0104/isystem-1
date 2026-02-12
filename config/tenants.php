@@ -11,7 +11,7 @@ return [
     ],
     'labels' => [
         'dbsja' => 'DB SJA',
-        'dbbbbs' => 'DB BBBS',
+        'dbbbbs' => 'DB B3S',
         'dbstg' => 'DB STG',
         'dbarm' => 'DB ARM',
         'dbati' => 'DB ATI',

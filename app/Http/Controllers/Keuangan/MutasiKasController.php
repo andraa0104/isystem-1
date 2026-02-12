@@ -223,6 +223,48 @@ class MutasiKasController
         return $this->getAccountOptions();
     }
 
+    private function getAccountDisplayLabel(string $kodeAkun): string
+    {
+        $kode = trim($kodeAkun);
+        if ($kode === '') return '';
+
+        if (Schema::hasTable('tb_nabb') && Schema::hasColumn('tb_nabb', 'Kode_Akun') && Schema::hasColumn('tb_nabb', 'Nama_Akun')) {
+            try {
+                $name = trim((string) (DB::table('tb_nabb')
+                    ->where('Kode_Akun', $kode)
+                    ->value('Nama_Akun') ?? ''));
+                if ($name !== '') {
+                    return $kode . ' — ' . $name;
+                }
+            } catch (\Throwable) {
+                // fallback to code only
+            }
+        }
+
+        return $kode;
+    }
+
+    private function getAccountNameOnly(string $kodeAkun): string
+    {
+        $kode = trim($kodeAkun);
+        if ($kode === '') return '';
+
+        if (Schema::hasTable('tb_nabb') && Schema::hasColumn('tb_nabb', 'Kode_Akun') && Schema::hasColumn('tb_nabb', 'Nama_Akun')) {
+            try {
+                $name = trim((string) (DB::table('tb_nabb')
+                    ->where('Kode_Akun', $kode)
+                    ->value('Nama_Akun') ?? ''));
+                if ($name !== '') {
+                    return $name;
+                }
+            } catch (\Throwable) {
+                // fallback to code only
+            }
+        }
+
+        return $kode;
+    }
+
     private function parsePeriodToRange(?string $period): ?array
     {
         $period = trim((string) $period);
@@ -976,9 +1018,21 @@ class MutasiKasController
                     $prefix = $infoS['prefix'];
                     [$voucherOut, $voucherIn] = $this->nextVoucherPair($prefix);
 
-                    $ket = $keterangan;
-                    if (!str_contains($ket, $voucherOut) && !str_contains($ket, $voucherIn)) {
-                        $ket = trim($ket) . ' — ' . $voucherOut . ' / ' . $voucherIn;
+                    $sourceLabel = $this->getAccountDisplayLabel($source);
+                    $sourceNameOnly = $this->getAccountNameOnly($source);
+                    $destLabel = $this->getAccountDisplayLabel($dest);
+
+                    $ketOut = trim($keterangan);
+                    if ($ketOut === '') {
+                        $ketOut = 'PEMINDAHAN DANA KE ' . $destLabel;
+                    }
+                    if (!str_contains($ketOut, $voucherOut)) {
+                        $ketOut = trim($ketOut) . ' — ' . $voucherOut;
+                    }
+
+                    $ketIn = 'TAMBAHAN DANA DARI ' . $sourceNameOnly;
+                    if (!str_contains($ketIn, $voucherIn)) {
+                        $ketIn = trim($ketIn) . ' — ' . $voucherIn;
                     }
 
                     // Out row (source)
@@ -988,7 +1042,7 @@ class MutasiKasController
                         'Kode_Voucher' => $voucherOut,
                         'Kode_Akun' => $source,
                         'Tgl_Voucher' => $tglVoucher,
-                        'Keterangan' => $ket,
+                        'Keterangan' => $ketOut,
                         'Mutasi_Kas' => $mutOut,
                         'Saldo' => $saldoSource + $mutOut,
                         'Kode_Akun1' => $dest,
@@ -1010,7 +1064,7 @@ class MutasiKasController
                         'Kode_Voucher' => $voucherIn,
                         'Kode_Akun' => $dest,
                         'Tgl_Voucher' => $tglVoucher,
-                        'Keterangan' => $ket,
+                        'Keterangan' => $ketIn,
                         'Mutasi_Kas' => $mutIn,
                         'Saldo' => $saldoDest + $mutIn,
                         'Kode_Akun1' => $source,

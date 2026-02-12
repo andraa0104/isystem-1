@@ -219,26 +219,108 @@ export function buildRecommendations(result, limit = 3) {
     return unique.map((item) => item.text);
 }
 
-export function contextualizeRecommendations(recommendations = [], options = {}) {
+export function buildTopFindings(result, limit = 5) {
+    const diagnostics = result?.diagnostics ?? result;
+    const maxItems = Math.max(1, Number(limit) || 5);
+    if (!diagnostics || !Array.isArray(diagnostics?.criteria)) return [];
+
+    const levelRank = { tinggi: 3, sedang: 2, monitoring: 1 };
+
+    const ranked = diagnostics.criteria
+        .map((criterion) => {
+            const severity = Number(criterion?.weakness ?? 0);
+            const recommendations = Array.isArray(criterion?.recommendations)
+                ? criterion.recommendations
+                : [];
+            const recommendation =
+                severity >= 0.5 ? (recommendations[0] || recommendations[1]) : (recommendations[1] || recommendations[0]);
+
+            let level = 'monitoring';
+            if (severity >= 0.7) level = 'tinggi';
+            else if (severity >= 0.45) level = 'sedang';
+
+            const finding = `Prioritas ${level}: ${String(criterion?.label ?? 'indikator')} belum optimal.`;
+
+            return {
+                key: String(criterion?.key ?? ''),
+                level,
+                finding,
+                recommendation: String(recommendation ?? '').trim(),
+                priority: Number(criterion?.priority ?? 0),
+            };
+        })
+        .filter((item) => item.finding && item.recommendation)
+        .sort((a, b) => {
+            const ar = levelRank[String(a?.level ?? '').toLowerCase()] ?? 0;
+            const br = levelRank[String(b?.level ?? '').toLowerCase()] ?? 0;
+            if (br !== ar) return br - ar;
+            return Number(b?.priority ?? 0) - Number(a?.priority ?? 0);
+        });
+
+    const unique = [];
+    for (const item of ranked) {
+        if (unique.find((picked) => picked.key === item.key || picked.finding === item.finding)) continue;
+        unique.push(item);
+        if (unique.length >= maxItems) break;
+    }
+
+    return unique;
+}
+
+export function findingLevelMeta(level) {
+    const normalized = String(level ?? '').toLowerCase();
+    if (normalized === 'tinggi') {
+        return {
+            label: 'Tinggi',
+            className: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/30',
+        };
+    }
+    if (normalized === 'sedang') {
+        return {
+            label: 'Sedang',
+            className: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30',
+        };
+    }
+    return {
+        label: 'Monitoring',
+        className: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500/30',
+    };
+}
+
+const applyContext = (text, options = {}) => {
+    let next = String(text ?? '').trim();
+    if (!next) return '';
+
     const periodLabel = String(options?.periodLabel ?? '').trim();
     const sourceLabel = String(options?.sourceLabel ?? '').trim();
 
+    if (periodLabel) {
+        next = next.replace(/\bperiode aktif\b/gi, `periode ${periodLabel}`);
+        next = next.replace(/\bperiode ini\b/gi, `periode ${periodLabel}`);
+    }
+
+    if (sourceLabel) {
+        next = next.replace(/\bdata sumber\b/gi, `sumber ${sourceLabel}`);
+    }
+
+    return next;
+};
+
+export function contextualizeRecommendations(recommendations = [], options = {}) {
     return (Array.isArray(recommendations) ? recommendations : [])
         .map((rec) => String(rec ?? '').trim())
         .filter(Boolean)
-        .map((text) => {
-            let next = text;
-            if (periodLabel) {
-                next = next.replace(/\bperiode aktif\b/gi, `periode ${periodLabel}`);
-                next = next.replace(/\bperiode ini\b/gi, `periode ${periodLabel}`);
-            }
+        .map((text) => applyContext(text, options));
+}
 
-            if (sourceLabel) {
-                next = next.replace(/\bdata sumber\b/gi, `sumber ${sourceLabel}`);
-            }
-
-            return next;
-        });
+export function contextualizeFindings(findings = [], options = {}) {
+    return (Array.isArray(findings) ? findings : [])
+        .map((item) => ({
+            ...item,
+            finding: applyContext(item?.finding, options),
+            recommendation: applyContext(item?.recommendation, options),
+        }))
+        .filter((item) => item.finding && item.recommendation);
 }
 
 export function runFuzzyAhpTopsis(reportKey, context = {}) {

@@ -19,6 +19,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -914,20 +915,19 @@ export default function PurchaseRequirementIndex({
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {displayedMaterialDetails.length ===
-                                                    0 && (
-                                                    <tr>
-                                                        <td
-                                                            className="px-4 py-6 text-center text-muted-foreground"
-                                                            colSpan={6}
-                                                        >
-                                                            {detailLoading
-                                                                ? 'Memuat detail PR...'
-                                                                : detailError ||
-                                                                  'Belum ada data material.'}
-                                                        </td>
-                                                    </tr>
-                                                )}
+                                                <PlainTableStateRows
+                                                    loading={detailLoading}
+                                                    columns={6}
+                                                    rows={5}
+                                                    isEmpty={
+                                                        !detailLoading &&
+                                                        displayedMaterialDetails.length === 0
+                                                    }
+                                                    emptyMessage={
+                                                        detailError ||
+                                                        'Belum ada data material.'
+                                                    }
+                                                />
                                                 {displayedMaterialDetails.map(
                                                     (detail, index) => (
                                                         <tr
@@ -1146,20 +1146,19 @@ export default function PurchaseRequirementIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {displayedOutstandingPurchaseRequirements.length ===
-                                        0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={5}
-                                            >
-                                                {outstandingLoading
-                                                    ? 'Memuat data PR...'
-                                                    : outstandingError ||
-                                                      'Tidak ada PR outstanding.'}
-                                            </td>
-                                        </tr>
-                                    )}
+                                    <PlainTableStateRows
+                                        loading={outstandingLoading}
+                                        columns={5}
+                                        rows={5}
+                                        isEmpty={
+                                            !outstandingLoading &&
+                                            displayedOutstandingPurchaseRequirements.length === 0
+                                        }
+                                        emptyMessage={
+                                            outstandingError ||
+                                            'Tidak ada PR outstanding.'
+                                        }
+                                    />
                                     {displayedOutstandingPurchaseRequirements.map(
                                         (item) => (
                                             <tr
@@ -1361,20 +1360,19 @@ export default function PurchaseRequirementIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {displayedRealizedPurchaseRequirements.length ===
-                                        0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={6}
-                                            >
-                                                {realizedLoading
-                                                    ? 'Memuat data PR...'
-                                                    : realizedError ||
-                                                      'Tidak ada PR terealisasi.'}
-                                            </td>
-                                        </tr>
-                                    )}
+                                    <PlainTableStateRows
+                                        loading={realizedLoading}
+                                        columns={6}
+                                        rows={5}
+                                        isEmpty={
+                                            !realizedLoading &&
+                                            displayedRealizedPurchaseRequirements.length === 0
+                                        }
+                                        emptyMessage={
+                                            realizedError ||
+                                            'Tidak ada PR terealisasi.'
+                                        }
+                                    />
                                     {displayedRealizedPurchaseRequirements.map(
                                         (item) => (
                                             <tr

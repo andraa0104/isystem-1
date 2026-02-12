@@ -10,7 +10,7 @@ import { store } from '@/routes/login';
 import { Head, useForm, usePage } from '@inertiajs/react';
 const databaseLabels = {
     dbsja: 'DB SJA',
-    dbbbbs: 'DB BBBS',
+    dbbbbs: 'DB B3S',
     dbstg: 'DB STG',
     dbati: 'DB ATI',
     dbarm: 'DB ARM',

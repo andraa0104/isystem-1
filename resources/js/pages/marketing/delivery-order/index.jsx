@@ -18,6 +18,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -883,30 +884,20 @@ export default function DeliveryOrderIndex({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {detailLoading && (
-                                                <tr>
-                                                    <td
-                                                        className="px-4 py-6 text-center text-muted-foreground"
-                                                        colSpan={6}
-                                                    >
-                                                        Memuat detail DO...
-                                                    </td>
-                                                </tr>
-                                            )}
-                                            {!detailLoading &&
-                                                displayedDetailItems.length === 0 && (
-                                                <tr>
-                                                    <td
-                                                        className="px-4 py-6 text-center text-muted-foreground"
-                                                        colSpan={6}
-                                                    >
-                                                        {detailError ||
-                                                            'Tidak ada detail DO.'}
-                                                    </td>
-                                                </tr>
-                                                )}
-                                            {!detailLoading &&
-                                                displayedDetailItems.map(
+                                            <PlainTableStateRows
+                                                loading={detailLoading}
+                                                columns={6}
+                                                rows={5}
+                                                isEmpty={
+                                                    !detailLoading &&
+                                                    displayedDetailItems.length === 0
+                                                }
+                                                emptyMessage={
+                                                    detailError ||
+                                                    'Tidak ada detail DO.'
+                                                }
+                                            />
+                                            {!detailLoading && displayedDetailItems.map(
                                                     (detail, index) => (
                                                 <tr
                                                     key={`${detail.no_do}-${index}`}
@@ -1095,20 +1086,19 @@ export default function DeliveryOrderIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {displayedOutstandingDeliveryOrders.length ===
-                                        0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={5}
-                                            >
-                                                {outstandingLoading
-                                                    ? 'Memuat data DO...'
-                                                    : outstandingError ||
-                                                      'Tidak ada DO outstanding.'}
-                                            </td>
-                                        </tr>
-                                    )}
+                                    <PlainTableStateRows
+                                        loading={outstandingLoading}
+                                        columns={5}
+                                        rows={5}
+                                        isEmpty={
+                                            !outstandingLoading &&
+                                            displayedOutstandingDeliveryOrders.length === 0
+                                        }
+                                        emptyMessage={
+                                            outstandingError ||
+                                            'Tidak ada DO outstanding.'
+                                        }
+                                    />
                                     {displayedOutstandingDeliveryOrders.map(
                                         (item) => (
                                             <tr
@@ -1291,18 +1281,19 @@ export default function DeliveryOrderIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {displayedRealizedDeliveryOrders.length === 0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={6}
-                                            >
-                                                {realizedLoading
-                                                    ? 'Memuat data DO...'
-                                                    : realizedError || 'Tidak ada DO terealisasi.'}
-                                            </td>
-                                        </tr>
-                                    )}
+                                    <PlainTableStateRows
+                                        loading={realizedLoading}
+                                        columns={6}
+                                        rows={5}
+                                        isEmpty={
+                                            !realizedLoading &&
+                                            displayedRealizedDeliveryOrders.length === 0
+                                        }
+                                        emptyMessage={
+                                            realizedError ||
+                                            'Tidak ada DO terealisasi.'
+                                        }
+                                    />
                                     {displayedRealizedDeliveryOrders.map((item) => (
                                         <tr
                                             key={`realized-${item.no_do}`}

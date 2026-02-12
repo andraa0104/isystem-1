@@ -17,6 +17,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -870,34 +871,14 @@ export default function DeliveryOrderAddIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {detailLoading ? (
-                                        <tr>
-                                            <td
-                                                colSpan={6}
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                            >
-                                                Memuat data...
-                                            </td>
-                                        </tr>
-                                    ) : detailError ? (
-                                        <tr>
-                                            <td
-                                                colSpan={6}
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                            >
-                                                {detailError}
-                                            </td>
-                                        </tr>
-                                    ) : displayedDetailItems.length === 0 ? (
-                                        <tr>
-                                            <td
-                                                colSpan={6}
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                            >
-                                                Tidak ada data material.
-                                            </td>
-                                        </tr>
-                                    ) : (
+                                    <PlainTableStateRows
+                                        loading={detailLoading}
+                                        columns={6}
+                                        rows={5}
+                                        isEmpty={!detailLoading && displayedDetailItems.length === 0}
+                                        emptyMessage={detailError || 'Tidak ada data material.'}
+                                    />
+                                    {!detailLoading ? (
                                         displayedDetailItems.map((item, index) => (
                                             <tr
                                                 key={`${item.no_dob}-${index}`}
@@ -930,7 +911,7 @@ export default function DeliveryOrderAddIndex({
                                                 </td>
                                             </tr>
                                         ))
-                                    )}
+                                    ) : null}
                                 </tbody>
                             </table>
                         </div>
@@ -1118,18 +1099,17 @@ export default function DeliveryOrderAddIndex({
                                 </tr>
                             </thead>
                             <tbody>
-                                {displayedRealizedDeliveryOrders.length === 0 ? (
-                                    <tr>
-                                        <td
-                                            colSpan={6}
-                                            className="px-4 py-6 text-center text-muted-foreground"
-                                        >
-                                            {realizedLoading
-                                                ? 'Memuat data DOT...'
-                                                : realizedError || 'Tidak ada DOT terealisasi.'}
-                                        </td>
-                                    </tr>
-                                ) : (
+                                <PlainTableStateRows
+                                    loading={realizedLoading}
+                                    columns={6}
+                                    rows={5}
+                                    isEmpty={
+                                        !realizedLoading &&
+                                        displayedRealizedDeliveryOrders.length === 0
+                                    }
+                                    emptyMessage={realizedError || 'Tidak ada DOT terealisasi.'}
+                                />
+                                {!realizedLoading ? (
                                     displayedRealizedDeliveryOrders.map((item) => (
                                         <tr
                                             key={`realized-${item.no_dob}`}
@@ -1169,7 +1149,7 @@ export default function DeliveryOrderAddIndex({
                                             </td>
                                         </tr>
                                     ))
-                                )}
+                                ) : null}
                             </tbody>
                         </table>
                     </div>
@@ -1300,34 +1280,14 @@ export default function DeliveryOrderAddIndex({
                                 </tr>
                             </thead>
                             <tbody>
-                                {outstandingLoading ? (
-                                    <tr>
-                                        <td
-                                            colSpan={4}
-                                            className="px-4 py-6 text-center text-muted-foreground"
-                                        >
-                                            Memuat data...
-                                        </td>
-                                    </tr>
-                                ) : outstandingError ? (
-                                    <tr>
-                                        <td
-                                            colSpan={4}
-                                            className="px-4 py-6 text-center text-muted-foreground"
-                                        >
-                                            {outstandingError}
-                                        </td>
-                                    </tr>
-                                ) : displayedOutstanding.length === 0 ? (
-                                    <tr>
-                                        <td
-                                            colSpan={4}
-                                            className="px-4 py-6 text-center text-muted-foreground"
-                                        >
-                                            Tidak ada data.
-                                        </td>
-                                    </tr>
-                                ) : (
+                                <PlainTableStateRows
+                                    loading={outstandingLoading}
+                                    columns={4}
+                                    rows={5}
+                                    isEmpty={!outstandingLoading && displayedOutstanding.length === 0}
+                                    emptyMessage={outstandingError || 'Tidak ada data.'}
+                                />
+                                {!outstandingLoading ? (
                                     displayedOutstanding.map((item) => (
                                         <tr
                                             key={`outstanding-${item.no_dob}`}
@@ -1368,7 +1328,7 @@ export default function DeliveryOrderAddIndex({
                                             </td>
                                         </tr>
                                     ))
-                                )}
+                                ) : null}
                             </tbody>
                         </table>
                     </div>

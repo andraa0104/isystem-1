@@ -116,8 +116,8 @@ export function AppSidebar() {
     const connectionSeverity = (() => {
         if (!netInfo.online) return 'down';
         if (pingMs !== null) {
-            if (pingMs > 600) return 'bad';
-            if (pingMs > 250) return 'warn';
+            if (pingMs > 400) return 'bad';
+            if (pingMs >= 150) return 'warn';
             return 'good';
         }
         if (netInfo.effectiveType === 'slow-2g' || netInfo.effectiveType === '2g')
@@ -153,10 +153,10 @@ export function AppSidebar() {
               ? netInfo.online
                     ? 'Tidak ada data ping'
                     : 'Offline'
-              : pingMs > 600
-                ? `Sangat lambat ${pingMs.toFixed(0)} ms`
-                : pingMs > 250
-                  ? `Lambat ${pingMs.toFixed(0)} ms`
+              : pingMs > 400
+                ? `Lambat ${pingMs.toFixed(0)} ms`
+                : pingMs >= 150
+                  ? `Sedang ${pingMs.toFixed(0)} ms`
                   : `Cepat ${pingMs.toFixed(0)} ms`;
 
     const pingLabelShort =

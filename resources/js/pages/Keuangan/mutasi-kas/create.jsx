@@ -263,6 +263,30 @@ export default function MutasiKasCreate({
         return idx + 1;
     };
 
+    const sourceLabel = useMemo(
+        () => getAccountLabel(accountOptions, sourceAkun),
+        [accountOptions, sourceAkun],
+    );
+    const destLabel = useMemo(
+        () => getAccountLabel(accountOptions, destAkun),
+        [accountOptions, destAkun],
+    );
+
+    const transferKetPreviewOut = useMemo(() => {
+        const base = String(keterangan ?? '').trim();
+        return base || `PEMINDAHAN DANA KE ${destLabel || '-'}`;
+    }, [keterangan, destLabel]);
+
+    const sourceNameOnly = useMemo(
+        () => getAccountName(accountOptions, sourceAkun),
+        [accountOptions, sourceAkun],
+    );
+
+    const transferKetPreviewIn = useMemo(
+        () => `TAMBAHAN DANA DARI ${sourceNameOnly || sourceAkun || '-'}`,
+        [sourceNameOnly, sourceAkun],
+    );
+
     const linesSum = useMemo(
         () =>
             (lines ?? []).reduce((acc, l) => acc + Number(l?.nominal ?? 0), 0),
@@ -601,7 +625,10 @@ export default function MutasiKasCreate({
                 tgl_voucher: tglVoucher,
                 voucher_type: voucherType,
                 nominal: nominalNumber,
-                keterangan,
+                keterangan:
+                    mode === 'transfer'
+                        ? transferKetPreviewOut
+                        : keterangan,
                 has_ppn: mode === 'transfer' ? false : hasPpn,
                 ppn_akun: hasPpn && ppnNumber > 0 ? ppnAkun : null,
                 ppn_nominal: hasPpn && ppnNumber > 0 ? ppnNumber : 0,
@@ -1185,36 +1212,62 @@ export default function MutasiKasCreate({
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <div className="text-sm font-medium">
-                                    Keterangan
-                                </div>
-                                <Input
-                                    value={keterangan}
-                                    onChange={(e) => {
-                                        setKeterangan(e.target.value);
-                                        setKeteranganTouched(true);
-                                    }}
-                                    placeholder="Contoh: Mutasi/biaya admin bank..."
-                                />
-                                <div className="flex items-center justify-between">
-                                    <div className="text-[11px] text-muted-foreground">
-                                        {suggestLoading
-                                            ? 'AI: menyusun rekomendasi…'
-                                            : 'AI: auto-suggest aktif (keterangan).'}
+                            {mode === 'transfer' ? (
+                                <div className="space-y-2">
+                                    <div className="rounded-md border bg-muted/20 p-3 text-xs">
+                                        <div className="font-medium text-foreground">
+                                            Preview 2 keterangan saat simpan
+                                        </div>
+                                        <div className="mt-2 space-y-1 text-muted-foreground">
+                                            <div>
+                                                Voucher keluar:{' '}
+                                                <span className="text-foreground">
+                                                    {transferKetPreviewOut}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                Voucher masuk:{' '}
+                                                <span className="text-foreground">
+                                                    {transferKetPreviewIn}
+                                                </span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() =>
-                                            runSuggest({ reason: 'manual' })
-                                        }
-                                    >
-                                        Refresh AI
-                                    </Button>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <div className="text-sm font-medium">
+                                        Keterangan
+                                    </div>
+                                    <Input
+                                        value={keterangan}
+                                        onChange={(e) => {
+                                            setKeterangan(e.target.value);
+                                            setKeteranganTouched(true);
+                                        }}
+                                        placeholder="Contoh: Mutasi/biaya admin bank..."
+                                    />
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-[11px] text-muted-foreground">
+                                            {suggestLoading
+                                                ? 'AI: menyusun rekomendasi…'
+                                                : 'AI: auto-suggest aktif (keterangan).'}
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() =>
+                                                runSuggest({
+                                                    reason: 'manual',
+                                                })
+                                            }
+                                        >
+                                            Refresh AI
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
 
                             <div
                                 className={`rounded-md border p-3 ${mode === 'transfer' ? 'opacity-60' : ''}`}
@@ -1310,161 +1363,232 @@ export default function MutasiKasCreate({
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <div className="text-sm font-medium">
-                                            {mode === 'in'
-                                                ? 'Akun lawan (Pendapatan/DPP)'
-                                                : 'Akun lawan (Beban/DPP)'}
-                                        </div>
-                                        <div className="text-[11px] text-muted-foreground">
-                                            Total harus sama dengan target DPP.
-                                        </div>
+                                        {mode !== 'transfer' ? (
+                                            <>
+                                                <div className="text-sm font-medium">
+                                                    {mode === 'in'
+                                                        ? 'Akun lawan (Pendapatan/DPP)'
+                                                        : 'Akun lawan (Beban/DPP)'}
+                                                </div>
+                                                <div className="text-[11px] text-muted-foreground">
+                                                    Total harus sama dengan target DPP.
+                                                </div>
+                                            </>
+                                        ) : null}
                                     </div>
-                                    <div className="flex gap-2">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={
-                                                mode === 'transfer' ||
-                                                lines.length >= maxLines
-                                            }
-                                            onClick={() =>
-                                                setLines((prev) => {
-                                                    const next = Array.isArray(
-                                                        prev,
-                                                    )
-                                                        ? [...prev]
-                                                        : [];
-                                                    next.push({
-                                                        akun: '',
-                                                        jenis:
-                                                            mode === 'in'
-                                                                ? 'Kredit'
-                                                                : 'Debit',
-                                                        nominal: 0,
-                                                    });
-                                                    return next;
-                                                })
-                                            }
-                                        >
-                                            Tambah
-                                        </Button>
-                                    </div>
+                                    {mode !== 'transfer' ? (
+                                        <div className="flex gap-2">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={lines.length >= maxLines}
+                                                onClick={() =>
+                                                    setLines((prev) => {
+                                                        const next = Array.isArray(
+                                                            prev,
+                                                        )
+                                                            ? [...prev]
+                                                            : [];
+                                                        next.push({
+                                                            akun: '',
+                                                            jenis:
+                                                                mode === 'in'
+                                                                    ? 'Kredit'
+                                                                    : 'Debit',
+                                                            nominal: 0,
+                                                        });
+                                                        return next;
+                                                    })
+                                                }
+                                            >
+                                                Tambah
+                                            </Button>
+                                        </div>
+                                    ) : null}
                                 </div>
 
                                 <div className="space-y-2">
-	                                    {(lines ?? [])
+                                    {mode === 'transfer' ? (
+                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                            <div className="rounded-md border p-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="text-sm font-medium">
+                                                        Akun sumber (dana keluar)
+                                                    </div>
+                                                    <div className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
+                                                        Jenis otomatis:{' '}
+                                                        <span className="font-medium text-foreground">
+                                                            Kredit
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-2 rounded-md border px-3 py-2 text-sm">
+                                                    {sourceLabel || '-'}
+                                                </div>
+                                                <div className="mt-2 rounded-md border px-3 py-2 text-sm text-muted-foreground">
+                                                    Nominal: Rp{' '}
+                                                    {formatNumber(
+                                                        Math.abs(
+                                                            nominalNumber || 0,
+                                                        ),
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-md border p-3">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="text-sm font-medium">
+                                                        Akun tujuan (penerima dana)
+                                                    </div>
+                                                    <div className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
+                                                        Jenis otomatis:{' '}
+                                                        <span className="font-medium text-foreground">
+                                                            Debit
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-2 rounded-md border px-3 py-2 text-sm">
+                                                    {destLabel || '-'}
+                                                </div>
+                                                <div className="mt-2 rounded-md border px-3 py-2 text-sm text-muted-foreground">
+                                                    Nominal: Rp{' '}
+                                                    {formatNumber(
+                                                        Math.abs(
+                                                            nominalNumber || 0,
+                                                        ),
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+	                                    (lines ?? [])
 	                                        .slice(0, maxLines)
 	                                        .map((l, idx) => (
 	                                            <div
 	                                                key={idx}
 	                                                className="rounded-md border p-3"
 	                                            >
-		                                                <div className="flex items-center justify-between">
-		                                                    <div className="text-sm font-medium">
-		                                                        {mode === 'in'
-		                                                            ? 'Pendapatan'
-		                                                            : 'Beban'}{' '}
-		                                                        {getSlotLabel(idx)}
-		                                                    </div>
-		                                                    <div className="flex items-center gap-2">
-		                                                        <Select
-		                                                            value={String(
-		                                                                l?.jenis ??
-		                                                                    (mode ===
-		                                                                    'in'
-		                                                                        ? 'Kredit'
-		                                                                        : 'Debit'),
-		                                                            )}
-		                                                            onValueChange={(
-		                                                                v,
-		                                                            ) =>
-		                                                                setLines(
-		                                                                    (prev) => {
-		                                                                        const next =
-		                                                                            [
-		                                                                                ...(prev ??
-		                                                                                    []),
-		                                                                            ];
-		                                                                        next[
-		                                                                            idx
-		                                                                        ] = {
-		                                                                            ...next[
-		                                                                                idx
-		                                                                            ],
-		                                                                            jenis: v,
-		                                                                        };
-		                                                                        return next;
-		                                                                    },
-		                                                                )
-		                                                            }
-		                                                            disabled={
-		                                                                mode ===
-		                                                                'transfer'
-		                                                            }
-		                                                        >
-		                                                            <SelectTrigger className="h-8 w-[120px]">
-		                                                                <SelectValue placeholder="Jenis" />
-		                                                            </SelectTrigger>
-		                                                            <SelectContent>
-		                                                                <SelectItem value="Debit">
-		                                                                    Debit
-		                                                                </SelectItem>
-		                                                                <SelectItem value="Kredit">
-		                                                                    Kredit
-		                                                                </SelectItem>
-		                                                            </SelectContent>
-		                                                        </Select>
-		                                                        <Button
-		                                                            type="button"
-		                                                            variant="outline"
-		                                                            size="sm"
-                                                            onClick={() => {
-                                                                setActiveLineIndex(
-                                                                    idx,
-                                                                );
-                                                                setLineDialogOpen(
-                                                                    true,
-                                                                );
-                                                            }}
-                                                            disabled={
-                                                                mode ===
-                                                                'transfer'
-	                                                            }
-	                                                        >
-	                                                            Cari
-	                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            disabled={
-                                                                mode ===
-                                                                    'transfer' ||
-                                                                lines.length <=
+			                                                <div className="flex items-center justify-between">
+			                                                    <div className="text-sm font-medium">
+			                                                        {mode === 'transfer'
+			                                                            ? 'Akun tujuan (penerima dana)'
+			                                                            : mode === 'in'
+			                                                              ? 'Pendapatan'
+			                                                              : 'Beban'}{' '}
+			                                                        {mode === 'transfer'
+			                                                            ? ''
+			                                                            : getSlotLabel(
+			                                                                  idx,
+			                                                              )}
+			                                                    </div>
+			                                                    <div className="flex items-center gap-2">
+			                                                        {mode ===
+			                                                        'transfer' ? (
+			                                                            <div className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
+			                                                                Jenis
+			                                                                otomatis:
+			                                                                <span className="ml-1 font-medium text-foreground">
+			                                                                    Debit
+			                                                                </span>
+			                                                            </div>
+			                                                        ) : (
+			                                                            <Select
+			                                                                value={String(
+			                                                                    l?.jenis ??
+			                                                                        (mode ===
+			                                                                        'in'
+			                                                                            ? 'Kredit'
+			                                                                            : 'Debit'),
+			                                                                )}
+			                                                                onValueChange={(
+			                                                                    v,
+			                                                                ) =>
+			                                                                    setLines(
+			                                                                        (
+			                                                                            prev,
+			                                                                        ) => {
+			                                                                            const next =
+			                                                                                [
+			                                                                                    ...(prev ??
+			                                                                                        []),
+			                                                                                ];
+			                                                                            next[
+			                                                                                idx
+			                                                                            ] = {
+			                                                                                ...next[
+			                                                                                    idx
+			                                                                                ],
+			                                                                                jenis: v,
+			                                                                            };
+			                                                                            return next;
+			                                                                        },
+			                                                                    )
+			                                                                }
+			                                                            >
+			                                                                <SelectTrigger className="h-8 w-[120px]">
+			                                                                    <SelectValue placeholder="Jenis" />
+			                                                                </SelectTrigger>
+			                                                                <SelectContent>
+			                                                                    <SelectItem value="Debit">
+			                                                                        Debit
+			                                                                    </SelectItem>
+			                                                                    <SelectItem value="Kredit">
+			                                                                        Kredit
+			                                                                    </SelectItem>
+			                                                                </SelectContent>
+			                                                            </Select>
+			                                                        )}
+                                                        {mode !== 'transfer' ? (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+	                                                                size="sm"
+                                                                onClick={() => {
+                                                                    setActiveLineIndex(
+                                                                        idx,
+                                                                    );
+                                                                    setLineDialogOpen(
+                                                                        true,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                Cari
+                                                            </Button>
+                                                        ) : null}
+                                                        {mode !== 'transfer' ? (
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                disabled={
+                                                                    lines.length <=
                                                                     1
-                                                            }
-                                                            onClick={() =>
-                                                                setLines(
-                                                                    (prev) => {
-                                                                        const next =
-                                                                            [
-                                                                                ...(prev ??
-                                                                                    []),
-                                                                            ];
-                                                                        next.splice(
-                                                                            idx,
-                                                                            1,
-                                                                        );
-                                                                        return next;
-                                                                    },
-                                                                )
-                                                            }
-                                                        >
-                                                            Hapus
-		                                                        </Button>
-		                                                    </div>
-		                                                </div>
+                                                                }
+                                                                onClick={() =>
+                                                                    setLines(
+                                                                        (
+                                                                            prev,
+                                                                        ) => {
+                                                                            const next =
+                                                                                [
+                                                                                    ...(prev ??
+                                                                                        []),
+                                                                                ];
+                                                                            next.splice(
+                                                                                idx,
+                                                                                1,
+                                                                            );
+                                                                            return next;
+                                                                        },
+                                                                    )
+                                                                }
+                                                            >
+                                                                Hapus
+                                                            </Button>
+                                                        ) : null}
+                                                    </div>
+                                                </div>
 		                                                <div className="mt-2 grid grid-cols-1 gap-2">
 		                                                    <div className="rounded-md border px-3 py-2 text-sm">
 		                                                        {l?.akun ? (
@@ -1513,19 +1637,28 @@ export default function MutasiKasCreate({
 		                                                        }
 		                                                    />
 		                                                </div>
-		                                            </div>
-		                                        ))}
-		                                </div>
+	                                            </div>
+	                                        ))
+                                    )}
+                                </div>
 
                                 <div className="rounded-md bg-muted/30 p-3 text-sm">
                                     <div className="flex items-center justify-between">
-                                        <span>Target DPP</span>
+                                        <span>
+                                            {mode === 'transfer'
+                                                ? 'Target transfer'
+                                                : 'Target DPP'}
+                                        </span>
                                         <span className="font-medium">
                                             Rp {formatNumber(dppTarget)}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between">
-                                        <span>Total DPP</span>
+                                        <span>
+                                            {mode === 'transfer'
+                                                ? 'Total transfer'
+                                                : 'Total DPP'}
+                                        </span>
                                         <span className="font-medium">
                                             Rp {formatNumber(linesSum)}
                                         </span>
