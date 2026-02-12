@@ -11,8 +11,6 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
-    AlertTriangle,
-    CheckCircle2,
     Landmark,
     Loader2,
     Printer,
@@ -22,6 +20,11 @@ import {
     TrendingUp,
 } from 'lucide-react';
 import { buildBukuBesarUrl } from '@/lib/report-links';
+import {
+    buildRecommendations,
+    contextualizeRecommendations,
+    runFuzzyAhpTopsis,
+} from '@/lib/dss-fahp-topsis';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -123,75 +126,6 @@ function TotalRow({ label, value, emphasis = false }) {
             </td>
         </tr>
     );
-}
-
-function buildAiKpiMetrics({ summary }) {
-    const totalAset = Number(summary?.total_aset ?? 0);
-    const totalLiabilitas = Number(summary?.total_liabilitas ?? 0);
-    const totalEkuitas = Number(summary?.total_ekuitas ?? 0);
-    const selisih = Number(summary?.selisih ?? 0);
-
-    const safeDiv = (a, b) => (b === 0 ? 0 : a / b);
-    const fmtPct = (v) =>
-        new Intl.NumberFormat('id-ID', { style: 'percent', maximumFractionDigits: 1 }).format(v);
-
-    const liabilitiesRatio = safeDiv(totalLiabilitas, totalAset);
-    const equityRatio = safeDiv(totalEkuitas, totalAset);
-    const debtToEquity = safeDiv(totalLiabilitas, totalEkuitas);
-
-    const absSelisih = Math.abs(selisih);
-    const tolerance = Math.max(1, totalAset * 0.00001); // 0.001% of assets (min Rp 1)
-    const isBalanced = absSelisih <= tolerance;
-
-    return {
-        totalAset,
-        totalLiabilitas,
-        totalEkuitas,
-        selisih,
-        isBalanced,
-        chips: [
-            { label: 'Liability Ratio', value: fmtPct(liabilitiesRatio) },
-            { label: 'Equity Ratio', value: fmtPct(equityRatio) },
-            { label: 'Debt/Equity', value: debtToEquity === 0 ? '0.00' : debtToEquity.toFixed(2) },
-            { label: 'Selisih', value: formatRupiah(selisih) },
-        ],
-    };
-}
-
-function buildAiKpiInsights({ metrics }) {
-    const insights = [];
-
-    if (metrics.totalAset === 0) {
-        insights.push('Total aset masih Rp 0 pada snapshot ini; pastikan proses posting/closing sudah dijalankan.');
-        return insights;
-    }
-
-    if (metrics.isBalanced) {
-        insights.push('Neraca seimbang: Aset ≈ Liabilitas + Ekuitas (selisih dalam batas toleransi).');
-    } else {
-        insights.push('Neraca tidak seimbang: selisih Aset vs (Liabilitas + Ekuitas) perlu dicek (posting/closing/jurnal).');
-    }
-
-    const liabilitiesRatio = metrics.totalAset === 0 ? 0 : metrics.totalLiabilitas / metrics.totalAset;
-    const equityRatio = metrics.totalAset === 0 ? 0 : metrics.totalEkuitas / metrics.totalAset;
-
-    if (liabilitiesRatio >= 0.7) {
-        insights.push('Komposisi pendanaan didominasi liabilitas (leverage tinggi). Pertimbangkan kontrol utang dan arus kas.');
-    } else if (liabilitiesRatio >= 0.5) {
-        insights.push('Liabilitas cukup signifikan terhadap total aset. Pastikan jadwal jatuh tempo dan kemampuan bayar terjaga.');
-    } else {
-        insights.push('Struktur pendanaan relatif konservatif (liabilitas < 50% aset).');
-    }
-
-    if (equityRatio >= 0.5) {
-        insights.push('Ekuitas kuat (≥ 50% aset), umumnya memberi buffer risiko yang lebih baik.');
-    }
-
-    if (metrics.totalEkuitas === 0 && metrics.totalLiabilitas > 0) {
-        insights.push('Ekuitas 0 namun liabilitas ada; periksa pemetaan akun ekuitas (prefix 3) atau saldo laba ditahan.');
-    }
-
-    return insights;
 }
 
 export default function NeracaAkhirIndex() {
@@ -312,8 +246,23 @@ export default function NeracaAkhirIndex() {
         return { aset, liabilitas, ekuitas };
     }, [rows]);
 
-    const aiMetrics = useMemo(() => buildAiKpiMetrics({ summary }), [summary]);
-    const aiInsights = useMemo(() => buildAiKpiInsights({ metrics: aiMetrics }), [aiMetrics]);
+    const dssResult = useMemo(
+        () =>
+            runFuzzyAhpTopsis('neraca-akhir', {
+                total_aset: Number(summary?.total_aset ?? 0),
+                total_liabilitas: Number(summary?.total_liabilitas ?? 0),
+                total_ekuitas: Number(summary?.total_ekuitas ?? 0),
+                selisih: Number(summary?.selisih ?? 0),
+            }),
+        [summary],
+    );
+    const dssTips = useMemo(
+        () =>
+            contextualizeRecommendations(buildRecommendations(dssResult, 3), {
+                periodLabel: getPeriodLabel(periodType, period),
+            }),
+        [dssResult, periodType, period],
+    );
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -479,58 +428,27 @@ export default function NeracaAkhirIndex() {
                                     <Sparkles className="h-5 w-5 text-foreground/80" />
                                 </div>
                                 <div>
-                                    <div className="text-sm font-semibold">AI Summary KPI</div>
+                                    <div className="text-sm font-semibold">Rekomendasi DSS (Fuzzy AHP-TOPSIS)</div>
                                     <div className="mt-0.5 text-xs text-muted-foreground">
-                                        Penilaian otomatis (rule-based)
+                                        Saran prioritas untuk meningkatkan kualitas neraca akhir periode aktif.
                                     </div>
                                 </div>
                             </div>
-
-                            <div className="flex items-center gap-2">
-                                <div
-                                    className={[
-                                        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1',
-                                        aiMetrics.isBalanced
-                                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20'
-                                            : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20',
-                                    ].join(' ')}
-                                >
-                                    {aiMetrics.isBalanced ? (
-                                        <CheckCircle2 className="h-3.5 w-3.5" />
-                                    ) : (
-                                        <AlertTriangle className="h-3.5 w-3.5" />
-                                    )}
-                                    {aiMetrics.isBalanced ? 'Balanced' : 'Mismatch'}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                    Total aset:{' '}
-                                    <span className="text-foreground/80">{formatRupiah(aiMetrics.totalAset)}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                            {aiMetrics.chips.map((c) => (
-                                <div
-                                    key={c.label}
-                                    className="flex items-center justify-between gap-2 rounded-xl border border-border bg-muted/30 dark:bg-black/20 px-3 py-2"
-                                >
-                                    <div className="text-xs text-muted-foreground">{c.label}</div>
-                                    <div className="text-sm font-semibold text-foreground">{c.value}</div>
-                                </div>
-                            ))}
                         </div>
                     </div>
 
                     <div className="p-4">
-                        <ul className="space-y-2 text-sm">
-                            {aiInsights.map((t, i) => (
-                                <li key={i} className="flex gap-3">
-                                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
-                                    <span className="text-foreground/80">{t}</span>
-                                </li>
-                            ))}
-                        </ul>
+                        {dssTips.length ? (
+                            <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                                {dssTips.map((tip, idx) => (
+                                    <li key={idx}>{tip}</li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div className="mt-3 text-xs text-muted-foreground">
+                                Tidak ada rekomendasi DSS untuk kondisi saat ini.
+                            </div>
+                        )}
                     </div>
                 </div>
 

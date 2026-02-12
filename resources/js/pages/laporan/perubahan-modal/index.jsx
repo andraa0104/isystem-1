@@ -20,6 +20,11 @@ import {
     Sparkles,
 } from 'lucide-react';
 import { buildBukuBesarUrl } from '@/lib/report-links';
+import {
+    buildRecommendations,
+    contextualizeRecommendations,
+    runFuzzyAhpTopsis,
+} from '@/lib/dss-fahp-topsis';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -96,53 +101,6 @@ function StatCard({ label, value, accent = 'default', icon: Icon, helper }) {
     );
 }
 
-function buildKpiInsights({ summary }) {
-    const opening = Number(summary?.opening_equity ?? 0);
-    const contrib = Number(summary?.contributions ?? 0);
-    const withdraw = Number(summary?.withdrawals ?? 0);
-    const netIncome = Number(summary?.net_income ?? 0);
-    const computedEnding = Number(summary?.computed_ending_equity ?? 0);
-    const snapshotEnding = Number(summary?.snapshot_ending_equity ?? 0);
-    const diff = Number(summary?.diff ?? 0);
-
-    const insights = [];
-    const absDiff = Math.abs(diff);
-    const tolerance = Math.max(1, Math.abs(snapshotEnding) * 0.00001);
-    const isMatch = absDiff <= tolerance;
-
-    if (snapshotEnding === 0 && computedEnding !== 0) {
-        insights.push('Snapshot modal akhir bernilai Rp 0, namun perhitungan periode menghasilkan perubahan. Pastikan data `tb_nabbrekap` untuk akun ekuitas (prefix 3) tersedia pada periode snapshot.');
-    }
-
-    if (isMatch) {
-        insights.push('Rekonsiliasi OK: modal akhir (hitung) ≈ modal akhir (snapshot) dalam batas toleransi.');
-    } else {
-        insights.push('Rekonsiliasi mismatch: selisih modal akhir cukup besar. Cek jurnal penutup/closing, akun ekuitas (prefix 3), serta penyesuaian periode.');
-    }
-
-    if (netIncome > 0) {
-        insights.push('Laba bersih periode ini menambah modal (ekuitas).');
-    } else if (netIncome < 0) {
-        insights.push('Rugi bersih periode ini mengurangi modal; evaluasi pendapatan vs beban.');
-    } else {
-        insights.push('Laba bersih periode ini 0 (impas).');
-    }
-
-    if (contrib > 0 && withdraw > 0) {
-        insights.push('Terdapat tambahan modal dan prive dalam periode ini; pastikan klasifikasi transaksi pemilik sudah benar.');
-    } else if (contrib > 0) {
-        insights.push('Terlihat adanya tambahan modal dari transaksi akun ekuitas (prefix 3).');
-    } else if (withdraw > 0) {
-        insights.push('Terlihat adanya prive/penarikan modal dari transaksi akun ekuitas (prefix 3).');
-    }
-
-    if (opening === 0 && (contrib !== 0 || withdraw !== 0 || netIncome !== 0)) {
-        insights.push('Modal awal Rp 0 namun ada aktivitas perubahan; pastikan data snapshot periode sebelumnya tersedia agar modal awal lebih akurat.');
-    }
-
-    return insights;
-}
-
 export default function PerubahanModalIndex() {
     const {
         initialQuery = {},
@@ -205,8 +163,6 @@ export default function PerubahanModalIndex() {
         const size = Math.max(1, Number(pageSize) || 10);
         return Math.max(1, Math.ceil((Number(total) || 0) / size));
     }, [total, pageSize]);
-
-    const kpiInsights = useMemo(() => buildKpiInsights({ summary }), [summary]);
 
     useEffect(() => {
         const controller = new AbortController();
@@ -276,6 +232,24 @@ export default function PerubahanModalIndex() {
     const absDiff = Math.abs(diff);
     const tolerance = Math.max(1, Math.abs(snapshotEnding) * 0.00001);
     const isMatch = absDiff <= tolerance;
+    const dssResult = useMemo(
+        () =>
+            runFuzzyAhpTopsis('perubahan-modal', {
+                diff,
+                tolerance,
+                computed_ending_equity: computedEnding,
+                opening_plus_computed:
+                    Math.abs(Number(summary?.opening_equity ?? 0)) + Math.abs(computedEnding),
+            }),
+        [diff, tolerance, computedEnding, summary],
+    );
+    const dssTips = useMemo(
+        () =>
+            contextualizeRecommendations(buildRecommendations(dssResult, 3), {
+                periodLabel: getPeriodLabel(periodType, period),
+            }),
+        [dssResult, periodType, period],
+    );
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -455,73 +429,25 @@ export default function PerubahanModalIndex() {
                                 <Sparkles className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="font-semibold text-foreground">AI Summary KPI</div>
+                                <div className="font-semibold text-foreground">Rekomendasi DSS (Fuzzy AHP-TOPSIS)</div>
                                 <div className="text-xs text-muted-foreground">
-                                    Penilaian otomatis (rule-based) untuk membantu membaca perubahan modal.
+                                    Saran prioritas untuk kualitas rekonsiliasi perubahan modal periode aktif.
                                 </div>
                             </div>
                         </div>
-                        <div
-                            className={[
-                                'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs',
-                                isMatch
-                                    ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                                    : 'border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300',
-                            ].join(' ')}
-                        >
-                            {isMatch ? 'Rekonsiliasi OK' : 'Mismatch'}
-                            <span className="text-muted-foreground">•</span>
-                            <span className="text-foreground/80">
-                                Selisih: {formatRupiah(diff)}
-                            </span>
-                        </div>
                     </div>
 
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                Growth Modal
-                            </div>
-                            <div className="mt-1 text-sm font-semibold text-foreground">
-                                {summary?.opening_equity
-                                    ? new Intl.NumberFormat('id-ID', { style: 'percent', maximumFractionDigits: 1 }).format(
-                                          (computedEnding - Number(summary?.opening_equity ?? 0)) /
-                                              Math.max(1, Math.abs(Number(summary?.opening_equity ?? 0))),
-                                      )
-                                    : '0.0%'}
-                            </div>
+                    {dssTips.length ? (
+                        <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                            {dssTips.map((tip, idx) => (
+                                <li key={idx}>{tip}</li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="mt-3 text-xs text-muted-foreground">
+                            Tidak ada rekomendasi DSS untuk kondisi saat ini.
                         </div>
-                        <div className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                Kontribusi/Prive
-                            </div>
-                            <div className="mt-1 text-sm font-semibold text-foreground">
-                                {formatRupiah(Number(summary?.contributions ?? 0) - Number(summary?.withdrawals ?? 0))}
-                            </div>
-                        </div>
-                        <div className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                Laba Bersih
-                            </div>
-                            <div className="mt-1 text-sm font-semibold text-foreground">
-                                {formatRupiah(summary?.net_income)}
-                            </div>
-                        </div>
-                        <div className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                Toleransi
-                            </div>
-                            <div className="mt-1 text-sm font-semibold text-foreground">
-                                {formatRupiah(tolerance)}
-                            </div>
-                        </div>
-                    </div>
-
-                    <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                        {kpiInsights.map((t, i) => (
-                            <li key={i}>{t}</li>
-                        ))}
-                    </ul>
+                    )}
                 </div>
 
                 {error ? (

@@ -15,6 +15,8 @@ services:
       - "8080:80"
     volumes:
       - storage-data:/var/www/html/storage
+    depends_on:
+      - redis
   queue:
     image: isystem-app
     restart: unless-stopped
@@ -31,6 +33,15 @@ services:
       - storage-data:/var/www/html/storage
     depends_on:
       - app
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
 
 volumes:
   storage-data:
+  redis-data:

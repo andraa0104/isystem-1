@@ -10,8 +10,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { BarChart3, Loader2, Printer, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
+import { BarChart3, Loader2, Printer, Sparkles } from 'lucide-react';
 import { buildBukuBesarUrl } from '@/lib/report-links';
+import {
+    buildRecommendations,
+    contextualizeRecommendations,
+    runFuzzyAhpTopsis,
+} from '@/lib/dss-fahp-topsis';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -76,62 +81,6 @@ function StatCard({ label, value, accent = 'default' }) {
     );
 }
 
-function buildKpiInsights({ summary }) {
-    const pendapatan = Number(summary?.total_pendapatan ?? 0);
-    const hpp = Number(summary?.total_hpp ?? 0);
-    const bebanOps = Number(summary?.total_beban_operasional ?? 0);
-    const labaKotor = Number(summary?.laba_kotor ?? 0);
-    const labaUsaha = Number(summary?.laba_usaha ?? 0);
-    const netLain = Number(summary?.total_lain_lain_net ?? 0);
-    const labaBersih = Number(summary?.laba_bersih ?? 0);
-
-    const safeDiv = (a, b) => (b === 0 ? 0 : a / b);
-    const grossMargin = safeDiv(labaKotor, pendapatan);
-    const opMargin = safeDiv(labaUsaha, pendapatan);
-    const netMargin = safeDiv(labaBersih, pendapatan);
-
-    const fmtPct = (v) => `${new Intl.NumberFormat('id-ID', { style: 'percent', maximumFractionDigits: 1 }).format(v)}`;
-
-    const insights = [];
-
-    if (pendapatan === 0) {
-        insights.push('Pendapatan masih Rp 0 pada periode ini; pastikan akun pendapatan (prefix 4) sudah terisi di jurnal dan penyesuaian.');
-        if (hpp !== 0 || bebanOps !== 0) {
-            insights.push('Terdapat beban meskipun pendapatan nol; periksa mapping akun atau jurnal penutup/penyesuaian.');
-        }
-        return insights;
-    }
-
-    insights.push(`Gross margin: ${fmtPct(grossMargin)} (Laba Kotor / Pendapatan).`);
-    insights.push(`Operating margin: ${fmtPct(opMargin)} (Laba Usaha / Pendapatan).`);
-    insights.push(`Net margin: ${fmtPct(netMargin)} (Laba Bersih / Pendapatan).`);
-
-    if (labaBersih > 0) {
-        insights.push('Perusahaan dalam kondisi laba bersih.');
-    } else if (labaBersih < 0) {
-        insights.push('Perusahaan dalam kondisi rugi bersih; fokus evaluasi HPP dan beban operasional.');
-    } else {
-        insights.push('Laba bersih berada di titik impas (0).');
-    }
-
-    if (netLain !== 0) {
-        insights.push(
-            `Komponen lain-lain bersih ${netLain > 0 ? 'menambah' : 'mengurangi'} laba: ${formatRupiah(netLain)}.`,
-        );
-    }
-
-    const hppRatio = safeDiv(hpp, pendapatan);
-    const opexRatio = safeDiv(bebanOps, pendapatan);
-    if (hppRatio >= 0.7) {
-        insights.push(`HPP relatif tinggi: ${fmtPct(hppRatio)} dari pendapatan.`);
-    }
-    if (opexRatio >= 0.3) {
-        insights.push(`Beban operasional relatif tinggi: ${fmtPct(opexRatio)} dari pendapatan.`);
-    }
-
-    return insights;
-}
-
 function buildKpiMetrics({ summary }) {
     const pendapatan = Number(summary?.total_pendapatan ?? 0);
     const hpp = Number(summary?.total_hpp ?? 0);
@@ -155,14 +104,18 @@ function buildKpiMetrics({ summary }) {
         pendapatan,
         labaBersih,
         netLain,
-        chips: [
-            { label: 'Gross Margin', value: fmtPct(grossMargin) },
-            { label: 'Op. Margin', value: fmtPct(opMargin) },
-            { label: 'Net Margin', value: fmtPct(netMargin) },
-            { label: 'Rasio HPP', value: fmtPct(hppRatio) },
-            { label: 'Rasio Opex', value: fmtPct(opexRatio) },
-            { label: 'Net Lain²', value: formatRupiah(netLain) },
-        ],
+        grossMargin,
+        opMargin,
+        netMargin,
+        hppRatio,
+        opexRatio,
+        formatted: {
+            grossMargin: fmtPct(grossMargin),
+            opMargin: fmtPct(opMargin),
+            netMargin: fmtPct(netMargin),
+            hppRatio: fmtPct(hppRatio),
+            opexRatio: fmtPct(opexRatio),
+        },
     };
 }
 
@@ -346,8 +299,24 @@ export default function RugiLabaIndex() {
         return { pendapatan, hpp, bebanOps, pendapatanLain, bebanLain };
     }, [rows]);
 
-    const kpiInsights = useMemo(() => buildKpiInsights({ summary }), [summary]);
     const kpiMetrics = useMemo(() => buildKpiMetrics({ summary }), [summary]);
+    const dssResult = useMemo(
+        () =>
+            runFuzzyAhpTopsis('rugi-laba', {
+                pendapatan: Number(kpiMetrics?.pendapatan ?? 0),
+                net_margin: Number(kpiMetrics?.netMargin ?? 0),
+                gross_margin: Number(kpiMetrics?.grossMargin ?? 0),
+                opex_ratio: Number(kpiMetrics?.opexRatio ?? 0),
+            }),
+        [kpiMetrics],
+    );
+    const dssTips = useMemo(
+        () =>
+            contextualizeRecommendations(buildRecommendations(dssResult, 3), {
+                periodLabel: getPeriodLabel(periodType, period),
+            }),
+        [dssResult, periodType, period],
+    );
 
     const wf = useMemo(() => {
         const pendapatan = Number(summary?.total_pendapatan ?? 0);
@@ -736,57 +705,27 @@ export default function RugiLabaIndex() {
                                     <Sparkles className="h-5 w-5 text-foreground/80" />
                                 </div>
                                 <div>
-                                    <div className="text-sm font-semibold">Ringkasan KPI</div>
+                                    <div className="text-sm font-semibold">Rekomendasi DSS (Fuzzy AHP-TOPSIS)</div>
                                     <div className="mt-0.5 text-xs text-muted-foreground">
-                                        Insight otomatis (rule-based)
+                                        Saran prioritas untuk meningkatkan kualitas profitabilitas periode aktif.
                                     </div>
                                 </div>
                             </div>
-
-                            <div className="flex items-center gap-2">
-                                <div
-                                    className={[
-                                        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1',
-                                        kpiMetrics.labaBersih >= 0
-                                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20'
-                                            : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20',
-                                    ].join(' ')}
-                                >
-                                    {kpiMetrics.labaBersih >= 0 ? (
-                                        <TrendingUp className="h-3.5 w-3.5" />
-                                    ) : (
-                                        <TrendingDown className="h-3.5 w-3.5" />
-                                    )}
-                                    {kpiMetrics.labaBersih >= 0 ? 'Profit' : 'Loss'}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                    Pendapatan: <span className="text-foreground/80">{formatRupiah(kpiMetrics.pendapatan)}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                            {kpiMetrics.chips.map((c) => (
-                                <div
-                                    key={c.label}
-                                    className="flex items-center justify-between gap-2 rounded-xl border border-border bg-muted/30 dark:bg-black/20 px-3 py-2"
-                                >
-                                    <div className="text-xs text-muted-foreground">{c.label}</div>
-                                    <div className="text-sm font-semibold text-foreground">{c.value}</div>
-                                </div>
-                            ))}
                         </div>
                     </div>
 
                     <div className="p-4">
-                        <ul className="space-y-2 text-sm">
-                            {kpiInsights.map((t, i) => (
-                                <li key={i} className="flex gap-3">
-                                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
-                                    <span className="text-foreground/80">{t}</span>
-                                </li>
-                            ))}
-                        </ul>
+                        {dssTips.length ? (
+                            <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                                {dssTips.map((tip, idx) => (
+                                    <li key={idx}>{tip}</li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <div className="mt-3 text-xs text-muted-foreground">
+                                Tidak ada rekomendasi DSS untuk kondisi saat ini.
+                            </div>
+                        )}
                     </div>
                 </div>
 

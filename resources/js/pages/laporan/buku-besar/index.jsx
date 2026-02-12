@@ -18,9 +18,12 @@ import {
     Search,
     SlidersHorizontal,
     Sparkles,
-    TrendingDown,
-    TrendingUp,
 } from 'lucide-react';
+import {
+    buildRecommendations,
+    contextualizeRecommendations,
+    runFuzzyAhpTopsis,
+} from '@/lib/dss-fahp-topsis';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -91,95 +94,6 @@ function StatCard({ label, value, helper, accent = 'default' }) {
             ) : null}
         </div>
     );
-}
-
-function buildAiLedgerMetrics({ summary }) {
-    const openingSigned = Number(summary?.opening_balance_signed ?? 0);
-    const totalDebit = Number(summary?.total_debit ?? 0);
-    const totalKredit = Number(summary?.total_kredit ?? 0);
-    const closingSigned = Number(summary?.closing_balance_signed ?? 0);
-    const lineCount = Number(summary?.line_count ?? 0);
-    const openingWarning = Boolean(summary?.opening_warning);
-
-    const netChange = totalDebit - totalKredit; // debit-minus-credit convention
-    const volume = totalDebit + totalKredit;
-    const avgLine = lineCount > 0 ? volume / lineCount : 0;
-
-    const absOpening = Math.abs(openingSigned);
-    const turnover = absOpening > 0 ? volume / absOpening : 0;
-
-    const fmtPct = (v) =>
-        new Intl.NumberFormat('id-ID', { style: 'percent', maximumFractionDigits: 1 }).format(v);
-
-    const safeDiv = (a, b) => (b === 0 ? 0 : a / b);
-    const debitShare = safeDiv(totalDebit, volume);
-    const kreditShare = safeDiv(totalKredit, volume);
-
-    return {
-        openingSigned,
-        closingSigned,
-        totalDebit,
-        totalKredit,
-        netChange,
-        volume,
-        lineCount,
-        avgLine,
-        turnover,
-        openingWarning,
-        chips: [
-            { label: 'Net Change', value: formatSaldoWithSide(netChange) },
-            { label: 'Volume', value: formatRupiah(volume) },
-            { label: 'Avg/Line', value: formatRupiah(avgLine) },
-            { label: 'Turnover', value: turnover === 0 ? '0.0x' : `${turnover.toFixed(2)}x` },
-            { label: 'Debit %', value: fmtPct(debitShare) },
-            { label: 'Kredit %', value: fmtPct(kreditShare) },
-        ],
-    };
-}
-
-function buildAiLedgerInsights({ metrics, meta }) {
-    const insights = [];
-
-    if (metrics.openingWarning) {
-        insights.push('Saldo awal tidak ditemukan dari snapshot; pembacaan saldo berjalan tetap dihitung, namun pembanding awal periode belum lengkap.');
-    }
-
-    if (metrics.lineCount === 0) {
-        insights.push('Tidak ada mutasi pada periode ini untuk akun yang dipilih.');
-        return insights;
-    }
-
-    const openingSide = metrics.openingSigned >= 0 ? 'D' : 'K';
-    const closingSide = metrics.closingSigned >= 0 ? 'D' : 'K';
-    if (openingSide !== closingSide && Math.abs(metrics.openingSigned) > 0) {
-        insights.push(`Terjadi perpindahan sisi saldo dari ${openingSide} ke ${closingSide}. Ini bisa normal pada akun tertentu, namun tetap perlu dicek jika tidak lazim.`);
-    }
-
-    if (metrics.netChange > 0) {
-        insights.push(`Periode ini saldo bergerak ke sisi Debit (net +${formatRupiah(metrics.netChange)}).`);
-    } else if (metrics.netChange < 0) {
-        insights.push(`Periode ini saldo bergerak ke sisi Kredit (net ${formatRupiah(metrics.netChange)}).`);
-    } else {
-        insights.push('Periode ini net mutasi 0 (total debit = total kredit).');
-    }
-
-    if (metrics.turnover >= 5) {
-        insights.push('Aktivitas transaksi relatif tinggi terhadap saldo awal (turnover ≥ 5x).');
-    } else if (metrics.turnover >= 2) {
-        insights.push('Aktivitas transaksi cukup aktif terhadap saldo awal (turnover ≥ 2x).');
-    }
-
-    if (meta?.source === 'ajp') {
-        insights.push('Filter sumber: hanya AJP (jurnal penyesuaian). Pastikan jurnal transaksi (TRX) juga dicek bila dibutuhkan.');
-    } else if (meta?.source === 'trx') {
-        insights.push('Filter sumber: hanya TRX (transaksi). AJP tidak termasuk dalam mutasi pada tampilan ini.');
-    }
-
-    if (meta?.search) {
-        insights.push('Ada filter pencarian aktif; total debit/kredit dan saldo akhir yang ditampilkan mengikuti filter ini.');
-    }
-
-    return insights;
 }
 
 export default function BukuBesarLedgerIndex() {
@@ -274,14 +188,23 @@ export default function BukuBesarLedgerIndex() {
 
     const has00Account = useMemo(() => String(account || '').includes('00'), [account]);
 
-    const aiMetrics = useMemo(() => buildAiLedgerMetrics({ summary }), [summary]);
-    const aiInsights = useMemo(
+    const dssResult = useMemo(
         () =>
-            buildAiLedgerInsights({
-                metrics: aiMetrics,
-                meta: { source, search: debouncedSearch },
+            runFuzzyAhpTopsis('buku-besar', {
+                opening_warning: Boolean(summary?.opening_warning),
+                opening_balance_signed: Number(summary?.opening_balance_signed ?? 0),
+                total_debit: Number(summary?.total_debit ?? 0),
+                total_kredit: Number(summary?.total_kredit ?? 0),
+                line_count: Number(summary?.line_count ?? 0),
             }),
-        [aiMetrics, source, debouncedSearch],
+        [summary],
+    );
+    const dssTips = useMemo(
+        () =>
+            contextualizeRecommendations(buildRecommendations(dssResult, 3), {
+                periodLabel: getPeriodLabel(periodType, period),
+            }),
+        [dssResult, periodType, period],
     );
 
     const fetchRows = async () => {
@@ -523,65 +446,25 @@ export default function BukuBesarLedgerIndex() {
                                 <Sparkles className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="font-semibold text-foreground">AI Summary KPI</div>
+                                <div className="font-semibold text-foreground">Rekomendasi DSS (Fuzzy AHP-TOPSIS)</div>
                                 <div className="text-xs text-muted-foreground">
-                                    Ringkasan otomatis (rule-based) untuk membaca mutasi & saldo akun.
+                                    Saran prioritas untuk kualitas saldo awal dan mutasi akun periode aktif.
                                 </div>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2">
-                            <div
-                                className={[
-                                    'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs',
-                                    summary?.opening_warning
-                                        ? 'border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-                                        : 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-                                ].join(' ')}
-                            >
-                                {summary?.opening_warning ? (
-                                    <>
-                                        <AlertTriangle className="h-4 w-4" /> Opening missing
-                                    </>
-                                ) : (
-                                    <>
-                                        <TrendingUp className="h-4 w-4" /> Opening OK
-                                    </>
-                                )}
-                            </div>
-                            <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 dark:bg-white/5 px-3 py-1 text-xs text-muted-foreground">
-                                <span>Net:</span>
-                                <span className="font-medium text-foreground/80">
-                                    {formatSaldoWithSide(aiMetrics.netChange)}
-                                </span>
-                                {aiMetrics.netChange >= 0 ? (
-                                    <TrendingUp className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
-                                ) : (
-                                    <TrendingDown className="h-4 w-4 text-rose-700 dark:text-rose-300" />
-                                )}
                             </div>
                         </div>
                     </div>
 
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-                        {aiMetrics.chips.map((c) => (
-                            <div
-                                key={c.label}
-                                className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2"
-                            >
-                                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                    {c.label}
-                                </div>
-                                <div className="mt-1 text-sm font-semibold text-foreground">{c.value}</div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                        {aiInsights.map((t, i) => (
-                            <li key={i}>{t}</li>
-                        ))}
-                    </ul>
+                    {dssTips.length ? (
+                        <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                            {dssTips.map((tip, idx) => (
+                                <li key={idx}>{tip}</li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="mt-3 text-xs text-muted-foreground">
+                            Tidak ada rekomendasi DSS untuk kondisi saat ini.
+                        </div>
+                    )}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">

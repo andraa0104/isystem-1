@@ -1,6 +1,5 @@
 import {
     Banknote,
-    BookOpen,
     FileText,
     LayoutGrid,
     Package,
@@ -8,7 +7,6 @@ import {
     Truck,
     WeightIcon,
     BookText,
-    Folder,
 } from 'lucide-react';
 
 export const mainMenuItems = [

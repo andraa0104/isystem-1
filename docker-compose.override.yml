@@ -9,9 +9,12 @@ services:
       DB_DATABASE: dbsja
       DB_USERNAME: root
       DB_PASSWORD: 
-      SESSION_DRIVER: file
+      SESSION_DRIVER: redis
+      SESSION_CONNECTION: default
       SESSION_SECURE_COOKIE: "false"
       CACHE_STORE: file
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       WAYFINDER_DISABLE: "true"
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -38,6 +41,10 @@ services:
     environment:
       APP_ENV: local
       APP_DEBUG: "true"
+      SESSION_DRIVER: redis
+      SESSION_CONNECTION: default
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     volumes:
       - ./:/var/www/html
       - storage-data:/var/www/html/storage

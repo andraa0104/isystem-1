@@ -11,15 +11,18 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
-    AlertTriangle,
     BookText,
-    CheckCircle2,
     Loader2,
     Printer,
     Search,
     Sparkles,
 } from 'lucide-react';
 import { buildBukuBesarUrl } from '@/lib/report-links';
+import {
+    buildRecommendations,
+    contextualizeRecommendations,
+    runFuzzyAhpTopsis,
+} from '@/lib/dss-fahp-topsis';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -194,77 +197,25 @@ export default function SaldoAkunIndex() {
         return Math.max(1, Math.ceil((Number(total) || 0) / size));
     }, [total, pageSize]);
 
-    const ai = useMemo(() => {
-        const totalAccounts = Number(summary?.total_accounts ?? 0);
-        const positive = Number(summary?.positive_count ?? 0);
-        const negative = Number(summary?.negative_count ?? 0);
-        const zero = Number(summary?.zero_count ?? 0);
-        const marked00 = Number(summary?.marked_00_count ?? 0);
-        const sumSaldo = Number(summary?.sum_saldo ?? 0);
-        const nullSaldo = Number(summary?.null_saldo_count ?? 0);
-        const naNonzeroSaldoZero = Number(summary?.na_nonzero_but_saldo_zero_count ?? 0);
-        const saldoNonzeroNaZero = Number(summary?.saldo_nonzero_but_na_zero_count ?? 0);
-        const topPositive = Array.isArray(summary?.top_positive) ? summary.top_positive : [];
-        const topNegative = Array.isArray(summary?.top_negative) ? summary.top_negative : [];
-
-        const safeDiv = (a, b) => (b === 0 ? 0 : a / b);
-        const fmtPct = (v) =>
-            new Intl.NumberFormat('id-ID', { style: 'percent', maximumFractionDigits: 1 }).format(v);
-
-        const negRatio = safeDiv(negative, totalAccounts);
-        const zeroRatio = safeDiv(zero, totalAccounts);
-        const markedRatio = safeDiv(marked00, totalAccounts);
-
-        const nonzeroCount = Math.max(0, totalAccounts - zero);
-
-        const status =
-            totalAccounts === 0
-                ? 'empty'
-                : zeroRatio >= 0.6 || negRatio >= 0.3
-                  ? 'check'
-                  : 'healthy';
-
-        const chips = [
-            { label: 'Net Saldo', value: formatRupiah(sumSaldo) },
-            { label: 'Akun (+)', value: formatNumber(positive) },
-            { label: 'Akun (-)', value: formatNumber(negative) },
-            { label: 'Akun (=0)', value: formatNumber(zero) },
-            { label: 'Neg Ratio', value: fmtPct(negRatio) },
-            { label: '00 Marked', value: `${formatNumber(marked00)} (${fmtPct(markedRatio)})` },
-        ];
-
-        const insights = [];
-        if (totalAccounts === 0) {
-            insights.push('Tidak ada data sesuai filter saat ini.');
-        } else {
-            insights.push(`Akun non-zero: ${formatNumber(nonzeroCount)} dari ${formatNumber(totalAccounts)} akun.`);
-            if (zeroRatio >= 0.6) {
-                insights.push('Banyak akun saldo 0; COA mungkin lengkap tapi belum dipakai, atau ini snapshot yang belum terisi penuh.');
-            }
-            if (negative >= Math.max(10, totalAccounts * 0.3)) {
-                insights.push('Saldo negatif cukup banyak; cek konvensi tanda pada `tb_nabb.Saldo` (debit-minus-credit vs kebalikan) dan konsistensi posting.');
-            }
-            if (marked00 >= Math.max(5, totalAccounts * 0.2)) {
-                insights.push("Banyak akun bertanda '00'; umumnya akun header/grup. Pastikan diperlakukan sesuai kebutuhan laporan (ringkasan vs detail).");
-            }
-            if (sumSaldo === 0 && nonzeroCount > 0) {
-                insights.push('Net saldo total 0 namun ada akun non-zero; bisa terjadi karena offset antar akun, tetapi tetap perlu review pada saldo-saldo besar.');
-            }
-            if (nullSaldo > 0) {
-                insights.push(`Terdapat ${formatNumber(nullSaldo)} akun dengan Saldo NULL; cek proses posting/snapshot.`);
-            }
-            if (naNonzeroSaldoZero > 0) {
-                insights.push(`Ada ${formatNumber(naNonzeroSaldoZero)} akun NA ≠ 0 namun Saldo = 0; cek rumus/ETL pembentukan saldo snapshot.`);
-            }
-            if (saldoNonzeroNaZero > 0) {
-                insights.push(`Ada ${formatNumber(saldoNonzeroNaZero)} akun Saldo ≠ 0 namun NA = 0; cek konsistensi komponen saldo.`);
-            }
-        }
-
-        return { status, chips, insights, topPositive, topNegative };
-    }, [summary]);
-
-    const [aiShowTop, setAiShowTop] = useState(false);
+    const dssResult = useMemo(
+        () =>
+            runFuzzyAhpTopsis('saldo-akun', {
+                total_accounts: Number(summary?.total_accounts ?? 0),
+                negative_count: Number(summary?.negative_count ?? 0),
+                zero_count: Number(summary?.zero_count ?? 0),
+                marked_00_count: Number(summary?.marked_00_count ?? 0),
+                na_nonzero_but_saldo_zero_count: Number(summary?.na_nonzero_but_saldo_zero_count ?? 0),
+                saldo_nonzero_but_na_zero_count: Number(summary?.saldo_nonzero_but_na_zero_count ?? 0),
+            }),
+        [summary],
+    );
+    const dssTips = useMemo(
+        () =>
+            contextualizeRecommendations(buildRecommendations(dssResult, 3), {
+                sourceLabel: 'tb_nabb (snapshot)',
+            }),
+        [dssResult],
+    );
 
     const quickChipClass = (active) =>
         [
@@ -425,158 +376,25 @@ export default function SaldoAkunIndex() {
                                 <Sparkles className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="font-semibold text-foreground">AI Summary KPI</div>
+                                <div className="font-semibold text-foreground">Rekomendasi DSS (Fuzzy AHP-TOPSIS)</div>
                                 <div className="text-xs text-muted-foreground">
-                                    Ringkasan otomatis (rule-based) untuk komposisi saldo akun.
+                                    Saran prioritas untuk komposisi dan konsistensi saldo akun.
                                 </div>
                             </div>
-                        </div>
-
-                        <div
-                            className={[
-                                'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs',
-                                ai.status === 'healthy'
-                                    ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-                                    : ai.status === 'check'
-                                      ? 'border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
-                                      : 'border border-border bg-muted/30 dark:bg-white/5 text-muted-foreground',
-                            ].join(' ')}
-                        >
-                            {ai.status === 'healthy' ? (
-                                <>
-                                    <CheckCircle2 className="h-4 w-4" /> Healthy
-                                </>
-                            ) : ai.status === 'check' ? (
-                                <>
-                                    <AlertTriangle className="h-4 w-4" /> Check
-                                </>
-                            ) : (
-                                <>Empty</>
-                            )}
                         </div>
                     </div>
 
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-                        {ai.chips.map((c) => (
-                            <div
-                                key={c.label}
-                                className="rounded-xl border border-border bg-muted/30 dark:bg-white/5 px-3 py-2"
-                            >
-                                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                    {c.label}
-                                </div>
-                                <div className="mt-1 text-sm font-semibold text-foreground">{c.value}</div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                        {ai.insights.map((t, i) => (
-                            <li key={i}>{t}</li>
-                        ))}
-                    </ul>
-
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setAiShowTop((v) => !v)}
-                            className="gap-2"
-                        >
-                            {aiShowTop ? 'Tutup' : 'Detail'}
-                        </Button>
-                        <div className="text-xs text-muted-foreground">
-                            Top 10 saldo terbesar (+) dan (−) mengikuti filter aktif.
+                    {dssTips.length ? (
+                        <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                            {dssTips.map((tip, idx) => (
+                                <li key={idx}>{tip}</li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="mt-3 text-xs text-muted-foreground">
+                            Tidak ada rekomendasi DSS untuk kondisi saat ini.
                         </div>
-                    </div>
-
-                    {aiShowTop ? (
-                        <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                            <div className="rounded-2xl border border-border bg-muted/30 dark:bg-white/5">
-                                <div className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                    Top (+)
-                                </div>
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full text-sm">
-                                        <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                            <tr>
-                                                <th className="px-3 py-2 text-left">Akun</th>
-                                                <th className="px-3 py-2 text-right">Saldo</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {ai.topPositive?.length ? (
-                                                ai.topPositive.map((r, idx) => (
-                                                    <tr key={`${r?.Kode_Akun ?? idx}-${idx}`} className="border-t border-border">
-                                                        <td className="px-3 py-2">
-                                                            <Link
-                                                                href={buildBukuBesarUrl({ kodeAkun: r?.Kode_Akun ?? '' })}
-                                                                className="font-medium text-amber-700 dark:text-amber-300 hover:underline"
-                                                            >
-                                                                {r?.Kode_Akun}
-                                                            </Link>
-                                                            <div className="text-xs text-muted-foreground">{r?.Nama_Akun}</div>
-                                                        </td>
-                                                        <td className="px-3 py-2 text-right font-medium text-emerald-700 dark:text-emerald-300">
-                                                            {formatRupiah(r?.Saldo)}
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            ) : (
-                                                <tr>
-                                                    <td colSpan={2} className="px-3 py-6 text-center text-sm text-muted-foreground">
-                                                        Tidak ada saldo positif.
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <div className="rounded-2xl border border-border bg-muted/30 dark:bg-white/5">
-                                <div className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                    Top (−)
-                                </div>
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full text-sm">
-                                        <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                            <tr>
-                                                <th className="px-3 py-2 text-left">Akun</th>
-                                                <th className="px-3 py-2 text-right">Saldo</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {ai.topNegative?.length ? (
-                                                ai.topNegative.map((r, idx) => (
-                                                    <tr key={`${r?.Kode_Akun ?? idx}-${idx}`} className="border-t border-border">
-                                                        <td className="px-3 py-2">
-                                                            <Link
-                                                                href={buildBukuBesarUrl({ kodeAkun: r?.Kode_Akun ?? '' })}
-                                                                className="font-medium text-amber-700 dark:text-amber-300 hover:underline"
-                                                            >
-                                                                {r?.Kode_Akun}
-                                                            </Link>
-                                                            <div className="text-xs text-muted-foreground">{r?.Nama_Akun}</div>
-                                                        </td>
-                                                        <td className="px-3 py-2 text-right font-medium text-rose-700 dark:text-rose-300">
-                                                            {formatRupiah(r?.Saldo)}
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            ) : (
-                                                <tr>
-                                                    <td colSpan={2} className="px-3 py-6 text-center text-sm text-muted-foreground">
-                                                        Tidak ada saldo negatif.
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    ) : null}
+                    )}
                 </div>
 
                 {error ? (

@@ -551,6 +551,9 @@ export default function BukuKasIndex() {
                                                                             Kode Akun
                                                                         </th>
                                                                         <th className="px-4 py-2 text-left">
+                                                                            Nama Akun
+                                                                        </th>
+                                                                        <th className="px-4 py-2 text-left">
                                                                             Jenis Beban
                                                                         </th>
                                                                         <th className="px-4 py-2 text-right">
@@ -561,7 +564,7 @@ export default function BukuKasIndex() {
                                                                 <tbody>
                                                                     {breakdowns.length === 0 ? (
                                                                         <tr>
-                                                                            <td colSpan={3} className="px-4 py-6 text-center text-muted-foreground">
+                                                                            <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
                                                                                 Tidak ada rincian beban.
                                                                             </td>
                                                                         </tr>
@@ -593,6 +596,9 @@ export default function BukuKasIndex() {
                                                                                         ) : (
                                                                                             '-'
                                                                                         )}
+                                                                                    </td>
+                                                                                    <td className={`px-4 py-2 ${c}`}>
+                                                                                        {b?.nama_akun || '-'}
                                                                                     </td>
                                                                                     <td className={`px-4 py-2 ${c}`}>
                                                                                         {b?.jenis_beban || '-'}

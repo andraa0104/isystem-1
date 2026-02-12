@@ -237,6 +237,7 @@ export default function BukuKasPrint() {
                                                             <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-slate-600">
                                                                 <tr>
                                                                     <th className="border border-slate-200 px-3 py-2 text-left">Kode Akun</th>
+                                                                    <th className="border border-slate-200 px-3 py-2 text-left">Nama Akun</th>
                                                                     <th className="border border-slate-200 px-3 py-2 text-left">Jenis Beban</th>
                                                                     <th className="border border-slate-200 px-3 py-2 text-right">Nominal</th>
                                                                 </tr>
@@ -249,6 +250,7 @@ export default function BukuKasPrint() {
                                                                     return (
                                                                         <tr key={`${kodeVoucher}-${kodeAkun}-${bi}`}>
                                                                             <td className={`border border-slate-200 px-3 py-2 font-medium ${c}`}>{kodeAkun || '-'}</td>
+                                                                            <td className={`border border-slate-200 px-3 py-2 ${c}`}>{b?.nama_akun || '-'}</td>
                                                                             <td className={`border border-slate-200 px-3 py-2 ${c}`}>{b?.jenis_beban || '-'}</td>
                                                                             <td className={`border border-slate-200 px-3 py-2 text-right font-semibold ${c}`}>{formatRupiah(b?.nominal)}</td>
                                                                         </tr>

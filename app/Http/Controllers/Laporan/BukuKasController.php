@@ -420,6 +420,30 @@ class BukuKasController
             }
 
             $rawRows = $rowsQuery->get();
+            $breakdownAccountNames = [];
+            if ($this->nabbNameAvailable()) {
+                $breakdownCodes = collect($rawRows)
+                    ->flatMap(function ($row) {
+                        return [
+                            trim((string) ($row->Kode_Akun1 ?? '')),
+                            trim((string) ($row->Kode_Akun2 ?? '')),
+                            trim((string) ($row->Kode_Akun3 ?? '')),
+                        ];
+                    })
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if (count($breakdownCodes) > 0) {
+                    $breakdownAccountNames = DB::table('tb_nabb')
+                        ->whereIn('Kode_Akun', $breakdownCodes)
+                        ->pluck('Nama_Akun', 'Kode_Akun')
+                        ->map(fn ($name) => (string) $name)
+                        ->all();
+                }
+            }
+
             $rows = [];
             foreach ($rawRows as $r) {
                 $mutasi = (float) ($r->Mutasi_Kas ?? 0);
@@ -435,6 +459,7 @@ class BukuKasController
                     }
                     $breakdowns[] = [
                         'kode_akun' => $kode,
+                        'nama_akun' => trim((string) ($breakdownAccountNames[$kode] ?? '')),
                         'jenis_beban' => $jenis,
                         'nominal' => $nominal,
                     ];
@@ -485,4 +510,3 @@ class BukuKasController
         }
     }
 }
-

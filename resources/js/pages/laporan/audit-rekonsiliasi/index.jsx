@@ -20,6 +20,11 @@ import {
     TrendingUp,
 } from 'lucide-react';
 import { buildBukuBesarUrl } from '@/lib/report-links';
+import {
+    buildRecommendations,
+    contextualizeRecommendations,
+    runFuzzyAhpTopsis,
+} from '@/lib/dss-fahp-topsis';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -84,69 +89,17 @@ function StatCard({ label, value, hint, accent = 'default', icon: Icon }) {
     );
 }
 
-function buildAiStatus({ kpis }) {
-    const trxUnb = Number(kpis?.trx?.unbalanced ?? 0);
-    const ajpUnb = Number(kpis?.ajp?.unbalanced ?? 0);
-    const neracaBalanced = Boolean(kpis?.neraca?.is_balanced);
-    const modalMatch = Boolean(kpis?.modal?.is_match);
-
-    const neracaTolerance = Number(kpis?.neraca?.tolerance ?? 0);
-    const neracaDiff = Number(kpis?.neraca?.selisih ?? 0);
-    const modalTolerance = Number(kpis?.modal?.tolerance ?? 0);
-    const modalDiff = Number(kpis?.modal?.diff ?? 0);
-
-    const hasCriticalMismatch =
-        (neracaTolerance > 0 && Math.abs(neracaDiff) > 10 * neracaTolerance) ||
-        (modalTolerance > 0 && Math.abs(modalDiff) > 10 * modalTolerance);
-
-    if (trxUnb === 0 && ajpUnb === 0 && neracaBalanced && modalMatch) return 'healthy';
-    if (hasCriticalMismatch) return 'critical';
-    return 'check';
-}
-
-function buildAiInsights({ kpis, meta }) {
-    const insights = [];
-
-    const trxUnb = Number(kpis?.trx?.unbalanced ?? 0);
-    const ajpUnb = Number(kpis?.ajp?.unbalanced ?? 0);
-
-    const neracaBalanced = Boolean(kpis?.neraca?.is_balanced);
-    const neracaDiff = Number(kpis?.neraca?.selisih ?? 0);
-    const neracaTol = Number(kpis?.neraca?.tolerance ?? 0);
-
-    const modalMatch = Boolean(kpis?.modal?.is_match);
-    const modalDiff = Number(kpis?.modal?.diff ?? 0);
-    const modalTol = Number(kpis?.modal?.tolerance ?? 0);
-
-    if (trxUnb > 0) {
-        insights.push(`Ada ${formatNumber(trxUnb)} jurnal TRX tidak seimbang. Prioritaskan perbaikan sebelum closing/snapshot.`);
-    } else {
-        insights.push('Tidak ada jurnal TRX tidak seimbang pada periode ini.');
-    }
-
-    if (ajpUnb > 0) {
-        insights.push(`Ada ${formatNumber(ajpUnb)} dokumen AJP tidak seimbang. Cek penyesuaian periode & akun terkait.`);
-    } else {
-        insights.push('Tidak ada dokumen AJP tidak seimbang pada periode ini.');
-    }
-
-    if (!neracaBalanced) {
-        insights.push(`Neraca mismatch: selisih A-(L+E) = ${formatRupiah(neracaDiff)} (toleransi ${formatRupiah(neracaTol)}). Cek proses posting/closing/snapshot.`);
-    } else {
-        insights.push('Neraca seimbang dalam batas toleransi.');
-    }
-
-    if (!modalMatch) {
-        insights.push(`Modal mismatch: diff snapshot vs hitung = ${formatRupiah(modalDiff)} (toleransi ${formatRupiah(modalTol)}). Cek akun ekuitas (prefix 3) & laba ditahan.`);
-    } else {
-        insights.push('Rekonsiliasi perubahan modal match dalam batas toleransi.');
-    }
-
-    if (meta?.periodType === 'year' && meta?.effectivePeriod) {
-        insights.push(`Mode FY memakai snapshot akhir tahun: ${meta.effectivePeriodLabel || meta.effectivePeriod}.`);
-    }
-
-    return insights;
+function buildDssContext({ kpis }) {
+    return {
+        trx_total: Number(kpis?.trx?.total ?? 0),
+        trx_unbalanced: Number(kpis?.trx?.unbalanced ?? 0),
+        ajp_total: Number(kpis?.ajp?.total ?? 0),
+        ajp_unbalanced: Number(kpis?.ajp?.unbalanced ?? 0),
+        neraca_total_aset: Number(kpis?.neraca?.total_aset ?? 0),
+        neraca_selisih: Number(kpis?.neraca?.selisih ?? 0),
+        modal_snapshot_ending_equity: Number(kpis?.modal?.snapshot_ending_equity ?? 0),
+        modal_diff: Number(kpis?.modal?.diff ?? 0),
+    };
 }
 
 function buildJurnalUmumUrl({ periodType, period, kodeJurnal }) {
@@ -258,26 +211,17 @@ export default function AuditRekonsiliasiIndex() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [periodType, period, findingsMode]);
 
-    const aiStatus = useMemo(() => buildAiStatus({ kpis }), [kpis]);
-    const aiInsights = useMemo(
-        () =>
-            buildAiInsights({
-                kpis,
-                meta: {
-                    periodType,
-                    effectivePeriod: meta?.effective_period,
-                    effectivePeriodLabel: meta?.effective_period_label,
-                },
-            }),
-        [kpis, meta, periodType],
+    const dssResult = useMemo(
+        () => runFuzzyAhpTopsis('audit-rekonsiliasi', buildDssContext({ kpis })),
+        [kpis],
     );
-
-    const aiStatusPillClass =
-        aiStatus === 'healthy'
-            ? 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-            : aiStatus === 'critical'
-              ? 'border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-              : 'border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300';
+    const dssTips = useMemo(
+        () =>
+            contextualizeRecommendations(buildRecommendations(dssResult, 3), {
+                periodLabel: meta?.period_label || getPeriodLabel(periodType, period),
+            }),
+        [dssResult, meta?.period_label, periodType, period],
+    );
 
     const trxFindingsTitle = findingsMode === 'all' ? 'Dokumen TRX (Top 10)' : 'Temuan TRX Tidak Seimbang';
     const trxFindingsSubtitle =
@@ -423,34 +367,25 @@ export default function AuditRekonsiliasiIndex() {
                                 <Sparkles className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="font-semibold text-foreground">AI Summary KPI</div>
+                                <div className="font-semibold text-foreground">Rekomendasi DSS (Fuzzy AHP-TOPSIS)</div>
                                 <div className="text-xs text-muted-foreground">
-                                    Ringkasan otomatis (rule-based) untuk prioritas investigasi.
+                                    Saran prioritas investigasi kualitas data akuntansi periode aktif.
                                 </div>
                             </div>
                         </div>
-                        <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs ${aiStatusPillClass}`}>
-                            {aiStatus === 'healthy' ? (
-                                <>
-                                    <CheckCircle2 className="h-4 w-4" /> Healthy
-                                </>
-                            ) : aiStatus === 'critical' ? (
-                                <>
-                                    <AlertTriangle className="h-4 w-4" /> Critical
-                                </>
-                            ) : (
-                                <>
-                                    <AlertTriangle className="h-4 w-4" /> Check
-                                </>
-                            )}
-                        </div>
                     </div>
 
-                    <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                        {aiInsights.map((t, i) => (
-                            <li key={i}>{t}</li>
-                        ))}
-                    </ul>
+                    {dssTips.length ? (
+                        <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                            {dssTips.map((tip, idx) => (
+                                <li key={idx}>{tip}</li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="mt-3 text-xs text-muted-foreground">
+                            Tidak ada rekomendasi DSS untuk kondisi saat ini.
+                        </div>
+                    )}
 
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                         <Button
