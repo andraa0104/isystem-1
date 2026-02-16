@@ -1,4 +1,3 @@
-import ProfileController from '@/actions/App/Http/Controllers/Settings/ProfileController';
 import { Transition } from '@headlessui/react';
 import { Form, Head, usePage } from '@inertiajs/react';
 import DeleteUser from '@/components/delete-user';
@@ -18,6 +17,7 @@ const breadcrumbs = [
 ];
 export default function Profile({ mustVerifyEmail, status, }) {
     const { auth } = usePage().props;
+    const profileUpdateForm = { action: '/settings/profile', method: 'patch' };
     return (<AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Profile settings"/>
 
@@ -27,7 +27,7 @@ export default function Profile({ mustVerifyEmail, status, }) {
                 <div className="space-y-6">
                     <HeadingSmall title="Profile information" description="Update your name and contact information"/>
 
-                    <Form {...ProfileController.update.form()} options={{
+                    <Form {...profileUpdateForm} options={{
             preserveScroll: true,
         }} className="space-y-6">
                         {({ processing, recentlySuccessful, errors }) => (<>

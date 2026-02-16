@@ -11,6 +11,17 @@ class QuotationController
 {
     private array $columnCache = [];
 
+    private function valueOrSpace(mixed $value): string
+    {
+        if ($value === null) {
+            return ' ';
+        }
+
+        $text = trim((string) $value);
+
+        return $text === '' ? ' ' : $text;
+    }
+
     private function resolveColumn(string $table, array $candidates, string $fallback): string
     {
         if (!isset($this->columnCache[$table])) {
@@ -404,19 +415,19 @@ class QuotationController
                     ->update([
                         'Tgl_penawaran' => $request->input('tgl_penawaran')
                             ?? Carbon::today()->toDateString(),
-                        'Customer' => $request->input('customer'),
-                        'Alamat' => $request->input('alamat'),
-                        'Telp' => $request->input('telp'),
-                        'Fax' => $request->input('fax'),
-                        'Email' => $request->input('email'),
-                        'Attend' => $request->input('attend'),
-                        'Payment' => $request->input('payment'),
-                        'Validity' => $request->input('validity'),
-                        'Delivery' => $request->input('delivery'),
-                        'Franco' => $request->input('franco'),
-                        'Note1' => $request->input('note1'),
-                        'Note2' => $request->input('note2'),
-                        'Note3' => $request->input('note3'),
+                        'Customer' => $this->valueOrSpace($request->input('customer')),
+                        'Alamat' => $this->valueOrSpace($request->input('alamat')),
+                        'Telp' => $this->valueOrSpace($request->input('telp')),
+                        'Fax' => $this->valueOrSpace($request->input('fax')),
+                        'Email' => $this->valueOrSpace($request->input('email')),
+                        'Attend' => $this->valueOrSpace($request->input('attend')),
+                        'Payment' => $this->valueOrSpace($request->input('payment')),
+                        'Validity' => $this->valueOrSpace($request->input('validity')),
+                        'Delivery' => $this->valueOrSpace($request->input('delivery')),
+                        'Franco' => $this->valueOrSpace($request->input('franco')),
+                        'Note1' => $this->valueOrSpace($request->input('note1')),
+                        'Note2' => $this->valueOrSpace($request->input('note2')),
+                        'Note3' => $this->valueOrSpace($request->input('note3')),
                     ]);
 
                 $noPenawaranColumn = $this->resolveColumn(
@@ -442,7 +453,7 @@ class QuotationController
                         $hargaModalColumn => $item['harga_modal'] ?? null,
                         'Satuan' => $item['satuan'] ?? null,
                         'Margin' => $item['margin'] ?? null,
-                        'Remark' => $item['remark'] ?? null,
+                        'Remark' => $this->valueOrSpace($item['remark'] ?? null),
                     ]);
                 }
             });
@@ -487,7 +498,7 @@ class QuotationController
                 $hargaModalColumn => $request->input('harga_modal'),
                 'Satuan' => $request->input('satuan'),
                 'Margin' => $request->input('margin'),
-                'Remark' => $request->input('remark'),
+                'Remark' => $this->valueOrSpace($request->input('remark')),
             ]);
 
         return back()->with('success', 'Detail quotation berhasil diperbarui.');
@@ -562,19 +573,19 @@ class QuotationController
                     'Tgl_penawaran' => $request->input('tgl_penawaran')
                         ?? Carbon::today()->toDateString(),
                     'Tgl_Posting' => Carbon::today()->toDateString(),
-                    'Customer' => $request->input('customer'),
-                    'Alamat' => $request->input('alamat'),
-                    'Telp' => $request->input('telp'),
-                    'Fax' => $request->input('fax'),
-                    'Email' => $request->input('email'),
-                    'Attend' => $request->input('attend'),
-                    'Payment' => $request->input('payment'),
-                    'Validity' => $request->input('validity'),
-                    'Delivery' => $request->input('delivery'),
-                    'Franco' => $request->input('franco'),
-                    'Note1' => $request->input('note1'),
-                    'Note2' => $request->input('note2'),
-                    'Note3' => $request->input('note3'),
+                    'Customer' => $this->valueOrSpace($request->input('customer')),
+                    'Alamat' => $this->valueOrSpace($request->input('alamat')),
+                    'Telp' => $this->valueOrSpace($request->input('telp')),
+                    'Fax' => $this->valueOrSpace($request->input('fax')),
+                    'Email' => $this->valueOrSpace($request->input('email')),
+                    'Attend' => $this->valueOrSpace($request->input('attend')),
+                    'Payment' => $this->valueOrSpace($request->input('payment')),
+                    'Validity' => $this->valueOrSpace($request->input('validity')),
+                    'Delivery' => $this->valueOrSpace($request->input('delivery')),
+                    'Franco' => $this->valueOrSpace($request->input('franco')),
+                    'Note1' => $this->valueOrSpace($request->input('note1')),
+                    'Note2' => $this->valueOrSpace($request->input('note2')),
+                    'Note3' => $this->valueOrSpace($request->input('note3')),
                 ]);
 
                 foreach ($materials as $item) {
@@ -596,7 +607,7 @@ class QuotationController
                         $hargaModalColumn => $item['harga_modal'] ?? null,
                         'Satuan' => $item['satuan'] ?? null,
                         'Margin' => $item['margin'] ?? null,
-                        'Remark' => $item['remark'] ?? null,
+                        'Remark' => $this->valueOrSpace($item['remark'] ?? null),
                     ]);
                 }
                 });

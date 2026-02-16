@@ -35,8 +35,23 @@ const steps = [
 const renderValue = (value) => (value ?? '')?.toString();
 
 const parseNumber = (value) => {
-    const parsed = Number(value);
+    const parsed = Number(
+        String(value ?? '').replace(/[^\d.-]/g, '')
+    );
     return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const formatRupiahInput = (value) => {
+    const digits = String(value ?? '').replace(/\D/g, '');
+    if (!digits) {
+        return '';
+    }
+    return `Rp ${Number(digits).toLocaleString('id-ID')}`;
+};
+
+const fillOrSpace = (value) => {
+    const text = String(value ?? '').trim();
+    return text === '' ? ' ' : text;
 };
 
 const calculateMargin = (modalValue, penawaranValue) => {
@@ -83,8 +98,8 @@ const buildMaterialItems = (details = []) =>
         nama: renderValue(detail.Material),
         satuan: renderValue(detail.Satuan),
         quantity: renderValue(detail.Qty),
-        hargaModal: renderValue(detail.Harga),
-        hargaPenawaran: renderValue(detail.Harga_modal),
+        hargaModal: renderValue(detail.Harga_modal),
+        hargaPenawaran: renderValue(detail.Harga),
         margin: renderValue(detail.Margin),
         remark: renderValue(detail.Remark),
     }));
@@ -246,7 +261,8 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
     }, [materialPage, materialTotalPages]);
 
     const handleSelectCustomer = (item) => {
-        setCustomerForm({
+        setCustomerForm((prev) => ({
+            ...prev,
             nama: renderValue(item.nm_cs),
             alamat: renderValue(item.alamat_cs),
             telepon: renderValue(item.telp_cs),
@@ -254,7 +270,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
             email: renderValue(item.email_cs ?? item.email ?? ''),
             attend: renderValue(item.attnd),
             kode: renderValue(item.kd_cs),
-        });
+        }));
         setCustomerModalOpen(false);
     };
 
@@ -399,7 +415,11 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
             if (!prev) {
                 return prev;
             }
-            const next = { ...prev, [field]: value };
+            const nextValue =
+                field === 'hargaModal' || field === 'hargaPenawaran'
+                    ? String(value ?? '').replace(/\D/g, '')
+                    : value;
+            const next = { ...prev, [field]: nextValue };
             if (field === 'hargaModal' || field === 'hargaPenawaran') {
                 next.margin = calculateMargin(
                     next.hargaModal,
@@ -415,9 +435,22 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
         setEditingMaterial(null);
     };
 
-    const handleSaveMaterial = () => {
+    const handleSaveMaterial = async () => {
         if (!quotation?.No_penawaran || !editingMaterial?.detailId) {
             return;
+        }
+        if (parseNumber(editingMaterial.margin) < 0) {
+            const result = await Swal.fire({
+                title: 'Margin Minus',
+                text: 'Margin material ini minus. Tetap lanjut simpan material?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, lanjut',
+                cancelButtonText: 'Batal',
+            });
+            if (!result.isConfirmed) {
+                return;
+            }
         }
 
         router.put(
@@ -459,19 +492,19 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
         }
         router.put(`/marketing/quotation/${encodeURIComponent(quotation.No_penawaran)}`, {
             tgl_penawaran: customerForm.tglPenawaran || todayDate(),
-            customer: customerForm.nama,
-            alamat: customerForm.alamat,
-            telp: customerForm.telepon,
-            fax: customerForm.fax,
-            email: customerForm.email,
-            attend: customerForm.attend,
-            payment: detailForm.payment,
-            validity: detailForm.validity,
-            delivery: detailForm.delivery,
-            franco: detailForm.franco,
-            note1: detailForm.note1,
-            note2: detailForm.note2,
-            note3: detailForm.note3,
+            customer: fillOrSpace(customerForm.nama),
+            alamat: fillOrSpace(customerForm.alamat),
+            telp: fillOrSpace(customerForm.telepon),
+            fax: fillOrSpace(customerForm.fax),
+            email: fillOrSpace(customerForm.email),
+            attend: fillOrSpace(customerForm.attend),
+            payment: fillOrSpace(detailForm.payment),
+            validity: fillOrSpace(detailForm.validity),
+            delivery: fillOrSpace(detailForm.delivery),
+            franco: fillOrSpace(detailForm.franco),
+            note1: fillOrSpace(detailForm.note1),
+            note2: fillOrSpace(detailForm.note2),
+            note3: fillOrSpace(detailForm.note3),
             materials: materialItems.map((item) => ({
                 material: item.nama,
                 quantity: item.quantity,
@@ -635,7 +668,6 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                     <Label htmlFor="email">Email</Label>
                                     <Input
                                         id="email"
-                                        type="email"
                                         value={customerForm.email}
                                         onChange={(event) =>
                                             setCustomerForm((prev) => ({
@@ -799,7 +831,12 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                     <Input
                                         id="satuan"
                                         value={materialForm.satuan}
-                                        readOnly
+                                        onChange={(event) =>
+                                            setMaterialForm((prev) => ({
+                                                ...prev,
+                                                satuan: event.target.value,
+                                            }))
+                                        }
                                     />
                                 </div>
                                 <div className="grid gap-2">
@@ -822,12 +859,15 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                     </Label>
                                     <Input
                                         id="harga_modal"
-                                        type="number"
-                                        value={materialForm.hargaModal}
+                                        type="text"
+                                        value={formatRupiahInput(materialForm.hargaModal)}
                                         onChange={(event) =>
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                hargaModal: event.target.value,
+                                                hargaModal: event.target.value.replace(
+                                                    /\D/g,
+                                                    ''
+                                                ),
                                             }))
                                         }
                                     />
@@ -838,12 +878,15 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                     </Label>
                                     <Input
                                         id="harga_penawaran"
-                                        type="number"
-                                        value={materialForm.hargaPenawaran}
+                                        type="text"
+                                        value={formatRupiahInput(materialForm.hargaPenawaran)}
                                         onChange={(event) =>
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                hargaPenawaran: event.target.value,
+                                                hargaPenawaran: event.target.value.replace(
+                                                    /\D/g,
+                                                    ''
+                                                ),
                                             }))
                                         }
                                     />
@@ -992,8 +1035,8 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                                     <td className="px-4 py-3">
                                                         {isEditing ? (
                                                             <Input
-                                                                type="number"
-                                                                value={row?.hargaModal ?? ''}
+                                                                type="text"
+                                                                value={formatRupiahInput(row?.hargaModal ?? '')}
                                                                 onChange={(event) =>
                                                                     handleEditMaterialChange(
                                                                         'hargaModal',
@@ -1002,14 +1045,14 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                                                 }
                                                             />
                                                         ) : (
-                                                            item.hargaModal
+                                                            formatRupiahInput(item.hargaModal)
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {isEditing ? (
                                                             <Input
-                                                                type="number"
-                                                                value={row?.hargaPenawaran ?? ''}
+                                                                type="text"
+                                                                value={formatRupiahInput(row?.hargaPenawaran ?? '')}
                                                                 onChange={(event) =>
                                                                     handleEditMaterialChange(
                                                                         'hargaPenawaran',
@@ -1018,7 +1061,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                                                 }
                                                             />
                                                         ) : (
-                                                            item.hargaPenawaran
+                                                            formatRupiahInput(item.hargaPenawaran)
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3">
@@ -1152,15 +1195,20 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                 Berikutnya
                             </Button>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting && <Spinner className="mr-2" />}
-                                {isSubmitting ? 'Menyimpan...' : 'Simpan'}
-                            </Button>
-                            <Button variant="outline" asChild>
-                                <Link href="/marketing/quotation">Batal</Link>
-                            </Button>
-                        </div>
+                        {activeStep === steps.length - 1 && (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button
+                                    type="submit"
+                                    disabled={isSubmitting || materialItems.length === 0}
+                                >
+                                    {isSubmitting && <Spinner className="mr-2" />}
+                                    {isSubmitting ? 'Menyimpan...' : 'Simpan'}
+                                </Button>
+                                <Button variant="outline" asChild>
+                                    <Link href="/marketing/quotation">Batal</Link>
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 </form>
             </div>

@@ -40,7 +40,14 @@ RUN apt-get update \
     && rm -rf /etc/nginx/sites-enabled/default \
     && rm -rf /var/lib/apt/lists/*
 
-RUN docker-php-ext-install pdo_mysql intl
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends $PHPIZE_DEPS; \
+    pecl install redis; \
+    docker-php-ext-enable redis; \
+    docker-php-ext-install pdo_mysql intl; \
+    apt-get purge -y --auto-remove $PHPIZE_DEPS; \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /var/www/html
 

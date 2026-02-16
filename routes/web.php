@@ -123,7 +123,7 @@ Route::post('/login-simple', function (Request $request) {
     $onlineSetKey = onlineUsersSetKey($database);
     $onlineAliveKey = onlineUserAliveKey($database, $user->pengguna);
     $onlineNameKey = onlineUserNameKey($database, $user->pengguna);
-    Redis::sadd($onlineSetKey, [$user->pengguna]);
+    Redis::sadd($onlineSetKey, $user->pengguna);
     Redis::setex($onlineAliveKey, $onlineTtlSeconds, (string) time());
     Redis::setex($onlineNameKey, $onlineTtlSeconds, (string) ($user->name ?? $user->pengguna));
 
@@ -146,8 +146,10 @@ Route::post('/login-simple', function (Request $request) {
 
 
 Route::post('/heartbeat-simple', function (Request $request) {
-    $database = $request->cookie('tenant_database');
-    $username = $request->cookie('login_user');
+    $database = $request->cookie('tenant_database')
+        ?? $request->session()->get('tenant.database');
+    $username = $request->cookie('login_user')
+        ?? optional(Auth::user())->pengguna;
     $allowed = config('tenants.databases', []);
 
     if (!$username) {
@@ -176,7 +178,7 @@ Route::post('/heartbeat-simple', function (Request $request) {
     $onlineNameKey = onlineUserNameKey($database, $username);
     $displayName = (string) ($request->cookie('login_user_name') ?: $username);
 
-    Redis::sadd($onlineSetKey, [$username]);
+    Redis::sadd($onlineSetKey, $username);
     Redis::setex($onlineAliveKey, $onlineTtlSeconds, (string) time());
     Redis::setex($onlineNameKey, $onlineTtlSeconds, $displayName);
 
@@ -184,8 +186,10 @@ Route::post('/heartbeat-simple', function (Request $request) {
 });
 
 Route::match(['get', 'post'], '/logout-simple', function (Request $request) {
-    $database = $request->cookie('tenant_database');
-    $username = $request->cookie('login_user');
+    $database = $request->cookie('tenant_database')
+        ?? $request->session()->get('tenant.database');
+    $username = $request->cookie('login_user')
+        ?? optional(Auth::user())->pengguna;
     $allowed = config('tenants.databases', []);
 
     if ($database && in_array($database, $allowed, true)) {
@@ -208,7 +212,7 @@ Route::match(['get', 'post'], '/logout-simple', function (Request $request) {
             $onlineSetKey = onlineUsersSetKey($database);
             $onlineAliveKey = onlineUserAliveKey($database, $username);
             $onlineNameKey = onlineUserNameKey($database, $username);
-            Redis::srem($onlineSetKey, [$username]);
+            Redis::srem($onlineSetKey, $username);
             Redis::del([$onlineAliveKey, $onlineNameKey]);
         }
     }
@@ -225,7 +229,8 @@ Route::match(['get', 'post'], '/logout-simple', function (Request $request) {
 });
 
 Route::get('/online-users', function (Request $request) {
-    $database = $request->cookie('tenant_database');
+    $database = $request->cookie('tenant_database')
+        ?? $request->session()->get('tenant.database');
     $allowed = config('tenants.databases', []);
 
     if (!$database || !in_array($database, $allowed, true)) {
@@ -248,7 +253,7 @@ Route::get('/online-users', function (Request $request) {
     }
 
     if (!empty($staleUsers)) {
-        Redis::srem($onlineSetKey, $staleUsers);
+        Redis::srem($onlineSetKey, ...$staleUsers);
     }
 
     sort($aliveUsers, SORT_NATURAL | SORT_FLAG_CASE);
@@ -261,7 +266,8 @@ Route::get('/online-users', function (Request $request) {
 });
 
 Route::get('/ping-db', function (Request $request) {
-    $database = $request->cookie('tenant_database');
+    $database = $request->cookie('tenant_database')
+        ?? $request->session()->get('tenant.database');
     $allowed = config('tenants.databases', []);
 
     if (!$database || !in_array($database, $allowed, true)) {

@@ -7,6 +7,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(() => {
     const enableWayfinder = false;
+    const hmrHost = process.env.VITE_HMR_HOST || '192.168.1.250';
     // process.env.WAYFINDER_DISABLE !== '1' &&
     // process.env.WAYFINDER_DISABLE !== 'true';
 
@@ -43,7 +44,7 @@ export default defineConfig(() => {
             host: '0.0.0.0',
             cors: true,
             hmr: {
-                host: '192.168.1.250',
+                host: hmrHost,
             },
             watch: {
                 usePolling: true,

@@ -13,7 +13,7 @@ import { RefreshCw } from 'lucide-react';
 const breadcrumbs = [
     {
         title: 'Dashboard',
-        href: dashboard().url,
+        href: dashboard(),
     },
 ];
 

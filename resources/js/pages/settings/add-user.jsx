@@ -1,4 +1,3 @@
-import AddUserController from '@/actions/App/Http/Controllers/Settings/AddUserController';
 import HeadingSmall from '@/components/heading-small';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -23,6 +22,7 @@ const breadcrumbs = [
 ];
 
 export default function AddUser() {
+    const addUserForm = { action: '/settings/add-user', method: 'post' };
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
@@ -285,7 +285,7 @@ export default function AddUser() {
                             <DialogTitle>Add New User</DialogTitle>
                         </DialogHeader>
                         <Form
-                            {...AddUserController.store.form()}
+                            {...addUserForm}
                             options={{
                                 preserveScroll: true,
                                 onSuccess: () => {

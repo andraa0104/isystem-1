@@ -8,7 +8,11 @@ export function UserMenuContent({ user }) {
     const handleLogout = () => {
         cleanup();
         router.flushAll();
-        router.post('/logout-simple', {}, { onSuccess: () => router.visit('/login') });
+        router.post('/logout-simple', {}, {
+            onFinish: () => {
+                window.location.replace('/login');
+            },
+        });
     };
     return (<>
             <DropdownMenuLabel className="p-0 font-normal">

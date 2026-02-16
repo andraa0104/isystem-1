@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class AuthenticateFromCookie
 {
@@ -17,6 +18,41 @@ class AuthenticateFromCookie
      */
     public function handle(Request $request, Closure $next)
     {
+        $isGuestAllowedPath = function (Request $request): bool {
+            if ($request->is('/')) {
+                return true;
+            }
+
+            return $request->is([
+                'login',
+                'login-simple',
+                'logout',
+                'logout-simple',
+                'heartbeat-simple',
+                'up',
+                'storage/*',
+                'register',
+                'forgot-password',
+                'reset-password',
+                'two-factor-challenge',
+                'user/confirm-password',
+                'user/confirmed-password-status',
+                'email/*',
+            ]);
+        };
+
+        $guestResponse = function (Request $request) {
+            if ($request->header('X-Inertia')) {
+                return Inertia::location('/login');
+            }
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Unauthenticated'], 401);
+            }
+
+            return redirect('/login');
+        };
+
         $database = $request->session()->get('tenant.database')
             ?? $request->cookie('tenant_database');
         $timeoutSeconds = (int) env('BROWSER_ACTIVE_TIMEOUT_SECONDS', 120);
@@ -63,6 +99,9 @@ class AuthenticateFromCookie
 
         $username = $request->cookie('login_user');
         if (!$username) {
+            if (!$isGuestAllowedPath($request)) {
+                return $guestResponse($request);
+            }
             return $next($request);
         }
 
@@ -78,6 +117,8 @@ class AuthenticateFromCookie
         $user = Pengguna::where('pengguna', $username)->first();
         if ($user) {
             Auth::login($user);
+        } elseif (!$isGuestAllowedPath($request)) {
+            return $guestResponse($request);
         }
 
         return $next($request);

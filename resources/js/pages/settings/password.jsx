@@ -1,4 +1,3 @@
-import PasswordController from '@/actions/App/Http/Controllers/Settings/PasswordController';
 import InputError from '@/components/input-error';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
@@ -19,6 +18,7 @@ const breadcrumbs = [
 export default function Password() {
     const passwordInput = useRef(null);
     const currentPasswordInput = useRef(null);
+    const passwordUpdateForm = { action: '/settings/password', method: 'put' };
     return (<AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Password settings"/>
 
@@ -28,7 +28,7 @@ export default function Password() {
                 <div className="space-y-6">
                     <HeadingSmall title="Update password" description="Ensure your account is using a long, random password to stay secure"/>
 
-                    <Form {...PasswordController.update.form()} options={{
+                    <Form {...passwordUpdateForm} options={{
             preserveScroll: true,
         }} resetOnError={[
             'password',

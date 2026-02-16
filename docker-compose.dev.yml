@@ -9,8 +9,8 @@ services:
     environment:
       APP_ENV: local
       APP_DEBUG: "true"
-      APP_URL: http://192.168.1.250:8080
-      ASSET_URL: http://192.168.1.250:8080
+      APP_URL: ${APP_URL}
+      ASSET_URL: ${ASSET_URL}
     ports:
       - "8080:80"
     volumes:

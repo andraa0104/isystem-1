@@ -45,7 +45,7 @@ export default function DeliveryOrderPrint({
             <div className="print-container mx-auto w-full max-w-[900px] text-[12px] leading-tight">
                 <div className="flex items-start justify-between gap-2">
                     <div className="w-[60%]">
-                        <div className="text-[20px] font-bold uppercase">
+                        <div className="text-[20px] font-semibold uppercase">
                             {renderValue(company.name)}
                         </div>
                         {companyLines.map((line, idx) => (
@@ -54,9 +54,9 @@ export default function DeliveryOrderPrint({
                             </div>
                         ))}
                     </div>
-                    <div className="delivery-to box-border w-[40%] border border-black px-2 py-1">
+                    <div className="delivery-to box-border w-[40%] border border-neutral-700 px-2 py-1">
                         <div className="mb-1 underline">Delivery To :</div>
-                        <div className="mb-1 font-extrabold uppercase">
+                        <div className="mb-1 font-semibold uppercase">
                             {renderValue(deliveryOrder?.nm_cs)}
                         </div>
                         <div className="print-address uppercase">
@@ -91,7 +91,7 @@ export default function DeliveryOrderPrint({
                     </table>
                 </div>
 
-                <div className="border border-black">
+                <div className="border border-neutral-700">
                     <table className="no-row-lines w-full border-collapse text-[12px]">
                         <colgroup>
                             <col className="w-[4%]" />
@@ -101,16 +101,16 @@ export default function DeliveryOrderPrint({
                         </colgroup>
                         <thead>
                             <tr>
-                                <th className="border-r border-b border-black py-[2px] text-center leading-tight font-normal">
+                                <th className="border-r border-b border-neutral-700 py-[2px] text-center leading-tight font-normal">
                                     No.
                                 </th>
-                                <th className="border-r border-b border-black py-[2px] text-center leading-tight font-normal">
+                                <th className="border-r border-b border-neutral-700 py-[2px] text-center leading-tight font-normal">
                                     Quantity
                                 </th>
-                                <th className="border-r border-b border-black py-[2px] text-center leading-tight font-normal">
+                                <th className="border-r border-b border-neutral-700 py-[2px] text-center leading-tight font-normal">
                                     Description
                                 </th>
-                                <th className="border-b border-black py-[2px] text-center leading-tight font-normal">
+                                <th className="border-b border-neutral-700 py-[2px] text-center leading-tight font-normal">
                                     Remark
                                 </th>
                             </tr>
@@ -119,7 +119,7 @@ export default function DeliveryOrderPrint({
                             {deliveryOrderDetails.map((item, index) => {
                                 const isLast =
                                     index === deliveryOrderDetails.length - 1;
-                                const cellClass = 'border-r border-black';
+                                const cellClass = 'border-r border-neutral-700';
                                 const lastCellClass = '';
 
                                 return (
@@ -151,7 +151,7 @@ export default function DeliveryOrderPrint({
                             {deliveryOrderDetails.length === 0 && (
                                 <tr>
                                     <td
-                                        className="border-t border-black py-2 text-center"
+                                        className="border-t border-neutral-700 py-2 text-center"
                                         colSpan={4}
                                     >
                                         Tidak ada detail DO.
@@ -160,13 +160,13 @@ export default function DeliveryOrderPrint({
                             )}
                             {deliveryOrderDetails.length > 0 && (
                                 <tr className="h-[20px]">
-                                    <td className="border-r border-black">
+                                    <td className="border-r border-neutral-700">
                                         &nbsp;
                                     </td>
-                                    <td className="border-r border-black">
+                                    <td className="border-r border-neutral-700">
                                         &nbsp;
                                     </td>
-                                    <td className="border-r border-black">
+                                    <td className="border-r border-neutral-700">
                                         &nbsp;
                                     </td>
                                     <td>&nbsp;</td>
@@ -176,7 +176,7 @@ export default function DeliveryOrderPrint({
                     </table>
                 </div>
 
-                <div className="mt-4 border-x border-b border-black">
+                <div className="mt-4 border-x border-b border-neutral-700">
                     <table className="w-full border-collapse text-[11px]">
                         <colgroup>
                             <col className="w-[20%]" />
@@ -186,13 +186,13 @@ export default function DeliveryOrderPrint({
                         </colgroup>
                         <tbody>
                             <tr>
-                                <td className="border-r border-black py-1 text-center">
+                                <td className="border-r border-neutral-700 py-1 text-center">
                                     Created By,
                                 </td>
-                                <td className="border-r border-black py-1 text-center">
+                                <td className="border-r border-neutral-700 py-1 text-center">
                                     Check By,
                                 </td>
-                                <td className="border-r border-black py-1 text-center">
+                                <td className="border-r border-neutral-700 py-1 text-center">
                                     Carried By,
                                 </td>
                                 <td className="py-1 text-center">
@@ -200,22 +200,22 @@ export default function DeliveryOrderPrint({
                                 </td>
                             </tr>
                             <tr>
-                                <td className="h-[60px] border-r border-black" />
-                                <td className="h-[60px] border-r border-black" />
-                                <td className="h-[60px] border-r border-black" />
+                                <td className="h-[60px] border-r border-neutral-700" />
+                                <td className="h-[60px] border-r border-neutral-700" />
+                                <td className="h-[60px] border-r border-neutral-700" />
                                 <td className="h-[60px]" />
                             </tr>
                             <tr>
-                                <td className="border-t border-r border-black py-1 text-center">
+                                <td className="border-t border-r border-neutral-700 py-1 text-center">
                                     &nbsp;
                                 </td>
-                                <td className="border-t border-r border-black py-1 text-center">
+                                <td className="border-t border-r border-neutral-700 py-1 text-center">
                                     &nbsp;
                                 </td>
-                                <td className="border-t border-r border-black py-1 text-center">
+                                <td className="border-t border-r border-neutral-700 py-1 text-center">
                                     &nbsp;
                                 </td>
-                                <td className="border-t border-black py-1 text-center font-semibold uppercase">
+                                <td className="border-t border-neutral-700 py-1 text-center font-normal uppercase">
                                     {renderValue(deliveryOrder?.nm_cs)}
                                 </td>
                             </tr>
@@ -251,21 +251,21 @@ export default function DeliveryOrderPrint({
                     }
                     html, body, * {
                         /* Prioritize clarity over alignment: use common sans fonts for sharper output. */
-                        font-family: Chivo !important;
+                        font-family: Microsoft Sans Serif !important;
                     }
                     body {
                         /* Slightly larger + heavier improves legibility on Epson LX. */
                         font-size: 12pt !important;
                         line-height: 1.2 !important;
                         /* Avoid dot-matrix "bleeding" while staying readable. */
-                        font-weight: 700 !important;
+                        font-weight: 500 !important;
                         letter-spacing: 0 !important;
                         -webkit-font-smoothing: antialiased;
                         -moz-osx-font-smoothing: grayscale;
                         text-rendering: optimizeLegibility;
                     }
                     .print-address {
-                        font-weight: 700 !important;
+                        font-weight: 500 !important;
                     }
                     .print-container {
                         max-width: none !important;
@@ -278,16 +278,16 @@ export default function DeliveryOrderPrint({
                         overflow: visible !important;
                     }
                     .delivery-to {
-                        border: 2px solid #000 !important;
+                        border: 0.5px solid #444 !important;
                     }
                     table {
                         border-collapse: collapse !important;
-                        border: 0.5px solid #000 !important;
+                        border: 0.35px solid #444 !important;
                         width: 100% !important;
                     }
                     th, td {
-                        border: 0.5px solid #000 !important;
-                        font-weight: 600 !important;
+                        border: 0.35px solid #444 !important;
+                        font-weight: 500 !important;
                     }
                     table.no-border,
                     table.no-border th,
@@ -299,8 +299,8 @@ export default function DeliveryOrderPrint({
                         border-bottom: 0 !important;
                     }
                     table.no-row-lines thead th {
-                        border-top: 0.5px solid #000 !important;
-                        border-bottom: 0.5px solid #000 !important;
+                        border-top: 0.35px solid #444 !important;
+                        border-bottom: 0.35px solid #444 !important;
                     }
                 }
             `}</style>
