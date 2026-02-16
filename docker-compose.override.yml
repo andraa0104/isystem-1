@@ -41,6 +41,7 @@ services:
     environment:
       APP_ENV: local
       APP_DEBUG: "true"
+      CACHE_STORE: file
       SESSION_DRIVER: redis
       SESSION_CONNECTION: default
       REDIS_HOST: redis
@@ -48,3 +49,4 @@ services:
     volumes:
       - ./:/var/www/html
       - storage-data:/var/www/html/storage
+      - /var/www/html/vendor

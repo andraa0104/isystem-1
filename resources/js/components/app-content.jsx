@@ -11,42 +11,62 @@ export function AppContent({
     ...props
 }) {
     const [isLoading, setIsLoading] = React.useState(false);
+    const startedAtRef = React.useRef(0);
+    const hideTimerRef = React.useRef(null);
 
     React.useEffect(() => {
-        let loadingTimer = null;
+        const MIN_VISIBLE_MS = 350;
+        const clearHideTimer = () => {
+            if (hideTimerRef.current) {
+                clearTimeout(hideTimerRef.current);
+                hideTimerRef.current = null;
+            }
+        };
+        const hideWithMinDuration = () => {
+            const elapsed = Date.now() - startedAtRef.current;
+            const remaining = Math.max(0, MIN_VISIBLE_MS - elapsed);
+            clearHideTimer();
+            hideTimerRef.current = setTimeout(() => {
+                setIsLoading(false);
+            }, remaining);
+        };
 
         const removeStart = router.on('start', (event) => {
             if (event.detail.visit?.prefetch) {
                 return;
             }
-            loadingTimer = setTimeout(() => {
-                setIsLoading(true);
-            }, 200);
+            clearHideTimer();
+            startedAtRef.current = Date.now();
+            setIsLoading(true);
+        });
+        const removeNavigate = router.on('navigate', () => {
+            hideWithMinDuration();
         });
         const removeFinish = router.on('finish', (event) => {
             if (event.detail.visit?.prefetch) {
                 return;
             }
-            if (loadingTimer) {
-                clearTimeout(loadingTimer);
-                loadingTimer = null;
+            if (event.detail.visit?.completed === false) {
+                hideWithMinDuration();
             }
-            setIsLoading(false);
         });
 
         return () => {
-            if (loadingTimer) {
-                clearTimeout(loadingTimer);
-            }
+            clearHideTimer();
             removeStart();
+            removeNavigate();
             removeFinish();
         };
     }, []);
 
     const loadingOverlay = isLoading ? (
-        <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-background/60 text-muted-foreground backdrop-blur-sm">
-            <Spinner className="size-6" />
-            <span className="text-sm font-medium">Loading...</span>
+        <div className="absolute inset-0 z-40 bg-background/45 backdrop-blur-[1px]">
+            <div className="sticky top-[50vh] flex -translate-y-1/2 justify-center">
+                <div className="flex items-center gap-2 rounded-lg border border-sidebar-border/70 bg-background px-4 py-3 text-muted-foreground shadow-sm">
+                    <Spinner className="size-6" />
+                    <span className="text-sm font-medium">Memuat halaman...</span>
+                </div>
+            </div>
         </div>
     ) : null;
 

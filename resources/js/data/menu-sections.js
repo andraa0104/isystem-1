@@ -24,6 +24,10 @@ export const menuSections = [
         items: [
             { title: 'Quotation', href: '/marketing/quotation' },
             {
+                title: 'Purchase Order In (PO In)',
+                href: '/marketing/purchase-order-in',
+            },
+            {
                 title: 'Purchase Requirement (PR)',
                 href: '/marketing/purchase-requirement',
             },

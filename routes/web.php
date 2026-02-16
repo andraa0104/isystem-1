@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Marketing\QuotationController;
 use App\Http\Controllers\Marketing\PurchaseRequirementController;
 use App\Http\Controllers\Marketing\PurchaseOrderController;
+use App\Http\Controllers\Marketing\PurchaseOrderInController;
 use App\Http\Controllers\Marketing\DeliveryOrderController;
 use App\Http\Controllers\Marketing\DeliveryOrderAddController;
 use App\Http\Controllers\Marketing\DeliveryOrderCostController;
@@ -435,6 +436,11 @@ Route::delete('marketing/quotation/{noPenawaran}/detail/{detailId}', [QuotationC
     ->name('marketing.quotation.detail.destroy');
 Route::post('marketing/quotation', [QuotationController::class, 'store'])
     ->name('marketing.quotation.store');
+
+Route::get('marketing/purchase-order-in', [PurchaseOrderInController::class, 'index'])
+    ->name('marketing.purchase-order-in.index');
+Route::get('marketing/purchase-order-in/create', [PurchaseOrderInController::class, 'create'])
+    ->name('marketing.purchase-order-in.create');
 
 Route::get('marketing/purchase-requirement', [PurchaseRequirementController::class, 'index'])
     ->name('marketing.purchase-requirement.index');

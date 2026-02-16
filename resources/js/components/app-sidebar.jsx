@@ -252,7 +252,7 @@ export function AppSidebar() {
                                                     <DropdownMenuItem key={item.title} asChild className={dropdownItemWrapClass}>
                                                         <Link
                                                             href={item.href}
-                                                            prefetch={item.href !== '/pembayaran/biaya-kirim-pembelian'}
+                                                            prefetch={false}
                                                         >
                                                             <span>{item.title}</span>
                                                         </Link>
@@ -283,7 +283,7 @@ export function AppSidebar() {
                                                             <SidebarMenuSubButton asChild className={subMenuTextWrapClass}>
                                                                 <Link
                                                                     href={item.href}
-                                                                    prefetch={item.href !== '/pembayaran/biaya-kirim-pembelian'}
+                                                                    prefetch={false}
                                                                 >
                                                                     <span className={isCollapsed ? 'sr-only' : ''}>
                                                                         {item.title}

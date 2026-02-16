@@ -74,7 +74,13 @@ class PurchaseOrderController
                 DB::raw('(
                     select
                         no_pr,
-                        sum(case when sisa_pr <> 0 then 1 else 0 end) as outstanding_count
+                        sum(
+                            case
+                                when coalesce(cast(replace(sisa_pr, \',\', \'\') as decimal(18,4)), 0) <> 0
+                                then 1
+                                else 0
+                            end
+                        ) as outstanding_count
                     from tb_detailpr
                     group by no_pr
                 ) as detail'),
@@ -107,6 +113,7 @@ class PurchaseOrderController
                 'kd_material',
                 'material',
                 'qty',
+                'sisa_pr',
                 'unit',
                 'renmark'
             )
@@ -236,17 +243,37 @@ class PurchaseOrderController
                         $kdMat = $item['kd_mat'] ?? null;
                         $qty = (float) ($item['qty'] ?? 0);
 
-                        $prQty = (float) DB::table('tb_detailpr')
+                        $detailPr = DB::table('tb_detailpr')
                             ->where('no_pr', $noPr)
                             ->where('kd_material', $kdMat)
-                            ->value('qty');
+                            ->lockForUpdate()
+                            ->first();
 
-                        $usedQty = (float) DB::table('tb_detailpo')
-                            ->where('ref_pr', $noPr)
-                            ->where('kd_mat', $kdMat)
-                            ->sum('qty');
+                        if (!$detailPr) {
+                            throw new \RuntimeException("Detail PR tidak ditemukan untuk no_pr={$noPr}, kd_material={$kdMat}");
+                        }
 
-                        $sisaPr = $prQty - ($usedQty + $qty);
+                        $parseNumber = static function ($value): float {
+                            if ($value === null || $value === '') {
+                                return 0.0;
+                            }
+                            return (float) str_replace(',', '', (string) $value);
+                        };
+
+                        $prQty = $parseNumber($detailPr->qty ?? 0);
+                        $currentSisaPr = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? $prQty);
+                        $currentQtyPo = $parseNumber($detailPr->qty_po ?? 0);
+
+                        $sisaPr = max(0, $currentSisaPr - $qty);
+                        $newQtyPo = $currentQtyPo + $qty;
+
+                        DB::table('tb_detailpr')
+                            ->where('no_pr', $noPr)
+                            ->where('kd_material', $kdMat)
+                            ->update([
+                                'sisa_pr' => $sisaPr,
+                                'qty_po' => $newQtyPo,
+                            ]);
 
                         DB::table('tb_detailpo')->insert([
                             'id' => $maxId,
@@ -366,6 +393,12 @@ class PurchaseOrderController
                     ]);
 
                 $nowStamp = now()->format('m/d/Y h:i:s A');
+                $parseNumber = static function ($value): float {
+                    if ($value === null || $value === '') {
+                        return 0.0;
+                    }
+                    return (float) str_replace(',', '', (string) $value);
+                };
 
                 foreach ($materials as $item) {
                     $id = $item['id'] ?? null;
@@ -388,6 +421,16 @@ class PurchaseOrderController
                         $detailQuery->where('id', $id);
                     }
 
+                    $existingDetail = (clone $detailQuery)->lockForUpdate()->first();
+                    if (!$existingDetail) {
+                        continue;
+                    }
+
+                    $resolvedKdMat = $kdMat ?: ($existingDetail->kd_mat ?? null);
+                    $oldQty = $parseNumber($existingDetail->qty ?? 0);
+                    $newQty = $parseNumber($qtyValue);
+                    $qtyDelta = $newQty - $oldQty;
+
                     $detailQuery->update([
                         'tgl' => $dateFormatted,
                         'qty' => $qtyValue,
@@ -396,6 +439,31 @@ class PurchaseOrderController
                         'gr_price' => $totalPriceValue,
                         'ppn' => $ppnValue,
                     ]);
+
+                    $noPr = $request->input('ref_pr') ?: ($existingDetail->ref_pr ?? null);
+                    if ($noPr && $resolvedKdMat && abs($qtyDelta) > 0.000001) {
+                        $detailPr = DB::table('tb_detailpr')
+                            ->where('no_pr', $noPr)
+                            ->where('kd_material', $resolvedKdMat)
+                            ->lockForUpdate()
+                            ->first();
+
+                        if ($detailPr) {
+                            $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
+                            $currentQtyPo = $parseNumber($detailPr->qty_po ?? 0);
+
+                            $newSisa = max(0, $currentSisa - $qtyDelta);
+                            $newQtyPo = max(0, $currentQtyPo + $qtyDelta);
+
+                            DB::table('tb_detailpr')
+                                ->where('no_pr', $noPr)
+                                ->where('kd_material', $resolvedKdMat)
+                                ->update([
+                                    'sisa_pr' => $newSisa,
+                                    'qty_po' => $newQtyPo,
+                                ]);
+                        }
+                    }
 
                     if ($kdMat) {
                         $detailRow = DB::table('tb_detailpo')
@@ -471,42 +539,91 @@ class PurchaseOrderController
 
     public function updateDetail(Request $request, $noPo, $detailId)
     {
-        $updated = DB::table('tb_detailpo')
-            ->where('no_po', $noPo)
-            ->where('id', $detailId)
-            ->update([
-                'qty' => $request->input('qty', 0),
-                'price' => $request->input('price', 0),
-                'total_price' => $request->input('total_price', 0),
-                'gr_price' => $request->input('total_price', 0),
-            ]);
+        try {
+            DB::transaction(function () use ($request, $noPo, $detailId) {
+                $parseNumber = static function ($value): float {
+                    if ($value === null || $value === '') {
+                        return 0.0;
+                    }
+                    return (float) str_replace(',', '', (string) $value);
+                };
 
-        if (!$updated) {
-            return back()->with('error', 'Detail PO tidak ditemukan.');
+                $detailRow = DB::table('tb_detailpo')
+                    ->where('no_po', $noPo)
+                    ->where('id', $detailId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$detailRow) {
+                    throw new \RuntimeException('Detail PO tidak ditemukan.');
+                }
+
+                $oldQty = $parseNumber($detailRow->qty ?? 0);
+                $newQty = $parseNumber($request->input('qty', 0));
+                $qtyDelta = $newQty - $oldQty;
+
+                DB::table('tb_detailpo')
+                    ->where('no_po', $noPo)
+                    ->where('id', $detailId)
+                    ->update([
+                        'qty' => $request->input('qty', 0),
+                        'price' => $request->input('price', 0),
+                        'total_price' => $request->input('total_price', 0),
+                        'gr_price' => $request->input('total_price', 0),
+                    ]);
+
+                $noPr = $detailRow->ref_pr ?? null;
+                $kdMat = $detailRow->kd_mat ?? null;
+                if ($noPr && $kdMat && abs($qtyDelta) > 0.000001) {
+                    $detailPr = DB::table('tb_detailpr')
+                        ->where('no_pr', $noPr)
+                        ->where('kd_material', $kdMat)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($detailPr) {
+                        $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
+                        $currentQtyPo = $parseNumber($detailPr->qty_po ?? 0);
+
+                        $newSisa = max(0, $currentSisa - $qtyDelta);
+                        $newQtyPo = max(0, $currentQtyPo + $qtyDelta);
+
+                        DB::table('tb_detailpr')
+                            ->where('no_pr', $noPr)
+                            ->where('kd_material', $kdMat)
+                            ->update([
+                                'sisa_pr' => $newSisa,
+                                'qty_po' => $newQtyPo,
+                            ]);
+                    }
+                }
+
+                $totalPpn = (float) DB::table('tb_detailpo')
+                    ->where('no_po', $noPo)
+                    ->selectRaw('coalesce(sum(total_price - (qty * price)), 0) as total_ppn')
+                    ->value('total_ppn');
+
+                $totalBeforePpn = (float) DB::table('tb_detailpo')
+                    ->where('no_po', $noPo)
+                    ->selectRaw('coalesce(sum(qty * price), 0) as total_before_ppn')
+                    ->value('total_before_ppn');
+
+                $grandTotal = (float) DB::table('tb_detailpo')
+                    ->where('no_po', $noPo)
+                    ->selectRaw('coalesce(sum(total_price), 0) as grand_total')
+                    ->value('grand_total');
+
+                DB::table('tb_po')
+                    ->where('no_po', $noPo)
+                    ->update([
+                        's_total' => $totalBeforePpn,
+                        'h_ppn' => $totalPpn,
+                        'g_total' => $grandTotal,
+                    ]);
+            });
+        } catch (\Throwable $exception) {
+            return back()->with('error', $exception->getMessage());
         }
-
-        $totalPpn = (float) DB::table('tb_detailpo')
-            ->where('no_po', $noPo)
-            ->selectRaw('coalesce(sum(total_price - (qty * price)), 0) as total_ppn')
-            ->value('total_ppn');
-
-        $totalBeforePpn = (float) DB::table('tb_detailpo')
-            ->where('no_po', $noPo)
-            ->selectRaw('coalesce(sum(qty * price), 0) as total_before_ppn')
-            ->value('total_before_ppn');
-
-        $grandTotal = (float) DB::table('tb_detailpo')
-            ->where('no_po', $noPo)
-            ->selectRaw('coalesce(sum(total_price), 0) as grand_total')
-            ->value('grand_total');
-
-        DB::table('tb_po')
-            ->where('no_po', $noPo)
-            ->update([
-                's_total' => $totalBeforePpn,
-                'h_ppn' => $totalPpn,
-                'g_total' => $grandTotal,
-            ]);
 
         return back()->with('success', 'Detail PO berhasil diperbarui.');
     }
@@ -515,6 +632,53 @@ class PurchaseOrderController
     {
         try {
             DB::transaction(function () use ($noPo, $kdMat) {
+                $parseNumber = static function ($value): float {
+                    if ($value === null || $value === '') {
+                        return 0.0;
+                    }
+                    return (float) str_replace(',', '', (string) $value);
+                };
+
+                $detailRows = DB::table('tb_detailpo')
+                    ->where('no_po', $noPo)
+                    ->where('kd_mat', $kdMat)
+                    ->lockForUpdate()
+                    ->get(['ref_pr', 'kd_mat', 'qty']);
+
+                foreach ($detailRows as $row) {
+                    $noPr = trim((string) ($row->ref_pr ?? ''));
+                    $kodeMaterial = trim((string) ($row->kd_mat ?? ''));
+                    if ($noPr === '' || $kodeMaterial === '') {
+                        continue;
+                    }
+
+                    $qty = $parseNumber($row->qty ?? 0);
+                    if ($qty <= 0) {
+                        continue;
+                    }
+
+                    $detailPr = DB::table('tb_detailpr')
+                        ->where('no_pr', $noPr)
+                        ->where('kd_material', $kodeMaterial)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$detailPr) {
+                        continue;
+                    }
+
+                    $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
+                    $currentQtyPo = $parseNumber($detailPr->qty_po ?? 0);
+
+                    DB::table('tb_detailpr')
+                        ->where('no_pr', $noPr)
+                        ->where('kd_material', $kodeMaterial)
+                        ->update([
+                            'sisa_pr' => $currentSisa + $qty,
+                            'qty_po' => max(0, $currentQtyPo - $qty),
+                        ]);
+                }
+
                 DB::table('tb_detailpo')
                     ->where('no_po', $noPo)
                     ->where('kd_mat', $kdMat)
@@ -940,6 +1104,13 @@ class PurchaseOrderController
 
         try {
             DB::transaction(function () use ($noPo, $timestamp, $fallbackForCus) {
+                $parseNumber = static function ($value): float {
+                    if ($value === null || $value === '') {
+                        return 0.0;
+                    }
+                    return (float) str_replace(',', '', (string) $value);
+                };
+
                 $details = DB::table('tb_detailpo')
                     ->whereRaw('lower(trim(no_po)) = ?', [strtolower($noPo)])
                     ->get([
@@ -975,6 +1146,40 @@ class PurchaseOrderController
                         'id',
                         'id_po',
                     ]);
+
+                foreach ($details as $row) {
+                    $noPr = trim((string) ($row->ref_pr ?? ''));
+                    $kdMat = trim((string) ($row->kd_mat ?? ''));
+                    if ($noPr === '' || $kdMat === '') {
+                        continue;
+                    }
+
+                    $qty = $parseNumber($row->qty ?? 0);
+                    if ($qty <= 0) {
+                        continue;
+                    }
+
+                    $detailPr = DB::table('tb_detailpr')
+                        ->where('no_pr', $noPr)
+                        ->where('kd_material', $kdMat)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$detailPr) {
+                        continue;
+                    }
+
+                    $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
+                    $currentQtyPo = $parseNumber($detailPr->qty_po ?? 0);
+
+                    DB::table('tb_detailpr')
+                        ->where('no_pr', $noPr)
+                        ->where('kd_material', $kdMat)
+                        ->update([
+                            'sisa_pr' => $currentSisa + $qty,
+                            'qty_po' => max(0, $currentQtyPo - $qty),
+                        ]);
+                }
 
                 if ($details->isNotEmpty()) {
                     $payload = $details->map(function ($row) use ($timestamp, $fallbackForCus) {

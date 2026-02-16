@@ -7,13 +7,14 @@ export default function AuthSimpleLayout({ children, title, description, }) {
                 <div className="flex flex-col gap-5">
                     <div className="flex flex-col items-center gap-0.5">
                         <Link href={home()} className="flex flex-col items-center gap-6 font-medium">
-                            <div className="flex size-30 items-center justify-center rounded-md">
+                            <div className="flex size-40 items-center justify-center rounded-md">
                                 <AppLogoIcon className="size-full object-contain"/>
                             </div>
                             <span className="sr-only">{title}</span>
                         </Link>
-                        <div className="rounded-full bg-muted px-4 py-1.5 text-sm font-semibold tracking-wide text-muted-foreground">
-                            i-System Versi 1.0
+                        <div className="rounded-full bg-muted px-6 py-1.5 text-center text-sm font-semibold tracking-wide text-muted-foreground">
+                            <div className="whitespace-nowrap">Enterprise Resource Planning (ERP) i-System</div>
+                            <div>Version 1.0</div>
                         </div>
 
                         <div className="space-y-2 text-center">

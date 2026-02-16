@@ -16,6 +16,7 @@ const databaseLabels = {
     dbarm: 'DB ARM',
 };
 export default function Login({ status, databases = [], selectedDatabase }) {
+    const page = usePage();
     const defaultDatabase = databases.includes(selectedDatabase)
         ? selectedDatabase
         : '';
@@ -24,6 +25,14 @@ export default function Login({ status, databases = [], selectedDatabase }) {
         ...store.form(),
         database: defaultDatabase || store.form().database, // Ensure default database is set
     });
+    const pageErrors = page.props?.errors ?? {};
+    const flashError = page.props?.flash?.error ?? null;
+    const authError =
+        errors.pengguna ||
+        errors.password ||
+        pageErrors.pengguna ||
+        pageErrors.password ||
+        flashError;
 
     const submit = (e) => {
         e.preventDefault();
@@ -38,12 +47,11 @@ export default function Login({ status, databases = [], selectedDatabase }) {
 
             <form onSubmit={submit} className="flex flex-col gap-6">
                 <div className="grid gap-6">
-                    {/* DEBUG: Show raw errors */}
-                    {/* <div className="text-xs text-red-500">
-                        DEBUG ERRORS: {JSON.stringify(errors)}
-                        <br />
-                        Page Props Errors: {JSON.stringify(usePage().props.errors)}
-                    </div> */}
+                    {authError && (
+                        <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+                            {authError}
+                        </div>
+                    )}
                     <div className="grid gap-2">
                         <Label htmlFor="database">Database</Label>
                         <select
@@ -63,7 +71,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                 </option>
                             ))}
                         </select>
-                        <InputError message={errors.database} />
+                        <InputError message={errors.database || pageErrors.database} />
                     </div>
 
                     <div className="grid gap-2">
@@ -80,7 +88,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                             autoComplete="username"
                             placeholder="Username"
                         />
-                        <InputError message={errors.pengguna} />
+                        <InputError message={errors.pengguna || pageErrors.pengguna} />
                     </div>
 
                     <div className="grid gap-2">
@@ -98,7 +106,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                             autoComplete="current-password"
                             placeholder="Password"
                         />
-                        <InputError message={errors.password} />
+                        <InputError message={errors.password || pageErrors.password} />
                     </div>
 
                     {/* <div className="flex items-center space-x-3">

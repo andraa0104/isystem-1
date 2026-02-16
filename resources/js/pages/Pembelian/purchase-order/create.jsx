@@ -24,6 +24,11 @@ const breadcrumbs = [
 const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
+const withRequiredSpace = (value) => {
+    const normalized = String(value ?? '');
+    return normalized.trim() === '' ? ' ' : normalized;
+};
+
 const parseNumber = (value) => {
     const normalized = String(value ?? '').replace(/,/g, '').trim();
     const parsed = Number(normalized);
@@ -93,6 +98,7 @@ export default function PurchaseOrderCreate({
         kodeMaterial: '',
         material: '',
         qty: '',
+        sisaQty: '',
         satuan: '',
         basePrice: '',
     });
@@ -163,19 +169,32 @@ export default function PurchaseOrderCreate({
             return [];
         }
 
-        return prDetailList.filter(
-            (detail) => detail.no_pr === formData.refPr
-        );
+        return prDetailList.filter((detail) => {
+            if (detail.no_pr !== formData.refPr) {
+                return false;
+            }
+
+            const sisaQty = parseNumber(detail.sisa_pr ?? detail.Sisa_pr);
+            return sisaQty > 0;
+        });
     }, [formData.refPr, prDetailList]);
 
     const basePriceValue = parseNumber(materialForm.basePrice);
+    const qtyValue = parseNumber(materialForm.qty);
+    const sisaQtyValue = parseNumber(materialForm.sisaQty);
     const appliedPpn = includePpn ? parseNumber(formData.ppn) : 0;
     const divisor = includePpn ? 1 + appliedPpn / 100 : 1;
     const netPrice = divisor ? basePriceValue / divisor : basePriceValue;
     const ppnValue = includePpn ? basePriceValue - netPrice : 0;
     const priceWithPpn = includePpn ? netPrice : basePriceValue;
     const totalPriceValue =
-        parseNumber(materialForm.qty) * (includePpn ? basePriceValue : netPrice);
+        qtyValue * (includePpn ? basePriceValue : netPrice);
+    const isQtyExceedsSisa = materialForm.qty !== '' && qtyValue > sisaQtyValue;
+    const canAddMaterial =
+        !!materialForm.kodeMaterial &&
+        qtyValue > 0 &&
+        !isQtyExceedsSisa &&
+        basePriceValue > 0;
 
     const handlePrSelect = (item) => {
         setFormData((prev) => ({
@@ -274,17 +293,19 @@ export default function PurchaseOrderCreate({
     };
 
     const handleMaterialSelect = (item) => {
+        const sisaQty = item.sisa_pr ?? item.Sisa_pr;
         setMaterialForm((prev) => ({
             ...prev,
             kodeMaterial: item.kd_material ?? '',
             material: item.material ?? '',
-            qty: item.qty ?? '',
+            qty: sisaQty ?? '',
+            sisaQty: sisaQty ?? '',
             satuan: item.unit ?? '',
         }));
     };
 
     const handleAddMaterial = () => {
-        if (!materialForm.kodeMaterial || !materialForm.qty) {
+        if (!canAddMaterial) {
             return;
         }
 
@@ -304,6 +325,7 @@ export default function PurchaseOrderCreate({
             kodeMaterial: '',
             material: '',
             qty: '',
+            sisaQty: '',
             satuan: '',
             basePrice: '',
         });
@@ -322,6 +344,10 @@ export default function PurchaseOrderCreate({
     const grandTotalSum = totalPriceSum + totalPpnSum;
 
     const handleSubmit = () => {
+        if (materialItems.length === 0) {
+            return;
+        }
+
         router.post(
             '/pembelian/purchase-order',
             {
@@ -336,10 +362,10 @@ export default function PurchaseOrderCreate({
                 payment_terms: formData.paymentTerms,
                 del_time: formData.deliveryTime,
                 franco_loco: formData.francoLoco,
-                ket1: formData.note1,
-                ket2: formData.note2,
-                ket3: formData.note3,
-                ket4: formData.note4,
+                ket1: withRequiredSpace(formData.note1),
+                ket2: withRequiredSpace(formData.note2),
+                ket3: withRequiredSpace(formData.note3),
+                ket4: withRequiredSpace(formData.note4),
                 s_total: totalPriceSum,
                 h_ppn: totalPpnSum,
                 g_total: grandTotalSum,
@@ -717,6 +743,9 @@ export default function PurchaseOrderCreate({
                                                 Qty
                                             </th>
                                             <th className="px-4 py-3 text-left">
+                                                Sisa Qty
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
                                                 Satuan
                                             </th>
                                             <th className="px-4 py-3 text-left">
@@ -726,7 +755,7 @@ export default function PurchaseOrderCreate({
 	                                    </thead>
 	                                    <tbody>
 	                                        <PlainTableStateRows
-	                                            columns={5}
+	                                            columns={6}
 	                                            loading={prDetailLoading && selectedPrMaterials.length === 0}
 	                                            error={selectedPrMaterials.length === 0 ? prDetailError : null}
 	                                            onRetry={
@@ -759,6 +788,9 @@ export default function PurchaseOrderCreate({
                                                     {renderValue(item.qty)}
                                                 </td>
                                                 <td className="px-4 py-3">
+                                                    {renderValue(item.sisa_pr ?? item.Sisa_pr)}
+                                                </td>
+                                                <td className="px-4 py-3">
                                                     {renderValue(item.unit)}
                                                 </td>
                                                 <td className="px-4 py-3">
@@ -782,6 +814,7 @@ export default function PurchaseOrderCreate({
                                 <div className="grid gap-2">
                                     <Label>Qty</Label>
                                     <Input
+                                        className={isQtyExceedsSisa ? 'border-red-500 focus-visible:ring-red-500' : ''}
                                         value={materialForm.qty}
                                         onChange={(event) =>
                                             setMaterialForm((prev) => ({
@@ -790,6 +823,11 @@ export default function PurchaseOrderCreate({
                                             }))
                                         }
                                     />
+                                    {isQtyExceedsSisa && (
+                                        <p className="text-xs text-red-600">
+                                            Qty melebihi sisa qty ({renderValue(materialForm.sisaQty)}).
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Satuan</Label>
@@ -853,7 +891,7 @@ export default function PurchaseOrderCreate({
                                     />
                                 </div>
                                 <div className="grid gap-2 lg:col-span-2">
-                                    <Button type="button" onClick={handleAddMaterial}>
+                                    <Button type="button" onClick={handleAddMaterial} disabled={!canAddMaterial}>
                                         Tambah Data
                                     </Button>
                                 </div>
@@ -970,7 +1008,7 @@ export default function PurchaseOrderCreate({
                             <Button
                                 type="button"
                                 onClick={handleSubmit}
-                                disabled={isSubmitting}
+                                disabled={isSubmitting || materialItems.length === 0}
                             >
                                 {isSubmitting && <Spinner className="mr-2" />}
                                 {isSubmitting ? 'Menyimpan...' : 'Simpan'}
