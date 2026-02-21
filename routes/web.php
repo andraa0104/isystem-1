@@ -441,6 +441,26 @@ Route::get('marketing/purchase-order-in', [PurchaseOrderInController::class, 'in
     ->name('marketing.purchase-order-in.index');
 Route::get('marketing/purchase-order-in/create', [PurchaseOrderInController::class, 'create'])
     ->name('marketing.purchase-order-in.create');
+Route::post('marketing/purchase-order-in', [PurchaseOrderInController::class, 'store'])
+    ->name('marketing.purchase-order-in.store');
+Route::get('marketing/purchase-order-in/{kodePoin}/edit', [PurchaseOrderInController::class, 'edit'])
+    ->name('marketing.purchase-order-in.edit');
+Route::put('marketing/purchase-order-in/{kodePoin}', [PurchaseOrderInController::class, 'update'])
+    ->name('marketing.purchase-order-in.update');
+Route::delete('marketing/purchase-order-in/{kodePoin}', [PurchaseOrderInController::class, 'destroy'])
+    ->name('marketing.purchase-order-in.destroy');
+Route::put('marketing/purchase-order-in/{kodePoin}/detail/{detailId}', [PurchaseOrderInController::class, 'updateDetail'])
+    ->name('marketing.purchase-order-in.detail.update');
+Route::delete('marketing/purchase-order-in/{kodePoin}/detail/{detailId}', [PurchaseOrderInController::class, 'destroyDetail'])
+    ->name('marketing.purchase-order-in.detail.destroy');
+Route::get('marketing/purchase-order-in/materials', [PurchaseOrderInController::class, 'materials'])
+    ->name('marketing.purchase-order-in.materials');
+Route::get('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'customers'])
+    ->name('marketing.purchase-order-in.customers');
+Route::get('marketing/purchase-order-in/{kodePoin}/show', [PurchaseOrderInController::class, 'show'])
+    ->name('marketing.purchase-order-in.show');
+Route::get('marketing/purchase-order-in/{kodePoin}/print', [PurchaseOrderInController::class, 'print'])
+    ->name('marketing.purchase-order-in.print');
 
 Route::get('marketing/purchase-requirement', [PurchaseRequirementController::class, 'index'])
     ->name('marketing.purchase-requirement.index');

@@ -243,10 +243,8 @@ export default function PurchaseRequirementCreate({ materials = [] }) {
     }, [customerTotal, customerPageSize]);
 
     const displayedCustomers = useMemo(() => {
-        if (customerPageSize === Infinity) return customerList;
-        const start = (customerCurrentPage - 1) * customerPageSize;
-        return customerList.slice(start, start + customerPageSize);
-    }, [customerList, customerCurrentPage, customerPageSize]);
+        return customerList;
+    }, [customerList]);
 
     const handleSubmit = (event) => {
         event.preventDefault();

@@ -16,6 +16,11 @@ export function AppContent({
 
     React.useEffect(() => {
         const MIN_VISIBLE_MS = 350;
+        const shouldSkipOverlay = (visit) => {
+            const headers = visit?.headers ?? {};
+            const value = headers['X-Skip-Loading-Overlay'] ?? headers['x-skip-loading-overlay'];
+            return String(value ?? '').toLowerCase() === '1';
+        };
         const clearHideTimer = () => {
             if (hideTimerRef.current) {
                 clearTimeout(hideTimerRef.current);
@@ -35,6 +40,9 @@ export function AppContent({
             if (event.detail.visit?.prefetch) {
                 return;
             }
+            if (shouldSkipOverlay(event.detail.visit)) {
+                return;
+            }
             clearHideTimer();
             startedAtRef.current = Date.now();
             setIsLoading(true);
@@ -44,6 +52,10 @@ export function AppContent({
         });
         const removeFinish = router.on('finish', (event) => {
             if (event.detail.visit?.prefetch) {
+                return;
+            }
+            if (shouldSkipOverlay(event.detail.visit)) {
+                setIsLoading(false);
                 return;
             }
             if (event.detail.visit?.completed === false) {

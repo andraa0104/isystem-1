@@ -227,21 +227,70 @@ class PurchaseRequirementController
         ]);
     }
 
-    public function materials()
+    public function materials(Request $request)
     {
-        $materials = DB::table('tb_material')
+        $perPageInput = $request->query('per_page');
+        $search = trim((string) $request->query('search', ''));
+
+        $query = DB::table('tb_material')
             ->select(
                 'kd_material',
                 'material',
                 'unit',
                 'stok',
                 'harga'
-            )
+            );
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $like = '%'.strtolower($search).'%';
+                $q->whereRaw('lower(kd_material) like ?', [$like])
+                    ->orWhereRaw('lower(material) like ?', [$like]);
+            });
+        }
+
+        // Backward compatible: if per_page is not provided, return full dataset.
+        if ($perPageInput === null) {
+            $materials = (clone $query)
+                ->orderBy('material')
+                ->get();
+
+            return response()->json([
+                'materials' => $materials,
+                'total' => $materials->count(),
+            ]);
+        }
+
+        $perPage = $perPageInput === 'all'
+            ? null
+            : (is_numeric($perPageInput) ? (int) $perPageInput : 10);
+        if ($perPage !== null && $perPage < 1) {
+            $perPage = 10;
+        }
+
+        if ($perPage === null) {
+            $materials = (clone $query)
+                ->orderBy('material')
+                ->get();
+
+            return response()->json([
+                'materials' => $materials,
+                'total' => $materials->count(),
+            ]);
+        }
+
+        $page = max(1, (int) $request->query('page', 1));
+        $total = (clone $query)->count();
+        $materials = (clone $query)
             ->orderBy('material')
+            ->forPage($page, $perPage)
             ->get();
 
         return response()->json([
             'materials' => $materials,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
         ]);
     }
 
@@ -268,7 +317,7 @@ class PurchaseRequirementController
         }
 
         if ($perPage === null) {
-            $data = $query->orderBy('nm_cs')->get();
+            $data = (clone $query)->orderBy('nm_cs')->get();
             return response()->json([
                 'customers' => $data,
                 'total' => $data->count(),
@@ -276,11 +325,11 @@ class PurchaseRequirementController
         }
 
         $page = max(1, (int) $request->query('page', 1));
-        $data = $query
+        $total = (clone $query)->count();
+        $data = (clone $query)
             ->orderBy('nm_cs')
             ->forPage($page, $perPage)
             ->get();
-        $total = $query->count();
 
         return response()->json([
             'customers' => $data,

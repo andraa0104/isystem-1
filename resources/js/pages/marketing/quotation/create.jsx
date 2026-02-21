@@ -99,11 +99,11 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const [materialItems, setMaterialItems] = useState([]);
 
     const [customerSearch, setCustomerSearch] = useState('');
-    const [customerPageSize, setCustomerPageSize] = useState(10);
+    const [customerPageSize, setCustomerPageSize] = useState(5);
     const [customerPage, setCustomerPage] = useState(1);
 
     const [materialSearch, setMaterialSearch] = useState('');
-    const [materialPageSize, setMaterialPageSize] = useState(10);
+    const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialPage, setMaterialPage] = useState(1);
 
     const filteredCustomers = useMemo(() => {
@@ -897,7 +897,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                     if (open) {
                         loadCustomers();
                         setCustomerSearch('');
-                        setCustomerPageSize(10);
+                        setCustomerPageSize(5);
                         setCustomerPage(1);
                     }
                 }}
@@ -923,7 +923,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         value === 'all' ? Infinity : Number(value)
                                     );
                                 }}
-                            >
+                                >
+                                <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
                                 <option value={50}>50</option>
@@ -1075,7 +1076,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                     if (open) {
                         loadMaterials();
                         setMaterialSearch('');
-                        setMaterialPageSize(10);
+                        setMaterialPageSize(5);
                         setMaterialPage(1);
                     }
                 }}
@@ -1101,7 +1102,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         value === 'all' ? Infinity : Number(value)
                                     );
                                 }}
-                            >
+                                >
+                                <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
                                 <option value={50}>50</option>

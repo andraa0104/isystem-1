@@ -11,13 +11,14 @@ import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { CalendarDays, Landmark, PackageSearch, Pencil, ReceiptText, Trash2 } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Marketing', href: '/marketing/purchase-order-in' },
     { title: 'Purchase Order In', href: '/marketing/purchase-order-in' },
-    { title: 'Tambah PO In', href: '/marketing/purchase-order-in/create' },
+    { title: 'Edit PO In', href: '#' },
 ];
 
 const toNumber = (value) => {
@@ -99,7 +100,31 @@ const isValidDmyDate = (value) => {
     return day <= maxDay;
 };
 
-export default function PurchaseOrderInCreate({ defaults = {} }) {
+const toastSuccess = (message) => {
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: message,
+        showConfirmButton: false,
+        timer: 2600,
+        timerProgressBar: true,
+    });
+};
+
+const toastError = (message) => {
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'error',
+        title: message,
+        showConfirmButton: false,
+        timer: 3600,
+        timerProgressBar: true,
+    });
+};
+
+export default function PurchaseOrderInEdit({ purchaseOrderIn = null, purchaseOrderInItems = [], defaults = {} }) {
     const datePickerRef = useRef(null);
     const deliveryDatePickerRef = useRef(null);
     const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
@@ -121,17 +146,21 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     const [customerError, setCustomerError] = useState('');
     const [validationErrors, setValidationErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSavingItem, setIsSavingItem] = useState(false);
 
     const [form, setForm] = useState({
-        noPoin: '',
-        date: toDisplayDate(defaults.date),
-        deliveryDate: toDisplayDate(defaults.date),
+        noPoin: purchaseOrderIn?.no_poin ?? '',
+        date: toDisplayDate(purchaseOrderIn?.date_poin ?? defaults.date),
+        deliveryDate: toDisplayDate(purchaseOrderIn?.delivery_date ?? defaults.date),
         customerCode: '',
-        customerName: '',
-        paymentTerm: defaults.payment_term ?? '30 Hari',
-        ppnPercent: '',
-        francoLoco: '',
-        note: '',
+        customerName: purchaseOrderIn?.customer_name ?? '',
+        paymentTerm: purchaseOrderIn?.payment_term ?? defaults.payment_term ?? '30 Hari',
+        ppnPercent:
+            purchaseOrderIn?.ppn_input_percent !== undefined && purchaseOrderIn?.ppn_input_percent !== null
+                ? String(purchaseOrderIn.ppn_input_percent)
+                : '',
+        francoLoco: purchaseOrderIn?.franco_loco ?? '',
+        note: purchaseOrderIn?.note_doc ?? '',
     });
 
     const [itemForm, setItemForm] = useState({
@@ -143,19 +172,91 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         totalPricePoIn: '',
         note: '',
     });
-    const [items, setItems] = useState([]);
+    const [items, setItems] = useState(
+        Array.isArray(purchaseOrderInItems)
+            ? purchaseOrderInItems.map((item, index) => ({
+                id: `db-${item.id ?? index}`,
+                dbId: item.id ?? null,
+                kodeMaterial: item.kd_material ?? '',
+                material: item.material ?? '',
+                qty: String(item.qty ?? ''),
+                unit: item.satuan ?? '',
+                unitPrice: String(toNumber(item.price_po_in ?? 0)),
+                totalPricePoIn: String(toNumber(item.total_price_po_in ?? 0)),
+                note: item.remark ?? '',
+            }))
+            : []
+    );
     const [editingItemId, setEditingItemId] = useState(null);
 
-    const handleAddItem = () => {
+    const handleAddItem = async () => {
         if (!itemForm.material || !itemForm.qty) {
             return;
         }
         if (editingItemId) {
-            setItems((prev) =>
-                prev.map((item) =>
-                    item.id === editingItemId ? { ...item, ...itemForm } : item
-                )
-            );
+            const editingItem = items.find((item) => item.id === editingItemId);
+            if (!editingItem) {
+                return;
+            }
+
+            if (editingItem.dbId) {
+                setIsSavingItem(true);
+                try {
+                    const csrf = document
+                        .querySelector('meta[name="csrf-token"]')
+                        ?.getAttribute('content');
+                    const response = await fetch(
+                        `/marketing/purchase-order-in/${encodeURIComponent(purchaseOrderIn?.kode_poin ?? '')}/detail/${encodeURIComponent(editingItem.dbId)}`,
+                        {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                Accept: 'application/json',
+                                ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+                            },
+                            body: JSON.stringify({
+                                kd_material: itemForm.kodeMaterial,
+                                material: itemForm.material,
+                                qty: toNumber(itemForm.qty),
+                                satuan: itemForm.unit,
+                                price_po_in: toNumber(itemForm.unitPrice),
+                                total_price_po_in: toNumber(itemForm.qty) * toNumber(itemForm.unitPrice),
+                                remark: itemForm.note,
+                            }),
+                        }
+                    );
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        const firstError = data?.errors
+                            ? Object.values(data.errors)[0]?.[0]
+                            : null;
+                        throw new Error(firstError || data?.message || 'Gagal menyimpan perubahan material.');
+                    }
+
+                    setItems((prev) =>
+                        prev.map((item) =>
+                            item.id === editingItemId ? { ...item, ...itemForm } : item
+                        )
+                    );
+                    toastSuccess(data?.message || 'Perubahan material berhasil disimpan.');
+                } catch (error) {
+                    toastError(error?.message || 'Gagal menyimpan perubahan material.');
+                    setValidationErrors((prev) => ({
+                        ...prev,
+                        materials: error?.message || 'Gagal menyimpan perubahan material.',
+                    }));
+                    return;
+                } finally {
+                    setIsSavingItem(false);
+                }
+            } else {
+                setItems((prev) =>
+                    prev.map((item) =>
+                        item.id === editingItemId ? { ...item, ...itemForm } : item
+                    )
+                );
+            }
+
             setEditingItemId(null);
         } else {
             setItems((prev) => [...prev, { ...itemForm, id: `${Date.now()}-${Math.random()}` }]);
@@ -219,6 +320,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             ppn_value: ppn,
             grand_total: grandTotal,
             materials: items.map((item) => ({
+                id: item.dbId ?? null,
                 kd_material: item.kodeMaterial,
                 material: item.material,
                 qty: toNumber(item.qty),
@@ -229,7 +331,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             })),
         };
 
-        router.post('/marketing/purchase-order-in', payload, {
+        router.put(`/marketing/purchase-order-in/${encodeURIComponent(purchaseOrderIn?.kode_poin ?? '')}`, payload, {
             preserveScroll: true,
             headers: {
                 'X-Skip-Loading-Overlay': '1',
@@ -238,6 +340,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             onFinish: () => setIsSubmitting(false),
             onSuccess: (page) => {
                 if (page?.props?.flash?.error) {
+                    toastError(page.props.flash.error);
                     return;
                 }
                 router.visit('/marketing/purchase-order-in', {
@@ -245,6 +348,11 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                         'X-Skip-Loading-Overlay': '1',
                     },
                 });
+            },
+            onError: (errors) => {
+                const first = Object.values(errors ?? {})[0];
+                const msg = Array.isArray(first) ? first[0] : first;
+                toastError(msg || 'Gagal memperbarui PO In.');
             },
         });
     };
@@ -262,7 +370,60 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         setEditingItemId(item.id);
     };
 
-    const handleDeleteItem = (id) => {
+    const handleDeleteItem = async (id) => {
+        const selectedItem = items.find((item) => item.id === id);
+        if (!selectedItem) {
+            toastError('Data material tidak ditemukan.');
+            return;
+        }
+
+        const result = await Swal.fire({
+            title: 'Hapus material ini?',
+            text: 'Material akan dihapus dari daftar edit.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+            reverseButtons: true,
+        });
+
+        if (!result.isConfirmed) {
+            return;
+        }
+
+        if (selectedItem.dbId) {
+            try {
+                const csrf = document
+                    .querySelector('meta[name="csrf-token"]')
+                    ?.getAttribute('content');
+                const response = await fetch(
+                    `/marketing/purchase-order-in/${encodeURIComponent(purchaseOrderIn?.kode_poin ?? '')}/detail/${encodeURIComponent(selectedItem.dbId)}`,
+                    {
+                        method: 'DELETE',
+                        headers: {
+                            Accept: 'application/json',
+                            ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+                        },
+                    }
+                );
+
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const firstError = data?.errors
+                        ? Object.values(data.errors)[0]?.[0]
+                        : null;
+                    throw new Error(firstError || data?.message || 'Gagal menghapus material.');
+                }
+
+                toastSuccess(data?.message || 'Material berhasil dihapus.');
+            } catch (error) {
+                toastError(error?.message || 'Gagal menghapus material.');
+                return;
+            }
+        } else {
+            toastSuccess('Material berhasil dihapus.');
+        }
+
         setItems((prev) => prev.filter((item) => item.id !== id));
         if (editingItemId === id) {
             setEditingItemId(null);
@@ -431,10 +592,10 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Tambah PO In" />
+            <Head title="Edit PO In" />
             <div className="flex h-full flex-1 flex-col gap-5 p-4">
                 <section className="rounded-2xl border border-sidebar-border/70 bg-gradient-to-r from-zinc-950 via-zinc-900 to-slate-900 p-5 text-white shadow-lg">
-                    <h1 className="mt-1 text-2xl font-semibold">Form Purchase Order In</h1>
+                    <h1 className="mt-1 text-2xl font-semibold">Edit Purchase Order In</h1>
                 </section>
 
                 <div className="grid gap-5">
@@ -801,8 +962,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             </div>
                         </div>
                         <div className="mt-4">
-                            <Button type="button" onClick={handleAddItem}>
-                                {editingItemId ? 'Simpan Perubahan' : 'Tambah Item'}
+                            <Button type="button" onClick={handleAddItem} disabled={isSavingItem}>
+                                {isSavingItem ? 'Menyimpan...' : editingItemId ? 'Simpan Perubahan' : 'Tambah Item'}
                             </Button>
                             {editingItemId && (
                                 <Button
