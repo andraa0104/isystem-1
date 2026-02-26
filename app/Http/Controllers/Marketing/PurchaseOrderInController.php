@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Marketing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Throwable;
 
 class PurchaseOrderInController
 {
@@ -280,9 +281,40 @@ class PurchaseOrderInController
             ->orderBy('line_no')
             ->get();
 
+        $customer = null;
+        $customerCode = $header->kode_customer ?? null;
+        if ($customerCode) {
+            $customer = DB::table('tb_cs')
+                ->where('kd_cs', $customerCode)
+                ->first();
+        }
+
+        $database = request()->session()->get('tenant.database')
+            ?? request()->cookie('tenant_database');
+        $lookupKey = $database;
+        if (is_string($lookupKey) && str_starts_with($lookupKey, 'DB')) {
+            $lookupKey = substr($lookupKey, 2);
+        }
+        $companyConfig = $lookupKey
+            ? config("tenants.companies.$lookupKey", [])
+            : [];
+        $fallbackName = $lookupKey
+            ? config("tenants.labels.$lookupKey", $lookupKey)
+            : config('app.name');
+
+        $company = [
+            'name' => $companyConfig['name'] ?? $fallbackName,
+            'address' => $companyConfig['address'] ?? '',
+            'phone' => $companyConfig['phone'] ?? '',
+            'kota' => $companyConfig['kota'] ?? '',
+            'email' => $companyConfig['email'] ?? '',
+        ];
+
         return Inertia::render('marketing/purchase-order-in/print', [
-            'header' => $header,
-            'items' => $items,
+            'purchaseOrder' => $header,
+            'purchaseOrderDetails' => $items,
+            'customer' => $customer,
+            'company' => $company,
         ]);
     }
 
@@ -397,12 +429,53 @@ class PurchaseOrderInController
         ]);
     }
 
+    public function storeCustomer(Request $request)
+    {
+        $validated = $request->validate([
+            'nm_cs' => ['required', 'string', 'max:255'],
+            'alamat_cs' => ['nullable', 'string', 'max:255'],
+            'kota_cs' => ['nullable', 'string', 'max:255'],
+            'telp_cs' => ['nullable', 'string', 'max:100'],
+            'fax_cs' => ['nullable', 'string', 'max:100'],
+            'npwp_cs' => ['nullable', 'string', 'max:255'],
+            'npwp1_cs' => ['nullable', 'string', 'max:255'],
+            'npwp2_cs' => ['nullable', 'string', 'max:255'],
+            'Attnd' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $lastCode = DB::table('tb_cs')
+            ->where('kd_cs', 'like', 'CST%')
+            ->orderBy('kd_cs', 'desc')
+            ->value('kd_cs');
+        $lastNumber = $lastCode ? (int) substr((string) $lastCode, 3) : 0;
+        $nextCode = 'CST'.str_pad((string) ($lastNumber + 1), 7, '0', STR_PAD_LEFT);
+        $validated['kd_cs'] = $nextCode;
+
+        try {
+            DB::table('tb_cs')->insert($validated);
+        } catch (Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => 'Data customer berhasil disimpan.',
+            'customer' => [
+                'kd_cs' => $validated['kd_cs'],
+                'nm_cs' => $validated['nm_cs'],
+                'kota_cs' => $validated['kota_cs'] ?? '',
+            ],
+        ]);
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
             'no_poin' => ['required', 'string', 'max:100'],
             'date' => ['nullable', 'string', 'max:20'],
             'delivery_date' => ['nullable', 'string', 'max:20'],
+            'kd_customer' => ['nullable', 'string', 'max:100'],
             'customer_name' => ['required', 'string', 'max:255'],
             'payment_term' => ['nullable', 'string', 'max:100'],
             'ppn_percent' => ['required', 'numeric', 'min:0'],
@@ -455,6 +528,7 @@ class PurchaseOrderInController
                     'no_poin' => trim((string) $validated['no_poin']),
                     'date_poin' => $datePoin,
                     'delivery_date' => $deliveryDate,
+                    'kode_customer' => trim((string) ($validated['kd_customer'] ?? '')),
                     'customer_name' => trim((string) $validated['customer_name']),
                     'payment_term' => trim((string) ($validated['payment_term'] ?? '')),
                     'franco_loco' => trim((string) $validated['franco_loco']),
@@ -478,6 +552,7 @@ class PurchaseOrderInController
                         : ($qty * $price);
                     DB::table('tb_detailpoin')->insert([
                         'id' => $detailId + $index,
+                        'id_poin' => $headerId,
                         'kode_poin' => $kodePoin,
                         'line_no' => $index + 1,
                         'kd_material' => trim((string) ($item['kd_material'] ?? '')),
@@ -582,6 +657,10 @@ class PurchaseOrderInController
                         'updated_at' => $nowGmt8,
                     ]);
 
+                $headerId = (int) (DB::table('tb_poin')
+                    ->where('kode_poin', $kodePoin)
+                    ->value('id') ?? 0);
+
                 $existingIds = DB::table('tb_detailpoin')
                     ->where('kode_poin', $kodePoin)
                     ->pluck('id')
@@ -613,6 +692,7 @@ class PurchaseOrderInController
                             ->where('id', $resolvedId)
                             ->where('kode_poin', $kodePoin)
                             ->update([
+                                'id_poin' => $headerId,
                                 'line_no' => $index + 1,
                                 'kd_material' => trim((string) ($item['kd_material'] ?? '')),
                                 'material' => trim((string) ($item['material'] ?? '')),
@@ -630,6 +710,7 @@ class PurchaseOrderInController
                         $insertId = $nextId++;
                         DB::table('tb_detailpoin')->insert([
                             'id' => $insertId,
+                            'id_poin' => $headerId,
                             'kode_poin' => $kodePoin,
                             'line_no' => $index + 1,
                             'kd_material' => trim((string) ($item['kd_material'] ?? '')),
@@ -662,13 +743,16 @@ class PurchaseOrderInController
         }
     }
 
-    public function destroy($kodePoin)
+    public function destroy(Request $request, $kodePoin)
     {
         $exists = DB::table('tb_poin')
             ->where('kode_poin', $kodePoin)
             ->exists();
 
         if (!$exists) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'Data PO In tidak ditemukan.'], 404);
+            }
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('error', 'Data PO In tidak ditemukan.');
@@ -685,10 +769,16 @@ class PurchaseOrderInController
                     ->delete();
             });
 
+            if ($request->expectsJson()) {
+                return response()->json(['message' => 'PO In berhasil dihapus.']);
+            }
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil dihapus.');
         } catch (\Throwable $e) {
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $e->getMessage()], 500);
+            }
             return back()->with('error', $e->getMessage());
         }
     }

@@ -12,6 +12,7 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { CalendarDays, Landmark, PackageSearch, Pencil, ReceiptText, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -119,6 +120,20 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     const [customerTotal, setCustomerTotal] = useState(0);
     const [customerLoading, setCustomerLoading] = useState(false);
     const [customerError, setCustomerError] = useState('');
+    const [isCustomerCreateModalOpen, setIsCustomerCreateModalOpen] = useState(false);
+    const [customerCreateForm, setCustomerCreateForm] = useState({
+        nm_cs: '',
+        alamat_cs: '',
+        kota_cs: '',
+        telp_cs: '',
+        fax_cs: '',
+        npwp_cs: '',
+        npwp1_cs: '',
+        npwp2_cs: '',
+        Attnd: '',
+    });
+    const [customerCreateErrors, setCustomerCreateErrors] = useState({});
+    const [isCustomerCreating, setIsCustomerCreating] = useState(false);
     const [validationErrors, setValidationErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -382,6 +397,78 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         }
     };
 
+    const toast = (icon, title) => {
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon,
+            title,
+            showConfirmButton: false,
+            timer: 2500,
+        });
+    };
+
+    const handleCreateCustomer = async (event) => {
+        event.preventDefault();
+        setCustomerCreateErrors({});
+        setIsCustomerCreating(true);
+
+        try {
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute('content');
+
+            const response = await fetch('/marketing/purchase-order-in/customers', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': token ?? '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(customerCreateForm),
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                if (response.status === 422 && data?.errors) {
+                    setCustomerCreateErrors(data.errors);
+                }
+                throw new Error(
+                    data?.message ||
+                        (data?.errors && Object.values(data.errors).flat()[0]) ||
+                        'Gagal menyimpan customer.',
+                );
+            }
+
+            const customer = data?.customer ?? {};
+            setForm((prev) => ({
+                ...prev,
+                customerCode: customer.kd_cs ?? '',
+                customerName: customer.nm_cs ?? '',
+            }));
+            setValidationErrors((prev) => ({ ...prev, customerName: '' }));
+            setIsCustomerCreateModalOpen(false);
+            setIsCustomerModalOpen(false);
+            setCustomerCreateForm({
+                nm_cs: '',
+                alamat_cs: '',
+                kota_cs: '',
+                telp_cs: '',
+                fax_cs: '',
+                npwp_cs: '',
+                npwp1_cs: '',
+                npwp2_cs: '',
+                Attnd: '',
+            });
+            toast('success', data?.message || 'Data customer berhasil disimpan.');
+        } catch (error) {
+            toast('error', error?.message || 'Gagal menyimpan customer.');
+        } finally {
+            setIsCustomerCreating(false);
+        }
+    };
+
     useEffect(() => {
         if (!isCustomerModalOpen) {
             return;
@@ -444,169 +531,185 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 <Landmark className="size-4 text-muted-foreground" />
                                 <h2 className="text-base font-semibold">Informasi Header</h2>
                             </div>
-                            <div className="grid gap-4 md:grid-cols-3">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="no_poin">No PO In</Label>
-                                    <Input
-                                        id="no_poin"
-                                        className={validationErrors.noPoin ? 'border-red-500 focus-visible:ring-red-500' : ''}
-                                        placeholder="Auto / manual"
-                                        value={form.noPoin}
-                                        onChange={(event) => {
-                                            setForm((prev) => ({ ...prev, noPoin: event.target.value }));
-                                            setValidationErrors((prev) => ({ ...prev, noPoin: '' }));
-                                        }}
-                                    />
-                                    {validationErrors.noPoin && (
-                                        <p className="text-xs text-red-500">{validationErrors.noPoin}</p>
-                                    )}
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="tanggal">Date PO In</Label>
-                                    <div className="relative flex gap-2">
+                            <div className="grid gap-4 md:grid-cols-4">
+                                <div className="grid gap-4 md:col-span-4 md:grid-cols-3">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="no_poin">No PO In</Label>
                                         <Input
-                                            id="tanggal"
-                                            className={validationErrors.date ? 'border-red-500 focus-visible:ring-red-500' : ''}
-                                            value={form.date}
-                                            placeholder="dd/mm/yyyy"
-                                            onChange={(event) =>
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    date: normalizeDateInput(event.target.value),
-                                                }))
-                                            }
-                                            onBlur={(event) =>
-                                                {
+                                            id="no_poin"
+                                            className={validationErrors.noPoin ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                                            placeholder="PO In dari Customer"
+                                            value={form.noPoin}
+                                            onChange={(event) => {
+                                                setForm((prev) => ({ ...prev, noPoin: event.target.value }));
+                                                setValidationErrors((prev) => ({ ...prev, noPoin: '' }));
+                                            }}
+                                        />
+                                        {validationErrors.noPoin && (
+                                            <p className="text-xs text-red-500">{validationErrors.noPoin}</p>
+                                        )}
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="tanggal">Date PO In</Label>
+                                        <div className="relative flex gap-2">
+                                            <Input
+                                                id="tanggal"
+                                                className={validationErrors.date ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                                                value={form.date}
+                                                placeholder="dd/mm/yyyy"
+                                                onFocus={(event) => event.target.select()}
+                                                onChange={(event) =>
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        date: clampDmyValue(event.target.value),
+                                                        date: normalizeDateInput(event.target.value),
+                                                    }))
+                                                }
+                                                onBlur={(event) =>
+                                                    {
+                                                        setForm((prev) => ({
+                                                            ...prev,
+                                                            date: clampDmyValue(event.target.value),
+                                                        }));
+                                                        setValidationErrors((prev) => ({ ...prev, date: '' }));
+                                                    }
+                                                }
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="shrink-0 px-3"
+                                                onClick={() => {
+                                                    if (datePickerRef.current?.showPicker) {
+                                                        datePickerRef.current.showPicker();
+                                                        return;
+                                                    }
+                                                    datePickerRef.current?.click();
+                                                }}
+                                                title="Pilih tanggal"
+                                            >
+                                                <CalendarDays className="size-4" />
+                                            </Button>
+                                            <input
+                                                ref={datePickerRef}
+                                                type="date"
+                                                className="pointer-events-none absolute h-0 w-0 opacity-0"
+                                                value={toIsoDate(form.date)}
+                                                onChange={(event) => {
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        date: toDisplayDate(event.target.value),
                                                     }));
                                                     setValidationErrors((prev) => ({ ...prev, date: '' }));
-                                                }
-                                            }
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            className="shrink-0 px-3"
-                                            onClick={() => {
-                                                if (datePickerRef.current?.showPicker) {
-                                                    datePickerRef.current.showPicker();
-                                                    return;
-                                                }
-                                                datePickerRef.current?.click();
-                                            }}
-                                            title="Pilih tanggal"
-                                        >
-                                            <CalendarDays className="size-4" />
-                                        </Button>
-                                        <input
-                                            ref={datePickerRef}
-                                            type="date"
-                                            className="pointer-events-none absolute h-0 w-0 opacity-0"
-                                            value={toIsoDate(form.date)}
-                                            onChange={(event) => {
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    date: toDisplayDate(event.target.value),
-                                                }));
-                                                setValidationErrors((prev) => ({ ...prev, date: '' }));
-                                            }}
-                                        />
+                                                }}
+                                            />
+                                        </div>
+                                        {validationErrors.date && (
+                                            <p className="text-xs text-red-500">{validationErrors.date}</p>
+                                        )}
                                     </div>
-                                    {validationErrors.date && (
-                                        <p className="text-xs text-red-500">{validationErrors.date}</p>
-                                    )}
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="delivery_date">Delivery Date</Label>
-                                    <div className="relative flex gap-2">
-                                        <Input
-                                            id="delivery_date"
-                                            className={validationErrors.deliveryDate ? 'border-red-500 focus-visible:ring-red-500' : ''}
-                                            value={form.deliveryDate}
-                                            placeholder="dd/mm/yyyy"
-                                            onChange={(event) =>
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    deliveryDate: normalizeDateInput(event.target.value),
-                                                }))
-                                            }
-                                            onBlur={(event) =>
-                                                {
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="delivery_date">Delivery Date</Label>
+                                        <div className="relative flex gap-2">
+                                            <Input
+                                                id="delivery_date"
+                                                className={validationErrors.deliveryDate ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                                                value={form.deliveryDate}
+                                                placeholder="dd/mm/yyyy"
+                                                onFocus={(event) => event.target.select()}
+                                                onChange={(event) =>
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        deliveryDate: clampDmyValue(event.target.value),
+                                                        deliveryDate: normalizeDateInput(event.target.value),
+                                                    }))
+                                                }
+                                                onBlur={(event) =>
+                                                    {
+                                                        setForm((prev) => ({
+                                                            ...prev,
+                                                            deliveryDate: clampDmyValue(event.target.value),
+                                                        }));
+                                                        setValidationErrors((prev) => ({ ...prev, deliveryDate: '' }));
+                                                    }
+                                                }
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="shrink-0 px-3"
+                                                onClick={() => {
+                                                    if (deliveryDatePickerRef.current?.showPicker) {
+                                                        deliveryDatePickerRef.current.showPicker();
+                                                        return;
+                                                    }
+                                                    deliveryDatePickerRef.current?.click();
+                                                }}
+                                                title="Pilih tanggal"
+                                            >
+                                                <CalendarDays className="size-4" />
+                                            </Button>
+                                            <input
+                                                ref={deliveryDatePickerRef}
+                                                type="date"
+                                                className="pointer-events-none absolute h-0 w-0 opacity-0"
+                                                value={toIsoDate(form.deliveryDate)}
+                                                onChange={(event) => {
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        deliveryDate: toDisplayDate(event.target.value),
                                                     }));
                                                     setValidationErrors((prev) => ({ ...prev, deliveryDate: '' }));
-                                                }
-                                            }
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            className="shrink-0 px-3"
-                                            onClick={() => {
-                                                if (deliveryDatePickerRef.current?.showPicker) {
-                                                    deliveryDatePickerRef.current.showPicker();
-                                                    return;
-                                                }
-                                                deliveryDatePickerRef.current?.click();
-                                            }}
-                                            title="Pilih tanggal"
-                                        >
-                                            <CalendarDays className="size-4" />
-                                        </Button>
-                                        <input
-                                            ref={deliveryDatePickerRef}
-                                            type="date"
-                                            className="pointer-events-none absolute h-0 w-0 opacity-0"
-                                            value={toIsoDate(form.deliveryDate)}
-                                            onChange={(event) => {
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    deliveryDate: toDisplayDate(event.target.value),
-                                                }));
-                                                setValidationErrors((prev) => ({ ...prev, deliveryDate: '' }));
-                                            }}
-                                        />
+                                                }}
+                                            />
+                                        </div>
+                                        {validationErrors.deliveryDate && (
+                                            <p className="text-xs text-red-500">{validationErrors.deliveryDate}</p>
+                                        )}
                                     </div>
-                                    {validationErrors.deliveryDate && (
-                                        <p className="text-xs text-red-500">{validationErrors.deliveryDate}</p>
-                                    )}
                                 </div>
-                                <div className="grid gap-2 md:col-span-2">
-                                    <Label htmlFor="customer_name">Nama Customer</Label>
-                                    <div className="flex gap-2">
+                                <div className="grid gap-4 md:col-span-4 md:grid-cols-4">
+                                    <div className="grid gap-2 md:col-span-1">
+                                        <Label htmlFor="customer_code">Kode Customer</Label>
                                         <Input
-                                            id="customer_name"
-                                            className={validationErrors.customerName ? 'border-red-500 focus-visible:ring-red-500' : ''}
-                                            value={form.customerName}
+                                            id="customer_code"
+                                            value={form.customerCode}
                                             readOnly
-                                            placeholder="Pilih customer"
+                                            placeholder="Kode customer"
                                         />
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() => {
-                                                setIsCustomerModalOpen(true);
-                                                setCustomerSearchTerm('');
-                                                setCustomerPageSize(5);
-                                                setCustomerCurrentPage(1);
-                                            }}
-                                        >
-                                            Cari Customer
-                                        </Button>
                                     </div>
-                                    {validationErrors.customerName && (
-                                        <p className="text-xs text-red-500">{validationErrors.customerName}</p>
-                                    )}
+                                    <div className="grid gap-2 md:col-span-3">
+                                        <Label htmlFor="customer_name">Nama Customer</Label>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                id="customer_name"
+                                                className={validationErrors.customerName ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                                                value={form.customerName}
+                                                readOnly
+                                                placeholder="Pilih customer"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setIsCustomerModalOpen(true);
+                                                    setCustomerSearchTerm('');
+                                                    setCustomerPageSize(5);
+                                                    setCustomerCurrentPage(1);
+                                                }}
+                                            >
+                                                Cari Customer
+                                            </Button>
+                                        </div>
+                                        {validationErrors.customerName && (
+                                            <p className="text-xs text-red-500">{validationErrors.customerName}</p>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="payment_term">Payment Term</Label>
                                     <Input
                                         id="payment_term"
                                         value={form.paymentTerm}
+                                        onFocus={(event) => event.target.select()}
                                         onChange={(event) => setForm((prev) => ({ ...prev, paymentTerm: event.target.value }))}
                                     />
                                 </div>
@@ -631,7 +734,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         <p className="text-xs text-red-500">{validationErrors.ppnPercent}</p>
                                     )}
                                 </div>
-                                <div className="grid gap-2 md:col-span-1">
+                                <div className="grid gap-2 md:col-span-2">
                                     <Label htmlFor="franco_loco">Franco/Loco</Label>
                                     <Input
                                         id="franco_loco"
@@ -651,7 +754,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         <p className="text-xs text-red-500">{validationErrors.francoLoco}</p>
                                     )}
                                 </div>
-                                <div className="grid gap-2 md:col-span-3">
+                                <div className="grid gap-2 md:col-span-4">
                                     <Label htmlFor="doc_note">Catatan Dokumen</Label>
                                     <textarea
                                         id="doc_note"
@@ -1153,6 +1256,19 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 ? 'Memuat data customer...'
                                                 : customerError ||
                                                   'Tidak ada data customer.'}
+                                            {!customerLoading && (
+                                                <div className="mt-3">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        onClick={() =>
+                                                            setIsCustomerCreateModalOpen(true)
+                                                        }
+                                                    >
+                                                        Buat Data Customer
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 )}
@@ -1241,6 +1357,161 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={isCustomerCreateModalOpen}
+                onOpenChange={(open) => {
+                    setIsCustomerCreateModalOpen(open);
+                    if (!open) {
+                        setCustomerCreateErrors({});
+                    }
+                }}
+            >
+                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Tambah Customer</DialogTitle>
+                    </DialogHeader>
+
+                    <form className="space-y-4" onSubmit={handleCreateCustomer}>
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="new_nm_cs">Nama Customer</Label>
+                                <Input
+                                    id="new_nm_cs"
+                                    value={customerCreateForm.nm_cs}
+                                    onChange={(event) =>
+                                        setCustomerCreateForm((prev) => ({
+                                            ...prev,
+                                            nm_cs: event.target.value,
+                                        }))
+                                    }
+                                />
+                                {customerCreateErrors.nm_cs && (
+                                    <p className="text-xs text-red-500">
+                                        {customerCreateErrors.nm_cs[0]}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="new_kota_cs">Kota</Label>
+                                <Input
+                                    id="new_kota_cs"
+                                    value={customerCreateForm.kota_cs}
+                                    onChange={(event) =>
+                                        setCustomerCreateForm((prev) => ({
+                                            ...prev,
+                                            kota_cs: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="new_alamat_cs">Alamat</Label>
+                                <Input
+                                    id="new_alamat_cs"
+                                    value={customerCreateForm.alamat_cs}
+                                    onChange={(event) =>
+                                        setCustomerCreateForm((prev) => ({
+                                            ...prev,
+                                            alamat_cs: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="new_telp_cs">Telpon</Label>
+                                <Input
+                                    id="new_telp_cs"
+                                    value={customerCreateForm.telp_cs}
+                                    onChange={(event) =>
+                                        setCustomerCreateForm((prev) => ({
+                                            ...prev,
+                                            telp_cs: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="new_fax_cs">Fax</Label>
+                                <Input
+                                    id="new_fax_cs"
+                                    value={customerCreateForm.fax_cs}
+                                    onChange={(event) =>
+                                        setCustomerCreateForm((prev) => ({
+                                            ...prev,
+                                            fax_cs: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="new_npwp_cs">NPWP</Label>
+                                <Input
+                                    id="new_npwp_cs"
+                                    value={customerCreateForm.npwp_cs}
+                                    onChange={(event) =>
+                                        setCustomerCreateForm((prev) => ({
+                                            ...prev,
+                                            npwp_cs: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="new_Attnd">Attended</Label>
+                                <Input
+                                    id="new_Attnd"
+                                    value={customerCreateForm.Attnd}
+                                    onChange={(event) =>
+                                        setCustomerCreateForm((prev) => ({
+                                            ...prev,
+                                            Attnd: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="new_npwp1_cs">Alamat NPWP 1</Label>
+                                <Input
+                                    id="new_npwp1_cs"
+                                    value={customerCreateForm.npwp1_cs}
+                                    onChange={(event) =>
+                                        setCustomerCreateForm((prev) => ({
+                                            ...prev,
+                                            npwp1_cs: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="new_npwp2_cs">Alamat NPWP 2</Label>
+                                <Input
+                                    id="new_npwp2_cs"
+                                    value={customerCreateForm.npwp2_cs}
+                                    onChange={(event) =>
+                                        setCustomerCreateForm((prev) => ({
+                                            ...prev,
+                                            npwp2_cs: event.target.value,
+                                        }))
+                                    }
+                                />
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsCustomerCreateModalOpen(false)}
+                            >
+                                Batal
+                            </Button>
+                            <Button type="submit" disabled={isCustomerCreating}>
+                                {isCustomerCreating ? 'Menyimpan...' : 'Simpan Data'}
+                            </Button>
+                        </div>
+                    </form>
                 </DialogContent>
             </Dialog>
         </AppLayout>

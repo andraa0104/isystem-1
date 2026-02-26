@@ -457,6 +457,8 @@ Route::get('marketing/purchase-order-in/materials', [PurchaseOrderInController::
     ->name('marketing.purchase-order-in.materials');
 Route::get('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'customers'])
     ->name('marketing.purchase-order-in.customers');
+Route::post('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'storeCustomer'])
+    ->name('marketing.purchase-order-in.customers.store');
 Route::get('marketing/purchase-order-in/{kodePoin}/show', [PurchaseOrderInController::class, 'show'])
     ->name('marketing.purchase-order-in.show');
 Route::get('marketing/purchase-order-in/{kodePoin}/print', [PurchaseOrderInController::class, 'print'])

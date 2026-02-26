@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
-import { ClipboardCheck, Eye, Printer, Search, Trash2, X } from 'lucide-react';
+import { ClipboardCheck, Eye, Pencil, Printer, Search, Trash2, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -151,6 +151,9 @@ export default function PurchaseOrderInIndex({
                 preserveScroll: true,
                 preserveState: true,
                 replace: true,
+                headers: {
+                    'X-Skip-Loading-Overlay': '1',
+                },
             }
         );
     };
@@ -282,24 +285,14 @@ export default function PurchaseOrderInIndex({
         setIsDeleting(true);
         router.delete(`/marketing/purchase-order-in/${encodeURIComponent(confirmDeleteKode)}`, {
             preserveScroll: true,
-            onSuccess: (page) => {
-                if (page?.props?.flash?.error) {
-                    toastError(page.props.flash.error);
-                    setIsDeleting(false);
-                    return;
-                }
-                toastSuccess(page?.props?.flash?.success || 'PO In berhasil dihapus.');
+            headers: {
+                'X-Skip-Loading-Overlay': '1',
+            },
+            onSuccess: () => {
                 setActiveModal(null);
                 setIsConfirmDeleteOpen(false);
                 setConfirmDeleteKode('');
                 fetchTable({ page: pagination?.page ?? 1 });
-                setIsDeleting(false);
-            },
-            onError: (errors) => {
-                const first = Object.values(errors ?? {})[0];
-                const msg = Array.isArray(first) ? first[0] : first;
-                toastError(msg || 'Gagal menghapus PO In.');
-                setIsDeleting(false);
             },
             onFinish: () => setIsDeleting(false),
         });
@@ -810,11 +803,13 @@ export default function PurchaseOrderInIndex({
                                                             size="sm"
                                                             onClick={() => {
                                                                 setActiveModal(null);
-                                                                openDetailModal(item.kode_poin);
+                                                                router.visit(
+                                                                    `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
+                                                                );
                                                             }}
-                                                            title="Lihat"
+                                                            title="Edit"
                                                         >
-                                                            <Eye className="size-4" />
+                                                            <Pencil className="size-4" />
                                                         </Button>
                                                         {Number(item.can_delete ?? 0) === 1 && (
                                                             <Button
