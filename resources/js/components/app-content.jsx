@@ -58,9 +58,7 @@ export function AppContent({
                 setIsLoading(false);
                 return;
             }
-            if (event.detail.visit?.completed === false) {
-                hideWithMinDuration();
-            }
+            hideWithMinDuration();
         });
 
         return () => {

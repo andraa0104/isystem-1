@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Trash2 } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
 
 const formatDate = (date) => {
@@ -37,12 +38,10 @@ const renderValue = (value) =>
 export default function DeliveryOrderEdit({
     deliveryOrder,
         items = [],
-        refPr = null,
         prItems = [],
     }) {
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [selectedPrNo, setSelectedPrNo] = useState(refPr ?? '');
     const [sourceItems, setSourceItems] = useState(prItems);
     const [selectedLineNo, setSelectedLineNo] = useState(null);
 
@@ -51,7 +50,6 @@ export default function DeliveryOrderEdit({
         ref_po: deliveryOrder?.ref_po ?? '',
         kd_cs: deliveryOrder?.kd_cs ?? '',
         nm_cs: deliveryOrder?.nm_cs ?? '',
-        ref_pr: refPr ?? '',
         items: items ?? [],
     });
 
@@ -72,12 +70,10 @@ export default function DeliveryOrderEdit({
             ref_po: deliveryOrder?.ref_po ?? '',
             kd_cs: deliveryOrder?.kd_cs ?? '',
             nm_cs: deliveryOrder?.nm_cs ?? '',
-            ref_pr: refPr ?? '',
             items: items ?? [],
         });
         setSourceItems(prItems);
-        setSelectedPrNo(refPr ?? '');
-    }, [deliveryOrder, items, prItems, refPr]);
+    }, [deliveryOrder, items, prItems]);
 
     const prLookup = useMemo(() => {
         const map = new Map();
@@ -131,13 +127,12 @@ export default function DeliveryOrderEdit({
         }
 
         router.put(
-            `/marketing/delivery-order/${encodeURIComponent(
-                deliveryOrder.no_do,
-            )}/detail/${encodeURIComponent(inputItem.no)}`,
+                `/marketing/delivery-order/${encodeURIComponent(
+                    deliveryOrder.no_do,
+                )}/detail/${encodeURIComponent(inputItem.no)}`,
             {
                 qty: inputItem.qty,
                 remark: inputItem.remark,
-                ref_pr: selectedPrNo,
                 date: formData.date,
             },
             {
@@ -163,6 +158,92 @@ export default function DeliveryOrderEdit({
         );
     };
 
+    const showToast = (message, variant = 'error') => {
+        if (!message) return;
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            timer: 3000,
+            showConfirmButton: false,
+            icon: variant === 'success' ? 'success' : 'error',
+            title: message,
+        });
+    };
+
+    const handleDeleteItem = (item) => {
+        if (!item?.no) return;
+
+        const activeEl = document.activeElement;
+        if (activeEl instanceof HTMLElement) {
+            activeEl.blur();
+        }
+
+        Swal.fire({
+            title: 'Hapus material?',
+            text: `Data material no ${item.no} akan dihapus.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+            reverseButtons: true,
+            showLoaderOnConfirm: true,
+            allowOutsideClick: () => !Swal.isLoading(),
+            allowEscapeKey: () => !Swal.isLoading(),
+            preConfirm: async () => {
+                try {
+                    const response = await fetch(
+                        `/marketing/delivery-order/${encodeURIComponent(
+                            deliveryOrder.no_do,
+                        )}/detail/${encodeURIComponent(item.no)}`,
+                        {
+                            method: 'DELETE',
+                            headers: {
+                                Accept: 'application/json',
+                                'X-CSRF-TOKEN':
+                                    document
+                                        .querySelector('meta[name="csrf-token"]')
+                                        ?.getAttribute('content') ?? '',
+                            },
+                        },
+                    );
+
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(data?.message || 'Gagal menghapus data material DO.');
+                    }
+
+                    return data;
+                } catch (error) {
+                    Swal.showValidationMessage(error.message);
+                    throw error;
+                }
+            },
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+
+            setFormData((prev) => ({
+                ...prev,
+                items: prev.items.filter((row) => String(row.no) !== String(item.no)),
+            }));
+
+            if (String(selectedLineNo) === String(item.no)) {
+                setSelectedLineNo(null);
+                setInputItem({
+                    no: '',
+                    kd_material: '',
+                    material: '',
+                    qty: '',
+                    unit: '',
+                    remark: '',
+                    last_stock: 0,
+                    stock_now: 0,
+                });
+            }
+
+            showToast(result.value?.message || 'Data material DO berhasil dihapus.', 'success');
+        });
+    };
+
     const nextStep = () => setStep((s) => s + 1);
     const prevStep = () => setStep((s) => s - 1);
 
@@ -176,7 +257,6 @@ export default function DeliveryOrderEdit({
                 ref_po: formData.ref_po,
                 kd_cs: formData.kd_cs,
                 nm_cs: formData.nm_cs,
-                ref_pr: selectedPrNo,
             },
             {
                 preserveScroll: true,
@@ -224,10 +304,6 @@ export default function DeliveryOrderEdit({
                                         readOnly
                                         value={deliveryOrder?.no_do ?? ''}
                                     />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Nomor PR</Label>
-                                    <Input value={selectedPrNo ?? ''} readOnly />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Date</Label>
@@ -372,6 +448,9 @@ export default function DeliveryOrderEdit({
                                                     <TableHead>
                                                         Remark
                                                     </TableHead>
+                                                    <TableHead className="w-[80px]">
+                                                        Action
+                                                    </TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
@@ -402,6 +481,20 @@ export default function DeliveryOrderEdit({
                                                             <TableCell>
                                                                 {item.remark}
                                                             </TableCell>
+                                                            <TableCell>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={(event) => {
+                                                                        event.stopPropagation();
+                                                                        handleDeleteItem(item);
+                                                                    }}
+                                                                    aria-label="Hapus material"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                                </Button>
+                                                            </TableCell>
                                                         </TableRow>
                                                     ),
                                                 )}
@@ -409,7 +502,7 @@ export default function DeliveryOrderEdit({
                                                     0 && (
                                                     <TableRow>
                                                         <TableCell
-                                                            colSpan={5}
+                                                            colSpan={6}
                                                             className="text-center"
                                                         >
                                                             Belum ada material

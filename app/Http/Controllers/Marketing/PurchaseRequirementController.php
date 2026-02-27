@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Carbon\Carbon;
@@ -306,18 +307,25 @@ class PurchaseRequirementController
 
         $search = trim((string) $request->query('search', ''));
 
-        $query = DB::table('tb_cs')->select('kd_cs', 'nm_cs', 'kota_cs');
+        $query = DB::table('tb_poin')
+            ->select('kode_poin', 'no_poin', 'date_poin', 'customer_name')
+            ->whereExists(function ($subQuery) {
+                $subQuery->select(DB::raw(1))
+                    ->from('tb_detailpoin as d')
+                    ->whereRaw('lower(trim(d.kode_poin)) = lower(trim(tb_poin.kode_poin))')
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> 0');
+            });
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $like = '%'.strtolower($search).'%';
-                $q->whereRaw('lower(kd_cs) like ?', [$like])
-                    ->orWhereRaw('lower(nm_cs) like ?', [$like])
-                    ->orWhereRaw('lower(kota_cs) like ?', [$like]);
+                $q->whereRaw('lower(kode_poin) like ?', [$like])
+                    ->orWhereRaw('lower(no_poin) like ?', [$like])
+                    ->orWhereRaw('lower(customer_name) like ?', [$like]);
             });
         }
 
         if ($perPage === null) {
-            $data = (clone $query)->orderBy('nm_cs')->get();
+            $data = (clone $query)->orderByDesc('id')->get();
             return response()->json([
                 'customers' => $data,
                 'total' => $data->count(),
@@ -327,7 +335,7 @@ class PurchaseRequirementController
         $page = max(1, (int) $request->query('page', 1));
         $total = (clone $query)->count();
         $data = (clone $query)
-            ->orderBy('nm_cs')
+            ->orderByDesc('id')
             ->forPage($page, $perPage)
             ->get();
 
@@ -336,6 +344,85 @@ class PurchaseRequirementController
             'total' => $total,
             'page' => $page,
             'per_page' => $perPage,
+        ]);
+    }
+
+    public function poinDetails(Request $request)
+    {
+        $kodePoin = trim((string) $request->query('kode_poin', ''));
+        if ($kodePoin === '') {
+            return response()->json([
+                'items' => [],
+            ]);
+        }
+
+        $hasLineNo = Schema::hasColumn('tb_detailpoin', 'no');
+        $hasRemark = Schema::hasColumn('tb_detailpoin', 'remark');
+        $hasStock = Schema::hasColumn('tb_material', 'stok');
+
+        $selects = [
+            'd.id',
+            'd.kd_material',
+            'd.material',
+            DB::raw('coalesce(d.sisa_qtypr, 0) as qty_po_in'),
+            'd.satuan',
+            DB::raw('coalesce(d.price_po_in, 0) as harga_po_in'),
+        ];
+
+        if ($hasLineNo) {
+            $selects[] = DB::raw('coalesce(d.no, 0) as line_no');
+        } else {
+            $selects[] = DB::raw('0 as line_no');
+        }
+
+        if ($hasRemark) {
+            $selects[] = DB::raw('coalesce(d.remark, "") as remark');
+        } else {
+            $selects[] = DB::raw('"" as remark');
+        }
+
+        if ($hasStock) {
+            $selects[] = DB::raw('coalesce(m.stok, 0) as stok');
+        } else {
+            $selects[] = DB::raw('0 as stok');
+        }
+
+        $items = DB::table('tb_detailpoin as d')
+            ->leftJoin('tb_material as m', function ($join) {
+                $join->on(
+                    DB::raw('lower(trim(d.kd_material))'),
+                    '=',
+                    DB::raw('lower(trim(m.kd_material))')
+                );
+            })
+            ->whereRaw('lower(trim(d.kode_poin)) = ?', [strtolower($kodePoin)])
+            ->when($hasLineNo, function ($query) {
+                $query->orderBy('d.no');
+            }, function ($query) {
+                $query->orderBy('d.id');
+            })
+            ->select($selects)
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'line_no' => (int) $item->line_no,
+                    'kd_material' => $item->kd_material,
+                    'material' => $item->material,
+                    'qty_po_in' => (float) $item->qty_po_in,
+                    'qty_pr' => (float) $item->qty_po_in,
+                    'satuan' => $item->satuan,
+                    'harga_po_in' => (float) $item->harga_po_in,
+                    'harga_modal' => '',
+                    'stok' => (float) $item->stok,
+                    'margin' => '',
+                    'remark' => $item->remark,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'items' => $items,
         ]);
     }
 
@@ -419,6 +506,8 @@ class PurchaseRequirementController
                     ]);
 
                     foreach ($materials as $index => $item) {
+                        $qtyValue = is_numeric($item['qty'] ?? null) ? (float) $item['qty'] : 0;
+
                         DB::table('tb_detailpr')->insert([
                             'date' => $request->input('date'),
                             'payment' => $request->input('payment'),
@@ -439,6 +528,32 @@ class PurchaseRequirementController
                             'qty_po' => 0,
                             'sisa_pr' => $item['qty'] ?? null,
                         ]);
+
+                        if ($qtyValue > 0) {
+                            $detailId = $item['detail_id'] ?? null;
+                            if (is_numeric($detailId)) {
+                                DB::table('tb_detailpoin')
+                                    ->where('id', (int) $detailId)
+                                    ->update([
+                                        'sisa_qtypr' => DB::raw(sprintf(
+                                            'greatest(coalesce(cast(sisa_qtypr as decimal(18,4)), 0) - %.4F, 0)',
+                                            $qtyValue
+                                        )),
+                                    ]);
+                            } else {
+                                DB::table('tb_detailpoin')
+                                    ->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim((string) ($item['kd_material'] ?? '')))])
+                                    ->whereRaw('lower(trim(kode_poin)) in (select lower(trim(kode_poin)) from tb_poin where lower(trim(no_poin)) = ?)', [
+                                        strtolower(trim((string) $request->input('ref_po'))),
+                                    ])
+                                    ->update([
+                                        'sisa_qtypr' => DB::raw(sprintf(
+                                            'greatest(coalesce(cast(sisa_qtypr as decimal(18,4)), 0) - %.4F, 0)',
+                                            $qtyValue
+                                        )),
+                                    ]);
+                            }
+                        }
                     }
                 });
                 break;
@@ -564,12 +679,12 @@ class PurchaseRequirementController
 
     public function updateDetail(Request $request, $noPr, $detailNo)
     {
-        $exists = DB::table('tb_detailpr')
+        $existingDetail = DB::table('tb_detailpr')
             ->where('no_pr', $noPr)
             ->where('no', $detailNo)
-            ->exists();
+            ->first(['qty', 'kd_material', 'ref_po']);
 
-        if (!$exists) {
+        if (!$existingDetail) {
             return back()->with('error', 'Detail PR tidak ditemukan.');
         }
 
@@ -606,6 +721,30 @@ class PurchaseRequirementController
                 'sisa_pr' => $request->input('qty'),
             ]);
 
+        $oldQty = is_numeric($existingDetail->qty ?? null) ? (float) $existingDetail->qty : 0;
+        $newQty = is_numeric($request->input('qty')) ? (float) $request->input('qty') : 0;
+        $kdMaterial = strtolower(trim((string) ($request->input('kd_material') ?: $existingDetail->kd_material)));
+        $refPo = strtolower(trim((string) ($request->input('ref_po') ?: $existingDetail->ref_po)));
+
+        if ($kdMaterial !== '' && $refPo !== '') {
+            $kodePoin = DB::table('tb_poin')
+                ->whereRaw('lower(trim(no_poin)) = ?', [$refPo])
+                ->value('kode_poin');
+
+            if ($kodePoin) {
+                DB::table('tb_detailpoin')
+                    ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string) $kodePoin))])
+                    ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
+                    ->update([
+                        'sisa_qtypr' => DB::raw(sprintf(
+                            'greatest(coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F - %.4F, 0)',
+                            $oldQty,
+                            $newQty
+                        )),
+                    ]);
+            }
+        }
+
         DB::table('tb_ubah')->insert([
             'no_pr' => $noPr,
             'date' => $dateFormatted,
@@ -634,6 +773,33 @@ class PurchaseRequirementController
 
     public function destroyDetail($noPr, $detailNo)
     {
+        $detail = DB::table('tb_detailpr')
+            ->where('no_pr', $noPr)
+            ->where('no', $detailNo)
+            ->first(['qty', 'kd_material', 'ref_po']);
+
+        if (!$detail) {
+            return back()->with('error', 'Detail PR tidak ditemukan.');
+        }
+
+        $qtyValue = is_numeric($detail->qty ?? null) ? (float) $detail->qty : 0;
+        if ($qtyValue > 0) {
+            $kdMaterial = strtolower(trim((string) ($detail->kd_material ?? '')));
+            $refPo = strtolower(trim((string) ($detail->ref_po ?? '')));
+
+            if ($kdMaterial !== '' && $refPo !== '') {
+                DB::table('tb_detailpoin')
+                    ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
+                    ->whereRaw('lower(trim(kode_poin)) in (select lower(trim(kode_poin)) from tb_poin where lower(trim(no_poin)) = ?)', [$refPo])
+                    ->update([
+                        'sisa_qtypr' => DB::raw(sprintf(
+                            'coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F',
+                            $qtyValue
+                        )),
+                    ]);
+            }
+        }
+
         $deleted = DB::table('tb_detailpr')
             ->where('no_pr', $noPr)
             ->where('no', $detailNo)
@@ -698,6 +864,30 @@ class PurchaseRequirementController
 
         DB::transaction(function () use ($details, $noPr, $timestamp, $truncate) {
             if ($details->isNotEmpty()) {
+                // Return reserved qty back to PO In detail before deleting PR detail rows.
+                foreach ($details as $row) {
+                    $qtyValue = is_numeric($row->qty ?? null) ? (float) $row->qty : 0;
+                    $kdMaterial = strtolower(trim((string) ($row->kd_material ?? '')));
+                    $refPo = strtolower(trim((string) ($row->ref_po ?? '')));
+
+                    if ($qtyValue <= 0 || $kdMaterial === '' || $refPo === '') {
+                        continue;
+                    }
+
+                    DB::table('tb_detailpoin')
+                        ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
+                        ->whereRaw(
+                            'lower(trim(kode_poin)) in (select lower(trim(kode_poin)) from tb_poin where lower(trim(no_poin)) = ?)',
+                            [$refPo]
+                        )
+                        ->update([
+                            'sisa_qtypr' => DB::raw(sprintf(
+                                'coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F',
+                                $qtyValue
+                            )),
+                        ]);
+                }
+
                 $payload = $details->map(function ($row) use ($timestamp, $truncate) {
                     return [
                         'no_pr' => $truncate($row->no_pr, 50),

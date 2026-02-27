@@ -1,19 +1,13 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { Spinner } from '@/components/ui/spinner';
 import { Head, Link, router } from '@inertiajs/react';
-import Swal from 'sweetalert2';
-import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
+import Swal from 'sweetalert2';
+import { useEffect, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -21,15 +15,8 @@ const breadcrumbs = [
     { title: 'Edit PR', href: '/marketing/purchase-requirement' },
 ];
 
-const todayValue = () => {
-    const date = new Date();
-    return date.toISOString().slice(0, 10);
-};
-
 const toDateInputValue = (value) => {
-    if (!value) {
-        return '';
-    }
+    if (!value) return '';
     if (typeof value === 'string') {
         const trimmed = value.trim();
         const match = trimmed.match(/^(\d{2})[\/\-\.](\d{2})[\/\-\.](\d{4})/);
@@ -42,24 +29,8 @@ const toDateInputValue = (value) => {
         }
     }
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-        return '';
-    }
+    if (Number.isNaN(date.getTime())) return '';
     return date.toISOString().slice(0, 10);
-};
-
-const renderValue = (value) =>
-    value === null || value === undefined || value === '' ? '-' : value;
-
-const formatPercent = (value) => {
-    if (value === null || value === undefined || value === '') {
-        return '-';
-    }
-    const number = Number(value);
-    if (Number.isNaN(number)) {
-        return value;
-    }
-    return `${number}%`;
 };
 
 const parseNumber = (value) => {
@@ -67,26 +38,48 @@ const parseNumber = (value) => {
     return Number.isNaN(parsed) ? 0 : parsed;
 };
 
+const renderValue = (value) =>
+    value === null || value === undefined || value === '' ? '-' : value;
+
+const formatPercent = (value) => {
+    if (value === null || value === undefined || value === '') {
+        return '';
+    }
+    const number = Number(value);
+    if (Number.isNaN(number)) {
+        return String(value);
+    }
+    return `${number.toFixed(2)}%`;
+};
+
+const calculateMargin = (priceInPo, priceEstimate) => {
+    const estimate = parseNumber(priceEstimate);
+    const po = parseNumber(priceInPo);
+    if (!estimate) return '';
+    const margin = ((po - estimate) / estimate) * 100;
+    return Number.isFinite(margin) ? margin.toFixed(2) : '';
+};
+
+const calculateTotalPrice = (qty, priceEstimate) => {
+    const total = parseNumber(qty) * parseNumber(priceEstimate);
+    return total ? Math.round(total).toString() : '';
+};
+
 export default function PurchaseRequirementEdit({
-    materials = [],
     purchaseRequirement,
     purchaseRequirementDetails = [],
 }) {
     const [step, setStep] = useState(1);
-    const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
-    const [materialSearchTerm, setMaterialSearchTerm] = useState('');
-    const [materialPageSize, setMaterialPageSize] = useState(10);
-    const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [materialList, setMaterialList] = useState(materials);
-    const [materialLoading, setMaterialLoading] = useState(false);
-    const [materialError, setMaterialError] = useState('');
+    const [editingDetailNo, setEditingDetailNo] = useState(null);
+    const [editingDraft, setEditingDraft] = useState(null);
+    const [savingMaterialId, setSavingMaterialId] = useState(null);
+    const [deletingMaterialId, setDeletingMaterialId] = useState(null);
 
     const detailDateSource = purchaseRequirementDetails?.[0]?.date;
 
     const [formData, setFormData] = useState({
         date: toDateInputValue(detailDateSource),
-        refPr: purchaseRequirement?.no_pr ?? '',
         refPo: purchaseRequirement?.ref_po ?? '',
         forCustomer: purchaseRequirement?.for_customer ?? '',
         payment: purchaseRequirement?.payment ?? 'Cash Trans',
@@ -96,24 +89,11 @@ export default function PurchaseRequirementEdit({
         const detailDate = purchaseRequirementDetails?.[0]?.date;
         setFormData({
             date: toDateInputValue(detailDate),
-            refPr: purchaseRequirement?.no_pr ?? '',
             refPo: purchaseRequirement?.ref_po ?? '',
             forCustomer: purchaseRequirement?.for_customer ?? '',
             payment: purchaseRequirement?.payment ?? 'Cash Trans',
         });
     }, [purchaseRequirement, purchaseRequirementDetails]);
-
-    const [materialForm, setMaterialForm] = useState({
-        kodeMaterial: '',
-        namaMaterial: '',
-        stok: '',
-        qty: '',
-        satuan: '',
-        priceEstimate: '',
-        priceInPo: '',
-        margin: '',
-        remark: '',
-    });
 
     const [materialItems, setMaterialItems] = useState(
         (purchaseRequirementDetails ?? []).map((item, index) => ({
@@ -131,156 +111,10 @@ export default function PurchaseRequirementEdit({
             remark: item.renmark ?? '',
         }))
     );
-    const [editingDetailNo, setEditingDetailNo] = useState(null);
-    const [savingMaterialId, setSavingMaterialId] = useState(null);
-    const [deletingMaterialId, setDeletingMaterialId] = useState(null);
 
-    const filteredMaterials = useMemo(() => {
-        const term = materialSearchTerm.trim().toLowerCase();
-        if (!term) {
-            return materialList;
-        }
-
-        return materialList.filter((item) => {
-            const values = [item.kd_material, item.material];
-            return values.some((value) =>
-                String(value ?? '').toLowerCase().includes(term)
-            );
-        });
-    }, [materialSearchTerm, materialList]);
-
-    const materialTotalItems = filteredMaterials.length;
-    const materialTotalPages = useMemo(() => {
-        if (materialPageSize === Infinity) {
-            return 1;
-        }
-
-        return Math.max(1, Math.ceil(materialTotalItems / materialPageSize));
-    }, [materialPageSize, materialTotalItems]);
-
-    const displayedMaterials = useMemo(() => {
-        if (materialPageSize === Infinity) {
-            return filteredMaterials;
-        }
-
-        const startIndex = (materialCurrentPage - 1) * materialPageSize;
-        return filteredMaterials.slice(startIndex, startIndex + materialPageSize);
-    }, [filteredMaterials, materialCurrentPage, materialPageSize]);
-
-    useEffect(() => {
-        setMaterialCurrentPage(1);
-    }, [materialPageSize, materialSearchTerm]);
-
-    useEffect(() => {
-        if (materialCurrentPage > materialTotalPages) {
-            setMaterialCurrentPage(materialTotalPages);
-        }
-    }, [materialCurrentPage, materialTotalPages]);
-
-    const totalPriceValue = useMemo(() => {
-        const qty = parseNumber(materialForm.qty);
-        const estimate = parseNumber(materialForm.priceEstimate);
-        const total = qty * estimate;
-        return total ? Math.round(total).toString() : '';
-    }, [materialForm.priceEstimate, materialForm.qty]);
-
-    const marginValue = useMemo(() => {
-        const estimate = parseNumber(materialForm.priceEstimate);
-        const priceInPo = parseNumber(materialForm.priceInPo);
-        if (!estimate) {
-            return '';
-        }
-        const margin = ((priceInPo - estimate) / estimate) * 100;
-        return Number.isFinite(margin) ? margin.toFixed(2) : '';
-    }, [materialForm.priceEstimate, materialForm.priceInPo]);
-
-    const displayMarginValue = editingDetailNo
-        ? materialForm.margin ?? ''
-        : marginValue;
-
-    useEffect(() => {
-        if (!editingDetailNo) {
-            return;
-        }
-        setMaterialForm((prev) => ({
-            ...prev,
-            margin: marginValue,
-        }));
-    }, [editingDetailNo, marginValue]);
-
-    const handleMaterialSelect = (material) => {
-        setMaterialForm((prev) => ({
-            ...prev,
-            kodeMaterial: material.kd_material ?? '',
-            namaMaterial: material.material ?? '',
-            stok: material.stok ?? '',
-            satuan: material.unit ?? '',
-            priceEstimate:
-                material.harga ??
-                material.priceEstimate ??
-                material.price ??
-                material.unit_price ??
-                '',
-        }));
-        setIsMaterialModalOpen(false);
-    };
-
-    const loadMaterials = async () => {
-        if (materialLoading || materialList.length > 0) {
-            return;
-        }
-        setMaterialLoading(true);
-        setMaterialError('');
-        try {
-            const response = await fetch('/marketing/purchase-requirement/materials', {
-                headers: { Accept: 'application/json' },
-            });
-            if (!response.ok) {
-                throw new Error('Request failed');
-            }
-            const data = await response.json();
-            setMaterialList(Array.isArray(data?.materials) ? data.materials : []);
-        } catch (error) {
-            setMaterialError('Gagal memuat data material.');
-        } finally {
-            setMaterialLoading(false);
-        }
-    };
-
-    const handleAddMaterial = () => {
-        if (!materialForm.namaMaterial || !materialForm.qty) {
-            return;
-        }
-
-        const newItem = {
-            id: `${Date.now()}-${Math.random()}`,
-            ...materialForm,
-            priceInPo: materialForm.priceInPo?.toString() ?? '',
-            totalPrice: totalPriceValue,
-            margin: marginValue,
-        };
-
-        setMaterialItems((prev) => [...prev, newItem]);
-        setMaterialForm({
-            kodeMaterial: '',
-            namaMaterial: '',
-            stok: '',
-            qty: '',
-            satuan: '',
-            priceEstimate: '',
-            priceInPo: '',
-            margin: '',
-            remark: '',
-        });
-    };
-
-    const handleRemoveMaterial = (id) => {
-        setMaterialItems((prev) => prev.filter((item) => item.id !== id));
-    };
-
-    const handleEditMaterial = (item) => {
+    const openEditCard = (item) => {
         setEditingDetailNo(item.detailNo);
-        setMaterialForm({
+        setEditingDraft({
             kodeMaterial: item.kodeMaterial ?? '',
             namaMaterial: item.namaMaterial ?? '',
             stok: item.stok ?? '',
@@ -293,78 +127,20 @@ export default function PurchaseRequirementEdit({
         });
     };
 
-    const handleCancelEditMaterial = () => {
+    const closeEditCard = () => {
         setEditingDetailNo(null);
-        setMaterialForm({
-            kodeMaterial: '',
-            namaMaterial: '',
-            stok: '',
-            qty: '',
-            satuan: '',
-            priceEstimate: '',
-            priceInPo: '',
-            margin: '',
-            remark: '',
-        });
+        setEditingDraft(null);
     };
 
-    const handleSaveMaterial = () => {
-        if (!purchaseRequirement?.no_pr || !editingDetailNo) {
-            return;
-        }
-
-        const payload = {
-            date: formData.date,
-            payment: formData.payment,
-            for_customer: formData.forCustomer,
-            ref_pr: formData.refPr,
-            ref_po: formData.refPo,
-            kd_material: materialForm.kodeMaterial,
-            material: materialForm.namaMaterial,
-            qty: materialForm.qty,
-            unit: materialForm.satuan,
-            stok: materialForm.stok,
-            unit_price: materialForm.priceEstimate,
-            total_price: totalPriceValue,
-            price_po: materialForm.priceInPo,
-            margin: materialForm.margin ?? marginValue,
-            renmark: materialForm.remark,
-        };
-
-        router.put(
-            `/marketing/purchase-requirement/${encodeURIComponent(
-                purchaseRequirement.no_pr
-            )}/detail/${editingDetailNo}`,
-            payload,
-            {
-                preserveScroll: true,
-                preserveState: true,
-                onStart: () => setSavingMaterialId(editingDetailNo),
-                onFinish: () => setSavingMaterialId(null),
-                onSuccess: () => {
-                    setMaterialItems((prev) =>
-                        prev.map((item) =>
-                            item.detailNo === editingDetailNo
-                                ? {
-                                      ...item,
-                                      kodeMaterial: payload.kd_material,
-                                      namaMaterial: payload.material,
-                                      stok: payload.stok,
-                                      qty: payload.qty,
-                                      satuan: payload.unit,
-                                      priceEstimate: payload.unit_price,
-                                      totalPrice: payload.total_price,
-                                      priceInPo: payload.price_po,
-                                      margin: payload.margin,
-                                      remark: payload.renmark,
-                                  }
-                                : item
-                        )
-                    );
-                    handleCancelEditMaterial();
-                },
+    const updateDraft = (field, value) => {
+        setEditingDraft((prev) => {
+            if (!prev) return prev;
+            const next = { ...prev, [field]: value };
+            if (field === 'priceEstimate' || field === 'priceInPo') {
+                next.margin = calculateMargin(next.priceInPo, next.priceEstimate);
             }
-        );
+            return next;
+        });
     };
 
     const handleDeleteMaterial = (item) => {
@@ -376,28 +152,24 @@ export default function PurchaseRequirementEdit({
             confirmButtonText: 'Ya',
             cancelButtonText: 'Batal',
         }).then((result) => {
-            if (!result.isConfirmed) {
-                return;
-            }
+            if (!result.isConfirmed) return;
 
             if (!purchaseRequirement?.no_pr || !item.detailNo) {
-                handleRemoveMaterial(item.id);
+                setMaterialItems((prev) => prev.filter((it) => it.id !== item.id));
                 return;
             }
 
             router.delete(
-                `/marketing/purchase-requirement/${encodeURIComponent(
-                    purchaseRequirement.no_pr
-                )}/detail/${item.detailNo}`,
+                `/marketing/purchase-requirement/${encodeURIComponent(purchaseRequirement.no_pr)}/detail/${item.detailNo}`,
                 {
                     preserveScroll: true,
                     preserveState: true,
                     onStart: () => setDeletingMaterialId(item.detailNo),
                     onFinish: () => setDeletingMaterialId(null),
                     onSuccess: () => {
-                        handleRemoveMaterial(item.id);
+                        setMaterialItems((prev) => prev.filter((it) => it.id !== item.id));
                         if (editingDetailNo === item.detailNo) {
-                            handleCancelEditMaterial();
+                            closeEditCard();
                         }
                     },
                 }
@@ -405,69 +177,113 @@ export default function PurchaseRequirementEdit({
         });
     };
 
-    const handleSubmit = (event) => {
-        event.preventDefault();
-        router.put(`/marketing/purchase-requirement/${encodeURIComponent(purchaseRequirement?.no_pr ?? '')}`, {
+    const handleSaveCard = (item) => {
+        if (!purchaseRequirement?.no_pr || !item.detailNo || !editingDraft) {
+            return;
+        }
+
+        if (parseNumber(editingDraft.qty) < 0) {
+            return;
+        }
+
+        const payload = {
             date: formData.date,
             payment: formData.payment,
             for_customer: formData.forCustomer,
-            ref_pr: formData.refPr,
             ref_po: formData.refPo,
-            materials: materialItems.map((item, index) => ({
-                no: index + 1,
-                kd_material: item.kodeMaterial,
-                material: item.namaMaterial,
-                qty: item.qty,
-                unit: item.satuan,
-                stok: item.stok,
-                unit_price: item.priceEstimate,
-                total_price: item.totalPrice,
-                price_po: item.priceInPo,
-                margin: item.margin,
-                renmark: item.remark,
-            })),
-        }, {
-            onStart: () => setIsSubmitting(true),
-            onFinish: () => setIsSubmitting(false),
-        });
+            kd_material: editingDraft.kodeMaterial,
+            material: editingDraft.namaMaterial,
+            qty: editingDraft.qty,
+            unit: editingDraft.satuan,
+            stok: editingDraft.stok,
+            unit_price: editingDraft.priceEstimate,
+            total_price: calculateTotalPrice(editingDraft.qty, editingDraft.priceEstimate),
+            price_po: editingDraft.priceInPo,
+            margin: editingDraft.margin,
+            renmark: editingDraft.remark,
+        };
+
+        router.put(
+            `/marketing/purchase-requirement/${encodeURIComponent(purchaseRequirement.no_pr)}/detail/${item.detailNo}`,
+            payload,
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onStart: () => setSavingMaterialId(item.detailNo),
+                onFinish: () => setSavingMaterialId(null),
+                onSuccess: () => {
+                    setMaterialItems((prev) =>
+                        prev.map((it) =>
+                            it.detailNo === item.detailNo
+                                ? {
+                                      ...it,
+                                      kodeMaterial: payload.kd_material,
+                                      namaMaterial: payload.material,
+                                      stok: payload.stok,
+                                      qty: payload.qty,
+                                      satuan: payload.unit,
+                                      priceEstimate: payload.unit_price,
+                                      totalPrice: payload.total_price,
+                                      priceInPo: payload.price_po,
+                                      margin: payload.margin,
+                                      remark: payload.renmark,
+                                  }
+                                : it
+                        )
+                    );
+                    closeEditCard();
+                },
+            }
+        );
+    };
+
+    const handleSubmit = (event) => {
+        event.preventDefault();
+        router.put(
+            `/marketing/purchase-requirement/${encodeURIComponent(purchaseRequirement?.no_pr ?? '')}`,
+            {
+                date: formData.date,
+                payment: formData.payment,
+                for_customer: formData.forCustomer,
+                ref_po: formData.refPo,
+                materials: materialItems.map((item, index) => ({
+                    no: index + 1,
+                    kd_material: item.kodeMaterial,
+                    material: item.namaMaterial,
+                    qty: item.qty,
+                    unit: item.satuan,
+                    stok: item.stok,
+                    unit_price: item.priceEstimate,
+                    total_price: item.totalPrice,
+                    price_po: item.priceInPo,
+                    margin: item.margin,
+                    renmark: item.remark,
+                })),
+            },
+            {
+                onStart: () => setIsSubmitting(true),
+                onFinish: () => setIsSubmitting(false),
+            }
+        );
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Edit PR" />
-            <form
-                className="flex h-full flex-1 flex-col gap-4 p-4"
-                onSubmit={handleSubmit}
-            >
+            <form className="flex h-full flex-1 flex-col gap-4 p-4" onSubmit={handleSubmit}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-xl font-semibold">Edit PR</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Perbarui data PR dalam dua langkah
-                        </p>
+                        <p className="text-sm text-muted-foreground">Perbarui data PR dalam dua langkah</p>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                        Step {step} dari 2
-                    </div>
+                    <div className="text-sm text-muted-foreground">Step {step} dari 2</div>
                 </div>
 
                 <div className="flex flex-wrap gap-3 text-sm">
-                    <span
-                        className={`rounded-full px-3 py-1 ${
-                            step === 1
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-muted-foreground'
-                        }`}
-                    >
+                    <span className={`rounded-full px-3 py-1 ${step === 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                         1. Data PO Masuk
                     </span>
-                    <span
-                        className={`rounded-full px-3 py-1 ${
-                            step === 2
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-muted-foreground'
-                        }`}
-                    >
+                    <span className={`rounded-full px-3 py-1 ${step === 2 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                         2. Data Material
                     </span>
                 </div>
@@ -480,68 +296,19 @@ export default function PurchaseRequirementEdit({
                         <CardContent className="grid gap-4 md:grid-cols-2">
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">Date</span>
-                                <Input
-                                    type="date"
-                                    value={formData.date}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            date: event.target.value,
-                                        }))
-                                    }
-                                />
+                                <Input type="date" value={formData.date} onChange={(event) => setFormData((prev) => ({ ...prev, date: event.target.value }))} />
                             </label>
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">Ref PO</span>
-                                <Input
-                                    value={formData.refPo}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            refPo: event.target.value,
-                                        }))
-                                    }
-                                />
+                                <Input value={formData.refPo} onChange={(event) => setFormData((prev) => ({ ...prev, refPo: event.target.value }))} />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">No PR</span>
-                                <Input
-                                    value={formData.refPr}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            refPr: event.target.value,
-                                        }))
-                                    }
-                                    readOnly
-                                />
-                            </label>
-                            <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">
-                                    For Customer
-                                </span>
-                                <Input
-                                    value={formData.forCustomer}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            forCustomer: event.target.value,
-                                        }))
-                                    }
-                                />
+                                <span className="text-muted-foreground">For Customer</span>
+                                <Input value={formData.forCustomer} onChange={(event) => setFormData((prev) => ({ ...prev, forCustomer: event.target.value }))} />
                             </label>
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">Payment</span>
-                                <select
-                                    className="h-9 w-full rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
-                                    value={formData.payment}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            payment: event.target.value,
-                                        }))
-                                    }
-                                >
+                                <select className="h-9 w-full rounded-md border border-sidebar-border/70 bg-background px-3 text-sm" value={formData.payment} onChange={(event) => setFormData((prev) => ({ ...prev, payment: event.target.value }))}>
                                     <option value="Cash Trans">Cash Trans</option>
                                     <option value="Cash Tunai">Cash Tunai</option>
                                     <option value="Credit">Credit</option>
@@ -549,9 +316,7 @@ export default function PurchaseRequirementEdit({
                             </label>
                         </CardContent>
                         <div className="flex justify-end gap-2 px-6 pb-6">
-                            <Button type="button" onClick={() => setStep(2)}>
-                                Lanjut
-                            </Button>
+                            <Button type="button" onClick={() => setStep(2)}>Lanjut</Button>
                         </div>
                     </Card>
                 )}
@@ -561,505 +326,153 @@ export default function PurchaseRequirementEdit({
                         <CardHeader>
                             <CardTitle>Data Material</CardTitle>
                         </CardHeader>
-                        <CardContent className="grid gap-4">
-                            <div className="grid gap-4 lg:grid-cols-2">
-                                <div className="grid gap-2">
-                                    <Label>Kode Material</Label>
-                                    <Input value={materialForm.kodeMaterial} readOnly />
+                        <CardContent className="space-y-4">
+                            {materialItems.length === 0 && (
+                                <div className="rounded-xl border border-sidebar-border/70 px-4 py-6 text-center text-sm text-muted-foreground">
+                                    Belum ada material.
                                 </div>
-                                <div className="grid gap-2">
-                                    <Label>Nama Material</Label>
-                                    <div className="flex flex-col gap-2 sm:flex-row">
-                                        <Input
-                                            value={materialForm.namaMaterial}
-                                            readOnly
-                                            placeholder="Pilih material"
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() => {
-                                                setIsMaterialModalOpen(true);
-                                                loadMaterials();
-                                            }}
-                                        >
-                                            Cari Material
-                                        </Button>
-                                    </div>
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Stok</Label>
-                                    <Input value={materialForm.stok} readOnly />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Qty</Label>
-                                    <Input
-                                        type="number"
-                                        value={materialForm.qty}
-                                        onChange={(event) =>
-                                            setMaterialForm((prev) => ({
-                                                ...prev,
-                                                qty: event.target.value,
-                                            }))
-                                        }
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Satuan</Label>
-                                    <Input
-                                        value={materialForm.satuan}
-                                        onChange={(event) =>
-                                            setMaterialForm((prev) => ({
-                                                ...prev,
-                                                satuan: event.target.value,
-                                            }))
-                                        }
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Price Estimate</Label>
-                                    <Input
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={materialForm.priceEstimate}
-                                        onChange={(event) =>
-                                            setMaterialForm((prev) => ({
-                                                ...prev,
-                                                priceEstimate: event.target.value,
-                                            }))
-                                        }
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Total Price</Label>
-                                    <Input value={totalPriceValue} readOnly />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Price in PO</Label>
-                                    <Input
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={materialForm.priceInPo}
-                                        onChange={(event) =>
-                                            setMaterialForm((prev) => ({
-                                                ...prev,
-                                                priceInPo: event.target.value,
-                                            }))
-                                        }
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Margin</Label>
-                                    <Input
-                                        value={
-                                            displayMarginValue
-                                                ? `${displayMarginValue}%`
-                                                : ''
-                                        }
-                                        readOnly
-                                    />
-                                </div>
-                                <div className="grid gap-2 lg:col-span-2">
-                                    <Label>Remark</Label>
-                                    <textarea
-                                        className="min-h-[100px] rounded-md border border-sidebar-border/70 bg-background px-3 py-2 text-sm"
-                                        value={materialForm.remark}
-                                        onChange={(event) =>
-                                            setMaterialForm((prev) => ({
-                                                ...prev,
-                                                remark: event.target.value,
-                                            }))
-                                        }
-                                    />
-                                </div>
-                            </div>
+                            )}
 
-                            <div className="flex flex-wrap items-center gap-2">
-                                <Button
-                                    type="button"
-                                    onClick={
-                                        editingDetailNo
-                                            ? handleSaveMaterial
-                                            : handleAddMaterial
-                                    }
-                                    disabled={
-                                        savingMaterialId !== null &&
-                                        savingMaterialId === editingDetailNo
-                                    }
-                                >
-                                    {savingMaterialId !== null &&
-                                        savingMaterialId === editingDetailNo && (
-                                            <Spinner className="mr-2" />
-                                        )}
-                                    {editingDetailNo
-                                        ? 'Simpan Perubahan'
-                                        : 'Tambah Material'}
-                                </Button>
-                                {editingDetailNo && (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={handleCancelEditMaterial}
-                                    >
-                                        Batal Edit
-                                    </Button>
-                                )}
-                                <span className="text-sm text-muted-foreground">
-                                    {editingDetailNo
-                                        ? 'Perbarui data material.'
-                                        : 'Tambahkan item ke daftar material.'}
-                                </span>
-                            </div>
+                            {materialItems.map((item, index) => {
+                                const isEditing = editingDetailNo === item.detailNo;
+                                const source = isEditing && editingDraft ? editingDraft : item;
+                                const computedMargin = isEditing
+                                    ? calculateMargin(source.priceInPo, source.priceEstimate)
+                                    : source.margin;
 
-                            <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-muted/50 text-muted-foreground">
-                                        <tr>
-                                            <th className="px-4 py-3 text-left">
-                                                No
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Kode
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Material
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Stok
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Qty
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Satuan
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Price Estimate
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Total Price
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Price in PO
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Margin
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Remark
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Action
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {materialItems.length === 0 && (
-                                            <tr>
-                                                <td
-                                                    className="px-4 py-6 text-center text-muted-foreground"
-                                                    colSpan={11}
+                                return (
+                                    <div key={item.id} className="rounded-xl border border-sidebar-border/70 bg-card p-4">
+                                        <div className="mb-4 flex items-start justify-between gap-3">
+                                            <div className="space-y-1">
+                                                <p className="text-xs font-medium text-muted-foreground">No. {index + 1}</p>
+                                                <p className="text-sm font-semibold leading-snug">{renderValue(item.namaMaterial)}</p>
+                                                <p className="text-xs text-muted-foreground">Kode: {renderValue(item.kodeMaterial)}</p>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    title="Edit material"
+                                                    onClick={() => openEditCard(item)}
                                                 >
-                                                    Belum ada material ditambahkan.
-                                                </td>
-                                            </tr>
-                                        )}
-                                        {materialItems.map((item, index) => (
-                                            <tr
-                                                key={item.id}
-                                                className="border-t border-sidebar-border/70"
-                                            >
-                                                <td className="px-4 py-3">
-                                                    {index + 1}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.kodeMaterial)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.namaMaterial)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.stok)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.qty)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.satuan)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(
-                                                        item.priceEstimate
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    title="Hapus material"
+                                                    disabled={deletingMaterialId === item.detailNo}
+                                                    onClick={() => handleDeleteMaterial(item)}
+                                                >
+                                                    {deletingMaterialId === item.detailNo ? (
+                                                        <Spinner className="h-4 w-4" />
+                                                    ) : (
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
                                                     )}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.totalPrice)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.priceInPo)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatPercent(item.margin)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.remark)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <Button
-                                                            type="button"
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            onClick={() =>
-                                                                handleEditMaterial(
-                                                                    item
-                                                                )
-                                                            }
-                                                            aria-label="Edit material"
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                            type="button"
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            disabled={
-                                                                deletingMaterialId ===
-                                                                item.detailNo
-                                                            }
-                                                            onClick={() =>
-                                                                handleDeleteMaterial(
-                                                                    item
-                                                                )
-                                                            }
-                                                            aria-label="Hapus material"
-                                                        >
-                                                            {deletingMaterialId ===
-                                                            item.detailNo ? (
-                                                                <Spinner className="h-4 w-4" />
-                                                            ) : (
-                                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                                            )}
-                                                        </Button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                                            <div className="grid gap-2">
+                                                <Label>Margin (%)</Label>
+                                                <Input value={formatPercent(computedMargin)} readOnly />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label>Stok</Label>
+                                                <Input value={renderValue(source.stok)} readOnly />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label>Qty PO In</Label>
+                                                <Input value={renderValue(item.qty)} readOnly />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label>Qty PR</Label>
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    value={source.qty}
+                                                    readOnly={!isEditing}
+                                                    onChange={(event) => updateDraft('qty', event.target.value)}
+                                                />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label>Satuan</Label>
+                                                <Input
+                                                    value={source.satuan}
+                                                    readOnly={!isEditing}
+                                                    onChange={(event) => updateDraft('satuan', event.target.value)}
+                                                />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label>Harga PO In</Label>
+                                                <Input value={renderValue(source.priceInPo)} readOnly />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label>Harga Modal</Label>
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    step="any"
+                                                    value={source.priceEstimate}
+                                                    readOnly={!isEditing}
+                                                    onChange={(event) => updateDraft('priceEstimate', event.target.value)}
+                                                />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label>Total Price Modal</Label>
+                                                <Input
+                                                    value={calculateTotalPrice(source.qty, source.priceEstimate)}
+                                                    readOnly
+                                                />
+                                            </div>
+                                            <div className="grid gap-2 xl:col-span-2">
+                                                <Label>Remark</Label>
+                                                <Input
+                                                    value={source.remark}
+                                                    readOnly={!isEditing}
+                                                    onChange={(event) => updateDraft('remark', event.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {isEditing && (
+                                            <div className="mt-4 flex items-center justify-end gap-2">
+                                                <Button type="button" variant="outline" onClick={closeEditCard}>
+                                                    Batal
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    disabled={savingMaterialId === item.detailNo}
+                                                    onClick={() => handleSaveCard(item)}
+                                                >
+                                                    {savingMaterialId === item.detailNo && <Spinner className="mr-2" />}
+                                                    Simpan
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </CardContent>
                         <div className="flex justify-between gap-2 px-6 pb-6">
-                            <Button
-                                variant="outline"
-                                type="button"
-                                onClick={() => setStep(1)}
-                            >
+                            <Button variant="outline" type="button" onClick={() => setStep(1)}>
                                 Kembali
                             </Button>
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button type="submit" disabled={isSubmitting}>
-                                    {isSubmitting && (
-                                        <Spinner className="mr-2" />
-                                    )}
+                                    {isSubmitting && <Spinner className="mr-2" />}
                                     {isSubmitting ? 'Menyimpan...' : 'Simpan'}
                                 </Button>
                                 <Button variant="outline" asChild>
-                                    <Link href="/marketing/purchase-requirement">
-                                        Batal
-                                    </Link>
+                                    <Link href="/marketing/purchase-requirement">Batal</Link>
                                 </Button>
                             </div>
                         </div>
                     </Card>
                 )}
-
-                <Dialog
-                    open={isMaterialModalOpen}
-                    onOpenChange={(open) => {
-                        setIsMaterialModalOpen(open);
-                        if (open) {
-                            loadMaterials();
-                        } else {
-                            setMaterialSearchTerm('');
-                            setMaterialPageSize(10);
-                            setMaterialCurrentPage(1);
-                        }
-                    }}
-                >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>Pilih Material</DialogTitle>
-                        </DialogHeader>
-
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <label>
-                                Tampilkan
-                                <select
-                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={
-                                        materialPageSize === Infinity
-                                            ? 'all'
-                                            : materialPageSize
-                                    }
-                                    onChange={(event) => {
-                                        const value = event.target.value;
-                                        setMaterialPageSize(
-                                            value === 'all'
-                                                ? Infinity
-                                                : Number(value)
-                                        );
-                                        setMaterialCurrentPage(1);
-                                    }}
-                                >
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                    <option value="all">Semua</option>
-                                </select>
-                            </label>
-                            <label>
-                                Cari
-                                <input
-                                    type="search"
-                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                    placeholder="Cari kode/nama material..."
-                                    value={materialSearchTerm}
-                                    onChange={(event) =>
-                                        setMaterialSearchTerm(event.target.value)
-                                    }
-                                />
-                            </label>
-                        </div>
-
-                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left">
-                                            Kode Material
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Nama Material
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Stok
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Satuan
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Action
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {displayedMaterials.length === 0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={5}
-                                            >
-                                                {materialLoading
-                                                    ? 'Memuat data material...'
-                                                    : materialError ||
-                                                      'Tidak ada data material.'}
-                                            </td>
-                                        </tr>
-                                    )}
-                                    {displayedMaterials.map((item) => (
-                                        <tr
-                                            key={item.kd_material}
-                                            className="border-t border-sidebar-border/70"
-                                        >
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.kd_material)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.material)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.stok)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.unit)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() =>
-                                                        handleMaterialSelect(item)
-                                                    }
-                                                >
-                                                    Pilih
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {materialPageSize !== Infinity &&
-                            materialTotalItems > 0 && (
-                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                    <span>
-                                        Menampilkan{' '}
-                                        {Math.min(
-                                            (materialCurrentPage - 1) *
-                                                materialPageSize +
-                                                1,
-                                            materialTotalItems
-                                        )}
-                                        -
-                                        {Math.min(
-                                            materialCurrentPage * materialPageSize,
-                                            materialTotalItems
-                                        )}{' '}
-                                        dari {materialTotalItems} data
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                                setMaterialCurrentPage((page) =>
-                                                    Math.max(1, page - 1)
-                                                )
-                                            }
-                                            disabled={materialCurrentPage === 1}
-                                        >
-                                            Sebelumnya
-                                        </Button>
-                                        <span className="text-sm text-muted-foreground">
-                                            Halaman {materialCurrentPage} dari{' '}
-                                            {materialTotalPages}
-                                        </span>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                                setMaterialCurrentPage((page) =>
-                                                    Math.min(
-                                                        materialTotalPages,
-                                                        page + 1
-                                                    )
-                                                )
-                                            }
-                                            disabled={
-                                                materialCurrentPage ===
-                                                materialTotalPages
-                                            }
-                                        >
-                                            Berikutnya
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-                    </DialogContent>
-                </Dialog>
             </form>
         </AppLayout>
     );

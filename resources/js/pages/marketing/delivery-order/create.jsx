@@ -49,7 +49,7 @@ export default function DeliveryOrderCreate() {
         items: [], // Added items
     });
 
-    // Step 1: PR Search
+    // Step 1: PO In Search
     const [isPrModalOpen, setIsPrModalOpen] = useState(false);
     const [prSearchTerm, setPrSearchTerm] = useState('');
     const [prList, setPrList] = useState([]);
@@ -57,7 +57,7 @@ export default function DeliveryOrderCreate() {
     const [prPage, setPrPage] = useState(1);
     const [prTotalPages, setPrTotalPages] = useState(1);
     const [selectedPrNo, setSelectedPrNo] = useState(null);
-    const [prPageSize, setPrPageSize] = useState(10);
+    const [prPageSize, setPrPageSize] = useState(5);
 
     // Step 2: Details
     const [sourceItems, setSourceItems] = useState([]); // Items from PR
@@ -101,23 +101,23 @@ export default function DeliveryOrderCreate() {
         }
     }, [isPrModalOpen, prSearchTerm, prPageSize]);
 
-    const handleSelectPr = async (pr) => {
-        if (!pr) return;
-        setSelectedPrNo(pr.no_pr);
+    const handleSelectPr = async (poin) => {
+        if (!poin) return;
+        setSelectedPrNo(poin.no_poin);
 
         try {
             const response = await axios.get(
                 '/marketing/delivery-order/get-pr-details',
                 {
-                    params: { no_pr: pr.no_pr },
+                    params: { no_poin: poin.no_poin },
                 },
             );
             const { pr: prData, kd_cs, items } = response.data;
 
             setFormData((prev) => ({
                 ...prev,
-                ref_po: prData.ref_po,
-                nm_cs: prData.for_customer,
+                ref_po: prData.no_poin,
+                nm_cs: prData.customer_name,
                 kd_cs: kd_cs, // From tb_cs
             }));
 
@@ -130,7 +130,7 @@ export default function DeliveryOrderCreate() {
 
     // --- Step 2 Handler ---
     const handleSourceItemClick = (item) => {
-        const qty = item.qty || item.sisa_pr; // Default to qty/sisa
+        const qty = item.qty || item.sisa_qtydo; // Default to qty/sisa
         const lastStock = Number(item.last_stock || 0);
         const stockNow = lastStock - Number(qty);
 
@@ -241,7 +241,7 @@ export default function DeliveryOrderCreate() {
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
-                                    <Label>Cari PR</Label>
+                                    <Label>Cari PO In</Label>
                                     <div className="flex gap-2">
                                         <Button
                                             type="button"
@@ -253,7 +253,7 @@ export default function DeliveryOrderCreate() {
                                         >
                                             <Search className="mr-2 h-4 w-4" />
                                             {selectedPrNo ??
-                                                'Cari PR Outstanding...'}
+                                                'Cari PO In Outstanding...'}
                                         </Button>
                                     </div>
                                 </div>
@@ -313,7 +313,7 @@ export default function DeliveryOrderCreate() {
                                 {/* Table 1: Source */}
                                 <div>
                                     <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
-                                        List Material dari PR
+                                        List Material dari PO In
                                     </h3>
                                     <div className="rounded-md border">
                                         <Table>
@@ -350,7 +350,7 @@ export default function DeliveryOrderCreate() {
                                                         <TableCell>
                                                             {renderValue(
                                                                 item.qty ||
-                                                                    item.sisa_pr,
+                                                                    item.sisa_qtydo,
                                                             )}
                                                         </TableCell>
                                                         <TableCell>
@@ -545,17 +545,17 @@ export default function DeliveryOrderCreate() {
                 )}
             </div>
 
-            {/* Modal Cari PR */}
+            {/* Modal Pilih PO In */}
             <Dialog open={isPrModalOpen} onOpenChange={setIsPrModalOpen}>
                 <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none flex flex-col">
                     <DialogHeader>
-                        <DialogTitle>Cari PR Outstanding</DialogTitle>
+                        <DialogTitle>Pilih PO In</DialogTitle>
                         <DialogDescription>
-                            Pilih PR outstanding untuk mengisi data DO.
+                            Pilih PO In outstanding untuk mengisi data DO.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="flex flex-wrap items-center justify-between gap-3 py-4">
-                        <label className="text-sm text-muted-foreground">
+                    <div className="flex flex-wrap items-center justify-between gap-3 py-4 text-sm text-muted-foreground">
+                        <label>
                             Tampilkan
                             <select
                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
@@ -569,6 +569,7 @@ export default function DeliveryOrderCreate() {
                                     );
                                 }}
                             >
+                                <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
                                 <option value={50}>50</option>
@@ -577,7 +578,7 @@ export default function DeliveryOrderCreate() {
                         </label>
                         <div className="flex flex-1 items-center gap-2">
                         <Input
-                            placeholder="Cari No PR, Ref PO, Customer..."
+                            placeholder="Cari kode PO In, no PO In, customer..."
                             value={prSearchTerm}
                             onChange={(e) => setPrSearchTerm(e.target.value)}
                         />
@@ -589,9 +590,9 @@ export default function DeliveryOrderCreate() {
                         <Table>
                             <TableHeader className="bg-muted">
                                 <TableRow>
-                                    <TableHead>No PR</TableHead>
+                                    <TableHead>Kode PO In</TableHead>
+                                    <TableHead>No PO In</TableHead>
                                     <TableHead>Date</TableHead>
-                                    <TableHead>Ref PO</TableHead>
                                     <TableHead>Customer</TableHead>
                                     <TableHead>Action</TableHead>
                                 </TableRow>
@@ -612,27 +613,25 @@ export default function DeliveryOrderCreate() {
                                             colSpan={5}
                                             className="text-center"
                                         >
-                                            Tidak ada data PR outstanding.
+                                            Tidak ada data PO In outstanding.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    prList.map((pr) => (
+                                    prList.map((poin) => (
                                         <TableRow
-                                            key={pr.no_pr}
+                                            key={poin.kode_poin}
                                             className="cursor-pointer hover:bg-muted/50"
-                                            onClick={() => handleSelectPr(pr)}
+                                            onClick={() => handleSelectPr(poin)}
                                         >
-                                            <TableCell>{pr.no_pr}</TableCell>
-                                            <TableCell>{pr.date}</TableCell>
-                                            <TableCell>{pr.ref_po}</TableCell>
-                                            <TableCell>
-                                                {pr.for_customer}
-                                            </TableCell>
+                                            <TableCell>{renderValue(poin.kode_poin)}</TableCell>
+                                            <TableCell>{renderValue(poin.no_poin)}</TableCell>
+                                            <TableCell>{renderValue(poin.date_poin)}</TableCell>
+                                            <TableCell>{renderValue(poin.customer_name)}</TableCell>
                                             <TableCell>
                                                 <Button
                                                     size="sm"
                                                     onClick={() =>
-                                                        handleSelectPr(pr)
+                                                        handleSelectPr(poin)
                                                     }
                                                 >
                                                     Pilih

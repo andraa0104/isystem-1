@@ -658,6 +658,78 @@ class DeliveryOrderController
         return back()->with('success', 'Data DO berhasil diperbarui.');
     }
 
+    public function destroyDetail(Request $request, $noDo, $lineNo)
+    {
+        $row = DB::table('tb_do')
+            ->where('no_do', $noDo)
+            ->where('no', $lineNo)
+            ->first();
+
+        if (!$row) {
+            $message = 'Detail DO tidak ditemukan.';
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 404);
+            }
+            return back()->with('error', $message);
+        }
+
+        $qty = is_numeric($row->qty ?? null) ? (float) $row->qty : 0;
+        $kdMat = strtolower(trim((string) ($row->kd_mat ?? '')));
+        $refPo = strtolower(trim((string) ($row->ref_po ?? '')));
+
+        try {
+            DB::transaction(function () use ($noDo, $lineNo, $qty, $kdMat, $refPo) {
+                if ($qty > 0 && $kdMat !== '' && $refPo !== '') {
+                    $kodePoin = DB::table('tb_poin')
+                        ->whereRaw('lower(trim(no_poin)) = ?', [$refPo])
+                        ->value('kode_poin');
+
+                    if ($kodePoin) {
+                        $updatePayload = [];
+
+                        if (Schema::hasColumn('tb_detailpoin', 'sisa_qtypr')) {
+                            $updatePayload['sisa_qtypr'] = DB::raw(sprintf(
+                                'coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F',
+                                $qty
+                            ));
+                        }
+
+                        if (Schema::hasColumn('tb_detailpoin', 'sisa_qtydo')) {
+                            $updatePayload['sisa_qtydo'] = DB::raw(sprintf(
+                                'coalesce(cast(sisa_qtydo as decimal(18,4)), 0) + %.4F',
+                                $qty
+                            ));
+                        }
+
+                        if (!empty($updatePayload)) {
+                            DB::table('tb_detailpoin')
+                                ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string) $kodePoin))])
+                                ->whereRaw('lower(trim(kd_material)) = ?', [$kdMat])
+                                ->update($updatePayload);
+                        }
+                    }
+                }
+
+                DB::table('tb_do')
+                    ->where('no_do', $noDo)
+                    ->where('no', $lineNo)
+                    ->delete();
+            });
+        } catch (\Throwable $exception) {
+            $message = $exception->getMessage();
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 500);
+            }
+            return back()->with('error', $message);
+        }
+
+        $successMessage = 'Data material DO berhasil dihapus.';
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $successMessage]);
+        }
+        return back()->with('success', $successMessage);
+    }
+
     public function destroy(Request $request, $noDo)
     {
         $rows = DB::table('tb_do')
@@ -675,6 +747,12 @@ class DeliveryOrderController
                     $kdMat = $row->kd_mat ?? null;
                     $matName = $row->mat ?? null;
                     $refPo = $row->ref_po ?? null;
+                    $kodePoin = null;
+                    if ($refPo) {
+                        $kodePoin = DB::table('tb_poin')
+                            ->whereRaw('lower(trim(no_poin)) = ?', [strtolower(trim((string) $refPo))])
+                            ->value('kode_poin');
+                    }
 
                     if ($kdMat) {
                         DB::table('tb_material')
@@ -687,6 +765,16 @@ class DeliveryOrderController
                             $detailQuery->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($refPo))]);
                         }
                         $detailQuery->increment('sisa_pr', $qty);
+
+                        if ($kodePoin) {
+                            $poinDetailQuery = DB::table('tb_detailpoin')
+                                ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string) $kodePoin))])
+                                ->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim((string) $kdMat))]);
+
+                            if (Schema::hasColumn('tb_detailpoin', 'sisa_qtydo')) {
+                                $poinDetailQuery->increment('sisa_qtydo', $qty);
+                            }
+                        }
                     } elseif ($matName) {
                         // fallback by material name
                         DB::table('tb_detailpr')
@@ -695,6 +783,16 @@ class DeliveryOrderController
                                 $q->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($refPo))]);
                             })
                             ->increment('sisa_pr', $qty);
+
+                        if ($kodePoin) {
+                            $poinDetailQuery = DB::table('tb_detailpoin')
+                                ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string) $kodePoin))])
+                                ->whereRaw('lower(trim(material)) = ?', [strtolower(trim((string) $matName))]);
+
+                            if (Schema::hasColumn('tb_detailpoin', 'sisa_qtydo')) {
+                                $poinDetailQuery->increment('sisa_qtydo', $qty);
+                            }
+                        }
                     }
                 }
 
@@ -719,45 +817,38 @@ class DeliveryOrderController
     public function searchPr(Request $request)
     {
         $search = $request->input('search');
-        $perPageInput = $request->input('per_page', 10);
+        $perPageInput = $request->input('per_page', 5);
         $perPage = $perPageInput === 'all'
             ? null
-            : (is_numeric($perPageInput) ? (int) $perPageInput : 10);
+            : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
         if ($perPage !== null && $perPage < 1) {
-            $perPage = 10;
+            $perPage = 5;
         }
 
-        $detailSub = DB::table('tb_detailpr')
-            ->select(
-                'no_pr',
-                DB::raw('coalesce(sum(cast(replace(sisa_pr, \',\', \'\') as decimal(18,4))), 0) as pr_sisa')
-            )
-            ->groupBy('no_pr');
-
-        $query = DB::table('tb_pr as pr')
-            ->leftJoinSub($detailSub, 'detail', function ($join) {
-                $join->on('pr.no_pr', '=', 'detail.no_pr');
+        $query = DB::table('tb_poin as p')
+            ->whereExists(function ($subQuery) {
+                $subQuery->select(DB::raw(1))
+                    ->from('tb_detailpoin as d')
+                    ->whereRaw('lower(trim(d.kode_poin)) = lower(trim(p.kode_poin))')
+                    ->whereRaw('coalesce(cast(d.sisa_qtydo as decimal(18,4)), 0) <> 0');
             })
-            ->whereRaw('coalesce(detail.pr_sisa, 0) > 0')
             ->select(
-                'pr.no_pr',
-                'pr.date',
-                'pr.ref_po',
-                'pr.for_customer',
-                DB::raw('coalesce(detail.pr_sisa, 0) as sisa_pr')
+                'p.kode_poin',
+                'p.no_poin',
+                'p.date_poin',
+                'p.customer_name'
             );
 
         if ($search) {
             $query->where(function ($q) use ($search) {
-                $q->where('pr.no_pr', 'like', "%{$search}%")
-                  ->orWhere('pr.ref_po', 'like', "%{$search}%")
-                  ->orWhere('pr.for_customer', 'like', "%{$search}%");
+                $q->where('p.kode_poin', 'like', "%{$search}%")
+                    ->orWhere('p.no_poin', 'like', "%{$search}%")
+                    ->orWhere('p.customer_name', 'like', "%{$search}%");
             });
         }
 
         $query = $query
-            ->orderBy('pr.date', 'desc')
-            ->orderBy('pr.no_pr', 'desc');
+            ->orderByDesc('p.id');
 
         if ($perPage === null) {
             $prs = $query->get();
@@ -777,39 +868,37 @@ class DeliveryOrderController
 
     public function getPrDetails(Request $request)
     {
-        $noPr = $request->input('no_pr');
+        $noPoin = $request->input('no_poin');
 
-        $pr = DB::table('tb_pr')->where('no_pr', $noPr)->first();
+        $poin = DB::table('tb_poin')->where('no_poin', $noPoin)->first();
 
-        if (!$pr) {
-            return response()->json(['error' => 'PR not found'], 404);
+        if (!$poin) {
+            return response()->json(['error' => 'PO In not found'], 404);
         }
 
         $kdCs = DB::table('tb_cs')
-            ->where('nm_cs', $pr->for_customer)
+            ->where('nm_cs', $poin->customer_name)
             ->value('kd_cs');
 
         try {
-            $rawItems = DB::table('tb_detailpr')
-                ->where('no_pr', $noPr)
+            $rawItems = DB::table('tb_detailpoin')
+                ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string) $poin->kode_poin))])
+                ->whereRaw('coalesce(cast(sisa_qtydo as decimal(18,4)), 0) <> 0')
                 ->get();
         } catch (\Throwable $exception) {
             return response()->json([
-                'error' => 'Gagal mengambil detail PR.',
+                'error' => 'Gagal mengambil detail PO In.',
                 'message' => $exception->getMessage(),
             ], 500);
         }
 
         $items = $rawItems->map(function ($item) {
-            $kdMaterial = $item->kd_material
-                ?? $item->kd_mat
-                ?? $item->kd_mtrl
-                ?? null;
-            $material = $item->material ?? $item->mat ?? $item->mtrl ?? null;
+            $kdMaterial = $item->kd_material ?? null;
+            $material = $item->material ?? null;
             $unit = $item->unit ?? $item->satuan ?? $item->Unit ?? '';
             $remark = $item->renmark ?? $item->remark ?? $item->keterangan ?? '';
-            $sisa = $item->sisa_pr ?? $item->Sisa_pr ?? null;
-            $qty = $sisa ?? $item->qty ?? $item->Qty ?? $item->quantity ?? null;
+            $sisaDo = $item->sisa_qtydo ?? null;
+            $qty = $sisaDo ?? $item->qty ?? null;
 
             $lastStock = 0;
             try {
@@ -826,13 +915,13 @@ class DeliveryOrderController
                 'qty' => $qty,
                 'unit' => $unit,
                 'remark' => $remark,
-                'sisa_pr' => $sisa,
+                'sisa_qtydo' => $sisaDo,
                 'last_stock' => (float) $lastStock,
             ];
         });
 
         return response()->json([
-            'pr' => $pr,
+            'pr' => $poin,
             'kd_cs' => $kdCs,
             'items' => $items,
         ]);

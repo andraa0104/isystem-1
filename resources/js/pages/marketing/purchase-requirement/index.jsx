@@ -62,6 +62,8 @@ export default function PurchaseRequirementIndex({
     );
     const [statusFilter, setStatusFilter] = useState('outstanding');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
+    const [outstandingCountState, setOutstandingCountState] = useState(outstandingCount);
+    const [outstandingTotalState, setOutstandingTotalState] = useState(outstandingTotal);
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
     const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
     const [isRealizedLoading, setIsRealizedLoading] = useState(false);
@@ -95,6 +97,11 @@ export default function PurchaseRequirementIndex({
     useEffect(() => {
         setPurchaseRequirementsList(purchaseRequirements);
     }, [purchaseRequirements]);
+
+    useEffect(() => {
+        setOutstandingCountState(outstandingCount);
+        setOutstandingTotalState(outstandingTotal);
+    }, [outstandingCount, outstandingTotal]);
 
     const filteredPurchaseRequirements = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -341,8 +348,8 @@ export default function PurchaseRequirementIndex({
             });
     };
 
-    const loadOutstanding = () => {
-        if (outstandingLoading || outstandingList.length > 0) {
+    const loadOutstanding = (force = false) => {
+        if (outstandingLoading || (!force && outstandingList.length > 0)) {
             return;
         }
         setOutstandingLoading(true);
@@ -524,6 +531,16 @@ export default function PurchaseRequirementIndex({
             setPurchaseRequirementsList((prev) =>
                 prev.filter((item) => item.no_pr !== noPr)
             );
+            setOutstandingCountState((prev) => Math.max(0, Number(prev || 0) - 1));
+
+            router.reload({
+                only: ['purchaseRequirements', 'outstandingCount', 'outstandingTotal'],
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: () => {
+                    loadOutstanding(true);
+                },
+            });
             showToast('PR berhasil dihapus.', 'success');
         });
     };
@@ -562,7 +579,7 @@ export default function PurchaseRequirementIndex({
                             <CardHeader className="pb-2">
                                 <CardDescription>PR Outstanding</CardDescription>
                                 <CardTitle className="text-2xl">
-                                    {outstandingCount}
+                                    {outstandingCountState}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
@@ -572,7 +589,7 @@ export default function PurchaseRequirementIndex({
                                 <p className="text-sm font-semibold">
                                     Rp{' '}
                                     {new Intl.NumberFormat('id-ID').format(
-                                        outstandingTotal || 0
+                                        outstandingTotalState || 0
                                     )}
                                 </p>
                             </CardContent>

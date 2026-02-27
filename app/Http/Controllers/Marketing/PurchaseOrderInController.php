@@ -384,6 +384,59 @@ class PurchaseOrderInController
         ]);
     }
 
+    public function storeMaterial(Request $request)
+    {
+        $validated = $request->validate([
+            'material' => ['required', 'string', 'max:255'],
+            'unit' => ['required', 'string', 'max:100'],
+            'stok' => ['nullable', 'numeric', 'min:0'],
+            'remark' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $stok = (int) ($validated['stok'] ?? 0);
+        $pembuat = optional($request->user())->name
+            ?? $request->cookie('login_user')
+            ?? $request->cookie('login_user_name')
+            ?? ' ';
+        $lastKdMaterial = DB::table('tb_material')->max('kd_material');
+        $nextKdMaterial = $lastKdMaterial
+            ? (string) (((int) $lastKdMaterial) + 1)
+            : '1000000001';
+        if (strlen($nextKdMaterial) < 10) {
+            $nextKdMaterial = '1'.str_pad(substr($nextKdMaterial, 1), 9, '0', STR_PAD_LEFT);
+        }
+
+        try {
+            DB::table('tb_material')->insert([
+                'kd_material' => $nextKdMaterial,
+                'material' => $validated['material'],
+                'unit' => $validated['unit'],
+                'stok' => $stok,
+                'harga' => 0,
+                'rest_stock' => $stok,
+                'remark' => ($validated['remark'] ?? null) === null ? ' ' : $validated['remark'],
+                'tgl_buat' => now()->toDateString(),
+                'pembuat' => $pembuat,
+            ]);
+        } catch (Throwable $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+            ], 500);
+        }
+
+        return response()->json([
+            'message' => 'Data material berhasil disimpan.',
+            'material' => [
+                'kd_material' => $nextKdMaterial,
+                'material' => $validated['material'],
+                'unit' => $validated['unit'],
+                'stok' => $stok,
+                'harga' => 0,
+                'remark' => $validated['remark'] ?? null,
+            ],
+        ]);
+    }
+
     public function customers(Request $request)
     {
         $perPageInput = $request->query('per_page', 5);

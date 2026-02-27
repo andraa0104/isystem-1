@@ -46,7 +46,17 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }) {
     }, [errors, flash?.error, flash?.success]);
 
     useEffect(() => {
+        const onGlobalToast = (event) => {
+            const detail = event?.detail ?? {};
+            const message = detail?.message;
+            const variant = detail?.variant === 'success' ? 'success' : 'error';
+            showToast(message, variant);
+        };
+
+        window.addEventListener('app:toast', onGlobalToast);
+
         return () => {
+            window.removeEventListener('app:toast', onGlobalToast);
             if (toastTimer.current) {
                 clearTimeout(toastTimer.current);
             }

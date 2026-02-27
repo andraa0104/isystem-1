@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -111,6 +112,15 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     const [materialTotal, setMaterialTotal] = useState(0);
     const [materialLoading, setMaterialLoading] = useState(false);
     const [materialError, setMaterialError] = useState('');
+    const [isMaterialCreateModalOpen, setIsMaterialCreateModalOpen] = useState(false);
+    const [materialCreateForm, setMaterialCreateForm] = useState({
+        material: '',
+        unit: '',
+        stok: 0,
+        remark: '',
+    });
+    const [materialCreateErrors, setMaterialCreateErrors] = useState({});
+    const [isMaterialCreating, setIsMaterialCreating] = useState(false);
 
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
     const [customerSearchTerm, setCustomerSearchTerm] = useState('');
@@ -408,6 +418,14 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         });
     };
 
+    const dispatchGlobalToast = (message, variant) => {
+        window.dispatchEvent(
+            new CustomEvent('app:toast', {
+                detail: { message, variant },
+            }),
+        );
+    };
+
     const handleCreateCustomer = async (event) => {
         event.preventDefault();
         setCustomerCreateErrors({});
@@ -466,6 +484,69 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             toast('error', error?.message || 'Gagal menyimpan customer.');
         } finally {
             setIsCustomerCreating(false);
+        }
+    };
+
+    const handleCreateMaterial = async (event) => {
+        event.preventDefault();
+        setMaterialCreateErrors({});
+        setIsMaterialCreating(true);
+
+        try {
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute('content');
+
+            const response = await fetch('/marketing/purchase-order-in/materials', {
+                method: 'POST',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': token ?? '',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify(materialCreateForm),
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                if (response.status === 422 && data?.errors) {
+                    setMaterialCreateErrors(data.errors);
+                }
+                throw new Error(
+                    data?.message ||
+                        (data?.errors && Object.values(data.errors).flat()[0]) ||
+                        'Gagal menyimpan material.',
+                );
+            }
+
+            const created = data?.material ?? {};
+            setItemForm((prev) => ({
+                ...prev,
+                kodeMaterial: created.kd_material ?? '',
+                material: created.material ?? '',
+                unit: created.unit ?? '',
+                unitPrice: '',
+            }));
+            setIsMaterialCreateModalOpen(false);
+            setIsMaterialModalOpen(false);
+            setMaterialCreateForm({
+                material: '',
+                unit: '',
+                stok: 0,
+                remark: '',
+            });
+            dispatchGlobalToast(
+                data?.message || 'Data material berhasil disimpan.',
+                'success',
+            );
+        } catch (error) {
+            dispatchGlobalToast(
+                error?.message || 'Gagal menyimpan material.',
+                'error',
+            );
+        } finally {
+            setIsMaterialCreating(false);
         }
     };
 
@@ -996,12 +1077,16 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                         setMaterialCurrentPage(1);
                         setMaterialList([]);
                         setMaterialTotal(0);
+                        setMaterialCreateErrors({});
                     }
                 }}
             >
                 <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Pilih Material</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Pilih data material untuk item PO In.
+                        </DialogDescription>
                     </DialogHeader>
 
                     <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
@@ -1079,6 +1164,19 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 ? 'Memuat data material...'
                                                 : materialError ||
                                                   'Tidak ada data material.'}
+                                            {!materialLoading && (
+                                                <div className="mt-3">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        onClick={() =>
+                                                            setIsMaterialCreateModalOpen(true)
+                                                        }
+                                                    >
+                                                        Buat Material
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </td>
                                     </tr>
                                 )}
@@ -1176,6 +1274,116 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             </Dialog>
 
             <Dialog
+                open={isMaterialCreateModalOpen}
+                onOpenChange={(open) => {
+                    setIsMaterialCreateModalOpen(open);
+                    if (!open) {
+                        setMaterialCreateErrors({});
+                    }
+                }}
+            >
+                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Tambah Material</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Form tambah material baru untuk PO In.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form className="space-y-4" onSubmit={handleCreateMaterial}>
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="new_material">Nama Material</Label>
+                                <Input
+                                    id="new_material"
+                                    value={materialCreateForm.material}
+                                    onChange={(event) =>
+                                        setMaterialCreateForm((prev) => ({
+                                            ...prev,
+                                            material: event.target.value,
+                                        }))
+                                    }
+                                />
+                                {materialCreateErrors.material && (
+                                    <p className="text-xs text-red-500">
+                                        {materialCreateErrors.material[0]}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="new_unit">Satuan</Label>
+                                <Input
+                                    id="new_unit"
+                                    value={materialCreateForm.unit}
+                                    onChange={(event) =>
+                                        setMaterialCreateForm((prev) => ({
+                                            ...prev,
+                                            unit: event.target.value,
+                                        }))
+                                    }
+                                />
+                                {materialCreateErrors.unit && (
+                                    <p className="text-xs text-red-500">
+                                        {materialCreateErrors.unit[0]}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="new_stok">Stok</Label>
+                                <Input
+                                    id="new_stok"
+                                    type="number"
+                                    min={0}
+                                    value={materialCreateForm.stok}
+                                    onChange={(event) =>
+                                        setMaterialCreateForm((prev) => ({
+                                            ...prev,
+                                            stok: event.target.value,
+                                        }))
+                                    }
+                                />
+                                {materialCreateErrors.stok && (
+                                    <p className="text-xs text-red-500">
+                                        {materialCreateErrors.stok[0]}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="new_material_remark">Remark</Label>
+                                <Input
+                                    id="new_material_remark"
+                                    value={materialCreateForm.remark}
+                                    onChange={(event) =>
+                                        setMaterialCreateForm((prev) => ({
+                                            ...prev,
+                                            remark: event.target.value,
+                                        }))
+                                    }
+                                />
+                                {materialCreateErrors.remark && (
+                                    <p className="text-xs text-red-500">
+                                        {materialCreateErrors.remark[0]}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsMaterialCreateModalOpen(false)}
+                            >
+                                Batal
+                            </Button>
+                            <Button type="submit" disabled={isMaterialCreating}>
+                                {isMaterialCreating ? 'Menyimpan...' : 'Simpan Data'}
+                            </Button>
+                        </div>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
                 open={isCustomerModalOpen}
                 onOpenChange={(open) => {
                     setIsCustomerModalOpen(open);
@@ -1191,6 +1399,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Pilih Customer</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Pilih data customer untuk PO In.
+                        </DialogDescription>
                     </DialogHeader>
 
                     <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
@@ -1372,6 +1583,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>Tambah Customer</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Form tambah customer baru untuk PO In.
+                        </DialogDescription>
                     </DialogHeader>
 
                     <form className="space-y-4" onSubmit={handleCreateCustomer}>

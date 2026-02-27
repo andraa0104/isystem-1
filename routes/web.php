@@ -455,6 +455,8 @@ Route::delete('marketing/purchase-order-in/{kodePoin}/detail/{detailId}', [Purch
     ->name('marketing.purchase-order-in.detail.destroy');
 Route::get('marketing/purchase-order-in/materials', [PurchaseOrderInController::class, 'materials'])
     ->name('marketing.purchase-order-in.materials');
+Route::post('marketing/purchase-order-in/materials', [PurchaseOrderInController::class, 'storeMaterial'])
+    ->name('marketing.purchase-order-in.materials.store');
 Route::get('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'customers'])
     ->name('marketing.purchase-order-in.customers');
 Route::post('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'storeCustomer'])
@@ -472,6 +474,8 @@ Route::get('marketing/purchase-requirement/customers', [PurchaseRequirementContr
     ->name('marketing.purchase-requirement.customers');
 Route::get('marketing/purchase-requirement/customers', [PurchaseRequirementController::class, 'customers'])
     ->name('marketing.purchase-requirement.customers');
+Route::get('marketing/purchase-requirement/poin-details', [PurchaseRequirementController::class, 'poinDetails'])
+    ->name('marketing.purchase-requirement.poin-details');
 Route::get('marketing/purchase-requirement/details', [PurchaseRequirementController::class, 'details'])
     ->name('marketing.purchase-requirement.details');
 Route::get('marketing/purchase-requirement/outstanding', [PurchaseRequirementController::class, 'outstanding'])
@@ -548,6 +552,8 @@ Route::post('marketing/delivery-order', [DeliveryOrderController::class, 'store'
     ->name('marketing.delivery-order.store');
 Route::put('marketing/delivery-order/{noDo}/detail/{lineNo}', [DeliveryOrderController::class, 'updateDetail'])
     ->name('marketing.delivery-order.detail.update');
+Route::delete('marketing/delivery-order/{noDo}/detail/{lineNo}', [DeliveryOrderController::class, 'destroyDetail'])
+    ->name('marketing.delivery-order.detail.destroy');
 Route::put('marketing/delivery-order/{noDo}', [DeliveryOrderController::class, 'update'])
     ->name('marketing.delivery-order.update');
 Route::delete('marketing/delivery-order/{noDo}', [DeliveryOrderController::class, 'destroy'])
