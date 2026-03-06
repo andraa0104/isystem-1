@@ -45,7 +45,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Redis;
 use App\Models\Pengguna;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
@@ -124,9 +123,16 @@ Route::post('/login-simple', function (Request $request) {
     $onlineSetKey = onlineUsersSetKey($database);
     $onlineAliveKey = onlineUserAliveKey($database, $user->pengguna);
     $onlineNameKey = onlineUserNameKey($database, $user->pengguna);
-    Redis::sadd($onlineSetKey, $user->pengguna);
-    Redis::setex($onlineAliveKey, $onlineTtlSeconds, (string) time());
-    Redis::setex($onlineNameKey, $onlineTtlSeconds, (string) ($user->name ?? $user->pengguna));
+
+    // Replace Redis set with Cache array
+    $usernames = Cache::store('file')->get($onlineSetKey, []);
+    if (!in_array($user->pengguna, $usernames)) {
+        $usernames[] = $user->pengguna;
+        Cache::store('file')->forever($onlineSetKey, $usernames);
+    }
+
+    Cache::store('file')->put($onlineAliveKey, (string) time(), $onlineTtlSeconds);
+    Cache::store('file')->put($onlineNameKey, (string) ($user->name ?? $user->pengguna), $onlineTtlSeconds);
 
     // Inisialisasi heartbeat supaya request pertama setelah redirect tidak dianggap "stale"
     $key = 'browser_active:' . ($database ?: 'default') . ':' . $user->pengguna;
@@ -179,9 +185,15 @@ Route::post('/heartbeat-simple', function (Request $request) {
     $onlineNameKey = onlineUserNameKey($database, $username);
     $displayName = (string) ($request->cookie('login_user_name') ?: $username);
 
-    Redis::sadd($onlineSetKey, $username);
-    Redis::setex($onlineAliveKey, $onlineTtlSeconds, (string) time());
-    Redis::setex($onlineNameKey, $onlineTtlSeconds, $displayName);
+    // Replace Redis set with Cache array
+    $usernames = Cache::store('file')->get($onlineSetKey, []);
+    if (!in_array($username, $usernames)) {
+        $usernames[] = $username;
+        Cache::store('file')->forever($onlineSetKey, $usernames);
+    }
+
+    Cache::store('file')->put($onlineAliveKey, (string) time(), $onlineTtlSeconds);
+    Cache::store('file')->put($onlineNameKey, $onlineTtlSeconds, $displayName);
 
     return response()->json(['ok' => true]);
 });
@@ -213,8 +225,14 @@ Route::match(['get', 'post'], '/logout-simple', function (Request $request) {
             $onlineSetKey = onlineUsersSetKey($database);
             $onlineAliveKey = onlineUserAliveKey($database, $username);
             $onlineNameKey = onlineUserNameKey($database, $username);
-            Redis::srem($onlineSetKey, $username);
-            Redis::del([$onlineAliveKey, $onlineNameKey]);
+
+            // Replace Redis srem with Cache array filter
+            $usernames = Cache::store('file')->get($onlineSetKey, []);
+            $usernames = array_filter($usernames, fn($u) => $u !== $username);
+            Cache::store('file')->forever($onlineSetKey, array_values($usernames));
+
+            Cache::store('file')->forget($onlineAliveKey);
+            Cache::store('file')->forget($onlineNameKey);
         }
     }
 
@@ -239,14 +257,14 @@ Route::get('/online-users', function (Request $request) {
     }
 
     $onlineSetKey = onlineUsersSetKey($database);
-    $usernames = Redis::smembers($onlineSetKey) ?: [];
+    $usernames = Cache::store('file')->get($onlineSetKey, []);
     $aliveUsers = [];
     $staleUsers = [];
 
     foreach ($usernames as $username) {
         $aliveKey = onlineUserAliveKey($database, (string) $username);
-        if (Redis::exists($aliveKey)) {
-            $name = Redis::get(onlineUserNameKey($database, (string) $username));
+        if (Cache::store('file')->has($aliveKey)) {
+            $name = Cache::store('file')->get(onlineUserNameKey($database, (string) $username));
             $aliveUsers[] = $name ?: $username;
         } else {
             $staleUsers[] = $username;
@@ -254,7 +272,9 @@ Route::get('/online-users', function (Request $request) {
     }
 
     if (!empty($staleUsers)) {
-        Redis::srem($onlineSetKey, ...$staleUsers);
+        // Replace Redis srem with Cache array filter
+        $usernames = array_filter($usernames, fn($u) => !in_array($u, $staleUsers));
+        Cache::store('file')->forever($onlineSetKey, array_values($usernames));
     }
 
     sort($aliveUsers, SORT_NATURAL | SORT_FLAG_CASE);

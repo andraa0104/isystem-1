@@ -11,8 +11,10 @@ services:
       APP_DEBUG: "false"
       APP_URL: ${APP_URL}
       ASSET_URL: ${ASSET_URL}
+      SESSION_DRIVER: file
+      CACHE_STORE: file
     ports:
-      - "8080:80"
+      - "8083:80"
     volumes:
       - storage-data:/var/www/html/storage
     depends_on:
