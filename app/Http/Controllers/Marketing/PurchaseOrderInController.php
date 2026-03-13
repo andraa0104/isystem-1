@@ -72,46 +72,80 @@ class PurchaseOrderInController
             $perPage = 5;
         }
 
-        $query = DB::table('tb_poin')
+        $statusFilter = request()->query('status', 'all');
+        if (!in_array($statusFilter, ['all', 'outstanding', 'sisa_pr', 'realized'])) {
+            $statusFilter = 'all';
+        }
+
+        $query = DB::table('tb_poin as p')
             ->select(
-                'id',
-                'kode_poin',
-                'no_poin',
-                'date_poin',
-                'delivery_date',
-                'customer_name',
-                'grand_total'
+                'p.id',
+                'p.kode_poin',
+                'p.no_poin',
+                'p.date_poin',
+                'p.delivery_date',
+                'p.customer_name',
+                'p.grand_total'
             );
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $like = '%'.strtolower($search).'%';
-                $q->whereRaw('lower(kode_poin) like ?', [$like])
-                    ->orWhereRaw('lower(no_poin) like ?', [$like])
-                    ->orWhereRaw('lower(customer_name) like ?', [$like]);
+                $q->whereRaw('lower(p.kode_poin) like ?', [$like])
+                    ->orWhereRaw('lower(p.no_poin) like ?', [$like])
+                    ->orWhereRaw('lower(p.customer_name) like ?', [$like]);
+            });
+        }
+
+        if ($statusFilter === 'outstanding') {
+            // sisa_qtypr = qty untuk semua material (belum ada PR)
+            $query->whereNotExists(function ($q) {
+                $q->from('tb_detailpoin as d')
+                    ->whereColumn('d.kode_poin', 'p.kode_poin')
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(d.qty as decimal(18,4)), 0)');
+            })->whereExists(function ($q) {
+                $q->from('tb_detailpoin as d')->whereColumn('d.kode_poin', 'p.kode_poin');
+            });
+        } elseif ($statusFilter === 'sisa_pr') {
+            // sisa_qtypr != qty untuk minimal 1 material (sudah ada PR sebagian)
+            $query->whereExists(function ($q) {
+                $q->from('tb_detailpoin as d')
+                    ->whereColumn('d.kode_poin', 'p.kode_poin')
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(d.qty as decimal(18,4)), 0)');
+            });
+        } elseif ($statusFilter === 'realized') {
+            // sisa_qtypr = 0 untuk semua material (semua selesai PR)
+            $query->whereNotExists(function ($q) {
+                $q->from('tb_detailpoin as d')
+                    ->whereColumn('d.kode_poin', 'p.kode_poin')
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
             });
         }
 
         $total = (clone $query)->count();
         $page = max(1, (int) request()->query('page', 1));
         if ($perPage === null) {
-            $rows = (clone $query)->orderByDesc('id')->get();
+            $rows = (clone $query)->orderByDesc('p.id')->get();
         } else {
             $rows = (clone $query)
-                ->orderByDesc('id')
+                ->orderByDesc('p.id')
                 ->forPage($page, $perPage)
                 ->get();
         }
 
-        $outstandingBase = DB::table('tb_detailpoin as d')
-            ->join('tb_poin as p', 'p.kode_poin', '=', 'd.kode_poin')
-            ->where('d.sisa_qtydo', '<>', 0);
-
-        $realizedBase = DB::table('tb_detailpoin as d')
-            ->join('tb_poin as p', 'p.kode_poin', '=', 'd.kode_poin')
-            ->whereColumn('d.sisa_qtypr', '<>', 'd.qty');
-
-        $outstandingRows = (clone $outstandingBase)
+        // Outstanding: PO yang SEMUA material belum ada PR (sisa_qtypr = qty)
+        $outstandingRows = DB::table('tb_poin as p')
+            ->whereNotExists(function ($q) {
+                // Tidak ada material yang sisa_qtypr != qty
+                $q->from('tb_detailpoin as d')
+                    ->whereColumn('d.kode_poin', 'p.kode_poin')
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(d.qty as decimal(18,4)), 0)');
+            })
+            ->whereExists(function ($q) {
+                // Pastikan PO punya detail material
+                $q->from('tb_detailpoin as d')
+                    ->whereColumn('d.kode_poin', 'p.kode_poin');
+            })
             ->select(
                 'p.id',
                 'p.kode_poin',
@@ -125,11 +159,39 @@ class PurchaseOrderInController
                     where lower(trim(pr.ref_po)) = lower(trim(p.no_poin))
                 ) then 0 else 1 end as can_delete")
             )
-            ->distinct()
             ->orderByDesc('p.id')
             ->get();
 
-        $realizedRows = (clone $realizedBase)
+        // Sisa PR: PO yang ada minimal 1 material sisa_qtypr != qty (sudah ada PR tapi belum semua)
+        $belumPrRows = DB::table('tb_poin as p')
+            ->whereExists(function ($q) {
+                $q->from('tb_detailpoin as d')
+                    ->whereColumn('d.kode_poin', 'p.kode_poin')
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(d.qty as decimal(18,4)), 0)');
+            })
+            ->select(
+                'p.id',
+                'p.kode_poin',
+                'p.no_poin',
+                'p.date_poin',
+                'p.delivery_date',
+                'p.customer_name',
+                'p.grand_total',
+                DB::raw("case when exists (
+                    select 1 from tb_pr pr
+                    where lower(trim(pr.ref_po)) = lower(trim(p.no_poin))
+                ) then 0 else 1 end as can_delete")
+            )
+            ->orderByDesc('p.id')
+            ->get();
+
+        // Terealisasi: PO yang SEMUA materialnya sudah dibuat PR (tidak ada sisa_qtypr > 0)
+        $realizedRows = DB::table('tb_poin as p')
+            ->whereNotExists(function ($q) {
+                $q->from('tb_detailpoin as d')
+                    ->whereColumn('d.kode_poin', 'p.kode_poin')
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
+            })
             ->select(
                 'p.id',
                 'p.kode_poin',
@@ -139,28 +201,30 @@ class PurchaseOrderInController
                 'p.customer_name',
                 'p.grand_total'
             )
-            ->distinct()
             ->orderByDesc('p.id')
             ->get();
 
         return Inertia::render('marketing/purchase-order-in/index', [
             'summary' => [
-                'total' => DB::table('tb_poin')->count(),
+                'total'      => DB::table('tb_poin')->count(),
                 'outstanding' => $outstandingRows->count(),
-                'realized' => $realizedRows->count(),
+                'belum_pr'   => $belumPrRows->count(),
+                'realized'   => $realizedRows->count(),
             ],
-            'purchaseOrderIns' => $rows,
+            'purchaseOrderIns'          => $rows,
             'outstandingPurchaseOrderIns' => $outstandingRows,
-            'realizedPurchaseOrderIns' => $realizedRows,
+            'belumPrPurchaseOrderIns'   => $belumPrRows,
+            'realizedPurchaseOrderIns'  => $realizedRows,
             'filters' => [
-                'search' => $search,
+                'search'   => $search,
                 'per_page' => $perPage === null ? 'all' : (string) $perPage,
-                'page' => $page,
+                'page'     => $page,
+                'status'   => $statusFilter,
             ],
             'pagination' => [
-                'total' => $total,
-                'page' => $page,
-                'per_page' => $perPage === null ? 'all' : $perPage,
+                'total'       => $total,
+                'page'        => $page,
+                'per_page'    => $perPage === null ? 'all' : $perPage,
                 'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
             ],
         ]);

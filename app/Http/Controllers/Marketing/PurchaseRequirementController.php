@@ -15,83 +15,105 @@ class PurchaseRequirementController
     {
         $period = $request->query('period', 'today');
 
-        $purchaseRequirements = DB::table('tb_pr as pr')
-            ->leftJoin(
-                DB::raw('(
-                    select
-                        no_pr,
-                        coalesce(sum(cast(sisa_pr as decimal(18,4))), 0) as pr_sisa
-                    from tb_detailpr
-                    group by no_pr
-                ) as detail'),
-                'pr.no_pr',
-                '=',
-                'detail.no_pr'
+        // Aggregation subquery for performance
+        $detailAgg = DB::table('tb_detailpr')
+            ->select(
+                'no_pr',
+                DB::raw('sum(coalesce(total_price, 0)) as total_price_sum'),
+                DB::raw('sum(coalesce(cast(sisa_pr as decimal(18,4)), 0)) as sisa_pr_sum'),
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as po_items_count'),
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) > 0 then 1 else 0 end) as remaining_items_count')
             )
+            ->groupBy('no_pr');
+
+        // Outstanding Data
+        $outstandingData = DB::table('tb_pr as pr')
+            ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
+            ->where('detail.po_items_count', '=', 0)
+            ->select(
+                DB::raw('count(*) as count'),
+                DB::raw('sum(detail.total_price_sum) as total')
+            )
+            ->first();
+
+        $outstandingCount = $outstandingData->count ?? 0;
+        $outstandingTotal = $outstandingData->total ?? 0;
+
+        // Sisa PO Data
+        $sisaPoData = DB::table('tb_pr as pr')
+            ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
+            ->where('detail.po_items_count', '>', 0)
+            ->where('detail.remaining_items_count', '>', 0)
+            ->select(
+                DB::raw('count(*) as count'),
+                DB::raw('sum(detail.total_price_sum) as total')
+            )
+            ->first();
+
+        $sisaPoCount = $sisaPoData->count ?? 0;
+        $sisaPoTotal = $sisaPoData->total ?? 0;
+
+        // Realized Data using whereExists to avoid duplicate sums if multiple DOs exist
+        $docDateExpr = "coalesce(date(do.pos_tgl), str_to_date(do.pos_tgl, '%Y-%m-%d'), str_to_date(do.pos_tgl, '%Y/%m/%d'), str_to_date(do.pos_tgl, '%d/%m/%Y'), str_to_date(do.pos_tgl, '%d-%m-%Y'), str_to_date(do.pos_tgl, '%d.%m.%Y'))";
+        $now = now();
+
+        $realizedPrQuery = DB::table('tb_pr as pr')
+            ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
+            ->where('detail.remaining_items_count', '=', 0)
+            ->whereExists(function ($q) use ($period, $docDateExpr, $now) {
+                $q->from('tb_do as do')
+                    ->whereColumn(DB::raw('lower(trim(pr.ref_po))'), '=', DB::raw('lower(trim(do.ref_po))'));
+                
+                if ($period === 'today') {
+                    $q->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
+                } elseif ($period === 'this_week') {
+                    $q->whereRaw("{$docDateExpr} between ? and ?", [
+                        $now->startOfWeek()->toDateString(),
+                        $now->endOfWeek()->toDateString(),
+                    ]);
+                } elseif ($period === 'this_month') {
+                    $q->whereRaw("month({$docDateExpr}) = ?", [$now->month])
+                        ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+                } elseif ($period === 'this_year') {
+                    $q->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+                }
+            });
+
+        $realizedData = $realizedPrQuery
+            ->select(
+                DB::raw('count(*) as count'),
+                DB::raw('sum(detail.total_price_sum) as total')
+            )
+            ->first();
+
+        $realizedCount = $realizedData->count ?? 0;
+        $realizedTotal = $realizedData->total ?? 0;
+
+        // Main table data
+        $purchaseRequirements = DB::table('tb_pr as pr')
+            ->leftJoinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
             ->select(
                 'pr.no_pr',
                 'pr.date',
                 'pr.for_customer',
                 'pr.ref_po',
                 'pr.payment',
-                DB::raw('coalesce(detail.pr_sisa, 0) as sisa_pr'),
-                DB::raw('case when coalesce(detail.pr_sisa, 0) > 0 then 1 else 0 end as outstanding_count'),
-                DB::raw('case when coalesce(detail.pr_sisa, 0) = 0 then 1 else 0 end as realized_count')
+                DB::raw('coalesce(detail.sisa_pr_sum, 0) as sisa_pr'),
+                DB::raw('case when coalesce(detail.po_items_count,0) = 0 then 1 else 0 end as outstanding_count'),
+                DB::raw('case when coalesce(detail.remaining_items_count,1) = 0 then 1 else 0 end as realized_count'),
+                DB::raw('case when coalesce(detail.po_items_count,0) > 0 and coalesce(detail.remaining_items_count,0) > 0 then 1 else 0 end as sisa_po_count')
             )
             ->orderBy('pr.date', 'desc')
             ->orderBy('pr.no_pr', 'desc')
             ->get();
 
-        $outstandingCount = DB::table('tb_detailpr')
-            ->select('no_pr', DB::raw('coalesce(sum(cast(sisa_pr as decimal(18,4))), 0) as pr_sisa'))
-            ->groupBy('no_pr')
-            ->having('pr_sisa', '>', 0)
-            ->count();
-
-        $realizedCount = DB::table('tb_detailpr')
-            ->select('no_pr', DB::raw('coalesce(sum(cast(sisa_pr as decimal(18,4))), 0) as pr_sisa'))
-            ->groupBy('no_pr')
-            ->having('pr_sisa', '=', 0)
-            ->count();
-
-        $outstandingTotal = DB::table('tb_detailpr')
-            ->whereRaw('cast(sisa_pr as decimal(18,4)) > 0')
-            ->sum(DB::raw('coalesce(total_price, 0)'));
-
-        // Realized: tb_pr.ref_po = tb_do.ref_po filtered by tb_do.pos_tgl
-        $docDateExpr = "coalesce(date(d.pos_tgl), str_to_date(d.pos_tgl, '%Y-%m-%d'), str_to_date(d.pos_tgl, '%Y/%m/%d'), str_to_date(d.pos_tgl, '%d/%m/%Y'), str_to_date(d.pos_tgl, '%d-%m-%Y'), str_to_date(d.pos_tgl, '%d.%m.%Y'))";
-
-        $realizedQuery = DB::table('tb_pr as pr')
-            ->join('tb_do as d', function ($join) {
-                $join->on(DB::raw('lower(trim(pr.ref_po))'), '=', DB::raw('lower(trim(d.ref_po))'));
-            });
-
-        $now = now();
-        if ($period === 'today') {
-            $realizedQuery->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
-        } elseif ($period === 'this_week') {
-            $realizedQuery->whereRaw("{$docDateExpr} between ? and ?", [
-                $now->startOfWeek()->toDateString(),
-                $now->endOfWeek()->toDateString(),
-            ]);
-        } elseif ($period === 'this_month') {
-            $realizedQuery->whereRaw("month({$docDateExpr}) = ?", [$now->month])
-                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
-        } elseif ($period === 'this_year') {
-            $realizedQuery->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
-        }
-
-        $realizedPrNos = $realizedQuery->distinct('pr.no_pr')->pluck('pr.no_pr');
-        $realizedCount = $realizedPrNos->count();
-        $realizedTotal = DB::table('tb_detailpr')
-            ->whereIn('no_pr', $realizedPrNos)
-            ->sum(DB::raw('coalesce(total_price,0)'));
-
         return Inertia::render('marketing/purchase-requirement/index', [
             'purchaseRequirements' => $purchaseRequirements,
             'outstandingCount' => $outstandingCount,
+            'sisaPoCount' => $sisaPoCount,
             'realizedCount' => $realizedCount,
-            'outstandingTotal' => $outstandingTotal,
+            'outstandingTotal' => (float) $outstandingTotal,
+            'sisaPoTotal' => (float) $sisaPoTotal,
             'realizedTotal' => (float) $realizedTotal,
             'period' => $period,
         ]);
@@ -136,31 +158,60 @@ class PurchaseRequirementController
 
     public function outstanding()
     {
-        $purchaseRequirements = DB::table('tb_pr as pr')
-            ->leftJoin(
-                DB::raw('(
-                    select
-                        no_pr,
-                        coalesce(sum(cast(sisa_pr as decimal(18,4))), 0) as pr_sisa
-                    from tb_detailpr
-                    group by no_pr
-                ) as detail'),
-                'pr.no_pr',
-                '=',
-                'detail.no_pr'
+        $detailAgg = DB::table('tb_detailpr')
+            ->select(
+                'no_pr',
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as po_items_count')
             )
+            ->groupBy('no_pr');
+
+        $purchaseRequirements = DB::table('tb_pr as pr')
+            ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
+            ->where('detail.po_items_count', '=', 0)
             ->select(
                 'pr.no_pr',
                 'pr.date',
                 'pr.for_customer',
                 'pr.ref_po',
                 'pr.payment',
-                DB::raw('coalesce(detail.pr_sisa, 0) as sisa_pr'),
-                DB::raw('case when coalesce(detail.pr_sisa, 0) > 0 then 1 else 0 end as outstanding_count'),
-                DB::raw('case when coalesce(detail.pr_sisa, 0) = 0 then 1 else 0 end as realized_count'),
+                DB::raw('1 as outstanding_count'),
+                DB::raw('0 as realized_count'),
                 DB::raw('case when exists (select 1 from tb_po where lower(trim(tb_po.ref_pr)) = lower(trim(pr.no_pr))) then 0 else 1 end as can_delete')
             )
-            ->where(DB::raw('coalesce(detail.pr_sisa, 0)'), '>', 0)
+            ->orderBy('pr.date', 'desc')
+            ->orderBy('pr.no_pr', 'desc')
+            ->get();
+
+        return response()->json([
+            'purchaseRequirements' => $purchaseRequirements,
+        ]);
+    }
+
+    public function sisaPo()
+    {
+        $detailAgg = DB::table('tb_detailpr')
+            ->select(
+                'no_pr',
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as po_items_count'),
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) > 0 then 1 else 0 end) as remaining_items_count')
+            )
+            ->groupBy('no_pr');
+
+        $purchaseRequirements = DB::table('tb_pr as pr')
+            ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
+            ->where('detail.po_items_count', '>', 0)
+            ->where('detail.remaining_items_count', '>', 0)
+            ->select(
+                'pr.no_pr',
+                'pr.date',
+                'pr.for_customer',
+                'pr.ref_po',
+                'pr.payment',
+                DB::raw('0 as outstanding_count'),
+                DB::raw('0 as realized_count'),
+                DB::raw('1 as sisa_po_count'),
+                DB::raw('case when exists (select 1 from tb_po where lower(trim(tb_po.ref_pr)) = lower(trim(pr.no_pr))) then 0 else 1 end as can_delete')
+            )
             ->orderBy('pr.date', 'desc')
             ->orderBy('pr.no_pr', 'desc')
             ->get();
@@ -173,21 +224,31 @@ class PurchaseRequirementController
     public function realized(Request $request)
     {
         $period = $request->query('period', 'today');
+        $docDateExpr = "coalesce(date(do.pos_tgl), str_to_date(do.pos_tgl, '%Y-%m-%d'), str_to_date(do.pos_tgl, '%Y/%m/%d'), str_to_date(do.pos_tgl, '%d/%m/%Y'), str_to_date(do.pos_tgl, '%d-%m-%Y'), str_to_date(do.pos_tgl, '%d.%m.%Y'))";
 
-        $docDateExpr = "coalesce(date(d.pos_tgl), str_to_date(d.pos_tgl, '%Y-%m-%d'), str_to_date(d.pos_tgl, '%Y/%m/%d'), str_to_date(d.pos_tgl, '%d/%m/%Y'), str_to_date(d.pos_tgl, '%d-%m-%Y'), str_to_date(d.pos_tgl, '%d.%m.%Y'))";
+        $detailAgg = DB::table('tb_detailpr')
+            ->select(
+                'no_pr',
+                DB::raw('sum(coalesce(total_price, 0)) as total_price_sum'),
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) > 0 then 1 else 0 end) as remaining_items_count')
+            )
+            ->groupBy('no_pr');
 
         $query = DB::table('tb_pr as pr')
-            ->join('tb_do as d', function ($join) {
-                $join->on(DB::raw('lower(trim(pr.ref_po))'), '=', DB::raw('lower(trim(d.ref_po))'));
+            ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
+            ->where('detail.remaining_items_count', '=', 0)
+            ->join('tb_do as do', function ($join) {
+                $join->on(DB::raw('lower(trim(pr.ref_po))'), '=', DB::raw('lower(trim(do.ref_po))'));
             })
             ->select(
                 'pr.no_pr',
-                DB::raw('coalesce(d.pos_tgl, pr.date) as date'),
+                DB::raw('coalesce(do.pos_tgl, pr.date) as date'),
                 'pr.for_customer',
                 'pr.ref_po',
                 'pr.payment',
                 DB::raw('0 as outstanding_count'),
-                DB::raw('1 as realized_count')
+                DB::raw('1 as realized_count'),
+                'detail.total_price_sum'
             )
             ->distinct();
 
@@ -207,13 +268,11 @@ class PurchaseRequirementController
         }
 
         $purchaseRequirements = $query
-            ->orderByRaw('coalesce(d.pos_tgl, pr.date) desc')
+            ->orderByRaw('coalesce(do.pos_tgl, pr.date) desc')
             ->orderBy('pr.no_pr', 'desc')
             ->get();
 
-        $realizedTotal = DB::table('tb_detailpr')
-            ->whereIn('no_pr', $purchaseRequirements->pluck('no_pr'))
-            ->sum(DB::raw('coalesce(total_price,0)'));
+        $realizedTotal = $purchaseRequirements->unique('no_pr')->sum('total_price_sum');
 
         return response()->json([
             'purchaseRequirements' => $purchaseRequirements,

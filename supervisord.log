@@ -744,3 +744,21 @@
 2026-03-06 04:31:55,552 INFO spawned: 'nginx' with pid 14
 2026-03-06 04:32:16,647 INFO success: php-fpm entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
 2026-03-06 04:32:16,647 INFO success: nginx entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-03-12 05:43:35,787 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2026-03-12 05:43:35,789 INFO supervisord started with pid 12
+2026-03-12 05:44:02,607 INFO spawned: 'php-fpm' with pid 13
+2026-03-12 05:44:02,609 INFO spawned: 'nginx' with pid 14
+2026-03-12 05:43:37,897 INFO success: php-fpm entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-03-12 05:43:37,897 INFO success: nginx entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-03-12 05:56:08,750 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2026-03-12 05:56:08,751 INFO supervisord started with pid 12
+2026-03-12 05:56:09,754 INFO spawned: 'php-fpm' with pid 13
+2026-03-12 05:56:09,756 INFO spawned: 'nginx' with pid 14
+2026-03-12 05:56:10,785 INFO success: php-fpm entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-03-12 05:56:10,785 INFO success: nginx entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-03-13 06:24:35,762 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2026-03-13 06:24:35,766 INFO supervisord started with pid 12
+2026-03-13 06:24:36,768 INFO spawned: 'php-fpm' with pid 13
+2026-03-13 06:24:36,770 INFO spawned: 'nginx' with pid 14
+2026-03-13 06:24:37,845 INFO success: php-fpm entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-03-13 06:24:37,845 INFO success: nginx entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)

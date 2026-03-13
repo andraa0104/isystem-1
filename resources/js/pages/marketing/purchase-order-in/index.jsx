@@ -1,16 +1,26 @@
 import { Button } from '@/components/ui/button';
 import {
-    DialogClose,
     Dialog,
+    DialogClose,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
-import { ClipboardCheck, Eye, Pencil, Printer, Search, Trash2, X } from 'lucide-react';
-import Swal from 'sweetalert2';
+import {
+    AlertCircle,
+    ClipboardCheck,
+    Eye,
+    Pencil,
+    Printer,
+    Search,
+    ShieldCheck,
+    Trash2,
+    X,
+} from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -76,8 +86,16 @@ const isInPeriod = (value, period) => {
     }
 
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const startOfToday = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+    );
+    const startOfDate = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+    );
 
     if (period === 'today') {
         return startOfDate.getTime() === startOfToday.getTime();
@@ -106,6 +124,7 @@ const isInPeriod = (value, period) => {
 export default function PurchaseOrderInIndex({
     purchaseOrderIns = [],
     outstandingPurchaseOrderIns = [],
+    belumPrPurchaseOrderIns = [],
     realizedPurchaseOrderIns = [],
     summary = {},
     filters = {},
@@ -113,6 +132,7 @@ export default function PurchaseOrderInIndex({
 }) {
     const [search, setSearch] = useState(filters.search ?? '');
     const [perPage, setPerPage] = useState(String(filters.per_page ?? '5'));
+    const [statusFilter, setStatusFilter] = useState(filters.status ?? 'all');
     const [realizedPeriod, setRealizedPeriod] = useState('today');
     const [activeModal, setActiveModal] = useState(null);
     const [modalSearch, setModalSearch] = useState('');
@@ -144,6 +164,7 @@ export default function PurchaseOrderInIndex({
             {
                 search,
                 per_page: perPage,
+                status: statusFilter,
                 page: 1,
                 ...next,
             },
@@ -154,7 +175,7 @@ export default function PurchaseOrderInIndex({
                 headers: {
                     'X-Skip-Loading-Overlay': '1',
                 },
-            }
+            },
         );
     };
 
@@ -163,11 +184,18 @@ export default function PurchaseOrderInIndex({
             if (search === (filters.search ?? '')) {
                 return;
             }
-            fetchTable({ search, page: 1 });
+            fetchTable({ search, status: statusFilter, page: 1 });
         }, 350);
 
         return () => clearTimeout(timer);
     }, [search]);
+
+    useEffect(() => {
+        if (statusFilter === (filters.status ?? 'all')) {
+            return;
+        }
+        fetchTable({ status: statusFilter, search, page: 1 });
+    }, [statusFilter]);
 
     const periodLabelMap = {
         today: 'Hari Ini',
@@ -178,20 +206,28 @@ export default function PurchaseOrderInIndex({
 
     const outstandingItems = useMemo(
         () => outstandingPurchaseOrderIns,
-        [outstandingPurchaseOrderIns]
+        [outstandingPurchaseOrderIns],
+    );
+
+    const belumPrItems = useMemo(
+        () => belumPrPurchaseOrderIns,
+        [belumPrPurchaseOrderIns],
     );
 
     const realizedItemsByPeriod = useMemo(
         () =>
-            realizedPurchaseOrderIns.filter(
-                (item) =>
-                    isInPeriod(item.date_poin, realizedPeriod)
+            realizedPurchaseOrderIns.filter((item) =>
+                isInPeriod(item.date_poin, realizedPeriod),
             ),
-        [realizedPurchaseOrderIns, realizedPeriod]
+        [realizedPurchaseOrderIns, realizedPeriod],
     );
 
     const modalItems =
-        activeModal === 'outstanding' ? outstandingItems : realizedItemsByPeriod;
+        activeModal === 'outstanding'
+            ? outstandingItems
+            : activeModal === 'belum_pr'
+              ? belumPrItems
+              : realizedItemsByPeriod;
 
     const modalFilteredItems = useMemo(() => {
         const term = modalSearch.trim().toLowerCase();
@@ -199,8 +235,11 @@ export default function PurchaseOrderInIndex({
             return modalItems;
         }
         return modalItems.filter((item) =>
-            [item.kode_poin, item.no_poin, item.customer_name]
-                .some((value) => String(value ?? '').toLowerCase().includes(term))
+            [item.kode_poin, item.no_poin, item.customer_name].some((value) =>
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
+            ),
         );
     }, [modalItems, modalSearch]);
 
@@ -234,14 +273,20 @@ export default function PurchaseOrderInIndex({
             const nextPerPage = opts.perPage ?? detailPageSize;
             const nextSearch = opts.search ?? detailSearch;
             params.set('page', String(nextPage));
-            params.set('per_page', nextPerPage === Infinity ? 'all' : String(nextPerPage));
+            params.set(
+                'per_page',
+                nextPerPage === Infinity ? 'all' : String(nextPerPage),
+            );
             if (String(nextSearch ?? '').trim()) {
                 params.set('search', String(nextSearch).trim());
             }
 
-            const response = await fetch(`/marketing/purchase-order-in/${encodeURIComponent(kodePoin)}/show?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const response = await fetch(
+                `/marketing/purchase-order-in/${encodeURIComponent(kodePoin)}/show?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             const data = await response.json();
             if (!response.ok) {
                 throw new Error(data?.message || 'Gagal memuat detail PO In.');
@@ -251,7 +296,9 @@ export default function PurchaseOrderInIndex({
             setDetailPagination({
                 total: Number(data?.pagination?.total ?? 0),
                 page: Number(data?.pagination?.page ?? 1),
-                per_page: data?.pagination?.per_page ?? (nextPerPage === Infinity ? 'all' : nextPerPage),
+                per_page:
+                    data?.pagination?.per_page ??
+                    (nextPerPage === Infinity ? 'all' : nextPerPage),
                 total_pages: Number(data?.pagination?.total_pages ?? 1),
             });
         } catch (error) {
@@ -283,19 +330,22 @@ export default function PurchaseOrderInIndex({
         }
 
         setIsDeleting(true);
-        router.delete(`/marketing/purchase-order-in/${encodeURIComponent(confirmDeleteKode)}`, {
-            preserveScroll: true,
-            headers: {
-                'X-Skip-Loading-Overlay': '1',
+        router.delete(
+            `/marketing/purchase-order-in/${encodeURIComponent(confirmDeleteKode)}`,
+            {
+                preserveScroll: true,
+                headers: {
+                    'X-Skip-Loading-Overlay': '1',
+                },
+                onSuccess: () => {
+                    setActiveModal(null);
+                    setIsConfirmDeleteOpen(false);
+                    setConfirmDeleteKode('');
+                    fetchTable({ page: pagination?.page ?? 1 });
+                },
+                onFinish: () => setIsDeleting(false),
             },
-            onSuccess: () => {
-                setActiveModal(null);
-                setIsConfirmDeleteOpen(false);
-                setConfirmDeleteKode('');
-                fetchTable({ page: pagination?.page ?? 1 });
-            },
-            onFinish: () => setIsDeleting(false),
-        });
+        );
     };
 
     useEffect(() => {
@@ -311,7 +361,13 @@ export default function PurchaseOrderInIndex({
             });
         }, 300);
         return () => clearTimeout(timer);
-    }, [detailKodePoin, detailPage, detailPageSize, detailSearch, isDetailModalOpen]);
+    }, [
+        detailKodePoin,
+        detailPage,
+        detailPageSize,
+        detailSearch,
+        isDetailModalOpen,
+    ]);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -320,21 +376,28 @@ export default function PurchaseOrderInIndex({
                 <section className="rounded-2xl border border-sidebar-border/70 bg-gradient-to-r from-slate-900 via-slate-800 to-zinc-900 p-5 text-white shadow-lg">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <div>
-                            <p className="text-xs uppercase tracking-[0.22em] text-white/70">
+                            <p className="text-xs tracking-[0.22em] text-white/70 uppercase">
                                 Marketing Workspace
                             </p>
-                            <h1 className="mt-1 text-2xl font-semibold">Purchase Order In (PO In)</h1>
+                            <h1 className="mt-1 text-2xl font-semibold">
+                                Purchase Order In (PO In)
+                            </h1>
                         </div>
                         <Button
                             className="bg-white text-slate-900 hover:bg-white/90"
-                            onClick={() => router.visit('/marketing/purchase-order-in/create')}
+                            onClick={() =>
+                                router.visit(
+                                    '/marketing/purchase-order-in/create',
+                                )
+                            }
                         >
                             Tambah PO IN
                         </Button>
                     </div>
                 </section>
 
-                <section className="grid gap-3 md:grid-cols-2">
+                <section className="grid gap-3 md:grid-cols-3">
+                    {/* Card PO IN Outstanding */}
                     <article
                         className="cursor-pointer rounded-xl border border-sidebar-border/70 bg-background p-4 shadow-sm transition hover:border-amber-400/50 hover:shadow-md"
                         onClick={() => {
@@ -347,10 +410,42 @@ export default function PurchaseOrderInIndex({
                         <div className="mb-3 inline-flex rounded-lg bg-muted p-2">
                             <ClipboardCheck className="size-4 text-amber-600" />
                         </div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">PO IN Outstanding</p>
-                        <p className="mt-1 text-2xl font-semibold">{summary.outstanding ?? 0}</p>
+                        <p className="text-xs tracking-wide text-muted-foreground uppercase">
+                            PO IN Outstanding
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold">
+                            {summary.outstanding ?? 0}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            Belum Dibuat PR
+                        </p>
                     </article>
 
+                    {/* Card PO IN Belum PR */}
+                    <article
+                        className="cursor-pointer rounded-xl border border-sidebar-border/70 bg-background p-4 shadow-sm transition hover:border-rose-400/50 hover:shadow-md"
+                        onClick={() => {
+                            setActiveModal('belum_pr');
+                            setModalSearch('');
+                            setModalPageSize(5);
+                            setModalPage(1);
+                        }}
+                    >
+                        <div className="mb-3 inline-flex rounded-lg bg-muted p-2">
+                            <AlertCircle className="size-4 text-rose-600" />
+                        </div>
+                        <p className="text-xs tracking-wide text-muted-foreground uppercase">
+                            PO IN Sisa PR
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold">
+                            {summary.belum_pr ?? 0}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            Masih ada sisa Material yang belum dibuat PR
+                        </p>
+                    </article>
+
+                    {/* Card PO IN Terealisasi */}
                     <article
                         className="cursor-pointer rounded-xl border border-sidebar-border/70 bg-background p-4 shadow-sm transition hover:border-emerald-400/50 hover:shadow-md"
                         onClick={() => {
@@ -362,13 +457,15 @@ export default function PurchaseOrderInIndex({
                     >
                         <div className="mb-3 flex items-center justify-between gap-2">
                             <span className="inline-flex rounded-lg bg-muted p-2">
-                                <ClipboardCheck className="size-4 text-emerald-600" />
+                                <ShieldCheck className="size-4 text-emerald-600" />
                             </span>
                             <select
                                 className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs"
                                 value={realizedPeriod}
                                 onClick={(event) => event.stopPropagation()}
-                                onChange={(event) => setRealizedPeriod(event.target.value)}
+                                onChange={(event) =>
+                                    setRealizedPeriod(event.target.value)
+                                }
                             >
                                 <option value="today">Hari Ini</option>
                                 <option value="this_week">Minggu Ini</option>
@@ -376,80 +473,148 @@ export default function PurchaseOrderInIndex({
                                 <option value="this_year">Tahun Ini</option>
                             </select>
                         </div>
-                        <p className="text-xs uppercase tracking-wide text-muted-foreground">PO IN Terealisasi</p>
-                        <p className="mt-1 text-2xl font-semibold">{summary.realized ?? 0}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{periodLabelMap[realizedPeriod]}</p>
+                        <p className="text-xs tracking-wide text-muted-foreground uppercase">
+                            PO IN Terealisasi
+                        </p>
+                        <p className="mt-1 text-2xl font-semibold">
+                            {realizedItemsByPeriod.length}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            Semua material sudah PR —{' '}
+                            {periodLabelMap[realizedPeriod]}
+                        </p>
                     </article>
                 </section>
 
                 <section className="rounded-2xl border border-sidebar-border/70 bg-background p-4 shadow-sm">
                     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                         <div className="relative w-full max-w-md">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                             <input
                                 type="search"
-                                className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background pl-9 pr-3 text-sm"
+                                className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background pr-3 pl-9 text-sm"
                                 placeholder="Cari kode PO IN, no PO IN, atau nama customer..."
                                 value={search}
-                                onChange={(event) => setSearch(event.target.value)}
+                                onChange={(event) =>
+                                    setSearch(event.target.value)
+                                }
                             />
                         </div>
-                        <select
-                            className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
-                            value={perPage}
-                            onChange={(event) => {
-                                const value = event.target.value;
-                                setPerPage(value);
-                                fetchTable({ per_page: value, page: 1 });
-                            }}
-                        >
-                            <option value="5">5 data</option>
-                            <option value="10">10 data</option>
-                            <option value="25">25 data</option>
-                            <option value="50">50 data</option>
-                            <option value="all">Semua data</option>
-                        </select>
+                        <div className="flex items-center gap-2">
+                            <select
+                                className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
+                                value={statusFilter}
+                                onChange={(event) => {
+                                    setStatusFilter(event.target.value);
+                                }}
+                            >
+                                <option value="all">Semua Data</option>
+                                <option value="outstanding">
+                                    PO IN Outstanding
+                                </option>
+                                <option value="sisa_pr">PO IN Sisa PR</option>
+                                <option value="realized">
+                                    PO IN Terealisasi
+                                </option>
+                            </select>
+                            <select
+                                className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
+                                value={perPage}
+                                onChange={(event) => {
+                                    const value = event.target.value;
+                                    setPerPage(value);
+                                    fetchTable({ per_page: value, page: 1 });
+                                }}
+                            >
+                                <option value="5">5 data</option>
+                                <option value="10">10 data</option>
+                                <option value="25">25 data</option>
+                                <option value="50">50 data</option>
+                                <option value="all">Semua data</option>
+                            </select>
+                        </div>
                     </div>
                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
                         <table className="w-full min-w-[760px] text-sm">
                             <thead className="bg-muted/40 text-muted-foreground">
                                 <tr>
                                     <th className="px-4 py-3 text-left">No</th>
-                                    <th className="px-4 py-3 text-left">Kode PO In</th>
-                                    <th className="px-4 py-3 text-left">No PO In</th>
-                                    <th className="px-4 py-3 text-left">Tanggal</th>
-                                    <th className="px-4 py-3 text-left">Customer</th>
-                                    <th className="px-4 py-3 text-left">Grand Total</th>
-                                    <th className="px-4 py-3 text-left">Action</th>
+                                    <th className="px-4 py-3 text-left">
+                                        Kode PO In
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        No PO In
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Tanggal
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Customer
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Grand Total
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Action
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {purchaseOrderIns.length === 0 && (
                                     <tr>
-                                        <td className="px-4 py-10 text-center text-muted-foreground" colSpan={7}>
+                                        <td
+                                            className="px-4 py-10 text-center text-muted-foreground"
+                                            colSpan={7}
+                                        >
                                             Belum ada data PO In.
                                         </td>
                                     </tr>
                                 )}
                                 {purchaseOrderIns.map((item, index) => (
-                                    <tr key={item.id ?? item.no_poin} className="border-t border-sidebar-border/70">
+                                    <tr
+                                        key={item.id ?? item.no_poin}
+                                        className="border-t border-sidebar-border/70"
+                                    >
                                         <td className="px-4 py-3">
                                             {pagination.per_page === 'all'
                                                 ? index + 1
-                                                : ((Number(pagination.page || 1) - 1) * Number(pagination.per_page || 5)) + index + 1}
+                                                : (Number(
+                                                      pagination.page || 1,
+                                                  ) -
+                                                      1) *
+                                                      Number(
+                                                          pagination.per_page ||
+                                                              5,
+                                                      ) +
+                                                  index +
+                                                  1}
                                         </td>
-                                        <td className="px-4 py-3 font-semibold">{item.kode_poin}</td>
-                                        <td className="px-4 py-3 font-semibold">{item.no_poin}</td>
-                                        <td className="px-4 py-3">{formatDateDisplay(item.date_poin)}</td>
-                                        <td className="px-4 py-3">{item.customer_name}</td>
-                                        <td className="px-4 py-3">{formatRupiah(item.grand_total)}</td>
+                                        <td className="px-4 py-3 font-semibold">
+                                            {item.kode_poin}
+                                        </td>
+                                        <td className="px-4 py-3 font-semibold">
+                                            {item.no_poin}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {formatDateDisplay(item.date_poin)}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.customer_name}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {formatRupiah(item.grand_total)}
+                                        </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
                                                 <Button
                                                     type="button"
                                                     variant="outline"
                                                     size="sm"
-                                                    onClick={() => openDetailModal(item.kode_poin)}
+                                                    onClick={() =>
+                                                        openDetailModal(
+                                                            item.kode_poin,
+                                                        )
+                                                    }
                                                     title="Lihat"
                                                 >
                                                     <Eye className="size-4" />
@@ -470,38 +635,77 @@ export default function PurchaseOrderInIndex({
                             </tbody>
                         </table>
                     </div>
-                    {String(pagination.per_page) !== 'all' && Number(pagination.total || 0) > 0 && (
-                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <span>
-                                Menampilkan {Math.min(((Number(pagination.page || 1) - 1) * Number(pagination.per_page || 5)) + 1, Number(pagination.total || 0))}
-                                -{Math.min(Number(pagination.page || 1) * Number(pagination.per_page || 5), Number(pagination.total || 0))}
-                                {' '}dari {pagination.total} data
-                            </span>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={Number(pagination.page || 1) <= 1}
-                                    onClick={() => fetchTable({ page: Math.max(1, Number(pagination.page || 1) - 1) })}
-                                >
-                                    Sebelumnya
-                                </Button>
+                    {String(pagination.per_page) !== 'all' &&
+                        Number(pagination.total || 0) > 0 && (
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                 <span>
-                                    Halaman {pagination.page || 1} / {pagination.total_pages || 1}
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (Number(pagination.page || 1) - 1) *
+                                            Number(pagination.per_page || 5) +
+                                            1,
+                                        Number(pagination.total || 0),
+                                    )}
+                                    -
+                                    {Math.min(
+                                        Number(pagination.page || 1) *
+                                            Number(pagination.per_page || 5),
+                                        Number(pagination.total || 0),
+                                    )}{' '}
+                                    dari {pagination.total} data
                                 </span>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={Number(pagination.page || 1) >= Number(pagination.total_pages || 1)}
-                                    onClick={() => fetchTable({ page: Math.min(Number(pagination.total_pages || 1), Number(pagination.page || 1) + 1) })}
-                                >
-                                    Berikutnya
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={
+                                            Number(pagination.page || 1) <= 1
+                                        }
+                                        onClick={() =>
+                                            fetchTable({
+                                                page: Math.max(
+                                                    1,
+                                                    Number(
+                                                        pagination.page || 1,
+                                                    ) - 1,
+                                                ),
+                                            })
+                                        }
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span>
+                                        Halaman {pagination.page || 1} /{' '}
+                                        {pagination.total_pages || 1}
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={
+                                            Number(pagination.page || 1) >=
+                                            Number(pagination.total_pages || 1)
+                                        }
+                                        onClick={() =>
+                                            fetchTable({
+                                                page: Math.min(
+                                                    Number(
+                                                        pagination.total_pages ||
+                                                            1,
+                                                    ),
+                                                    Number(
+                                                        pagination.page || 1,
+                                                    ) + 1,
+                                                ),
+                                            })
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
                 </section>
 
                 <Dialog
@@ -517,194 +721,387 @@ export default function PurchaseOrderInIndex({
                         }
                     }}
                 >
-                    <DialogContent className="!left-[0.5vw] !top-[2vh] !h-[96vh] !w-[99vw] !max-w-[99vw] !translate-x-0 !translate-y-0 overflow-y-auto p-0">
+                    <DialogContent className="!top-[2vh] !left-[0.5vw] !h-[96vh] !w-[99vw] !max-w-[99vw] !translate-x-0 !translate-y-0 overflow-y-auto p-0">
                         <DialogHeader className="sticky top-0 z-20 border-b border-sidebar-border/70 bg-background px-4 py-3 pr-12">
                             <div className="flex items-center justify-between">
                                 <DialogTitle>Detail PO In</DialogTitle>
                                 <DialogClose asChild>
-                                    <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" title="Tutup">
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 w-8 p-0"
+                                        title="Tutup"
+                                    >
                                         <X className="size-4" />
                                     </Button>
                                 </DialogClose>
                             </div>
                         </DialogHeader>
                         <div className="p-4">
-                        {detailLoading && (
-                            <div className="py-10 text-center text-sm text-muted-foreground">
-                                Memuat detail PO In...
-                            </div>
-                        )}
-                        {!detailLoading && detailError && (
-                            <div className="py-10 text-center text-sm text-rose-600">{detailError}</div>
-                        )}
-                        {!detailLoading && !detailError && detailHeader && (
-                            <div className="space-y-4">
-                                <div className="grid gap-3 md:grid-cols-3">
-                                    <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                        <p className="text-xs text-muted-foreground">Kode PO In</p>
-                                        <p className="font-semibold">{detailHeader.kode_poin ?? '-'}</p>
-                                    </div>
-                                    <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                        <p className="text-xs text-muted-foreground">No PO In</p>
-                                        <p className="font-semibold">{detailHeader.no_poin ?? '-'}</p>
-                                    </div>
-                                    <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                        <p className="text-xs text-muted-foreground">Customer</p>
-                                        <p className="font-semibold">{detailHeader.customer_name ?? '-'}</p>
-                                    </div>
-                                    <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                        <p className="text-xs text-muted-foreground">Date PO In</p>
-                                        <p className="font-semibold">{formatDateDisplay(detailHeader.date_poin)}</p>
-                                    </div>
-                                    <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                        <p className="text-xs text-muted-foreground">Delivery Date</p>
-                                        <p className="font-semibold">{formatDateDisplay(detailHeader.delivery_date)}</p>
-                                    </div>
-                                    <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                        <p className="text-xs text-muted-foreground">PPN</p>
-                                        <p className="font-semibold">{detailHeader.ppn_input_percent ?? 0}%</p>
-                                    </div>
+                            {detailLoading && (
+                                <div className="py-10 text-center text-sm text-muted-foreground">
+                                    Memuat detail PO In...
                                 </div>
-
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                    <div className="relative w-full max-w-md">
-                                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                                        <input
-                                            type="search"
-                                            className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background pl-9 pr-3 text-sm"
-                                            placeholder="Cari material..."
-                                            value={detailSearch}
-                                            onChange={(event) => {
-                                                setDetailSearch(event.target.value);
-                                                setDetailPage(1);
-                                            }}
-                                        />
-                                    </div>
-                                    <label className="text-sm text-muted-foreground">
-                                        Tampilkan
-                                        <select
-                                            className="ml-2 h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
-                                            value={detailPageSize === Infinity ? 'all' : String(detailPageSize)}
-                                            onChange={(event) => {
-                                                const value = event.target.value;
-                                                setDetailPageSize(value === 'all' ? Infinity : Number(value));
-                                                setDetailPage(1);
-                                            }}
-                                        >
-                                            <option value="5">5</option>
-                                            <option value="10">10</option>
-                                            <option value="25">25</option>
-                                            <option value="50">50</option>
-                                            <option value="all">Semua</option>
-                                        </select>
-                                    </label>
+                            )}
+                            {!detailLoading && detailError && (
+                                <div className="py-10 text-center text-sm text-rose-600">
+                                    {detailError}
                                 </div>
-
-                                <div className="overflow-x-hidden rounded-xl border border-sidebar-border/70">
-                                    <table className="w-full table-fixed text-sm">
-                                        <thead className="bg-muted/40 text-muted-foreground">
-                                            <tr>
-                                                <th className="px-4 py-3 text-left">No</th>
-                                                <th className="px-4 py-3 text-left">Kode Material</th>
-                                                <th className="px-4 py-3 text-left">Material</th>
-                                                <th className="px-4 py-3 text-left">Qty</th>
-                                                <th className="px-4 py-3 text-left">Satuan</th>
-                                                <th className="px-4 py-3 text-left">Price PO In</th>
-                                                <th className="px-4 py-3 text-left">Total Price</th>
-                                                <th className="px-4 py-3 text-left">Sisa PR</th>
-                                                <th className="px-4 py-3 text-left">Sisa DO</th>
-                                                <th className="px-4 py-3 text-left">Remark</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {detailTableLoading && (
-                                                <tr>
-                                                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={10}>
-                                                        Memuat data material...
-                                                    </td>
-                                                </tr>
-                                            )}
-                                            {!detailTableLoading && detailItems.length === 0 && (
-                                                <tr>
-                                                    <td className="px-4 py-8 text-center text-muted-foreground" colSpan={10}>
-                                                        Tidak ada detail material.
-                                                    </td>
-                                                </tr>
-                                            )}
-                                            {!detailTableLoading && detailItems.map((row, index) => (
-                                                <tr key={row.id ?? `${row.kode_poin}-${index}`} className="border-t border-sidebar-border/70">
-                                                    <td className="px-4 py-3">
-                                                        {detailPagination.per_page === 'all'
-                                                            ? index + 1
-                                                            : ((Number(detailPagination.page || 1) - 1) * Number(detailPagination.per_page || 5)) + index + 1}
-                                                    </td>
-                                                    <td className="px-4 py-3 break-words">{row.kd_material ?? '-'}</td>
-                                                    <td className="px-4 py-3 break-words">{row.material ?? '-'}</td>
-                                                    <td className="px-4 py-3">{row.qty ?? 0}</td>
-                                                    <td className="px-4 py-3">{row.satuan ?? '-'}</td>
-                                                    <td className="px-4 py-3">{formatRupiah(row.price_po_in ?? 0)}</td>
-                                                    <td className="px-4 py-3">{formatRupiah(row.total_price_po_in ?? 0)}</td>
-                                                    <td className="px-4 py-3">{row.sisa_qtypr ?? 0}</td>
-                                                    <td className="px-4 py-3">{row.sisa_qtydo ?? 0}</td>
-                                                    <td className="px-4 py-3 break-words">{row.remark || '-'}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                                    <p className="text-muted-foreground">Total {detailPagination.total} data</p>
-                                    {String(detailPagination.per_page) !== 'all' && (
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={Number(detailPagination.page || 1) <= 1}
-                                                onClick={() =>
-                                                    setDetailPage((prev) => Math.max(1, prev - 1))
-                                                }
-                                            >
-                                                Sebelumnya
-                                            </Button>
-                                            <span className="text-muted-foreground">
-                                                Halaman {detailPagination.page} / {detailPagination.total_pages}
-                                            </span>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={Number(detailPagination.page) >= Number(detailPagination.total_pages)}
-                                                onClick={() =>
-                                                    setDetailPage((prev) => Math.min(Number(detailPagination.total_pages || 1), prev + 1))
-                                                }
-                                            >
-                                                Berikutnya
-                                            </Button>
+                            )}
+                            {!detailLoading && !detailError && detailHeader && (
+                                <div className="space-y-4">
+                                    <div className="grid gap-3 md:grid-cols-3">
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs text-muted-foreground">
+                                                Kode PO In
+                                            </p>
+                                            <p className="font-semibold">
+                                                {detailHeader.kode_poin ?? '-'}
+                                            </p>
                                         </div>
-                                    )}
-                                </div>
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs text-muted-foreground">
+                                                No PO In
+                                            </p>
+                                            <p className="font-semibold">
+                                                {detailHeader.no_poin ?? '-'}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs text-muted-foreground">
+                                                Customer
+                                            </p>
+                                            <p className="font-semibold">
+                                                {detailHeader.customer_name ??
+                                                    '-'}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs text-muted-foreground">
+                                                Date PO In
+                                            </p>
+                                            <p className="font-semibold">
+                                                {formatDateDisplay(
+                                                    detailHeader.date_poin,
+                                                )}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs text-muted-foreground">
+                                                Delivery Date
+                                            </p>
+                                            <p className="font-semibold">
+                                                {formatDateDisplay(
+                                                    detailHeader.delivery_date,
+                                                )}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs text-muted-foreground">
+                                                PPN
+                                            </p>
+                                            <p className="font-semibold">
+                                                {detailHeader.ppn_input_percent ??
+                                                    0}
+                                                %
+                                            </p>
+                                        </div>
+                                    </div>
 
-                                <div className="grid gap-3 md:grid-cols-4">
-                                    <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                        <p className="text-xs text-muted-foreground">Total Price</p>
-                                        <p className="font-semibold">{formatRupiah(detailHeader.total_price ?? 0)}</p>
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div className="relative w-full max-w-md">
+                                            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                                            <input
+                                                type="search"
+                                                className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background pr-3 pl-9 text-sm"
+                                                placeholder="Cari material..."
+                                                value={detailSearch}
+                                                onChange={(event) => {
+                                                    setDetailSearch(
+                                                        event.target.value,
+                                                    );
+                                                    setDetailPage(1);
+                                                }}
+                                            />
+                                        </div>
+                                        <label className="text-sm text-muted-foreground">
+                                            Tampilkan
+                                            <select
+                                                className="ml-2 h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
+                                                value={
+                                                    detailPageSize === Infinity
+                                                        ? 'all'
+                                                        : String(detailPageSize)
+                                                }
+                                                onChange={(event) => {
+                                                    const value =
+                                                        event.target.value;
+                                                    setDetailPageSize(
+                                                        value === 'all'
+                                                            ? Infinity
+                                                            : Number(value),
+                                                    );
+                                                    setDetailPage(1);
+                                                }}
+                                            >
+                                                <option value="5">5</option>
+                                                <option value="10">10</option>
+                                                <option value="25">25</option>
+                                                <option value="50">50</option>
+                                                <option value="all">
+                                                    Semua
+                                                </option>
+                                            </select>
+                                        </label>
                                     </div>
-                                    <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                        <p className="text-xs text-muted-foreground">DPP</p>
-                                        <p className="font-semibold">{formatRupiah(detailHeader.dpp ?? 0)}</p>
+
+                                    <div className="overflow-x-hidden rounded-xl border border-sidebar-border/70">
+                                        <table className="w-full table-fixed text-sm">
+                                            <thead className="bg-muted/40 text-muted-foreground">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left">
+                                                        No
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Kode Material
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Material
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Qty
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Satuan
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Price PO In
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Total Price
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Sisa PR
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Sisa DO
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Remark
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {detailTableLoading && (
+                                                    <tr>
+                                                        <td
+                                                            className="px-4 py-8 text-center text-muted-foreground"
+                                                            colSpan={10}
+                                                        >
+                                                            Memuat data
+                                                            material...
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                                {!detailTableLoading &&
+                                                    detailItems.length ===
+                                                        0 && (
+                                                        <tr>
+                                                            <td
+                                                                className="px-4 py-8 text-center text-muted-foreground"
+                                                                colSpan={10}
+                                                            >
+                                                                Tidak ada detail
+                                                                material.
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                {!detailTableLoading &&
+                                                    detailItems.map(
+                                                        (row, index) => (
+                                                            <tr
+                                                                key={
+                                                                    row.id ??
+                                                                    `${row.kode_poin}-${index}`
+                                                                }
+                                                                className="border-t border-sidebar-border/70"
+                                                            >
+                                                                <td className="px-4 py-3">
+                                                                    {detailPagination.per_page ===
+                                                                    'all'
+                                                                        ? index +
+                                                                          1
+                                                                        : (Number(
+                                                                              detailPagination.page ||
+                                                                                  1,
+                                                                          ) -
+                                                                              1) *
+                                                                              Number(
+                                                                                  detailPagination.per_page ||
+                                                                                      5,
+                                                                              ) +
+                                                                          index +
+                                                                          1}
+                                                                </td>
+                                                                <td className="px-4 py-3 break-words">
+                                                                    {row.kd_material ??
+                                                                        '-'}
+                                                                </td>
+                                                                <td className="px-4 py-3 break-words">
+                                                                    {row.material ??
+                                                                        '-'}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {row.qty ??
+                                                                        0}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {row.satuan ??
+                                                                        '-'}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {formatRupiah(
+                                                                        row.price_po_in ??
+                                                                            0,
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {formatRupiah(
+                                                                        row.total_price_po_in ??
+                                                                            0,
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {row.sisa_qtypr ??
+                                                                        0}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {row.sisa_qtydo ??
+                                                                        0}
+                                                                </td>
+                                                                <td className="px-4 py-3 break-words">
+                                                                    {row.remark ||
+                                                                        '-'}
+                                                                </td>
+                                                            </tr>
+                                                        ),
+                                                    )}
+                                            </tbody>
+                                        </table>
                                     </div>
-                                    <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                        <p className="text-xs text-muted-foreground">PPN</p>
-                                        <p className="font-semibold">{formatRupiah(detailHeader.ppn_amount ?? 0)}</p>
+                                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                                        <p className="text-muted-foreground">
+                                            Total {detailPagination.total} data
+                                        </p>
+                                        {String(detailPagination.per_page) !==
+                                            'all' && (
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={
+                                                        Number(
+                                                            detailPagination.page ||
+                                                                1,
+                                                        ) <= 1
+                                                    }
+                                                    onClick={() =>
+                                                        setDetailPage((prev) =>
+                                                            Math.max(
+                                                                1,
+                                                                prev - 1,
+                                                            ),
+                                                        )
+                                                    }
+                                                >
+                                                    Sebelumnya
+                                                </Button>
+                                                <span className="text-muted-foreground">
+                                                    Halaman{' '}
+                                                    {detailPagination.page} /{' '}
+                                                    {
+                                                        detailPagination.total_pages
+                                                    }
+                                                </span>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={
+                                                        Number(
+                                                            detailPagination.page,
+                                                        ) >=
+                                                        Number(
+                                                            detailPagination.total_pages,
+                                                        )
+                                                    }
+                                                    onClick={() =>
+                                                        setDetailPage((prev) =>
+                                                            Math.min(
+                                                                Number(
+                                                                    detailPagination.total_pages ||
+                                                                        1,
+                                                                ),
+                                                                prev + 1,
+                                                            ),
+                                                        )
+                                                    }
+                                                >
+                                                    Berikutnya
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                        <p className="text-xs text-muted-foreground">Grand Total</p>
-                                        <p className="font-semibold">{formatRupiah(detailHeader.grand_total ?? 0)}</p>
+
+                                    <div className="grid gap-3 md:grid-cols-4">
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs text-muted-foreground">
+                                                Total Price
+                                            </p>
+                                            <p className="font-semibold">
+                                                {formatRupiah(
+                                                    detailHeader.total_price ??
+                                                        0,
+                                                )}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs text-muted-foreground">
+                                                DPP
+                                            </p>
+                                            <p className="font-semibold">
+                                                {formatRupiah(
+                                                    detailHeader.dpp ?? 0,
+                                                )}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs text-muted-foreground">
+                                                PPN
+                                            </p>
+                                            <p className="font-semibold">
+                                                {formatRupiah(
+                                                    detailHeader.ppn_amount ??
+                                                        0,
+                                                )}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs text-muted-foreground">
+                                                Grand Total
+                                            </p>
+                                            <p className="font-semibold">
+                                                {formatRupiah(
+                                                    detailHeader.grand_total ??
+                                                        0,
+                                                )}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
                         </div>
                     </DialogContent>
                 </Dialog>
@@ -717,21 +1114,23 @@ export default function PurchaseOrderInIndex({
                         }
                     }}
                 >
-                    <DialogContent className="h-[96vh] w-[99vw] max-w-[99vw] sm:!max-w-[99vw] p-4">
+                    <DialogContent className="h-[96vh] w-[99vw] max-w-[99vw] p-4 sm:!max-w-[99vw]">
                         <DialogHeader>
                             <DialogTitle>
                                 {activeModal === 'outstanding'
                                     ? 'Data PO IN Outstanding'
-                                    : `Data PO IN Terealisasi (${periodLabelMap[realizedPeriod]})`}
+                                    : activeModal === 'belum_pr'
+                                      ? 'Data PO IN Sisa PR'
+                                      : `Data PO IN Terealisasi (${periodLabelMap[realizedPeriod]})`}
                             </DialogTitle>
                         </DialogHeader>
 
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                             <div className="relative w-full max-w-md">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                                 <input
                                     type="search"
-                                    className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background pl-9 pr-3 text-sm"
+                                    className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background pr-3 pl-9 text-sm"
                                     placeholder="Cari data di modal..."
                                     value={modalSearch}
                                     onChange={(event) => {
@@ -744,10 +1143,18 @@ export default function PurchaseOrderInIndex({
                                 Tampilkan
                                 <select
                                     className="ml-2 h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
-                                    value={modalPageSize === Infinity ? 'all' : String(modalPageSize)}
+                                    value={
+                                        modalPageSize === Infinity
+                                            ? 'all'
+                                            : String(modalPageSize)
+                                    }
                                     onChange={(event) => {
                                         const value = event.target.value;
-                                        setModalPageSize(value === 'all' ? Infinity : Number(value));
+                                        setModalPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value),
+                                        );
                                         setModalPage(1);
                                     }}
                                 >
@@ -765,44 +1172,83 @@ export default function PurchaseOrderInIndex({
                             <table className="w-full table-auto text-sm">
                                 <thead className="bg-muted/40 text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 text-left">No</th>
-                                        <th className="px-4 py-3 text-left">Kode PO In</th>
-                                        <th className="px-4 py-3 text-left">No PO In</th>
-                                        <th className="px-4 py-3 text-left">Tanggal</th>
-                                        <th className="px-4 py-3 text-left">Customer</th>
-                                        <th className="px-4 py-3 text-left">Grand Total</th>
-                                        <th className="px-4 py-3 text-left">Action</th>
+                                        <th className="px-4 py-3 text-left">
+                                            No
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Kode PO In
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            No PO In
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Tanggal
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Customer
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Grand Total
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Action
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {modalDisplayedItems.length === 0 && (
                                         <tr>
-                                            <td className="px-4 py-10 text-center text-muted-foreground" colSpan={7}>
+                                            <td
+                                                className="px-4 py-10 text-center text-muted-foreground"
+                                                colSpan={7}
+                                            >
                                                 Tidak ada data.
                                             </td>
                                         </tr>
                                     )}
                                     {modalDisplayedItems.map((item, index) => (
-                                        <tr key={`${item.no_poin}-${index}`} className="border-t border-sidebar-border/70">
+                                        <tr
+                                            key={`${item.no_poin}-${index}`}
+                                            className="border-t border-sidebar-border/70"
+                                        >
                                             <td className="px-4 py-3">
                                                 {modalPageSize === Infinity
                                                     ? index + 1
-                                                    : (modalPage - 1) * modalPageSize + index + 1}
+                                                    : (modalPage - 1) *
+                                                          modalPageSize +
+                                                      index +
+                                                      1}
                                             </td>
-                                            <td className="px-4 py-3 font-semibold">{item.kode_poin}</td>
-                                            <td className="px-4 py-3 font-semibold">{item.no_poin}</td>
-                                            <td className="px-4 py-3">{formatDateDisplay(item.date_poin)}</td>
-                                            <td className="px-4 py-3">{item.customer_name}</td>
-                                            <td className="px-4 py-3">{formatRupiah(item.grand_total)}</td>
+                                            <td className="px-4 py-3 font-semibold">
+                                                {item.kode_poin}
+                                            </td>
+                                            <td className="px-4 py-3 font-semibold">
+                                                {item.no_poin}
+                                            </td>
                                             <td className="px-4 py-3">
-                                                {activeModal === 'outstanding' ? (
+                                                {formatDateDisplay(
+                                                    item.date_poin,
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.customer_name}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatRupiah(item.grand_total)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {activeModal ===
+                                                    'outstanding' ||
+                                                activeModal === 'belum_pr' ? (
                                                     <div className="flex items-center gap-2">
                                                         <Button
                                                             type="button"
                                                             variant="outline"
                                                             size="sm"
                                                             onClick={() => {
-                                                                setActiveModal(null);
+                                                                setActiveModal(
+                                                                    null,
+                                                                );
                                                                 router.visit(
                                                                     `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
                                                                 );
@@ -811,15 +1257,22 @@ export default function PurchaseOrderInIndex({
                                                         >
                                                             <Pencil className="size-4" />
                                                         </Button>
-                                                        {Number(item.can_delete ?? 0) === 1 && (
+                                                        {Number(
+                                                            item.can_delete ??
+                                                                0,
+                                                        ) === 1 && (
                                                             <Button
                                                                 type="button"
                                                                 variant="outline"
                                                                 size="sm"
                                                                 title="Hapus"
                                                                 onClick={() => {
-                                                                    setConfirmDeleteKode(item.kode_poin);
-                                                                    setIsConfirmDeleteOpen(true);
+                                                                    setConfirmDeleteKode(
+                                                                        item.kode_poin,
+                                                                    );
+                                                                    setIsConfirmDeleteOpen(
+                                                                        true,
+                                                                    );
                                                                 }}
                                                             >
                                                                 <Trash2 className="size-4" />
@@ -833,8 +1286,12 @@ export default function PurchaseOrderInIndex({
                                                             variant="outline"
                                                             size="sm"
                                                             onClick={() => {
-                                                                setActiveModal(null);
-                                                                openDetailModal(item.kode_poin);
+                                                                setActiveModal(
+                                                                    null,
+                                                                );
+                                                                openDetailModal(
+                                                                    item.kode_poin,
+                                                                );
                                                             }}
                                                             title="Lihat"
                                                         >
@@ -870,7 +1327,9 @@ export default function PurchaseOrderInIndex({
                                         size="sm"
                                         disabled={modalPage === 1}
                                         onClick={() =>
-                                            setModalPage((prev) => Math.max(1, prev - 1))
+                                            setModalPage((prev) =>
+                                                Math.max(1, prev - 1),
+                                            )
                                         }
                                     >
                                         Sebelumnya
@@ -885,7 +1344,10 @@ export default function PurchaseOrderInIndex({
                                         disabled={modalPage >= modalTotalPages}
                                         onClick={() =>
                                             setModalPage((prev) =>
-                                                Math.min(modalTotalPages, prev + 1)
+                                                Math.min(
+                                                    modalTotalPages,
+                                                    prev + 1,
+                                                ),
                                             )
                                         }
                                     >
@@ -911,7 +1373,8 @@ export default function PurchaseOrderInIndex({
                             <DialogTitle>Hapus PO In?</DialogTitle>
                         </DialogHeader>
                         <p className="text-sm text-muted-foreground">
-                            Data header dan detail material akan dihapus permanen.
+                            Data header dan detail material akan dihapus
+                            permanen.
                         </p>
                         <div className="mt-2 flex justify-end gap-2">
                             <Button

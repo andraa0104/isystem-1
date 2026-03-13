@@ -502,6 +502,8 @@ Route::get('marketing/purchase-requirement/outstanding', [PurchaseRequirementCon
     ->name('marketing.purchase-requirement.outstanding');
 Route::get('marketing/purchase-requirement/realized', [PurchaseRequirementController::class, 'realized'])
     ->name('marketing.purchase-requirement.realized');
+Route::get('marketing/purchase-requirement/sisa-po', [PurchaseRequirementController::class, 'sisaPo'])
+    ->name('marketing.purchase-requirement.sisa-po');
 Route::get('marketing/purchase-requirement/create', [PurchaseRequirementController::class, 'create'])
     ->name('marketing.purchase-requirement.create');
 Route::get('marketing/purchase-requirement/{noPr}/edit', [PurchaseRequirementController::class, 'edit'])
