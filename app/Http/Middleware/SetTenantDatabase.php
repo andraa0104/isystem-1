@@ -19,7 +19,7 @@ class SetTenantDatabase
 
         if ($database && in_array($database, $allowed, true)) {
             $request->session()->put('tenant.database', $database);
-            Cookie::queue('tenant_database', $database, 60 * 24 * 30);
+            Cookie::queue('tenant_database', $database);
         } else {
             $database = $request->session()->get('tenant.database')
                 ?? $request->cookie('tenant_database');
@@ -27,7 +27,7 @@ class SetTenantDatabase
 
         if ($database && in_array($database, $allowed, true)
             && !$request->cookie('tenant_database')) {
-            Cookie::queue('tenant_database', $database, 60 * 24 * 30);
+            Cookie::queue('tenant_database', $database);
         }
 
         if ($database && in_array($database, $allowed, true)) {

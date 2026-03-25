@@ -138,10 +138,9 @@ Route::post('/login-simple', function (Request $request) {
     $key = 'browser_active:' . ($database ?: 'default') . ':' . $user->pengguna;
     Cache::store('file')->put($key, time(), now()->addMinutes(10));
 
-    // Cookie persisten supaya tidak gampang terlogout sendiri (mobile sering membuang session-cookie).
-    // Status login "aktif" tetap dikontrol oleh heartbeat (lihat /heartbeat-simple).
-    $loginCookieMinutes = 60 * 24 * 30; // 30 hari
-    $tenantCookieMinutes = 60 * 24 * 30; // 30 hari
+    // Session cookie: otomatis hilang saat browser ditutup.
+    $loginCookieMinutes = 0;
+    $tenantCookieMinutes = 0;
 
     return redirect('/dashboard')
         ->withCookie(cookie('tenant_database', $database, $tenantCookieMinutes))
@@ -171,9 +170,13 @@ Route::post('/heartbeat-simple', function (Request $request) {
         DB::purge($connection);
         DB::reconnect($connection);
 
+        $column = config('tenants.last_online_column', 'LastOnline');
         Pengguna::on($connection)
             ->where('pengguna', $username)
-            ->update(['Sesi' => 'Y']);
+            ->update([
+                'Sesi' => 'Y',
+                $column => now('Asia/Singapore'),
+            ]);
     }
 
     $key = 'browser_active:' . ($database ?: 'default') . ':' . $username;
@@ -193,7 +196,7 @@ Route::post('/heartbeat-simple', function (Request $request) {
     }
 
     Cache::store('file')->put($onlineAliveKey, (string) time(), $onlineTtlSeconds);
-    Cache::store('file')->put($onlineNameKey, $onlineTtlSeconds, $displayName);
+    Cache::store('file')->put($onlineNameKey, $displayName, $onlineTtlSeconds);
 
     return response()->json(['ok' => true]);
 });

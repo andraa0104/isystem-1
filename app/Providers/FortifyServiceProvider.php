@@ -94,7 +94,7 @@ class FortifyServiceProvider extends ServiceProvider
             }
 
             $request->session()->put('tenant.database', $database);
-            Cookie::queue('tenant_database', $database, 60 * 24 * 30);
+            Cookie::queue('tenant_database', $database);
             $connection = config('tenants.connection', config('database.default'));
             config(['database.default' => $connection]);
             DB::setDefaultConnection($connection);
@@ -114,9 +114,9 @@ class FortifyServiceProvider extends ServiceProvider
                 // Using trim to avoid char/varchar padding issues.
                 if ((string) $password === trim($user->pass)) {
                     \Illuminate\Support\Facades\Log::info("Login success for user: {$user->pengguna} on DB: {$database}");
-                    Cookie::queue('login_user', $user->pengguna, 60 * 24 * 30);
-                    Cookie::queue('login_user_name', $user->name, 60 * 24 * 30);
-                    Cookie::queue('login_last_online', (string) ($user->last_online ?? ''), 60 * 24 * 30);
+                    Cookie::queue('login_user', $user->pengguna);
+                    Cookie::queue('login_user_name', $user->name);
+                    Cookie::queue('login_last_online', (string) ($user->last_online ?? ''));
                     return $user;
                 }
             }
