@@ -474,7 +474,7 @@ class PurchaseRequirementController
                     'harga_po_in' => (float) $item->harga_po_in,
                     'harga_modal' => '',
                     'stok' => (float) $item->stok,
-                    'margin' => '',
+                    'margin' => '0%',
                     'remark' => $item->remark,
                 ];
             })
@@ -582,8 +582,8 @@ class PurchaseRequirementController
                             'unit_price' => $item['unit_price'] ?? null,
                             'total_price' => $item['total_price'] ?? null,
                             'price_po' => $item['price_po'] ?? null,
-                            'margin' => $item['margin'] ?? null,
-                            'renmark' => $item['renmark'] ?? null,
+                            'margin' => $item['margin'] ?: '0%',
+                            'renmark' => $item['renmark'] ?: ' ',
                             'qty_po' => 0,
                             'sisa_pr' => $item['qty'] ?? null,
                         ]);
@@ -697,8 +697,8 @@ class PurchaseRequirementController
                         'unit_price' => $item['unit_price'] ?? null,
                         'total_price' => $item['total_price'] ?? null,
                         'price_po' => $item['price_po'] ?? null,
-                        'margin' => $item['margin'] ?? null,
-                        'renmark' => $item['renmark'] ?? null,
+                        'margin' => $item['margin'] ?: '0%',
+                        'renmark' => $item['renmark'] ?: ' ',
                         'qty_po' => 0,
                         'sisa_pr' => $item['qty'] ?? null,
                     ]);
@@ -721,8 +721,8 @@ class PurchaseRequirementController
                         'unit_price' => $item['unit_price'] ?? null,
                         'total_price' => $item['total_price'] ?? null,
                         'price_po' => $item['price_po'] ?? null,
-                        'margin' => $item['margin'] ?? null,
-                        'renmark' => $item['renmark'] ?? null,
+                        'margin' => $item['margin'] ?: '0%',
+                        'renmark' => $item['renmark'] ?: ' ',
                         'tgl_ubah' => $timestamp,
                     ]);
                 }
@@ -775,8 +775,8 @@ class PurchaseRequirementController
                 'unit_price' => $request->input('unit_price'),
                 'total_price' => $request->input('total_price'),
                 'price_po' => $request->input('price_po'),
-                'margin' => $request->input('margin'),
-                'renmark' => $request->input('renmark'),
+                'margin' => $request->input('margin') ?: '0%',
+                'renmark' => $request->input('renmark') ?: ' ',
                 'sisa_pr' => $request->input('qty'),
             ]);
 
@@ -822,8 +822,8 @@ class PurchaseRequirementController
             'unit_price' => $request->input('unit_price'),
             'total_price' => $request->input('total_price'),
             'price_po' => $request->input('price_po'),
-            'margin' => $request->input('margin'),
-            'renmark' => $request->input('renmark'),
+            'margin' => $request->input('margin') ?: '0%',
+            'renmark' => $request->input('renmark') ?: ' ',
             'tgl_ubah' => $timestamp,
         ]);
 
@@ -963,8 +963,8 @@ class PurchaseRequirementController
                         'unit_price' => $row->unit_price,
                         'total_price' => $row->total_price,
                         'price_po' => $row->price_po,
-                        'margin' => $truncate($row->margin, 50),
-                        'renmark' => $truncate($row->renmark, 191),
+                        'margin' => $truncate($row->margin ?: '0%', 50),
+                        'renmark' => $truncate($row->renmark ?: ' ', 191),
                         'qty_po' => $row->qty_po,
                         'sisa_pr' => $row->sisa_pr,
                         'id' => $row->id,

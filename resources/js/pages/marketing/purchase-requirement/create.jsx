@@ -1,7 +1,13 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -22,8 +28,8 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import { Head, Link, router, usePage } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, Check, Plus, Search, Trash2 } from 'lucide-react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { ArrowLeft, Check, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
@@ -58,7 +64,7 @@ const formatMargin = (value) => {
         return '';
     }
     const numeric = parseNumber(value);
-    return Number.isFinite(numeric) ? `${numeric.toFixed(2)}%` : '';
+    return Number.isFinite(numeric) ? numeric.toFixed(2) : '';
 };
 
 const formatRupiah = (value) => {
@@ -100,7 +106,10 @@ const calculateTotalPrice = (qtyPr, hargaModal) => {
 
 export default function PurchaseRequirementCreate() {
     const { tenant } = usePage().props;
-    const dbPrefix = (tenant?.database ?? '').toLowerCase().replace(/^db/, '').toUpperCase();
+    const dbPrefix = (tenant?.database ?? '')
+        .toLowerCase()
+        .replace(/^db/, '')
+        .toUpperCase();
     const stokValue = dbPrefix ? `STOK ${dbPrefix}` : 'STOK';
 
     const [step, setStep] = useState(1);
@@ -159,7 +168,12 @@ export default function PurchaseRequirementCreate() {
 
         try {
             const params = new URLSearchParams();
-            params.set('per_page', customerPageSize === Infinity ? 'all' : String(customerPageSize));
+            params.set(
+                'per_page',
+                customerPageSize === Infinity
+                    ? 'all'
+                    : String(customerPageSize),
+            );
             params.set('page', String(customerCurrentPage));
             if (customerSearchTerm.trim()) {
                 params.set('search', customerSearchTerm.trim());
@@ -167,7 +181,7 @@ export default function PurchaseRequirementCreate() {
 
             const response = await fetch(
                 `/marketing/purchase-requirement/customers?${params.toString()}`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             );
 
             if (!response.ok) {
@@ -175,7 +189,9 @@ export default function PurchaseRequirementCreate() {
             }
 
             const data = await response.json();
-            setCustomerList(Array.isArray(data?.customers) ? data.customers : []);
+            setCustomerList(
+                Array.isArray(data?.customers) ? data.customers : [],
+            );
             setCustomerTotal(Number(data?.total ?? 0));
         } catch {
             setCustomerError('Gagal memuat data PO In.');
@@ -190,7 +206,12 @@ export default function PurchaseRequirementCreate() {
 
         try {
             const params = new URLSearchParams();
-            params.set('per_page', materialPageSize === Infinity ? 'all' : String(materialPageSize));
+            params.set(
+                'per_page',
+                materialPageSize === Infinity
+                    ? 'all'
+                    : String(materialPageSize),
+            );
             params.set('page', String(materialCurrentPage));
             if (materialSearchTerm.trim()) {
                 params.set('search', materialSearchTerm.trim());
@@ -198,7 +219,7 @@ export default function PurchaseRequirementCreate() {
 
             const response = await fetch(
                 `/marketing/purchase-requirement/materials?${params.toString()}`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             );
 
             if (!response.ok) {
@@ -206,7 +227,9 @@ export default function PurchaseRequirementCreate() {
             }
 
             const data = await response.json();
-            setMaterialList(Array.isArray(data?.materials) ? data.materials : []);
+            setMaterialList(
+                Array.isArray(data?.materials) ? data.materials : [],
+            );
             setMaterialTotal(Number(data?.total ?? 0));
         } catch {
             setMaterialError('Gagal memuat data material.');
@@ -226,14 +249,24 @@ export default function PurchaseRequirementCreate() {
         if (isMaterialModalOpen) {
             loadMaterials();
         }
-    }, [isMaterialModalOpen, materialCurrentPage, materialPageSize, materialSearchTerm]);
+    }, [
+        isMaterialModalOpen,
+        materialCurrentPage,
+        materialPageSize,
+        materialSearchTerm,
+    ]);
 
     useEffect(() => {
         if (isCustomerModalOpen) {
             loadCustomers();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isCustomerModalOpen, customerCurrentPage, customerPageSize, customerSearchTerm]);
+    }, [
+        isCustomerModalOpen,
+        customerCurrentPage,
+        customerPageSize,
+        customerSearchTerm,
+    ]);
 
     const loadPoInMaterials = async (kodePoin) => {
         if (!kodePoin) {
@@ -250,7 +283,7 @@ export default function PurchaseRequirementCreate() {
 
             const response = await fetch(
                 `/marketing/purchase-requirement/poin-details?${params.toString()}`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             );
 
             if (!response.ok) {
@@ -274,7 +307,7 @@ export default function PurchaseRequirementCreate() {
                     hargaModal: item.harga_modal ?? '',
                     margin: item.margin ?? '',
                     remark: item.remark ?? '',
-                }))
+                })),
             );
         } catch {
             setMaterialItems([]);
@@ -285,7 +318,10 @@ export default function PurchaseRequirementCreate() {
     };
 
     const handleAddManualMaterial = () => {
-        if (!materialForm.kodeMaterial || parseNumber(materialForm.quantity) <= 0) {
+        if (
+            !materialForm.kodeMaterial ||
+            parseNumber(materialForm.quantity) <= 0
+        ) {
             setSubmitError('Pilih material dan isi quantity terlebih dahulu.');
             return;
         }
@@ -324,7 +360,9 @@ export default function PurchaseRequirementCreate() {
         setMaterialForm((prev) => {
             const updated = { ...prev, [field]: value };
             if (field === 'quantity' || field === 'priceEstimate') {
-                updated.totalPrice = parseNumber(updated.quantity) * parseNumber(updated.priceEstimate);
+                updated.totalPrice =
+                    parseNumber(updated.quantity) *
+                    parseNumber(updated.priceEstimate);
             }
             return updated;
         });
@@ -341,7 +379,7 @@ export default function PurchaseRequirementCreate() {
                     ...item,
                     qtyPr,
                 };
-            })
+            }),
         );
     };
 
@@ -358,7 +396,7 @@ export default function PurchaseRequirementCreate() {
                     hargaModal,
                     margin: calculateMargin(item.hargaPoIn, hargaModal),
                 };
-            })
+            }),
         );
     };
 
@@ -370,8 +408,8 @@ export default function PurchaseRequirementCreate() {
                           ...item,
                           remark: value,
                       }
-                    : item
-            )
+                    : item,
+            ),
         );
     };
 
@@ -389,10 +427,14 @@ export default function PurchaseRequirementCreate() {
         }
 
         const hasInvalidRow = materialItems.some(
-            (item) => parseNumber(item.hargaModal) <= 0 || parseNumber(item.qtyPr) < 0
+            (item) =>
+                parseNumber(item.hargaModal) <= 0 ||
+                parseNumber(item.qtyPr) < 0,
         );
         if (hasInvalidRow) {
-            setSubmitError('Harga modal wajib diisi dan Qty PR tidak boleh negatif.');
+            setSubmitError(
+                'Harga modal wajib diisi dan Qty PR tidak boleh negatif.',
+            );
             return;
         }
 
@@ -405,15 +447,22 @@ export default function PurchaseRequirementCreate() {
                 ref_po: formData.refPo,
                 materials: materialItems.map((item, index) => ({
                     no: index + 1,
-                    detail_id: String(item.id).startsWith('manual-') ? null : item.id,
+                    detail_id: String(item.id).startsWith('manual-')
+                        ? null
+                        : item.id,
                     kd_material: item.kodeMaterial,
                     material: item.namaMaterial,
                     qty: item.qtyPr,
                     unit: item.satuan,
                     stok: item.stok,
                     unit_price: item.hargaModal,
-                    total_price: calculateTotalPrice(item.qtyPr, item.hargaModal),
-                    price_po: formData.isStok ? item.hargaModal : item.hargaPoIn,
+                    total_price: calculateTotalPrice(
+                        item.qtyPr,
+                        item.hargaModal,
+                    ),
+                    price_po: formData.isStok
+                        ? item.hargaModal
+                        : item.hargaPoIn,
                     margin: formData.isStok ? 0 : item.margin,
                     renmark: item.remark,
                 })),
@@ -421,20 +470,27 @@ export default function PurchaseRequirementCreate() {
             {
                 onStart: () => setIsSubmitting(true),
                 onFinish: () => setIsSubmitting(false),
-            }
+            },
         );
     };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Tambah PR" />
-            <form className="flex h-full flex-1 flex-col gap-4 p-4" onSubmit={handleSubmit}>
+            <form
+                className="flex h-full flex-1 flex-col gap-4 p-4"
+                onSubmit={handleSubmit}
+            >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-xl font-semibold">Tambah PR</h1>
-                        <p className="text-sm text-muted-foreground">Isi data PR dalam dua langkah</p>
+                        <p className="text-sm text-muted-foreground">
+                            Isi data PR dalam dua langkah
+                        </p>
                     </div>
-                    <div className="text-sm text-muted-foreground">Step {step} dari 2</div>
+                    <div className="text-sm text-muted-foreground">
+                        Step {step} dari 2
+                    </div>
                 </div>
 
                 <div className="flex flex-wrap gap-3 text-sm">
@@ -464,7 +520,7 @@ export default function PurchaseRequirementCreate() {
                             <CardTitle>Data PO Masuk</CardTitle>
                         </CardHeader>
                         <CardContent className="grid gap-4 md:grid-cols-2">
-                            <div className="md:col-span-2 flex items-center space-x-3 bg-primary/5 p-4 rounded-xl border border-primary/10 mb-2">
+                            <div className="mb-2 flex items-center space-x-3 rounded-xl border border-primary/10 bg-primary/5 p-4 md:col-span-2">
                                 <Checkbox
                                     id="stok"
                                     className="h-5 w-5"
@@ -473,22 +529,37 @@ export default function PurchaseRequirementCreate() {
                                         setFormData((prev) => ({
                                             ...prev,
                                             isStok: !!checked,
-                                            refPo: checked ? stokValue : (prev.refPo === stokValue ? '' : prev.refPo),
-                                            forCustomer: checked ? stokValue : (prev.forCustomer === stokValue ? '' : prev.forCustomer),
+                                            refPo: checked
+                                                ? stokValue
+                                                : prev.refPo === stokValue
+                                                  ? ''
+                                                  : prev.refPo,
+                                            forCustomer: checked
+                                                ? stokValue
+                                                : prev.forCustomer === stokValue
+                                                  ? ''
+                                                  : prev.forCustomer,
                                         }));
                                     }}
                                 />
                                 <div className="grid gap-1.5 leading-none">
-                                    <Label htmlFor="stok" className="text-sm font-bold cursor-pointer">
+                                    <Label
+                                        htmlFor="stok"
+                                        className="cursor-pointer text-sm font-bold"
+                                    >
                                         Pesan untuk {stokValue}
                                     </Label>
                                     <p className="text-xs text-muted-foreground">
-                                        Centang jika pembelian ini ditujukan untuk persediaan stok {dbPrefix} sendiri.
+                                        Centang jika pembelian ini ditujukan
+                                        untuk persediaan stok {dbPrefix}{' '}
+                                        sendiri.
                                     </p>
                                 </div>
                             </div>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">Date</span>
+                                <span className="text-muted-foreground">
+                                    Date
+                                </span>
                                 <Input
                                     type="date"
                                     value={formData.date}
@@ -501,7 +572,9 @@ export default function PurchaseRequirementCreate() {
                                 />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">Ref PO</span>
+                                <span className="text-muted-foreground">
+                                    Ref PO
+                                </span>
                                 <Input
                                     value={formData.refPo}
                                     readOnly={formData.isStok}
@@ -514,9 +587,14 @@ export default function PurchaseRequirementCreate() {
                                 />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">For Customer</span>
+                                <span className="text-muted-foreground">
+                                    For Customer
+                                </span>
                                 <div className="flex gap-2">
-                                    <Input value={formData.forCustomer} readOnly />
+                                    <Input
+                                        value={formData.forCustomer}
+                                        readOnly
+                                    />
                                     <Button
                                         type="button"
                                         variant="outline"
@@ -533,7 +611,9 @@ export default function PurchaseRequirementCreate() {
                                 </div>
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">Payment</span>
+                                <span className="text-muted-foreground">
+                                    Payment
+                                </span>
                                 <select
                                     className="h-9 w-full rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
                                     value={formData.payment}
@@ -544,8 +624,12 @@ export default function PurchaseRequirementCreate() {
                                         }))
                                     }
                                 >
-                                    <option value="Cash Trans">Cash Trans</option>
-                                    <option value="Cash Tunai">Cash Tunai</option>
+                                    <option value="Cash Trans">
+                                        Cash Trans
+                                    </option>
+                                    <option value="Cash Tunai">
+                                        Cash Tunai
+                                    </option>
                                     <option value="Credit">Credit</option>
                                 </select>
                             </label>
@@ -559,379 +643,571 @@ export default function PurchaseRequirementCreate() {
                 )}
 
                 {step === 2 && (
-                    <div className="mx-auto w-full space-y-8 animate-in slide-in-from-right duration-500">
+                    <div className="mx-auto w-full animate-in space-y-8 duration-500 slide-in-from-right">
                         <div className="grid gap-8 lg:grid-cols-12">
                             {/* Main Entry Section */}
-                            <div className="lg:col-span-8 space-y-6">
+                            <div className="space-y-6 lg:col-span-8">
                                 <Card className="border-none shadow-xl ring-1 ring-sidebar-border/70">
                                     <CardHeader className="border-b bg-muted/30">
                                         <CardTitle className="flex items-center gap-2">
-                                            <Badge variant="outline" className="h-6 w-6 rounded-full p-0 flex items-center justify-center">
+                                            <Badge
+                                                variant="outline"
+                                                className="flex h-6 w-6 items-center justify-center rounded-full p-0"
+                                            >
                                                 {materialItems.length}
                                             </Badge>
                                             Daftar Material
                                         </CardTitle>
                                         <CardDescription>
-                                            {formData.isStok ? 'Tambahkan material untuk stok melalui form di bawah.' : 'Material ditarik dari data PO In terpilih.'}
+                                            Tambahkan material secara manual
+                                            atau tarik data dari PO In untuk
+                                            mengisi daftar di bawah.
                                         </CardDescription>
                                     </CardHeader>
                                     <CardContent className="p-0">
-                                        {formData.isStok ? (
-                                            <>
-                                                <div className="border-b bg-primary/5 p-6 dark:bg-primary/10">
-                                                    <h3 className="mb-4 text-sm font-bold uppercase tracking-widest text-primary">Input Material Baru</h3>
-                                                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                                                        <div className="space-y-2 md:col-span-2 xl:col-span-5">
-                                                            <Label className="text-xs">Material</Label>
-                                                            <div className="flex gap-2">
-                                                                <div className="relative flex-1">
-                                                                    <Input
-                                                                        placeholder="Pilih Material..."
-                                                                        className="h-10 border-primary/20 bg-background pr-10"
-                                                                        value={materialForm.namaMaterial}
-                                                                        readOnly
-                                                                    />
-                                                                    {materialForm.kodeMaterial && (
-                                                                        <div className="absolute right-3 top-2.5">
-                                                                            <Check className="h-5 w-5 text-green-500" />
-                                                                        </div>
+                                        {/* Material List (Cards) - Always Used */}
+                                        <div className="min-h-[300px] space-y-4 p-6">
+                                            {materialItems.length === 0 ? (
+                                                <div className="flex flex-col items-center justify-center py-20 opacity-40">
+                                                    <div className="relative mb-4">
+                                                        <Search className="h-16 w-16" />
+                                                        <Plus className="absolute -top-2 -right-2 h-8 w-8 text-primary" />
+                                                    </div>
+                                                    <p className="text-xl font-bold tracking-tight uppercase">
+                                                        Belum Ada Data
+                                                    </p>
+                                                    <p className="text-sm">
+                                                        Silahkan tambah secara
+                                                        manual atau pilih PO In
+                                                        di Langkah 1.
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div className="grid gap-4">
+                                                    {materialItems.map(
+                                                        (item, idx) => (
+                                                            <div
+                                                                key={item.id}
+                                                                className="group relative rounded-2xl border border-sidebar-border bg-background p-5 shadow-sm transition-all duration-300 hover:border-primary/30 hover:shadow-md"
+                                                            >
+                                                                <div className="absolute top-4 -left-3 flex h-8 w-8 items-center justify-center rounded-lg border border-sidebar-border bg-muted text-[10px] font-black text-muted-foreground transition-colors group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
+                                                                    {String(
+                                                                        idx + 1,
+                                                                    ).padStart(
+                                                                        2,
+                                                                        '0',
                                                                     )}
                                                                 </div>
-                                                                <Button
-                                                                    type="button"
-                                                                    className="h-10"
-                                                                    onClick={() => setIsMaterialModalOpen(true)}
-                                                                >
-                                                                    <Search className="h-4 w-4" />
-                                                                </Button>
-                                                            </div>
-                                                            {materialForm.kodeMaterial && (
-                                                                <p className="text-[14px] font-mono text-muted-foreground">KODE MATERIAL: {materialForm.kodeMaterial}</p>
-                                                            )}
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <Label className="text-xs">Stok Saat Ini</Label>
-                                                            <Input
-                                                                type="text"
-                                                                className="h-10 bg-muted/50 font-bold"
-                                                                value={materialForm.lastStock}
-                                                                readOnly
-                                                            />
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <Label className="text-xs">Quantity</Label>
-                                                            <Input
-                                                                type="number"
-                                                                className="h-10 border-primary/20"
-                                                                placeholder="0"
-                                                                value={materialForm.quantity}
-                                                                onChange={(e) => updateMaterialForm('quantity', e.target.value)}
-                                                            />
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <Label className="text-xs">Harga Est.</Label>
-                                                            <Input
-                                                                type="text"
-                                                                className="h-10 border-primary/20"
-                                                                placeholder="Rp 0"
-                                                                value={formatRupiah(materialForm.priceEstimate)}
-                                                                onChange={(e) => updateMaterialForm('priceEstimate', parseRupiahInput(e.target.value))}
-                                                            />
-                                                        </div>
-                                                        <div className="space-y-2 md:col-span-2 xl:col-span-5">
-                                                            <Label className="text-xs">Remark / Catatan</Label>
-                                                            <Input
-                                                                type="text"
-                                                                className="h-10 border-primary/20"
-                                                                placeholder="Tambahkan catatan untuk material ini..."
-                                                                value={materialForm.remark}
-                                                                onChange={(e) => updateMaterialForm('remark', e.target.value)}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    <div className="mt-4 flex items-center justify-between border-t border-primary/10 pt-4">
-                                                        <div className="text-xs">
-                                                            <span className="text-muted-foreground italic">Total Item: </span>
-                                                            <span className="font-bold text-primary">{formatRupiah(materialForm.totalPrice)}</span>
-                                                        </div>
-                                                        <Button
-                                                            type="button"
-                                                            onClick={handleAddManualMaterial}
-                                                            disabled={!materialForm.kodeMaterial || !materialForm.quantity}
-                                                            className="h-10 px-6 shadow-lg shadow-primary/20"
-                                                        >
-                                                            <Plus className="mr-2 h-4 w-4" /> Tambah Manual
-                                                        </Button>
-                                                    </div>
-                                                </div>
 
-                                                <div className="min-h-[200px] overflow-auto">
-                                                    <Table>
-                                                        <TableHeader className="bg-muted/30">
-                                                            <TableRow>
-                                                                <TableHead className="w-[50px] text-center">No</TableHead>
-                                                                <TableHead>Deskripsi Material</TableHead>
-                                                                <TableHead className="text-right">Qty</TableHead>
-                                                                <TableHead>Satuan</TableHead>
-                                                                <TableHead className="text-right">Harga Modal</TableHead>
-                                                                <TableHead className="text-right">Total</TableHead>
-                                                                <TableHead>Remark</TableHead>
-                                                                <TableHead className="w-[50px]"></TableHead>
-                                                            </TableRow>
-                                                        </TableHeader>
-                                                        <TableBody>
-                                                            {materialItems.length === 0 ? (
-                                                                <TableRow>
-                                                                    <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
-                                                                        Belum ada material yang ditambahkan.
-                                                                    </TableCell>
-                                                                </TableRow>
-                                                            ) : (
-                                                                materialItems.map((item, idx) => (
-                                                                    <TableRow key={item.id} className="group transition-all">
-                                                                        <TableCell className="text-center font-mono text-xs">{idx + 1}</TableCell>
-                                                                        <TableCell className="max-w-[300px]">
-                                                                            <div className="font-bold">{item.namaMaterial}</div>
-                                                                            <div className="flex gap-2 text-[14px] font-mono text-muted-foreground">
-                                                                                <span>{item.kodeMaterial}</span>
-                                                                                <span>•</span>
-                                                                                <span>STOK: {item.stok}</span>
-                                                                            </div>
-                                                                        </TableCell>
-                                                                        <TableCell className="text-right font-medium">{item.qtyPr}</TableCell>
-                                                                        <TableCell className="text-xs uppercase text-muted-foreground">{item.satuan}</TableCell>
-                                                                        <TableCell className="text-right font-medium">{formatRupiah(item.hargaModal)}</TableCell>
-                                                                        <TableCell className="text-right font-bold text-primary">
-                                                                            {formatRupiah(calculateTotalPrice(item.qtyPr, item.hargaModal))}
-                                                                        </TableCell>
-                                                                        <TableCell className="min-w-[150px]">
-                                                                            <div className="text-sm text-muted-foreground italic line-clamp-2" title={item.remark}>
-                                                                                {item.remark || '-'}
-                                                                            </div>
-                                                                        </TableCell>
-                                                                        <TableCell className="text-center">
-                                                                            <Button
-                                                                                type="button"
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                                                                onClick={() => handleRemoveMaterial(item.id)}
-                                                                            >
-                                                                                <Trash2 className="h-4 w-4" />
-                                                                            </Button>
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                ))
-                                                            )}
-                                                        </TableBody>
-                                                    </Table>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <div className="space-y-4 p-6 min-h-[300px]">
-                                                {materialItems.length === 0 ? (
-                                                    <div className="flex flex-col items-center justify-center py-20 opacity-40">
-                                                        <div className="relative mb-4">
-                                                            <Search className="h-16 w-16" />
-                                                            <Plus className="absolute -right-2 -top-2 h-8 w-8 text-primary" />
-                                                        </div>
-                                                        <p className="font-bold text-xl uppercase tracking-tight">Belum Ada Data</p>
-                                                        <p className="text-sm">Pilih PO In di Langkah 1 untuk memuat material.</p>
-                                                    </div>
-                                                ) : (
-                                                    <div className="grid gap-4">
-                                                        {materialItems.map((item, idx) => (
-                                                            <div key={item.id} className="relative group border border-sidebar-border bg-background rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-300">
-                                                                <div className="absolute -left-3 top-4 h-8 w-8 bg-muted border border-sidebar-border rounded-lg flex items-center justify-center text-[10px] font-black text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary transition-colors">
-                                                                    {String(idx + 1).padStart(2, '0')}
-                                                                </div>
-
-                                                                <div className="flex flex-col md:flex-row gap-6">
-                                                                    {/* Left Column: Info */}
-                                                                    <div className="flex-1 space-y-3">
-                                                                        <div className="flex items-start justify-between gap-4">
-                                                                            <div className="space-y-1">
-                                                                                <h4 className="font-black text-lg leading-tight uppercase tracking-tight group-hover:text-primary transition-colors">
-                                                                                    {item.namaMaterial}
-                                                                                </h4>
-                                                                                <div className="flex flex-wrap gap-2">
-                                                                                    <Badge variant="outline" className="font-mono text-[10px] bg-muted/30 border-none px-1.5 h-5">
-                                                                                        {item.kodeMaterial}
+                                                                <div className="flex flex-col gap-6">
+                                                                    {/* Top Section: Info & Delete */}
+                                                                    <div className="flex items-start justify-between gap-4">
+                                                                        <div className="space-y-1">
+                                                                            <h4 className="text-lg leading-tight font-black tracking-tight uppercase transition-colors group-hover:text-primary">
+                                                                                {
+                                                                                    item.namaMaterial
+                                                                                }
+                                                                            </h4>
+                                                                            <div className="flex flex-wrap gap-2">
+                                                                                <Badge
+                                                                                    variant="outline"
+                                                                                    className="h-5 border-none bg-muted/30 px-1.5 font-mono text-[10px]"
+                                                                                >
+                                                                                    {
+                                                                                        item.kodeMaterial
+                                                                                    }
+                                                                                </Badge>
+                                                                                {item.satuan && (
+                                                                                    <Badge
+                                                                                        variant="outline"
+                                                                                        className="h-5 border-none bg-primary/5 px-1.5 text-[10px] hover:bg-primary/10"
+                                                                                    >
+                                                                                        {
+                                                                                            item.satuan
+                                                                                        }
                                                                                     </Badge>
-                                                                                    {item.satuan && (
-                                                                                        <Badge variant="outline" className="text-[10px] bg-primary/5 hover:bg-primary/10 border-none px-1.5 h-5">
-                                                                                            {item.satuan}
-                                                                                        </Badge>
-                                                                                    )}
-                                                                                    <span className="text-[10px] flex items-center gap-1.5 font-bold text-green-600 bg-green-50 px-2 rounded-full border border-green-100">
-                                                                                        <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                                                                                        Stok: {item.stok}
+                                                                                )}
+                                                                                <span className="flex items-center gap-1.5 rounded-full border border-green-100 bg-green-50 px-2 text-[10px] font-bold text-green-600">
+                                                                                    <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+                                                                                    Stok:{' '}
+                                                                                    {
+                                                                                        item.stok
+                                                                                    }
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="group/del h-9 w-9 rounded-xl hover:bg-destructive/10 hover:text-destructive"
+                                                                            onClick={() =>
+                                                                                handleRemoveMaterial(
+                                                                                    item.id,
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4 transition-transform group-hover/del:scale-110" />
+                                                                        </Button>
+                                                                    </div>
+
+                                                                    {/* Middle Section: Inputs */}
+                                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                                                        <div className="space-y-2 rounded-xl border border-dashed border-sidebar-border/50 bg-muted/20 p-4">
+                                                                            <Label className="text-[10px] font-black tracking-widest text-muted-foreground/70 uppercase">
+                                                                                Quantity
+                                                                            </Label>
+                                                                            <div className="flex items-center justify-between gap-4">
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-50">
+                                                                                        Order
+                                                                                        In
+                                                                                    </span>
+                                                                                    <span className="font-mono text-base font-bold">
+                                                                                        {
+                                                                                            item.qtyPoIn
+                                                                                        }
                                                                                     </span>
                                                                                 </div>
-                                                                            </div>
-                                                                            <Button
-                                                                                type="button"
-                                                                                variant="ghost"
-                                                                                size="icon"
-                                                                                className="h-9 w-9 rounded-xl hover:bg-destructive/10 hover:text-destructive group/del"
-                                                                                onClick={() => handleRemoveMaterial(item.id)}
-                                                                            >
-                                                                                <Trash2 className="h-4 w-4 transition-transform group-hover/del:scale-110" />
-                                                                            </Button>
-                                                                        </div>
-
-                                                                        <div className="grid grid-cols-2 gap-4">
-                                                                            <div className="space-y-2 bg-muted/20 p-3 rounded-xl border border-dashed border-sidebar-border/50">
-                                                                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">Quantity</Label>
-                                                                                <div className="flex items-center justify-between gap-3">
-                                                                                    <div className="flex flex-col">
-                                                                                        <span className="text-[9px] font-bold text-muted-foreground opacity-50 uppercase">Order In</span>
-                                                                                        <span className="font-mono font-bold">{item.qtyPoIn}</span>
-                                                                                    </div>
-                                                                                    <div className="h-8 w-[1px] bg-sidebar-border opacity-50" />
-                                                                                    <div className="flex flex-col items-end flex-1">
-                                                                                        <span className="text-[9px] font-bold text-primary uppercase">PR Input</span>
-                                                                                        <div className="relative w-full max-w-[140px]">
-                                                                                            <Input
-                                                                                                type="number"
-                                                                                                className="h-8 w-full text-right font-black border-primary/20 bg-background shadow-xs ring-offset-0 focus-visible:ring-1 focus-visible:ring-primary"
-                                                                                                value={item.qtyPr}
-                                                                                                onChange={(e) => handleQtyPrChange(item.id, e.target.value)}
-                                                                                            />
-                                                                                        </div>
+                                                                                <div className="h-10 w-[1px] bg-sidebar-border opacity-50" />
+                                                                                <div className="flex flex-1 flex-col items-end">
+                                                                                    <span className="mb-1 text-[9px] font-bold text-primary uppercase">
+                                                                                        PR
+                                                                                        Input
+                                                                                    </span>
+                                                                                    <div className="relative w-full">
+                                                                                        <Input
+                                                                                            type="number"
+                                                                                            className="h-10 w-full border-primary/20 bg-background text-right text-lg font-black shadow-xs ring-offset-0 focus-visible:ring-2 focus-visible:ring-primary"
+                                                                                            value={
+                                                                                                item.qtyPr
+                                                                                            }
+                                                                                            onChange={(
+                                                                                                e,
+                                                                                            ) =>
+                                                                                                handleQtyPrChange(
+                                                                                                    item.id,
+                                                                                                    e
+                                                                                                        .target
+                                                                                                        .value,
+                                                                                                )
+                                                                                            }
+                                                                                        />
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
+                                                                        </div>
 
-                                                                            <div className="space-y-2 bg-muted/20 p-3 rounded-xl border border-dashed border-sidebar-border/50">
-                                                                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">Harga (IDR)</Label>
-                                                                                <div className="flex items-center justify-between gap-3">
-                                                                                    <div className="flex flex-col">
-                                                                                        <span className="text-[9px] font-bold text-muted-foreground opacity-50 uppercase tracking-tighter">PO IN</span>
-                                                                                        <span className="font-mono font-bold text-xs">{formatRupiah(item.hargaPoIn)}</span>
-                                                                                    </div>
-                                                                                    <div className="h-8 w-[1px] bg-sidebar-border opacity-50" />
-                                                                                    <div className="flex flex-col items-end flex-1">
-                                                                                        <span className="text-[9px] font-bold text-primary uppercase tracking-tighter italic">Modal Est.</span>
-                                                                                        <div className="relative w-full max-w-[140px]">
-                                                                                            <Input
-                                                                                                type="text"
-                                                                                                className="h-8 w-full text-right font-black border-primary/20 bg-background shadow-xs pl-5 text-sm ring-offset-0 focus-visible:ring-1 focus-visible:ring-primary"
-                                                                                                value={formatRupiah(item.hargaModal)}
-                                                                                                onChange={(e) => handleHargaModalChange(item.id, parseRupiahInput(e.target.value))}
-                                                                                            />
-                                                                                            <span className="absolute left-1.5 top-2 text-[8px] font-black opacity-30">RP</span>
-                                                                                        </div>
+                                                                        <div className="space-y-2 rounded-xl border border-dashed border-sidebar-border/50 bg-muted/20 p-4">
+                                                                            <Label className="text-[10px] font-black tracking-widest text-muted-foreground/70 uppercase">
+                                                                                Harga
+                                                                                (IDR)
+                                                                            </Label>
+                                                                            <div className="flex items-center justify-between gap-4">
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="text-[9px] font-bold tracking-tighter text-muted-foreground uppercase opacity-50">
+                                                                                        PO
+                                                                                        IN
+                                                                                    </span>
+                                                                                    <span className="font-mono text-xs font-bold">
+                                                                                        {formatRupiah(
+                                                                                            item.hargaPoIn,
+                                                                                        )}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="h-10 w-[1px] bg-sidebar-border opacity-50" />
+                                                                                <div className="flex flex-1 flex-col items-end">
+                                                                                    <span className="mb-1 text-[9px] font-bold tracking-tighter text-primary uppercase italic">
+                                                                                        Modal
+                                                                                        Est.
+                                                                                    </span>
+                                                                                    <div className="relative w-full">
+                                                                                        <Input
+                                                                                            type="text"
+                                                                                            className="h-10 w-full border-primary/20 bg-background pl-8 text-right text-lg font-black shadow-xs ring-offset-0 focus-visible:ring-2 focus-visible:ring-primary"
+                                                                                            value={formatRupiah(
+                                                                                                item.hargaModal,
+                                                                                            )}
+                                                                                            onChange={(
+                                                                                                e,
+                                                                                            ) =>
+                                                                                                handleHargaModalChange(
+                                                                                                    item.id,
+                                                                                                    parseRupiahInput(
+                                                                                                        e
+                                                                                                            .target
+                                                                                                            .value,
+                                                                                                    ),
+                                                                                                )
+                                                                                            }
+                                                                                        />
+                                                                                        <span className="absolute top-3 left-2.5 text-[10px] font-black opacity-30">
+                                                                                            RP
+                                                                                        </span>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
                                                                         </div>
                                                                     </div>
 
-                                                                    {/* Right Column: Total & Margin */}
-                                                                    <div className="md:w-64 space-y-4">
-                                                                        <div className="h-full bg-primary/5 rounded-2xl p-5 border border-primary/10 flex flex-col justify-center items-center group/total">
-                                                                            <div className="text-[10px] uppercase font-black tracking-widest text-primary/60 mb-1">Estimated Total</div>
-                                                                            <div className="text-2xl font-black text-primary tracking-tighter group-active:scale-95 transition-transform">
-                                                                                {formatRupiah(calculateTotalPrice(item.qtyPr, item.hargaModal))}
+                                                                    {/* Bottom Section: Total & Margin */}
+                                                                    <div className="group/total flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary/10 bg-primary/5 p-6">
+                                                                        <div className="flex flex-col">
+                                                                            <div className="mb-1 text-[10px] font-black tracking-widest text-primary/60 uppercase">
+                                                                                Estimated
+                                                                                Total
+                                                                                Sum
                                                                             </div>
-                                                                            <div className="mt-4 flex items-center gap-2">
-                                                                                <Badge
-                                                                                    variant={parseNumber(item.margin) < 0 ? 'destructive' : 'outline'}
-                                                                                    className={cn(
-                                                                                        "font-mono text-xs px-2 h-6 border-none",
-                                                                                        parseNumber(item.margin) >= 0 ? "bg-green-500 text-white" : "bg-destructive text-white"
-                                                                                    )}
-                                                                                >
-                                                                                    {formatMargin(item.margin)}%
-                                                                                </Badge>
-                                                                                <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">Margin</span>
+                                                                            <div className="text-3xl font-black tracking-tighter text-primary transition-transform group-active:scale-95">
+                                                                                {formatRupiah(
+                                                                                    calculateTotalPrice(
+                                                                                        item.qtyPr,
+                                                                                        item.hargaModal,
+                                                                                    ),
+                                                                                )}
                                                                             </div>
                                                                         </div>
+                                                                        {item.margin !==
+                                                                            '' && (
+                                                                            <div className="flex flex-col items-end gap-2">
+                                                                                <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">
+                                                                                    Profit
+                                                                                    Margin
+                                                                                </span>
+                                                                                <Badge
+                                                                                    variant={
+                                                                                        parseNumber(
+                                                                                            item.margin,
+                                                                                        ) <
+                                                                                        0
+                                                                                            ? 'destructive'
+                                                                                            : 'outline'
+                                                                                    }
+                                                                                    className={cn(
+                                                                                        'h-8 border-none px-3 font-mono text-sm shadow-sm',
+                                                                                        parseNumber(
+                                                                                            item.margin,
+                                                                                        ) >=
+                                                                                            0
+                                                                                            ? 'bg-green-500 text-white'
+                                                                                            : 'bg-destructive text-white',
+                                                                                    )}
+                                                                                >
+                                                                                    {formatMargin(
+                                                                                        item.margin,
+                                                                                    )}
+
+                                                                                    %
+                                                                                </Badge>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                 </div>
 
                                                                 {/* Remark: Full Width Bottom */}
-                                                                <div className="mt-4 pt-4 border-t border-dashed border-sidebar-border/50">
+                                                                <div className="mt-4 border-t border-dashed border-sidebar-border/50 pt-4">
                                                                     <div className="flex items-center gap-3">
                                                                         <div className="rounded-full bg-muted p-1.5">
-                                                                            <Plus className="h-3 w-3 text-muted-foreground rotate-45" />
+                                                                            <Plus className="h-3 w-3 rotate-45 text-muted-foreground" />
                                                                         </div>
                                                                         <Input
                                                                             type="text"
                                                                             placeholder="Tulis catatan atau instruksi khusus untuk barang ini..."
-                                                                            className="border-none bg-transparent hover:bg-muted/30 focus:bg-background h-8 text-xs italic shadow-none px-0"
-                                                                            value={item.remark}
-                                                                            onChange={(e) => handleRemarkChange(item.id, e.target.value)}
+                                                                            className="h-8 border-none bg-transparent px-0 text-xs italic shadow-none hover:bg-muted/30 focus:bg-background"
+                                                                            value={
+                                                                                item.remark
+                                                                            }
+                                                                            onChange={(
+                                                                                e,
+                                                                            ) =>
+                                                                                handleRemarkChange(
+                                                                                    item.id,
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                                )
+                                                                            }
                                                                         />
                                                                     </div>
                                                                 </div>
                                                             </div>
-                                                        ))}
+                                                        ),
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Manual Input Form - Always Visible */}
+                                        <div className="border-t bg-primary/5 p-6 dark:bg-primary/10">
+                                            <h3 className="mb-4 text-sm font-bold tracking-widest text-primary uppercase">
+                                                Input Material Baru
+                                            </h3>
+                                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                                                <div className="space-y-2 md:col-span-2 xl:col-span-5">
+                                                    <Label className="text-xs">
+                                                        Material
+                                                    </Label>
+                                                    <div className="flex gap-2">
+                                                        <div className="relative flex-1">
+                                                            <Input
+                                                                placeholder="Pilih Material..."
+                                                                className="h-10 border-primary/20 bg-background pr-10"
+                                                                value={
+                                                                    materialForm.namaMaterial
+                                                                }
+                                                                readOnly
+                                                            />
+                                                            {materialForm.kodeMaterial && (
+                                                                <div className="absolute top-2.5 right-3">
+                                                                    <Check className="h-5 w-5 text-green-500" />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            className="h-10"
+                                                            onClick={() =>
+                                                                setIsMaterialModalOpen(
+                                                                    true,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Search className="h-4 w-4" />
+                                                        </Button>
                                                     </div>
-                                                )}
+                                                    {materialForm.kodeMaterial && (
+                                                        <p className="font-mono text-[14px] text-muted-foreground">
+                                                            KODE MATERIAL:{' '}
+                                                            {
+                                                                materialForm.kodeMaterial
+                                                            }
+                                                        </p>
+                                                    )}
+                                                </div>
+                                                <div className="space-y-2 xl:col-span-1">
+                                                    <Label className="text-xs">
+                                                        Stok Saat Ini
+                                                    </Label>
+                                                    <Input
+                                                        type="text"
+                                                        className="h-10 bg-muted/50 font-bold"
+                                                        value={
+                                                            materialForm.lastStock
+                                                        }
+                                                        readOnly
+                                                    />
+                                                </div>
+                                                <div className="space-y-2 xl:col-span-2">
+                                                    <Label className="text-xs">
+                                                        Quantity
+                                                    </Label>
+                                                    <Input
+                                                        type="number"
+                                                        className="h-10 border-primary/20"
+                                                        placeholder="0"
+                                                        value={
+                                                            materialForm.quantity
+                                                        }
+                                                        onChange={(e) =>
+                                                            updateMaterialForm(
+                                                                'quantity',
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className="space-y-2 xl:col-span-2">
+                                                    <Label className="text-xs">
+                                                        Harga Est.
+                                                    </Label>
+                                                    <Input
+                                                        type="text"
+                                                        className="h-10 border-primary/20"
+                                                        placeholder="Rp 0"
+                                                        value={formatRupiah(
+                                                            materialForm.priceEstimate,
+                                                        )}
+                                                        onChange={(e) =>
+                                                            updateMaterialForm(
+                                                                'priceEstimate',
+                                                                parseRupiahInput(
+                                                                    e.target
+                                                                        .value,
+                                                                ),
+                                                            )
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className="space-y-2 md:col-span-2 xl:col-span-5">
+                                                    <Label className="text-xs">
+                                                        Remark / Catatan
+                                                    </Label>
+                                                    <Input
+                                                        type="text"
+                                                        className="h-10 border-primary/20"
+                                                        placeholder="Tambahkan catatan untuk material ini..."
+                                                        value={
+                                                            materialForm.remark
+                                                        }
+                                                        onChange={(e) =>
+                                                            updateMaterialForm(
+                                                                'remark',
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                    />
+                                                </div>
                                             </div>
-                                        )}
+                                            <div className="mt-4 flex items-center justify-between border-t border-primary/10 pt-4">
+                                                <div className="text-xs">
+                                                    <span className="text-muted-foreground italic">
+                                                        Total Item:{' '}
+                                                    </span>
+                                                    <span className="font-bold text-primary">
+                                                        {formatRupiah(
+                                                            materialForm.totalPrice,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    onClick={
+                                                        handleAddManualMaterial
+                                                    }
+                                                    disabled={
+                                                        !materialForm.kodeMaterial ||
+                                                        !materialForm.quantity
+                                                    }
+                                                    className="h-10 px-6 shadow-lg shadow-primary/20"
+                                                >
+                                                    <Plus className="mr-2 h-4 w-4" />{' '}
+                                                    Tambah Ke Daftar
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </CardContent>
                                 </Card>
                             </div>
 
                             {/* Summary Section */}
-                            <div className="lg:col-span-4 space-y-6">
-                                <Card className="sticky top-24 border-none shadow-2xl ring-2 ring-primary/5 overflow-hidden">
+                            <div className="space-y-6 lg:col-span-4">
+                                <Card className="sticky top-24 overflow-hidden border-none shadow-2xl ring-2 ring-primary/5">
                                     <div className="h-2 bg-primary" />
                                     <CardHeader className="bg-muted/10 pb-4">
-                                        <CardTitle className="text-base uppercase tracking-wider text-muted-foreground">Summary PR</CardTitle>
+                                        <CardTitle className="text-base tracking-wider text-muted-foreground uppercase">
+                                            Summary PR
+                                        </CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-6 p-6">
                                         <div className="space-y-3 border-b pb-6 text-sm">
                                             <div className="flex justify-between">
-                                                <span className="text-muted-foreground">Ref No:</span>
-                                                <Badge variant="secondary" className="font-mono">{formData.refPo || '-'}</Badge>
+                                                <span className="text-muted-foreground">
+                                                    Ref No:
+                                                </span>
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="font-mono"
+                                                >
+                                                    {formData.refPo || '-'}
+                                                </Badge>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-muted-foreground">Customer:</span>
-                                                <span className="text-right font-bold max-w-[150px] truncate" title={formData.forCustomer}>{formData.forCustomer || '-'}</span>
+                                                <span className="text-muted-foreground">
+                                                    Customer:
+                                                </span>
+                                                <span
+                                                    className="max-w-[150px] truncate text-right font-bold"
+                                                    title={formData.forCustomer}
+                                                >
+                                                    {formData.forCustomer ||
+                                                        '-'}
+                                                </span>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-muted-foreground">Metode:</span>
-                                                <Badge variant="outline">{formData.payment}</Badge>
+                                                <span className="text-muted-foreground">
+                                                    Metode:
+                                                </span>
+                                                <Badge variant="outline">
+                                                    {formData.payment}
+                                                </Badge>
                                             </div>
                                         </div>
 
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between">
-                                                <span className="text-sm text-muted-foreground">Subtotal ({materialItems.length} items)</span>
+                                                <span className="text-sm text-muted-foreground">
+                                                    Subtotal (
+                                                    {materialItems.length}{' '}
+                                                    items)
+                                                </span>
                                                 <span className="text-lg font-bold">
                                                     {formatRupiah(
-                                                        materialItems.reduce((acc, item) => acc + parseNumber(calculateTotalPrice(item.qtyPr, item.hargaModal)), 0)
+                                                        materialItems.reduce(
+                                                            (acc, item) =>
+                                                                acc +
+                                                                parseNumber(
+                                                                    calculateTotalPrice(
+                                                                        item.qtyPr,
+                                                                        item.hargaModal,
+                                                                    ),
+                                                                ),
+                                                            0,
+                                                        ),
                                                     )}
                                                 </span>
                                             </div>
                                             <div className="rounded-xl bg-primary/5 p-4 text-center">
-                                                <p className="text-[10px] uppercase tracking-widest text-primary font-bold mb-1">Total Estimasi</p>
+                                                <p className="mb-1 text-[10px] font-bold tracking-widest text-primary uppercase">
+                                                    Total Estimasi
+                                                </p>
                                                 <h4 className="text-2xl font-black text-primary">
                                                     {formatRupiah(
-                                                        materialItems.reduce((acc, item) => acc + parseNumber(calculateTotalPrice(item.qtyPr, item.hargaModal)), 0)
+                                                        materialItems.reduce(
+                                                            (acc, item) =>
+                                                                acc +
+                                                                parseNumber(
+                                                                    calculateTotalPrice(
+                                                                        item.qtyPr,
+                                                                        item.hargaModal,
+                                                                    ),
+                                                                ),
+                                                            0,
+                                                        ),
                                                     )}
                                                 </h4>
                                             </div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-4 pt-4">
-                                            <Button variant="outline" type="button" className="h-12 w-full" onClick={() => setStep(1)}>
-                                                <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+                                            <Button
+                                                variant="outline"
+                                                type="button"
+                                                className="h-12 w-full"
+                                                onClick={() => setStep(1)}
+                                            >
+                                                <ArrowLeft className="mr-2 h-4 w-4" />{' '}
+                                                Kembali
                                             </Button>
                                             <Button
                                                 type="submit"
                                                 className="h-12 w-full shadow-xl shadow-primary/20"
-                                                disabled={isSubmitting || materialItems.length === 0}
+                                                disabled={
+                                                    isSubmitting ||
+                                                    materialItems.length === 0
+                                                }
                                             >
-                                                {isSubmitting ? <Spinner /> : <><Check className="mr-2 h-5 w-5" /> Simpan</>}
+                                                {isSubmitting ? (
+                                                    <Spinner />
+                                                ) : (
+                                                    <>
+                                                        <Check className="mr-2 h-5 w-5" />{' '}
+                                                        Simpan
+                                                    </>
+                                                )}
                                             </Button>
                                         </div>
                                         {submitError && (
-                                            <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-center text-xs font-medium text-destructive animate-bounce">
+                                            <div className="mt-4 animate-bounce rounded-lg bg-destructive/10 p-3 text-center text-xs font-medium text-destructive">
                                                 {submitError}
                                             </div>
                                         )}
@@ -955,11 +1231,12 @@ export default function PurchaseRequirementCreate() {
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Pilih PO In</DialogTitle>
                             <DialogDescription>
-                                Pilih PO In untuk mengisi Ref PO, customer, dan detail material.
+                                Pilih PO In untuk mengisi Ref PO, customer, dan
+                                detail material.
                             </DialogDescription>
                         </DialogHeader>
 
@@ -968,10 +1245,18 @@ export default function PurchaseRequirementCreate() {
                                 Tampilkan
                                 <select
                                     className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={customerPageSize === Infinity ? 'all' : customerPageSize}
+                                    value={
+                                        customerPageSize === Infinity
+                                            ? 'all'
+                                            : customerPageSize
+                                    }
                                     onChange={(event) => {
                                         const value = event.target.value;
-                                        setCustomerPageSize(value === 'all' ? Infinity : Number(value));
+                                        setCustomerPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value),
+                                        );
                                         setCustomerCurrentPage(1);
                                     }}
                                 >
@@ -990,12 +1275,18 @@ export default function PurchaseRequirementCreate() {
                                     placeholder="Cari kode PO In, no PO In, customer..."
                                     value={customerSearchTerm}
                                     onChange={(event) => {
-                                        setCustomerSearchTerm(event.target.value);
+                                        setCustomerSearchTerm(
+                                            event.target.value,
+                                        );
                                         setCustomerCurrentPage(1);
                                     }}
                                 />
                             </label>
-                            <Button type="button" variant="outline" onClick={loadCustomers}>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={loadCustomers}
+                            >
                                 Refresh
                             </Button>
                         </div>
@@ -1004,11 +1295,21 @@ export default function PurchaseRequirementCreate() {
                             <table className="w-full text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 text-left">Kode PO In</th>
-                                        <th className="px-4 py-3 text-left">No PO In</th>
-                                        <th className="px-4 py-3 text-left">Date</th>
-                                        <th className="px-4 py-3 text-left">Customer</th>
-                                        <th className="px-4 py-3 text-left">Action</th>
+                                        <th className="px-4 py-3 text-left">
+                                            Kode PO In
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            No PO In
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Date
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Customer
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Action
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1020,7 +1321,8 @@ export default function PurchaseRequirementCreate() {
                                             >
                                                 {customerLoading
                                                     ? 'Memuat data PO In...'
-                                                    : customerError || 'Tidak ada data PO In.'}
+                                                    : customerError ||
+                                                      'Tidak ada data PO In.'}
                                             </td>
                                         </tr>
                                     )}
@@ -1029,10 +1331,20 @@ export default function PurchaseRequirementCreate() {
                                             key={`${item.kode_poin}-${item.no_poin}`}
                                             className="border-t border-sidebar-border/70"
                                         >
-                                            <td className="px-4 py-3">{renderValue(item.kode_poin)}</td>
-                                            <td className="px-4 py-3">{renderValue(item.no_poin)}</td>
-                                            <td className="px-4 py-3">{renderValue(item.date_poin)}</td>
-                                            <td className="px-4 py-3">{renderValue(item.customer_name)}</td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.kode_poin)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.no_poin)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.date_poin)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(
+                                                    item.customer_name,
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3">
                                                 <Button
                                                     size="sm"
@@ -1040,11 +1352,23 @@ export default function PurchaseRequirementCreate() {
                                                     onClick={() => {
                                                         setFormData((prev) => ({
                                                             ...prev,
-                                                            refPo: prev.isStok ? stokValue : (item.no_poin ?? ''),
-                                                            forCustomer: prev.isStok ? stokValue : (item.customer_name ?? ''),
+                                                            refPo: prev.isStok
+                                                                ? stokValue
+                                                                : (item.no_poin ??
+                                                                  ''),
+                                                            forCustomer:
+                                                                prev.isStok
+                                                                    ? stokValue
+                                                                    : (item.customer_name ??
+                                                                      ''),
                                                         }));
-                                                        setIsCustomerModalOpen(false);
-                                                        loadPoInMaterials(item.kode_poin ?? '');
+                                                        setIsCustomerModalOpen(
+                                                            false,
+                                                        );
+                                                        loadPoInMaterials(
+                                                            item.kode_poin ??
+                                                                '',
+                                                        );
                                                     }}
                                                 >
                                                     Pilih
@@ -1059,30 +1383,52 @@ export default function PurchaseRequirementCreate() {
                         {customerPageSize !== Infinity && customerTotal > 0 && (
                             <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                 <span>
-                                    Menampilkan {Math.min((customerCurrentPage - 1) * customerPageSize + 1, customerTotal)}-
-                                    {Math.min(customerCurrentPage * customerPageSize, customerTotal)} dari {customerTotal} data
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (customerCurrentPage - 1) *
+                                            customerPageSize +
+                                            1,
+                                        customerTotal,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        customerCurrentPage * customerPageSize,
+                                        customerTotal,
+                                    )}{' '}
+                                    dari {customerTotal} data
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         onClick={() =>
-                                            setCustomerCurrentPage((p) => Math.max(1, p - 1))
+                                            setCustomerCurrentPage((p) =>
+                                                Math.max(1, p - 1),
+                                            )
                                         }
                                         disabled={customerCurrentPage === 1}
                                     >
                                         Sebelumnya
                                     </Button>
                                     <span className="text-sm text-muted-foreground">
-                                        Halaman {customerCurrentPage} dari {customerTotalPages}
+                                        Halaman {customerCurrentPage} dari{' '}
+                                        {customerTotalPages}
                                     </span>
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         onClick={() =>
-                                            setCustomerCurrentPage((p) => Math.min(customerTotalPages || p, p + 1))
+                                            setCustomerCurrentPage((p) =>
+                                                Math.min(
+                                                    customerTotalPages || p,
+                                                    p + 1,
+                                                ),
+                                            )
                                         }
-                                        disabled={customerCurrentPage >= customerTotalPages}
+                                        disabled={
+                                            customerCurrentPage >=
+                                            customerTotalPages
+                                        }
                                     >
                                         Berikutnya
                                     </Button>
@@ -1091,28 +1437,41 @@ export default function PurchaseRequirementCreate() {
                         )}
                     </DialogContent>
                 </Dialog>
-                    <Dialog
+                <Dialog
                     open={isMaterialModalOpen}
                     onOpenChange={setIsMaterialModalOpen}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto flex flex-col p-0 border-none shadow-2xl">
-                        <DialogHeader className="p-6 bg-muted/30 border-b">
-                            <DialogTitle className="text-xl">Pilih Material</DialogTitle>
+                    <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none border-none p-0 shadow-2xl">
+                        <DialogHeader className="border-b bg-muted/30 p-6">
+                            <DialogTitle className="text-xl">
+                                Pilih Material
+                            </DialogTitle>
                             <DialogDescription>
-                                Pilih material dari database inventory untuk PR ini.
+                                Pilih material dari database inventory untuk PR
+                                ini.
                             </DialogDescription>
                         </DialogHeader>
 
-                        <div className="p-6 flex-1 overflow-auto space-y-6">
+                        <div className="flex-1 space-y-6 overflow-auto p-6">
                             <div className="flex flex-wrap items-center justify-between gap-4">
                                 <div className="flex items-center gap-2">
-                                    <Label className="text-xs text-muted-foreground uppercase font-bold tracking-tighter">Per Page</Label>
+                                    <Label className="text-xs font-bold tracking-tighter text-muted-foreground uppercase">
+                                        Per Page
+                                    </Label>
                                     <select
                                         className="rounded-md border border-sidebar-border bg-background px-3 py-1.5 text-sm"
-                                        value={materialPageSize === Infinity ? 'all' : materialPageSize}
+                                        value={
+                                            materialPageSize === Infinity
+                                                ? 'all'
+                                                : materialPageSize
+                                        }
                                         onChange={(event) => {
                                             const value = event.target.value;
-                                            setMaterialPageSize(value === 'all' ? Infinity : Number(value));
+                                            setMaterialPageSize(
+                                                value === 'all'
+                                                    ? Infinity
+                                                    : Number(value),
+                                            );
                                             setMaterialCurrentPage(1);
                                         }}
                                     >
@@ -1123,14 +1482,16 @@ export default function PurchaseRequirementCreate() {
                                         <option value="all">Semua</option>
                                     </select>
                                 </div>
-                                <div className="relative flex-1 max-w-md">
-                                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <div className="relative max-w-md flex-1">
+                                    <Search className="absolute top-2.5 left-3 h-4 w-4 text-muted-foreground" />
                                     <Input
-                                        className="pl-9 h-10 border-sidebar-border"
+                                        className="h-10 border-sidebar-border pl-9"
                                         placeholder="Cari kode atau nama material..."
                                         value={materialSearchTerm}
                                         onChange={(event) => {
-                                            setMaterialSearchTerm(event.target.value);
+                                            setMaterialSearchTerm(
+                                                event.target.value,
+                                            );
                                             setMaterialCurrentPage(1);
                                         }}
                                     />
@@ -1144,42 +1505,81 @@ export default function PurchaseRequirementCreate() {
                                             <TableHead>Kode Material</TableHead>
                                             <TableHead>Nama Material</TableHead>
                                             <TableHead>Unit</TableHead>
-                                            <TableHead className="text-right">Stok</TableHead>
-                                            <TableHead className="text-right">Harga Est.</TableHead>
+                                            <TableHead className="text-right">
+                                                Stok
+                                            </TableHead>
+                                            <TableHead className="text-right">
+                                                Harga Est.
+                                            </TableHead>
                                             <TableHead className="w-[80px]"></TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {materialList.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                                                <TableCell
+                                                    colSpan={6}
+                                                    className="h-32 text-center text-muted-foreground"
+                                                >
                                                     {materialLoading ? (
                                                         <div className="flex items-center justify-center gap-2">
-                                                            <Spinner /> Memuat data...
+                                                            <Spinner /> Memuat
+                                                            data...
                                                         </div>
-                                                    ) : materialError || 'Tidak ada data material.'}
+                                                    ) : (
+                                                        materialError ||
+                                                        'Tidak ada data material.'
+                                                    )}
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
                                             materialList.map((m) => (
                                                 <TableRow key={m.kd_material}>
-                                                    <TableCell className="font-mono text-xs">{m.kd_material}</TableCell>
-                                                    <TableCell className="font-medium">{m.material}</TableCell>
-                                                    <TableCell className="text-xs uppercase text-muted-foreground">{m.unit}</TableCell>
-                                                    <TableCell className="text-right">{m.stok}</TableCell>
-                                                    <TableCell className="text-right font-bold text-primary">{formatRupiah(m.harga)}</TableCell>
+                                                    <TableCell className="font-mono text-xs">
+                                                        {m.kd_material}
+                                                    </TableCell>
+                                                    <TableCell className="font-medium">
+                                                        {m.material}
+                                                    </TableCell>
+                                                    <TableCell className="text-xs text-muted-foreground uppercase">
+                                                        {m.unit}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        {m.stok}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-bold text-primary">
+                                                        {formatRupiah(m.harga)}
+                                                    </TableCell>
                                                     <TableCell>
                                                         <Button
                                                             size="sm"
                                                             variant="default"
                                                             className="h-8"
                                                             onClick={() => {
-                                                                updateMaterialForm('kodeMaterial', m.kd_material);
-                                                                updateMaterialForm('namaMaterial', m.material);
-                                                                updateMaterialForm('satuan', m.unit);
-                                                                updateMaterialForm('lastStock', m.stok);
-                                                                updateMaterialForm('priceEstimate', m.harga || 0);
-                                                                setIsMaterialModalOpen(false);
+                                                                updateMaterialForm(
+                                                                    'kodeMaterial',
+                                                                    m.kd_material,
+                                                                );
+                                                                updateMaterialForm(
+                                                                    'namaMaterial',
+                                                                    m.material,
+                                                                );
+                                                                updateMaterialForm(
+                                                                    'satuan',
+                                                                    m.unit,
+                                                                );
+                                                                updateMaterialForm(
+                                                                    'lastStock',
+                                                                    m.stok,
+                                                                );
+                                                                updateMaterialForm(
+                                                                    'priceEstimate',
+                                                                    m.harga ||
+                                                                        0,
+                                                                );
+                                                                setIsMaterialModalOpen(
+                                                                    false,
+                                                                );
                                                             }}
                                                         >
                                                             Pilih
@@ -1192,35 +1592,68 @@ export default function PurchaseRequirementCreate() {
                                 </Table>
                             </div>
 
-                            {materialPageSize !== Infinity && materialTotal > 0 && (
-                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground pt-2">
-                                    <span>
-                                        Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialTotal)}-
-                                        {Math.min(materialCurrentPage * materialPageSize, materialTotal)} dari {materialTotal} data
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))}
-                                            disabled={materialCurrentPage === 1}
-                                        >
-                                            Sebelumnya
-                                        </Button>
-                                        <span className="text-sm font-medium text-foreground">
-                                            {materialCurrentPage} / {materialTotalPages}
+                            {materialPageSize !== Infinity &&
+                                materialTotal > 0 && (
+                                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-sm text-muted-foreground">
+                                        <span>
+                                            Menampilkan{' '}
+                                            {Math.min(
+                                                (materialCurrentPage - 1) *
+                                                    materialPageSize +
+                                                    1,
+                                                materialTotal,
+                                            )}
+                                            -
+                                            {Math.min(
+                                                materialCurrentPage *
+                                                    materialPageSize,
+                                                materialTotal,
+                                            )}{' '}
+                                            dari {materialTotal} data
                                         </span>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setMaterialCurrentPage((p) => Math.min(materialTotalPages || p, p + 1))}
-                                            disabled={materialCurrentPage >= materialTotalPages}
-                                        >
-                                            Berikutnya
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    setMaterialCurrentPage(
+                                                        (p) =>
+                                                            Math.max(1, p - 1),
+                                                    )
+                                                }
+                                                disabled={
+                                                    materialCurrentPage === 1
+                                                }
+                                            >
+                                                Sebelumnya
+                                            </Button>
+                                            <span className="text-sm font-medium text-foreground">
+                                                {materialCurrentPage} /{' '}
+                                                {materialTotalPages}
+                                            </span>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    setMaterialCurrentPage(
+                                                        (p) =>
+                                                            Math.min(
+                                                                materialTotalPages ||
+                                                                    p,
+                                                                p + 1,
+                                                            ),
+                                                    )
+                                                }
+                                                disabled={
+                                                    materialCurrentPage >=
+                                                    materialTotalPages
+                                                }
+                                            >
+                                                Berikutnya
+                                            </Button>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
                         </div>
                     </DialogContent>
                 </Dialog>

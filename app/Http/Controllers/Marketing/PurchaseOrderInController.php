@@ -107,11 +107,16 @@ class PurchaseOrderInController
                 $q->from('tb_detailpoin as d')->whereColumn('d.kode_poin', 'p.kode_poin');
             });
         } elseif ($statusFilter === 'sisa_pr') {
-            // sisa_qtypr != qty untuk minimal 1 material (sudah ada PR sebagian)
+            // Sisa PR: PO yang minimal 1 material sisa < qty (sudah mulai PR)
+            // DAN minimal 1 material sisa > 0 (masih ada yang harus dibuat PR)
             $query->whereExists(function ($q) {
                 $q->from('tb_detailpoin as d')
                     ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(d.qty as decimal(18,4)), 0)');
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) < coalesce(cast(d.qty as decimal(18,4)), 0)');
+            })->whereExists(function ($q) {
+                $q->from('tb_detailpoin as d')
+                    ->whereColumn('d.kode_poin', 'p.kode_poin')
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
             });
         } elseif ($statusFilter === 'realized') {
             // sisa_qtypr = 0 untuk semua material (semua selesai PR)
@@ -162,12 +167,17 @@ class PurchaseOrderInController
             ->orderByDesc('p.id')
             ->get();
 
-        // Sisa PR: PO yang ada minimal 1 material sisa_qtypr != qty (sudah ada PR tapi belum semua)
+        // Sisa PR: PO yang minimal 1 material sisa < qty DAN minimal 1 material sisa > 0
         $belumPrRows = DB::table('tb_poin as p')
             ->whereExists(function ($q) {
                 $q->from('tb_detailpoin as d')
                     ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(d.qty as decimal(18,4)), 0)');
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) < coalesce(cast(d.qty as decimal(18,4)), 0)');
+            })
+            ->whereExists(function ($q) {
+                $q->from('tb_detailpoin as d')
+                    ->whereColumn('d.kode_poin', 'p.kode_poin')
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
             })
             ->select(
                 'p.id',
