@@ -1,4 +1,4 @@
-import { dashboard, login, register } from '@/routes';
+import { dashboard, login, register } from '@/routes/index';
 import { Head, Link, usePage } from '@inertiajs/react';
 export default function Welcome({ canRegister = true, }) {
     const { auth } = usePage().props;

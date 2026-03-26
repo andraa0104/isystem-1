@@ -4,7 +4,7 @@ import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
 import useCachedRequest from '@/hooks/use-cached-request';
 import useInView from '@/hooks/use-in-view';
 import AppLayout from '@/layouts/app-layout';
-import { dashboard } from '@/routes';
+import { dashboard } from '@/routes/index';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
