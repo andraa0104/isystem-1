@@ -26,68 +26,21 @@ class PurchaseRequirementController
             )
             ->groupBy('no_pr');
 
-        // Outstanding Data
-        $outstandingData = DB::table('tb_pr as pr')
+        // Outstanding and Sisa PO summary in one query
+        $summaryData = DB::table('tb_pr as pr')
             ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
-            ->where('detail.po_items_count', '=', 0)
             ->select(
-                DB::raw('count(*) as count'),
-                DB::raw('sum(detail.total_price_sum) as total')
+                DB::raw('sum(case when detail.po_items_count = 0 then 1 else 0 end) as outstanding_count'),
+                DB::raw('sum(case when detail.po_items_count = 0 then detail.total_price_sum else 0 end) as outstanding_total'),
+                DB::raw('sum(case when detail.po_items_count > 0 and detail.remaining_items_count > 0 then 1 else 0 end) as sisa_po_count'),
+                DB::raw('sum(case when detail.po_items_count > 0 and detail.remaining_items_count > 0 then detail.total_price_sum else 0 end) as sisa_po_total')
             )
             ->first();
 
-        $outstandingCount = $outstandingData->count ?? 0;
-        $outstandingTotal = $outstandingData->total ?? 0;
-
-        // Sisa PO Data
-        $sisaPoData = DB::table('tb_pr as pr')
-            ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
-            ->where('detail.po_items_count', '>', 0)
-            ->where('detail.remaining_items_count', '>', 0)
-            ->select(
-                DB::raw('count(*) as count'),
-                DB::raw('sum(detail.total_price_sum) as total')
-            )
-            ->first();
-
-        $sisaPoCount = $sisaPoData->count ?? 0;
-        $sisaPoTotal = $sisaPoData->total ?? 0;
-
-        // Realized Data using whereExists to avoid duplicate sums if multiple DOs exist
-        $docDateExpr = "coalesce(date(do.pos_tgl), str_to_date(do.pos_tgl, '%Y-%m-%d'), str_to_date(do.pos_tgl, '%Y/%m/%d'), str_to_date(do.pos_tgl, '%d/%m/%Y'), str_to_date(do.pos_tgl, '%d-%m-%Y'), str_to_date(do.pos_tgl, '%d.%m.%Y'))";
-        $now = now();
-
-        $realizedPrQuery = DB::table('tb_pr as pr')
-            ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
-            ->where('detail.remaining_items_count', '=', 0)
-            ->whereExists(function ($q) use ($period, $docDateExpr, $now) {
-                $q->from('tb_do as do')
-                    ->whereColumn(DB::raw('lower(trim(pr.ref_po))'), '=', DB::raw('lower(trim(do.ref_po))'));
-                
-                if ($period === 'today') {
-                    $q->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
-                } elseif ($period === 'this_week') {
-                    $q->whereRaw("{$docDateExpr} between ? and ?", [
-                        $now->startOfWeek()->toDateString(),
-                        $now->endOfWeek()->toDateString(),
-                    ]);
-                } elseif ($period === 'this_month') {
-                    $q->whereRaw("month({$docDateExpr}) = ?", [$now->month])
-                        ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
-                } elseif ($period === 'this_year') {
-                    $q->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
-                }
-            });
-
-        $realizedData = $realizedPrQuery
-            ->select(
-                DB::raw('count(*) as count'),
-                DB::raw('sum(detail.total_price_sum) as total')
-            )
-            ->first();
-
-        $realizedCount = $realizedData->count ?? 0;
-        $realizedTotal = $realizedData->total ?? 0;
+        $outstandingCount = (int) ($summaryData->outstanding_count ?? 0);
+        $outstandingTotal = (float) ($summaryData->outstanding_total ?? 0);
+        $sisaPoCount = (int) ($summaryData->sisa_po_count ?? 0);
+        $sisaPoTotal = (float) ($summaryData->sisa_po_total ?? 0);
 
         // Main table data
         $purchaseRequirements = DB::table('tb_pr as pr')
@@ -111,11 +64,13 @@ class PurchaseRequirementController
             'purchaseRequirements' => $purchaseRequirements,
             'outstandingCount' => $outstandingCount,
             'sisaPoCount' => $sisaPoCount,
-            'realizedCount' => $realizedCount,
-            'outstandingTotal' => (float) $outstandingTotal,
-            'sisaPoTotal' => (float) $sisaPoTotal,
-            'realizedTotal' => (float) $realizedTotal,
+            'realizedCount' => 0,
+            'outstandingTotal' => $outstandingTotal,
+            'sisaPoTotal' => $sisaPoTotal,
+            'realizedTotal' => 0,
             'period' => $period,
+            // Realized summary is intentionally loaded lazily on the frontend to speed up initial page load.
+            'realizedDeferred' => true,
         ]);
     }
 

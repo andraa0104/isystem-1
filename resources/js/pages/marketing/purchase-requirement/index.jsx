@@ -64,6 +64,7 @@ export default function PurchaseRequirementIndex({
     sisaPoTotal = 0,
     realizedTotal = 0,
     period = 'today',
+    realizedDeferred = false,
 }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [purchaseRequirementsList, setPurchaseRequirementsList] =
@@ -123,6 +124,14 @@ export default function PurchaseRequirementIndex({
         setSisaPoCountState(sisaPoCount);
         setSisaPoTotalState(sisaPoTotal);
     }, [outstandingCount, outstandingTotal, sisaPoCount, sisaPoTotal]);
+
+    useEffect(() => {
+        if (!realizedDeferred) {
+            return;
+        }
+        loadRealized(periodFilter, true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [realizedDeferred]);
 
     const filteredPurchaseRequirements = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
