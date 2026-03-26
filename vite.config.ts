@@ -18,11 +18,7 @@ export default defineConfig(() => {
                 ssr: 'resources/js/ssr.jsx',
                 refresh: true,
             }),
-            react({
-                babel: {
-                    plugins: ['babel-plugin-react-compiler'],
-                },
-            }),
+            react(),
             tailwindcss(),
             ...(enableWayfinder
                 ? [
