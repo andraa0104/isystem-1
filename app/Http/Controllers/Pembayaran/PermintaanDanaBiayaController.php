@@ -28,12 +28,12 @@ class PermintaanDanaBiayaController
 
     public function index()
     {
-        return Inertia::render('Pembayaran/permintaan-dana-biaya/index');
+        return Inertia::render('pembayaran/permintaan-dana-biaya/index');
     }
 
     public function create()
     {
-        return Inertia::render('Pembayaran/permintaan-dana-biaya/create');
+        return Inertia::render('pembayaran/permintaan-dana-biaya/create');
     }
 
     public function payCostRows(Request $request)
@@ -330,7 +330,7 @@ class PermintaanDanaBiayaController
         $company = $this->tenantCompany($request);
 
         if (!Schema::hasTable('tb_kdpdb') || !Schema::hasTable('tb_pdb')) {
-            return Inertia::render('Pembayaran/permintaan-dana-biaya/print', [
+            return Inertia::render('pembayaran/permintaan-dana-biaya/print', [
                 'header' => null,
                 'details' => [],
                 'totals' => [],
@@ -369,7 +369,7 @@ class PermintaanDanaBiayaController
             'jumlah' => $details->sum('jumlah'),
         ];
 
-        return Inertia::render('Pembayaran/permintaan-dana-biaya/print', [
+        return Inertia::render('pembayaran/permintaan-dana-biaya/print', [
             'header' => $header,
             'details' => $details,
             'totals' => $totals,

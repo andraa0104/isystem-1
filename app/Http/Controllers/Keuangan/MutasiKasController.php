@@ -307,7 +307,7 @@ class MutasiKasController
             'pageSize' => (int) $request->query('pageSize', 10),
         ];
 
-        return Inertia::render('Keuangan/mutasi-kas/index', [
+        return Inertia::render('keuangan/mutasi-kas/index', [
             'filters' => $filters,
             'accountOptions' => $accountOptions,
             'defaultAccount' => $defaultAccount,
@@ -324,7 +324,7 @@ class MutasiKasController
             'search' => (string) $request->query('search', ''),
         ];
 
-        return Inertia::render('Keuangan/mutasi-kas/create', [
+        return Inertia::render('keuangan/mutasi-kas/create', [
             'filters' => $filters,
             'accountOptions' => $accountOptions,
             'defaultAccount' => $defaultAccount,

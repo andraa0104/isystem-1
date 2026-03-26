@@ -12,7 +12,7 @@ class PenerimaanMaterialController
 {
     public function index()
     {
-        return Inertia::render('Inventory/penerimaan-material/index');
+        return Inertia::render('inventory/penerimaan-material/index');
     }
 
     public function poList(Request $request)

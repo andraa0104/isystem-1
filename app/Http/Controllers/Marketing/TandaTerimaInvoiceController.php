@@ -11,12 +11,12 @@ class TandaTerimaInvoiceController
 {
     public function index()
     {
-        return Inertia::render('Penjualan/tanda-terima-invoice/index');
+        return Inertia::render('penjualan/tanda-terima-invoice/index');
     }
 
     public function create()
     {
-        return Inertia::render('Penjualan/tanda-terima-invoice/create');
+        return Inertia::render('penjualan/tanda-terima-invoice/create');
     }
 
     public function edit(Request $request, string $noTtInv = null)
@@ -28,7 +28,7 @@ class TandaTerimaInvoiceController
                 ->with('error', 'Nomor tanda terima tidak ditemukan.');
         }
 
-        return Inertia::render('Penjualan/tanda-terima-invoice/edit', [
+        return Inertia::render('penjualan/tanda-terima-invoice/edit', [
             'noTtInv' => $noTtInv,
         ]);
     }
@@ -584,7 +584,7 @@ class TandaTerimaInvoiceController
             'email' => $companyConfig['email'] ?? '',
         ];
 
-        return Inertia::render('Penjualan/tanda-terima-invoice/print', [
+        return Inertia::render('penjualan/tanda-terima-invoice/print', [
             'header' => $header,
             'items' => $items,
             'grandTotal' => $grandTotal,

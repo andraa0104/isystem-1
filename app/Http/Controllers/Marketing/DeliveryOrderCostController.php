@@ -30,7 +30,7 @@ class DeliveryOrderCostController
             ->distinct('no_alokasi')
             ->count('no_alokasi');
 
-        return Inertia::render('Pembelian/delivery-order-cost/index', [
+        return Inertia::render('pembelian/delivery-order-cost/index', [
             'deliveryOrders' => $deliveryOrders,
             'outstandingCount' => $outstandingCount,
             'outstandingTotal' => $outstandingTotal,
@@ -40,7 +40,7 @@ class DeliveryOrderCostController
 
     public function create()
     {
-        return Inertia::render('Pembelian/delivery-order-cost/create');
+        return Inertia::render('pembelian/delivery-order-cost/create');
     }
 
     public function edit(Request $request, $noAlokasi)
@@ -65,7 +65,7 @@ class DeliveryOrderCostController
             ->orderBy('no')
             ->get();
 
-        return Inertia::render('Pembelian/delivery-order-cost/edit', [
+        return Inertia::render('pembelian/delivery-order-cost/edit', [
             'deliveryOrder' => [
                 'no_alokasi' => $header?->no_alokasi ?? $headerKddobi?->no_alokasi,
                 'date' => $header?->date ?? $headerKddobi?->date ?? null,
@@ -412,7 +412,7 @@ class DeliveryOrderCostController
             'email' => $companyConfig['email'] ?? '',
         ];
 
-        return Inertia::render('Pembelian/delivery-order-cost/print', [
+        return Inertia::render('pembelian/delivery-order-cost/print', [
             'header' => $header,
             'details' => $details,
             'grandTotal' => $grandTotal,

@@ -22,7 +22,7 @@ class PurchaseOrderController
             ->orderBy('nm_vdr')
             ->get();
 
-        return Inertia::render('Pembelian/purchase-order/create', [
+        return Inertia::render('pembelian/purchase-order/create', [
             'purchaseRequirements' => [],
             'purchaseRequirementDetails' => [],
             'vendors' => $vendors,
@@ -58,7 +58,7 @@ class PurchaseOrderController
             ->orderBy('nm_vdr')
             ->get();
 
-        return Inertia::render('Pembelian/purchase-order/edit', [
+        return Inertia::render('pembelian/purchase-order/edit', [
             'purchaseOrder' => $purchaseOrder,
             'purchaseOrderDetails' => $purchaseOrderDetails,
             'purchaseRequirements' => [],
@@ -801,7 +801,7 @@ class PurchaseOrderController
             ]);
         }
 
-        return Inertia::render('Pembelian/purchase-order/index', [
+        return Inertia::render('pembelian/purchase-order/index', [
             'purchaseOrders' => $purchaseOrders,
             'outstandingCount' => $outstandingCount,
             'outstandingTotal' => $outstandingTotal,
@@ -1072,7 +1072,7 @@ class PurchaseOrderController
             'email' => $companyConfig['email'] ?? '',
         ];
 
-        return Inertia::render('Pembelian/purchase-order/print', [
+        return Inertia::render('pembelian/purchase-order/print', [
             'purchaseOrder' => $purchaseOrder,
             'purchaseOrderDetails' => $purchaseOrderDetails,
             'company' => $company,

@@ -11,12 +11,12 @@ class PaymentCostController
 {
     public function index()
     {
-        return Inertia::render('Pembayaran/payment-cost/index');
+        return Inertia::render('pembayaran/payment-cost/index');
     }
 
     public function create()
     {
-        return Inertia::render('Pembayaran/payment-cost/create');
+        return Inertia::render('pembayaran/payment-cost/create');
     }
 
     public function store(Request $request)

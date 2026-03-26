@@ -230,7 +230,7 @@ class JurnalPenyesuaianController
     {
         $err = $this->ensureTable();
         if ($err) {
-            return Inertia::render('Keuangan/penyesuaian/index', [
+            return Inertia::render('keuangan/penyesuaian/index', [
                 'initialQuery' => [
                     'periodType' => 'month',
                     'period' => '',
@@ -258,7 +258,7 @@ class JurnalPenyesuaianController
             ? ($requestedPeriod !== '' ? $requestedPeriod : ($defaultYear ?: ''))
             : ($requestedPeriod !== '' ? $requestedPeriod : ($defaultPeriod ?: ''));
 
-        return Inertia::render('Keuangan/penyesuaian/index', [
+        return Inertia::render('keuangan/penyesuaian/index', [
             'initialQuery' => [
                 'periodType' => $periodType,
                 'period' => $initialPeriod,
@@ -591,7 +591,7 @@ class JurnalPenyesuaianController
         $cols = Schema::hasTable('tb_jurnalpenyesuaian') ? Schema::getColumnListing('tb_jurnalpenyesuaian') : [];
         $hasPosting = in_array('Posting_Date', $cols, true);
 
-        return Inertia::render('Keuangan/penyesuaian/create', [
+        return Inertia::render('keuangan/penyesuaian/create', [
             'bootstrapError' => $err ?: '',
             'activeBookMonthYm' => $activeYm,
             'periodeDefault' => $periodeDefault,

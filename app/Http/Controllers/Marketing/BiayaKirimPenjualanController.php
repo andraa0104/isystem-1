@@ -12,7 +12,7 @@ class BiayaKirimPenjualanController
 {
     public function index(Request $request)
     {
-        return Inertia::render('Pembayaran/biaya-kirim-penjualan/index', [
+        return Inertia::render('pembayaran/biaya-kirim-penjualan/index', [
             'items' => [],
             'summary' => [
                 'unpaid_count' => 0,
@@ -28,7 +28,7 @@ class BiayaKirimPenjualanController
 
     public function create()
     {
-        return Inertia::render('Pembayaran/biaya-kirim-penjualan/create', [
+        return Inertia::render('pembayaran/biaya-kirim-penjualan/create', [
             'poRows' => [],
         ]);
     }
@@ -49,7 +49,7 @@ class BiayaKirimPenjualanController
                 ->get();
         }
 
-        return Inertia::render('Pembayaran/biaya-kirim-penjualan/edit', [
+        return Inertia::render('pembayaran/biaya-kirim-penjualan/edit', [
             'noBkj' => $noBkj,
             'header' => $header,
             'details' => $details,
@@ -394,7 +394,7 @@ class BiayaKirimPenjualanController
             ->locale('id')
             ->translatedFormat('d F Y');
 
-        return Inertia::render('Pembayaran/biaya-kirim-penjualan/print', [
+        return Inertia::render('pembayaran/biaya-kirim-penjualan/print', [
             'header' => $header,
             'details' => $details,
             'company' => $company,

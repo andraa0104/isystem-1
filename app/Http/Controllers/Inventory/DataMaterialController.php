@@ -12,7 +12,7 @@ class DataMaterialController
 {
     public function index()
     {
-        return Inertia::render('Inventory/data-material/index', [
+        return Inertia::render('inventory/data-material/index', [
             'sections' => [
                 'mi' => ['label' => 'Data MI'],
                 'mis' => ['label' => 'Data MIS'],

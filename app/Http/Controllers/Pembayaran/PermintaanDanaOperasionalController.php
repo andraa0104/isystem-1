@@ -12,12 +12,12 @@ class PermintaanDanaOperasionalController
 {
     public function index()
     {
-        return Inertia::render('Pembayaran/permintaan-dana-operasional/index');
+        return Inertia::render('pembayaran/permintaan-dana-operasional/index');
     }
 
     public function create()
     {
-        return Inertia::render('Pembayaran/permintaan-dana-operasional/create');
+        return Inertia::render('pembayaran/permintaan-dana-operasional/create');
     }
 
     public function rows(Request $request)
@@ -464,7 +464,7 @@ class PermintaanDanaOperasionalController
             ->locale('id')
             ->translatedFormat('d F Y');
 
-        return Inertia::render('Pembayaran/permintaan-dana-operasional/print', [
+        return Inertia::render('pembayaran/permintaan-dana-operasional/print', [
             'header' => $header,
             'details' => $details,
             'totals' => $totals,

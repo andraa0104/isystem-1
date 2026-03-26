@@ -11,7 +11,7 @@ class KwitansiPenjualanController
 {
     public function index()
     {
-        return Inertia::render('Penjualan/kwitansi/index');
+        return Inertia::render('penjualan/kwitansi/index');
     }
 
     public function listKwitansi()
@@ -94,7 +94,7 @@ class KwitansiPenjualanController
             $cityLabel = 'Banjarmasin';
         }
 
-        return Inertia::render('Penjualan/kwitansi/print', [
+        return Inertia::render('penjualan/kwitansi/print', [
             'kwitansi' => $kwitansi,
             'company' => $company,
             'cityLabel' => $cityLabel,

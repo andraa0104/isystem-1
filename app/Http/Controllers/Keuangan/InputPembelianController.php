@@ -502,7 +502,7 @@ class InputPembelianController
     {
         $defaultAccount = $this->getDefaultAccount();
 
-        return Inertia::render('Keuangan/input-pembelian/index', [
+        return Inertia::render('keuangan/input-pembelian/index', [
             'filters' => [
                 'search' => (string) $request->query('search', ''),
                 // Default to 'all' so user can see historical data even if it was posted to bank accounts.
@@ -517,7 +517,7 @@ class InputPembelianController
 
     public function create()
     {
-        return Inertia::render('Keuangan/input-pembelian/create', [
+        return Inertia::render('keuangan/input-pembelian/create', [
             'filters' => [
                 'search' => '',
                 'status' => 'belum_dijurnal',

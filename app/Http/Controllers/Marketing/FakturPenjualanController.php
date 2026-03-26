@@ -47,7 +47,7 @@ class FakturPenjualanController
             ->whereDate('jth_tempo', '<=', now())
             ->sum(DB::raw('coalesce(cast(g_total as decimal(18,4)), 0)'));
 
-        return Inertia::render('Penjualan/faktur-penjualan/index', [
+        return Inertia::render('penjualan/faktur-penjualan/index', [
             'unpaidCount' => $unpaidCount,
             'unpaidTotal' => $unpaidTotal,
             'noReceiptCount' => $noReceiptCount,
@@ -84,7 +84,7 @@ class FakturPenjualanController
 
     public function create()
     {
-        return Inertia::render('Penjualan/faktur-penjualan/create');
+        return Inertia::render('penjualan/faktur-penjualan/create');
     }
 
     public function edit(string $noFaktur)
@@ -138,7 +138,7 @@ class FakturPenjualanController
             ];
         });
 
-        return Inertia::render('Penjualan/faktur-penjualan/edit', [
+        return Inertia::render('penjualan/faktur-penjualan/edit', [
             'invoice' => $invoice,
             'materialRows' => $items,
         ]);
@@ -379,7 +379,7 @@ class FakturPenjualanController
         $isStg = is_string($database) && strtolower($database) === 'dbstg';
         $cityLabel = $isStg ? 'Banjarmasin' : 'Samarinda';
 
-        return Inertia::render('Penjualan/faktur-penjualan/print', [
+        return Inertia::render('penjualan/faktur-penjualan/print', [
             'invoice' => $invoice,
             'details' => $details,
             'customer' => $customer,

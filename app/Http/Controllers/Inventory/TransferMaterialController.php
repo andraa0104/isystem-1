@@ -12,7 +12,7 @@ class TransferMaterialController
 {
     public function index()
     {
-        return Inertia::render('Inventory/transfer-material/index');
+        return Inertia::render('inventory/transfer-material/index');
     }
 
     public function misList(Request $request)

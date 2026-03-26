@@ -11,7 +11,7 @@ class InvoiceMasukController
 {
     public function index(Request $request)
     {
-        return Inertia::render('Pembelian/invoice-masuk/index', [
+        return Inertia::render('pembelian/invoice-masuk/index', [
             'invoices' => [],
             'summary' => [
                 'unbilled_count' => 0,
@@ -27,7 +27,7 @@ class InvoiceMasukController
 
     public function create()
     {
-        return Inertia::render('Pembelian/invoice-masuk/create');
+        return Inertia::render('pembelian/invoice-masuk/create');
     }
 
     public function edit(string $noDoc)
@@ -47,7 +47,7 @@ class InvoiceMasukController
             ->where('no_doc', $noDoc)
             ->get();
 
-        return Inertia::render('Pembelian/invoice-masuk/edit', [
+        return Inertia::render('pembelian/invoice-masuk/edit', [
             'invoice' => $header,
             'invoiceItems' => $items,
             'noGudang' => $noGudang,

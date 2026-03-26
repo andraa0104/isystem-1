@@ -332,7 +332,7 @@ class InputPenjualanController
 
     public function index(Request $request)
     {
-        return Inertia::render('Keuangan/input-penjualan/index', [
+        return Inertia::render('keuangan/input-penjualan/index', [
             'filters' => [
                 'search' => (string) $request->query('search', ''),
                 'account' => (string) $request->query('account', 'all'),
@@ -346,7 +346,7 @@ class InputPenjualanController
 
     public function create()
     {
-        return Inertia::render('Keuangan/input-penjualan/create', [
+        return Inertia::render('keuangan/input-penjualan/create', [
             'filters' => [
                 'search' => '',
                 'status' => 'all',
