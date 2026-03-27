@@ -289,6 +289,10 @@ Route::get('/online-users', function (Request $request) {
     ]);
 });
 
+Route::get('/ping', function () {
+    return response()->json(['ok' => true]);
+});
+
 Route::get('/ping-db', function (Request $request) {
     $database = $request->cookie('tenant_database')
         ?? $request->session()->get('tenant.database');
