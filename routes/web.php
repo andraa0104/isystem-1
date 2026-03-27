@@ -717,7 +717,7 @@ Route::get('pembayaran/biaya-kirim-penjualan/{noBkj}/details', [BiayaKirimPenjua
 Route::get('pembayaran/biaya-kirim-penjualan/{noBkj}/materials', [BiayaKirimPenjualanController::class, 'materialList'])
     ->name('pembayaran.biaya-kirim-penjualan.materials');
 Route::get('pembayaran/biaya-kirim-penjualan/{noBkj}/dot-materials', [BiayaKirimPenjualanController::class, 'dotMaterialList'])
-    ->name('pembayaran.biaya-kirim-penjualan.dot-materials');
+    ->name('pembayaran.biaya-kirim-penjualan.dot-material-list');
 Route::delete('pembayaran/biaya-kirim-penjualan/{noBkj}', [BiayaKirimPenjualanController::class, 'destroy'])
     ->name('pembayaran.biaya-kirim-penjualan.destroy');
 
