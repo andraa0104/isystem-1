@@ -327,7 +327,10 @@ class PurchaseRequirementController
                 $subQuery->select(DB::raw(1))
                     ->from('tb_detailpoin as d')
                     ->whereRaw('lower(trim(d.kode_poin)) = lower(trim(tb_poin.kode_poin))')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> 0');
+                    ->where(function ($q) {
+                        $q->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> 0')
+                          ->orWhereRaw('coalesce(cast(d.sisa_qtydo as decimal(18,4)), 0) <> 0');
+                    });
             });
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -540,7 +543,7 @@ class PurchaseRequirementController
                             'margin' => $item['margin'] ?: '0%',
                             'renmark' => $item['renmark'] ?: ' ',
                             'qty_po' => 0,
-                            'sisa_pr' => $item['qty'] ?? null,
+                            'sisa_pr' => max(0, ((float) ($item['qty'] ?? 0)) - ((float) ($item['stok'] ?? 0))),
                         ]);
 
                         if ($qtyValue > 0) {
@@ -655,7 +658,7 @@ class PurchaseRequirementController
                         'margin' => $item['margin'] ?: '0%',
                         'renmark' => $item['renmark'] ?: ' ',
                         'qty_po' => 0,
-                        'sisa_pr' => $item['qty'] ?? null,
+                        'sisa_pr' => max(0, ((float) ($item['qty'] ?? 0)) - ((float) ($item['stok'] ?? 0))),
                     ]);
 
                     DB::table('tb_ubah')->insert([
@@ -670,7 +673,7 @@ class PurchaseRequirementController
                         'material' => $item['material'] ?? null,
                         'qty' => $item['qty'] ?? null,
                         'qty_po' => $item['qty'] ?? null,
-                        'sisa_pr' => $item['qty'] ?? null,
+                        'sisa_pr' => max(0, ((float) ($item['qty'] ?? 0)) - ((float) ($item['stok'] ?? 0))),
                         'unit' => $item['unit'] ?? null,
                         'stok' => $item['stok'] ?? null,
                         'unit_price' => $item['unit_price'] ?? null,
@@ -732,7 +735,7 @@ class PurchaseRequirementController
                 'price_po' => $request->input('price_po'),
                 'margin' => $request->input('margin') ?: '0%',
                 'renmark' => $request->input('renmark') ?: ' ',
-                'sisa_pr' => $request->input('qty'),
+                'sisa_pr' => max(0, ((float) $request->input('qty')) - ((float) $request->input('stok'))),
             ]);
 
         $oldQty = is_numeric($existingDetail->qty ?? null) ? (float) $existingDetail->qty : 0;
@@ -771,7 +774,7 @@ class PurchaseRequirementController
             'material' => $request->input('material'),
             'qty' => $request->input('qty'),
             'qty_po' => $request->input('qty'),
-            'sisa_pr' => $request->input('qty'),
+            'sisa_pr' => max(0, ((float) $request->input('qty')) - ((float) $request->input('stok'))),
             'unit' => $request->input('unit'),
             'stok' => $request->input('stok'),
             'unit_price' => $request->input('unit_price'),

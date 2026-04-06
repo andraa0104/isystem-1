@@ -1,3 +1,4 @@
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -8,12 +9,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import AppLayout from '@/layouts/app-layout';
 import { Spinner } from '@/components/ui/spinner';
+import AppLayout from '@/layouts/app-layout';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
-import { readApiError, normalizeApiError } from '@/lib/api-error';
-import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -30,7 +30,9 @@ const withRequiredSpace = (value) => {
 };
 
 const parseNumber = (value) => {
-    const normalized = String(value ?? '').replace(/,/g, '').trim();
+    const normalized = String(value ?? '')
+        .replace(/,/g, '')
+        .trim();
     const parsed = Number(normalized);
     return Number.isNaN(parsed) ? 0 : parsed;
 };
@@ -58,7 +60,9 @@ export default function PurchaseOrderCreate({
     const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [prList, setPrList] = useState(purchaseRequirements);
-    const [prDetailList, setPrDetailList] = useState(purchaseRequirementDetails);
+    const [prDetailList, setPrDetailList] = useState(
+        purchaseRequirementDetails,
+    );
     const [vendorList, setVendorList] = useState(vendors);
     const [prLoading, setPrLoading] = useState(false);
     const [prError, setPrError] = useState(null);
@@ -115,7 +119,9 @@ export default function PurchaseOrderCreate({
         return prList.filter((item) => {
             const values = [item.no_pr, item.ref_po, item.for_customer];
             return values.some((value) =>
-                String(value ?? '').toLowerCase().includes(term)
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
             );
         });
     }, [prSearchTerm, prList]);
@@ -144,7 +150,9 @@ export default function PurchaseOrderCreate({
         }
 
         return vendorList.filter((item) =>
-            String(item.nm_vdr ?? '').toLowerCase().includes(term)
+            String(item.nm_vdr ?? '')
+                .toLowerCase()
+                .includes(term),
         );
     }, [vendorSearchTerm, vendorList]);
 
@@ -187,8 +195,7 @@ export default function PurchaseOrderCreate({
     const netPrice = divisor ? basePriceValue / divisor : basePriceValue;
     const ppnValue = includePpn ? basePriceValue - netPrice : 0;
     const priceWithPpn = includePpn ? netPrice : basePriceValue;
-    const totalPriceValue =
-        qtyValue * (includePpn ? basePriceValue : netPrice);
+    const totalPriceValue = qtyValue * (includePpn ? basePriceValue : netPrice);
     const isQtyExceedsSisa = materialForm.qty !== '' && qtyValue > sisaQtyValue;
     const canAddMaterial =
         !!materialForm.kodeMaterial &&
@@ -207,14 +214,78 @@ export default function PurchaseOrderCreate({
         setIsPrModalOpen(false);
     };
 
-    const handleVendorSelect = (item) => {
+    const handleVendorSelect = async (item) => {
+        const vendorCode = item.kd_vdr ?? '';
+        const vendorName = item.nm_vdr ?? '';
+
+        // Immediate frontend generation for Ref Quota
+        const stopWords = [
+            'PT',
+            'CV',
+            'UD',
+            'TOKO',
+            'BENGKEL',
+            'LAS',
+            'PD',
+            'TB',
+            'FA',
+        ];
+        const words = vendorName.replace(/[^A-Za-z0-9 ]/g, '').split(' ');
+        const filteredWords = words.filter(
+            (w) => w.length > 0 && !stopWords.includes(w.toUpperCase()),
+        );
+        const sourceWords = filteredWords.length > 0 ? filteredWords : words;
+        const acronym = sourceWords
+            .map((w) => w[0])
+            .join('')
+            .toUpperCase();
+        const now = new Date();
+        const dd = String(now.getDate()).padStart(2, '0');
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const yy = String(now.getFullYear()).slice(-2);
+        const datePart = `${dd}${mm}${yy}`;
+        const immediateRefQuota = acronym ? `${acronym}-${datePart}` : '';
+
+        // Set initial vendor info and immediate ref_quota
         setFormData((prev) => ({
             ...prev,
-            kodeVendor: item.kd_vdr ?? '',
-            namaVendor: item.nm_vdr ?? '',
-            attended: item.attn_vdr ?? '',
+            kodeVendor: vendorCode,
+            namaVendor: vendorName,
+            attended: item.attn_vdr ?? prev.attended,
+            refQuota: immediateRefQuota || prev.refQuota,
         }));
+
         setIsVendorModalOpen(false);
+
+        try {
+            const query = new URLSearchParams({
+                kd_vdr: vendorCode,
+                nm_vdr: vendorName,
+            }).toString();
+
+            const response = await fetch(
+                `/pembelian/purchase-order/suggest-vendor?${query}`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                },
+            );
+
+            if (response.ok) {
+                const suggestion = await response.json();
+                setFormData((prev) => ({
+                    ...prev,
+                    ppn: suggestion.ppn ?? prev.ppn,
+                    paymentTerms: suggestion.payment_terms ?? prev.paymentTerms,
+                    deliveryTime: suggestion.delivery_time ?? prev.deliveryTime,
+                    francoLoco: suggestion.franco_loco ?? prev.francoLoco,
+                    refQuota: suggestion.ref_quota ?? prev.refQuota,
+                }));
+            }
+        } catch (error) {
+            console.error('Failed to fetch vendor suggestions:', error);
+        }
     };
 
     const loadPrs = async () => {
@@ -224,9 +295,12 @@ export default function PurchaseOrderCreate({
         setPrLoading(true);
         setPrError(null);
         try {
-            const response = await fetch('/pembelian/purchase-order/outstanding-pr', {
-                headers: { Accept: 'application/json' },
-            });
+            const response = await fetch(
+                '/pembelian/purchase-order/outstanding-pr',
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!response.ok) {
                 throw await readApiError(response);
             }
@@ -234,7 +308,7 @@ export default function PurchaseOrderCreate({
             setPrList(
                 Array.isArray(data?.purchaseRequirements)
                     ? data.purchaseRequirements
-                    : []
+                    : [],
             );
         } catch (error) {
             setPrError(normalizeApiError(error, 'Gagal memuat data PR.'));
@@ -252,7 +326,7 @@ export default function PurchaseOrderCreate({
         try {
             const response = await fetch(
                 `/pembelian/purchase-order/pr-details?no_pr=${encodeURIComponent(noPr)}`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             );
             if (!response.ok) {
                 throw await readApiError(response);
@@ -261,10 +335,12 @@ export default function PurchaseOrderCreate({
             setPrDetailList(
                 Array.isArray(data?.purchaseRequirementDetails)
                     ? data.purchaseRequirementDetails
-                    : []
+                    : [],
             );
         } catch (error) {
-            setPrDetailError(normalizeApiError(error, 'Gagal memuat detail PR.'));
+            setPrDetailError(
+                normalizeApiError(error, 'Gagal memuat detail PR.'),
+            );
         } finally {
             setPrDetailLoading(false);
         }
@@ -286,7 +362,9 @@ export default function PurchaseOrderCreate({
             const data = await response.json();
             setVendorList(Array.isArray(data?.vendors) ? data.vendors : []);
         } catch (error) {
-            setVendorError(normalizeApiError(error, 'Gagal memuat data vendor.'));
+            setVendorError(
+                normalizeApiError(error, 'Gagal memuat data vendor.'),
+            );
         } finally {
             setVendorLoading(false);
         }
@@ -333,13 +411,12 @@ export default function PurchaseOrderCreate({
     };
 
     const totalPriceSum = materialItems.reduce(
-        (sum, item) =>
-            sum + parseNumber(item.qty) * parseNumber(item.price),
-        0
+        (sum, item) => sum + parseNumber(item.qty) * parseNumber(item.price),
+        0,
     );
     const totalPpnSum = materialItems.reduce(
         (sum, item) => sum + parseNumber(item.qty) * parseNumber(item.ppn),
-        0
+        0,
     );
     const grandTotalSum = totalPriceSum + totalPpnSum;
 
@@ -383,7 +460,7 @@ export default function PurchaseOrderCreate({
             {
                 onStart: () => setIsSubmitting(true),
                 onFinish: () => setIsSubmitting(false),
-            }
+            },
         );
     };
 
@@ -492,7 +569,9 @@ export default function PurchaseOrderCreate({
                                 </Button>
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">Date</span>
+                                <span className="text-muted-foreground">
+                                    Date
+                                </span>
                                 <Input
                                     type="date"
                                     value={formData.date}
@@ -505,7 +584,9 @@ export default function PurchaseOrderCreate({
                                 />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">Ref PR</span>
+                                <span className="text-muted-foreground">
+                                    Ref PR
+                                </span>
                                 <Input value={formData.refPr} readOnly />
                             </label>
                             <label className="space-y-2 text-sm">
@@ -579,7 +660,9 @@ export default function PurchaseOrderCreate({
                                 <Input value={formData.namaVendor} readOnly />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">Attended</span>
+                                <span className="text-muted-foreground">
+                                    Attended
+                                </span>
                                 <Input
                                     value={formData.attended}
                                     onChange={(event) =>
@@ -591,7 +674,9 @@ export default function PurchaseOrderCreate({
                                 />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">PPN</span>
+                                <span className="text-muted-foreground">
+                                    PPN
+                                </span>
                                 <Input
                                     type="number"
                                     value={formData.ppn}
@@ -660,7 +745,9 @@ export default function PurchaseOrderCreate({
                                 />
                             </label>
                             <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">Note 1</span>
+                                <span className="text-muted-foreground">
+                                    Note 1
+                                </span>
                                 <Input
                                     value={formData.note1}
                                     onChange={(event) =>
@@ -672,7 +759,9 @@ export default function PurchaseOrderCreate({
                                 />
                             </label>
                             <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">Note 2</span>
+                                <span className="text-muted-foreground">
+                                    Note 2
+                                </span>
                                 <Input
                                     value={formData.note2}
                                     onChange={(event) =>
@@ -684,7 +773,9 @@ export default function PurchaseOrderCreate({
                                 />
                             </label>
                             <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">Note 3</span>
+                                <span className="text-muted-foreground">
+                                    Note 3
+                                </span>
                                 <Input
                                     value={formData.note3}
                                     onChange={(event) =>
@@ -696,7 +787,9 @@ export default function PurchaseOrderCreate({
                                 />
                             </label>
                             <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">Note 4</span>
+                                <span className="text-muted-foreground">
+                                    Note 4
+                                </span>
                                 <Input
                                     value={formData.note4}
                                     onChange={(event) =>
@@ -752,52 +845,75 @@ export default function PurchaseOrderCreate({
                                                 Remark
                                             </th>
                                         </tr>
-	                                    </thead>
-	                                    <tbody>
-	                                        <PlainTableStateRows
-	                                            columns={6}
-	                                            loading={prDetailLoading && selectedPrMaterials.length === 0}
-	                                            error={selectedPrMaterials.length === 0 ? prDetailError : null}
-	                                            onRetry={
-	                                                formData.refPr
-	                                                    ? () => loadPrDetails(formData.refPr)
-	                                                    : undefined
-	                                            }
-	                                            isEmpty={
-	                                                !prDetailLoading &&
-	                                                !prDetailError &&
-	                                                selectedPrMaterials.length === 0
-	                                            }
-	                                            emptyTitle="Belum ada material PR."
-	                                        />
-	                                        {selectedPrMaterials.map((item, index) => (
-	                                            <tr
-	                                                key={`${item.no_pr}-${index}`}
-	                                                className="border-t border-sidebar-border/70 cursor-pointer"
-                                                onClick={() =>
-                                                    handleMaterialSelect(item)
-                                                }
-                                            >
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.kd_material)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.material)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.qty)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.sisa_pr ?? item.Sisa_pr)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.unit)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.renmark)}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                    </thead>
+                                    <tbody>
+                                        <PlainTableStateRows
+                                            columns={6}
+                                            loading={
+                                                prDetailLoading &&
+                                                selectedPrMaterials.length === 0
+                                            }
+                                            error={
+                                                selectedPrMaterials.length === 0
+                                                    ? prDetailError
+                                                    : null
+                                            }
+                                            onRetry={
+                                                formData.refPr
+                                                    ? () =>
+                                                          loadPrDetails(
+                                                              formData.refPr,
+                                                          )
+                                                    : undefined
+                                            }
+                                            isEmpty={
+                                                !prDetailLoading &&
+                                                !prDetailError &&
+                                                selectedPrMaterials.length === 0
+                                            }
+                                            emptyTitle="Belum ada material PR."
+                                        />
+                                        {selectedPrMaterials.map(
+                                            (item, index) => (
+                                                <tr
+                                                    key={`${item.no_pr}-${index}`}
+                                                    className="cursor-pointer border-t border-sidebar-border/70"
+                                                    onClick={() =>
+                                                        handleMaterialSelect(
+                                                            item,
+                                                        )
+                                                    }
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(
+                                                            item.kd_material,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(
+                                                            item.material,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(item.qty)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(
+                                                            item.sisa_pr ??
+                                                                item.Sisa_pr,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(item.unit)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(
+                                                            item.renmark,
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ),
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
@@ -805,16 +921,26 @@ export default function PurchaseOrderCreate({
                             <div className="grid gap-4 lg:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label>Kode Material</Label>
-                                    <Input value={materialForm.kodeMaterial} readOnly />
+                                    <Input
+                                        value={materialForm.kodeMaterial}
+                                        readOnly
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Material</Label>
-                                    <Input value={materialForm.material} readOnly />
+                                    <Input
+                                        value={materialForm.material}
+                                        readOnly
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Qty</Label>
                                     <Input
-                                        className={isQtyExceedsSisa ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                                        className={
+                                            isQtyExceedsSisa
+                                                ? 'border-red-500 focus-visible:ring-red-500'
+                                                : ''
+                                        }
                                         value={materialForm.qty}
                                         onChange={(event) =>
                                             setMaterialForm((prev) => ({
@@ -825,7 +951,9 @@ export default function PurchaseOrderCreate({
                                     />
                                     {isQtyExceedsSisa && (
                                         <p className="text-xs text-red-600">
-                                            Qty melebihi sisa qty ({renderValue(materialForm.sisaQty)}).
+                                            Qty melebihi sisa qty (
+                                            {renderValue(materialForm.sisaQty)}
+                                            ).
                                         </p>
                                     )}
                                 </div>
@@ -873,7 +1001,9 @@ export default function PurchaseOrderCreate({
                                             type="checkbox"
                                             checked={includePpn}
                                             onChange={(event) =>
-                                                setIncludePpn(event.target.checked)
+                                                setIncludePpn(
+                                                    event.target.checked,
+                                                )
                                             }
                                         />
                                         Include PPN
@@ -891,7 +1021,11 @@ export default function PurchaseOrderCreate({
                                     />
                                 </div>
                                 <div className="grid gap-2 lg:col-span-2">
-                                    <Button type="button" onClick={handleAddMaterial} disabled={!canAddMaterial}>
+                                    <Button
+                                        type="button"
+                                        onClick={handleAddMaterial}
+                                        disabled={!canAddMaterial}
+                                    >
                                         Tambah Data
                                     </Button>
                                 </div>
@@ -934,7 +1068,8 @@ export default function PurchaseOrderCreate({
                                                     className="px-4 py-6 text-center text-muted-foreground"
                                                     colSpan={8}
                                                 >
-                                                    Belum ada material ditambahkan.
+                                                    Belum ada material
+                                                    ditambahkan.
                                                 </td>
                                             </tr>
                                         )}
@@ -947,7 +1082,9 @@ export default function PurchaseOrderCreate({
                                                     {index + 1}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {renderValue(item.kodeMaterial)}
+                                                    {renderValue(
+                                                        item.kodeMaterial,
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {renderValue(item.material)}
@@ -965,7 +1102,9 @@ export default function PurchaseOrderCreate({
                                                     {renderValue(item.ppn)}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {renderValue(item.totalPrice)}
+                                                    {renderValue(
+                                                        item.totalPrice,
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))}
@@ -1008,7 +1147,9 @@ export default function PurchaseOrderCreate({
                             <Button
                                 type="button"
                                 onClick={handleSubmit}
-                                disabled={isSubmitting || materialItems.length === 0}
+                                disabled={
+                                    isSubmitting || materialItems.length === 0
+                                }
                             >
                                 {isSubmitting && <Spinner className="mr-2" />}
                                 {isSubmitting ? 'Menyimpan...' : 'Simpan'}
@@ -1030,7 +1171,7 @@ export default function PurchaseOrderCreate({
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>PR Outstanding</DialogTitle>
                         </DialogHeader>
@@ -1040,13 +1181,17 @@ export default function PurchaseOrderCreate({
                                 Tampilkan
                                 <select
                                     className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={prPageSize === Infinity ? 'all' : prPageSize}
+                                    value={
+                                        prPageSize === Infinity
+                                            ? 'all'
+                                            : prPageSize
+                                    }
                                     onChange={(event) => {
                                         const value = event.target.value;
                                         setPrPageSize(
                                             value === 'all'
                                                 ? Infinity
-                                                : Number(value)
+                                                : Number(value),
                                         );
                                         setPrCurrentPage(1);
                                     }}
@@ -1088,24 +1233,31 @@ export default function PurchaseOrderCreate({
                                             Action
                                         </th>
                                     </tr>
-	                                </thead>
-	                                <tbody>
-	                                    <PlainTableStateRows
-	                                        columns={4}
-	                                        loading={prLoading && displayedPr.length === 0}
-	                                        error={displayedPr.length === 0 ? prError : null}
-	                                        onRetry={loadPrs}
-	                                        isEmpty={
-	                                            !prLoading &&
-	                                            !prError &&
-	                                            displayedPr.length === 0
-	                                        }
-	                                        emptyTitle="Tidak ada PR outstanding."
-	                                    />
-	                                    {displayedPr.map((item) => (
-	                                        <tr
-	                                            key={item.no_pr}
-	                                            className="border-t border-sidebar-border/70"
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        columns={4}
+                                        loading={
+                                            prLoading &&
+                                            displayedPr.length === 0
+                                        }
+                                        error={
+                                            displayedPr.length === 0
+                                                ? prError
+                                                : null
+                                        }
+                                        onRetry={loadPrs}
+                                        isEmpty={
+                                            !prLoading &&
+                                            !prError &&
+                                            displayedPr.length === 0
+                                        }
+                                        emptyTitle="Tidak ada PR outstanding."
+                                    />
+                                    {displayedPr.map((item) => (
+                                        <tr
+                                            key={item.no_pr}
+                                            className="border-t border-sidebar-border/70"
                                         >
                                             <td className="px-4 py-3">
                                                 {renderValue(item.no_pr)}
@@ -1139,12 +1291,12 @@ export default function PurchaseOrderCreate({
                                     Menampilkan{' '}
                                     {Math.min(
                                         (prCurrentPage - 1) * prPageSize + 1,
-                                        prTotalItems
+                                        prTotalItems,
                                     )}
                                     -
                                     {Math.min(
                                         prCurrentPage * prPageSize,
-                                        prTotalItems
+                                        prTotalItems,
                                     )}{' '}
                                     dari {prTotalItems} data
                                 </span>
@@ -1154,7 +1306,7 @@ export default function PurchaseOrderCreate({
                                         size="sm"
                                         onClick={() =>
                                             setPrCurrentPage((page) =>
-                                                Math.max(1, page - 1)
+                                                Math.max(1, page - 1),
                                             )
                                         }
                                         disabled={prCurrentPage === 1}
@@ -1162,17 +1314,23 @@ export default function PurchaseOrderCreate({
                                         Sebelumnya
                                     </Button>
                                     <span className="text-sm text-muted-foreground">
-                                        Halaman {prCurrentPage} dari {prTotalPages}
+                                        Halaman {prCurrentPage} dari{' '}
+                                        {prTotalPages}
                                     </span>
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         onClick={() =>
                                             setPrCurrentPage((page) =>
-                                                Math.min(prTotalPages, page + 1)
+                                                Math.min(
+                                                    prTotalPages,
+                                                    page + 1,
+                                                ),
                                             )
                                         }
-                                        disabled={prCurrentPage === prTotalPages}
+                                        disabled={
+                                            prCurrentPage === prTotalPages
+                                        }
                                     >
                                         Berikutnya
                                     </Button>
@@ -1195,7 +1353,7 @@ export default function PurchaseOrderCreate({
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Data Vendor</DialogTitle>
                         </DialogHeader>
@@ -1215,7 +1373,7 @@ export default function PurchaseOrderCreate({
                                         setVendorPageSize(
                                             value === 'all'
                                                 ? Infinity
-                                                : Number(value)
+                                                : Number(value),
                                         );
                                         setVendorCurrentPage(1);
                                     }}
@@ -1266,24 +1424,31 @@ export default function PurchaseOrderCreate({
                                             Action
                                         </th>
                                     </tr>
-	                                </thead>
-	                                <tbody>
-	                                    <PlainTableStateRows
-	                                        columns={7}
-	                                        loading={vendorLoading && displayedVendors.length === 0}
-	                                        error={displayedVendors.length === 0 ? vendorError : null}
-	                                        onRetry={loadVendors}
-	                                        isEmpty={
-	                                            !vendorLoading &&
-	                                            !vendorError &&
-	                                            displayedVendors.length === 0
-	                                        }
-	                                        emptyTitle="Tidak ada data vendor."
-	                                    />
-	                                    {displayedVendors.map((item) => (
-	                                        <tr
-	                                            key={item.kd_vdr}
-	                                            className="border-t border-sidebar-border/70"
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        columns={7}
+                                        loading={
+                                            vendorLoading &&
+                                            displayedVendors.length === 0
+                                        }
+                                        error={
+                                            displayedVendors.length === 0
+                                                ? vendorError
+                                                : null
+                                        }
+                                        onRetry={loadVendors}
+                                        isEmpty={
+                                            !vendorLoading &&
+                                            !vendorError &&
+                                            displayedVendors.length === 0
+                                        }
+                                        emptyTitle="Tidak ada data vendor."
+                                    />
+                                    {displayedVendors.map((item) => (
+                                        <tr
+                                            key={item.kd_vdr}
+                                            className="border-t border-sidebar-border/70"
                                         >
                                             <td className="px-4 py-3">
                                                 {renderValue(item.kd_vdr)}
@@ -1320,57 +1485,62 @@ export default function PurchaseOrderCreate({
                             </table>
                         </div>
 
-                        {vendorPageSize !== Infinity && vendorTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (vendorCurrentPage - 1) * vendorPageSize +
-                                            1,
-                                        vendorTotalItems
-                                    )}
-                                    -
-                                    {Math.min(
-                                        vendorCurrentPage * vendorPageSize,
-                                        vendorTotalItems
-                                    )}{' '}
-                                    dari {vendorTotalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setVendorCurrentPage((page) =>
-                                                Math.max(1, page - 1)
-                                            )
-                                        }
-                                        disabled={vendorCurrentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span className="text-sm text-muted-foreground">
-                                        Halaman {vendorCurrentPage} dari{' '}
-                                        {vendorTotalPages}
+                        {vendorPageSize !== Infinity &&
+                            vendorTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                    <span>
+                                        Menampilkan{' '}
+                                        {Math.min(
+                                            (vendorCurrentPage - 1) *
+                                                vendorPageSize +
+                                                1,
+                                            vendorTotalItems,
+                                        )}
+                                        -
+                                        {Math.min(
+                                            vendorCurrentPage * vendorPageSize,
+                                            vendorTotalItems,
+                                        )}{' '}
+                                        dari {vendorTotalItems} data
                                     </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setVendorCurrentPage((page) =>
-                                                Math.min(
-                                                    vendorTotalPages,
-                                                    page + 1
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setVendorCurrentPage((page) =>
+                                                    Math.max(1, page - 1),
                                                 )
-                                            )
-                                        }
-                                        disabled={vendorCurrentPage === vendorTotalPages}
-                                    >
-                                        Berikutnya
-                                    </Button>
+                                            }
+                                            disabled={vendorCurrentPage === 1}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground">
+                                            Halaman {vendorCurrentPage} dari{' '}
+                                            {vendorTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setVendorCurrentPage((page) =>
+                                                    Math.min(
+                                                        vendorTotalPages,
+                                                        page + 1,
+                                                    ),
+                                                )
+                                            }
+                                            disabled={
+                                                vendorCurrentPage ===
+                                                vendorTotalPages
+                                            }
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
                     </DialogContent>
                 </Dialog>
             </div>

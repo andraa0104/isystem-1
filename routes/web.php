@@ -441,6 +441,8 @@ Route::delete('master-data/customer/{kdCustomer}', [CustomerController::class, '
 
 Route::get('marketing/quotation', [QuotationController::class, 'index'])
     ->name('marketing.quotation.index');
+Route::get('marketing/quotation/suggest-franco', [QuotationController::class, 'suggestFranco'])
+    ->name('marketing.quotation.suggest-franco');
 Route::get('marketing/quotation/customers', [QuotationController::class, 'customers'])
     ->name('marketing.quotation.customers');
 Route::get('marketing/quotation/materials', [QuotationController::class, 'materials'])
@@ -538,6 +540,8 @@ Route::get('pembelian/purchase-order/pr-details', [PurchaseOrderController::clas
     ->name('pembelian.purchase-order.pr-details');
 Route::get('pembelian/purchase-order/vendors', [PurchaseOrderController::class, 'vendors'])
     ->name('pembelian.purchase-order.vendors');
+Route::get('pembelian/purchase-order/suggest-vendor', [PurchaseOrderController::class, 'suggestVendor'])
+    ->name('pembelian.purchase-order.suggest-vendor');
 Route::get('pembelian/purchase-order/details', [PurchaseOrderController::class, 'details'])
     ->name('pembelian.purchase-order.details');
 Route::get('pembelian/purchase-order/outstanding', [PurchaseOrderController::class, 'outstanding'])

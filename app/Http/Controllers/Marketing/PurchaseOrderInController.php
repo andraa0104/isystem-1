@@ -694,7 +694,7 @@ class PurchaseOrderInController
                             ->value('stok') ?? 0);
                     }
 
-                    $sisaQtyPr = ($qty < $stok) ? $qty : max(0, $qty - $stok);
+                    $sisaQtyPr = max(0, $qty - $stok);
 
                     DB::table('tb_detailpoin')->insert([
                         'id' => $detailId + $index,
@@ -842,7 +842,7 @@ class PurchaseOrderInController
                                             ->value('stok') ?? 0);
                                     }
 
-                                    $sisaQtyPr = ($qty < $stok) ? $qty : max(0, $qty - $stok);
+                                    $sisaQtyPr = max(0, $qty - $stok);
 
                                     DB::table('tb_detailpoin')
                                         ->where('id', $resolvedId)
@@ -871,7 +871,7 @@ class PurchaseOrderInController
                                 ->value('stok') ?? 0);
                         }
 
-                        $sisaQtyPr = ($qty < $stok) ? $qty : max(0, $qty - $stok);
+                        $sisaQtyPr = max(0, $qty - $stok);
 
                         $insertId = $nextId++;
                         DB::table('tb_detailpoin')->insert([
@@ -998,7 +998,7 @@ class PurchaseOrderInController
                     ->value('stok') ?? 0);
             }
 
-            $sisaQtyPr = ($qty < $stok) ? $qty : max(0, $qty - $stok);
+            $sisaQtyPr = max(0, $qty - $stok);
 
             DB::table('tb_detailpoin')
                 ->where('kode_poin', $kodePoin)

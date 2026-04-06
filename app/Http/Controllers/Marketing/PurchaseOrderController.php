@@ -8,6 +8,12 @@ use Inertia\Inertia;
 
 class PurchaseOrderController
 {
+    private function withRequiredSpace($value): string
+    {
+        $v = trim((string) $value);
+        return $v === '' ? ' ' : $v;
+    }
+
     public function create()
     {
         $vendors = DB::table('tb_vendor')
@@ -96,8 +102,8 @@ class PurchaseOrderController
                 DB::raw('coalesce(detail.outstanding_count, 0) as outstanding_count')
             )
             ->where(DB::raw('coalesce(detail.outstanding_count, 0)'), '>', 0)
-            ->orderBy('pr.date', 'desc')
             ->orderBy('pr.no_pr', 'desc')
+            ->orderBy('pr.date', 'desc')
             ->get();
 
         return response()->json([
@@ -146,6 +152,21 @@ class PurchaseOrderController
         return response()->json([
             'vendors' => $vendors,
         ]);
+    }
+
+    public function suggestVendor(Request $request)
+    {
+        $vendorCode = $request->input('kd_vdr');
+        $vendorName = $request->input('nm_vdr');
+
+        if (!$vendorCode && !$vendorName) {
+            return response()->json(['error' => 'Vendor identification required'], 400);
+        }
+
+        $dss = new \App\Services\Marketing\PurchaseOrderDss();
+        $suggestion = $dss->suggest($vendorCode ?: '', $vendorName ?: '');
+
+        return response()->json($suggestion);
     }
 
     public function store(Request $request)
@@ -200,6 +221,7 @@ class PurchaseOrderController
                     $sTotal,
                     $hPpn,
                     $gTotal,
+                    $dateFormatted,
                     &$maxId
                 ) {
                     $lastNumber = DB::table('tb_po')
@@ -298,10 +320,11 @@ class PurchaseOrderController
                             'price' => $item['price'] ?? 0,
                             'total_price' => $item['total_price'] ?? 0,
                             'gr_price' => $item['total_price'] ?? 0,
-                            'ket1' => $request->input('ket1'),
-                            'ket2' => $request->input('ket2'),
-                            'ket3' => $request->input('ket3'),
-                            'ket4' => $request->input('ket4'),
+                            'ppn' => $ppnValue,
+                            'ket1' => $this->withRequiredSpace($request->input('ket1')),
+                            'ket2' => $this->withRequiredSpace($request->input('ket2')),
+                            'ket3' => $this->withRequiredSpace($request->input('ket3')),
+                            'ket4' => $this->withRequiredSpace($request->input('ket4')),
                             'ir_mat' => 0,
                             'ir_price' => 0,
                             'end_fl' => 0,
@@ -438,6 +461,10 @@ class PurchaseOrderController
                         'total_price' => $totalPriceValue,
                         'gr_price' => $totalPriceValue,
                         'ppn' => $ppnValue,
+                        'ket1' => $this->withRequiredSpace($request->input('ket1')),
+                        'ket2' => $this->withRequiredSpace($request->input('ket2')),
+                        'ket3' => $this->withRequiredSpace($request->input('ket3')),
+                        'ket4' => $this->withRequiredSpace($request->input('ket4')),
                     ]);
 
                     $noPr = $request->input('ref_pr') ?: ($existingDetail->ref_pr ?? null);
@@ -492,11 +519,11 @@ class PurchaseOrderController
                             'payment_terms' => $request->input('payment_terms'),
                             'del_time' => $request->input('del_time'),
                             'franco_loco' => $request->input('franco_loco'),
-                            'ket1' => $request->input('ket1'),
-                            'ket2' => $request->input('ket2'),
-                            'ket3' => $request->input('ket3'),
-                            'ket4' => $request->input('ket4'),
-                            'ket' => $request->input('ket1'),
+                            'ket1' => $this->withRequiredSpace($request->input('ket1')),
+                            'ket2' => $this->withRequiredSpace($request->input('ket2')),
+                            'ket3' => $this->withRequiredSpace($request->input('ket3')),
+                            'ket4' => $this->withRequiredSpace($request->input('ket4')),
+                            'ket' => $this->withRequiredSpace($request->input('ket1')),
                             'kd_mat' => $kdMat,
                             'material' => $materialName,
                             'qty' => $qtyValue,

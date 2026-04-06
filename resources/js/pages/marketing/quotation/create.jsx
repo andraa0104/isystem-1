@@ -1,4 +1,3 @@
-
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -11,8 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
-import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -30,9 +29,7 @@ const steps = [
 const renderValue = (value) => (value ?? '')?.toString();
 
 const parseNumber = (value) => {
-    const parsed = Number(
-        String(value ?? '').replace(/[^\d.-]/g, '')
-    );
+    const parsed = Number(String(value ?? '').replace(/[^\d.-]/g, ''));
     return Number.isNaN(parsed) ? 0 : parsed;
 };
 
@@ -115,7 +112,9 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         return customerList.filter((item) => {
             const values = [item.kd_cs, item.nm_cs, item.attnd];
             return values.some((value) =>
-                String(value ?? '').toLowerCase().includes(term)
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
             );
         });
     }, [customerSearch, customerList]);
@@ -135,7 +134,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }
 
         const startIndex = (customerPage - 1) * customerPageSize;
-        return filteredCustomers.slice(startIndex, startIndex + customerPageSize);
+        return filteredCustomers.slice(
+            startIndex,
+            startIndex + customerPageSize,
+        );
     }, [customerPage, customerPageSize, filteredCustomers]);
 
     const filteredMaterials = useMemo(() => {
@@ -147,7 +149,9 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         return materialList.filter((item) => {
             const values = [item.material, item.unit, item.remark];
             return values.some((value) =>
-                String(value ?? '').toLowerCase().includes(term)
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
             );
         });
     }, [materialSearch, materialList]);
@@ -167,7 +171,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }
 
         const startIndex = (materialPage - 1) * materialPageSize;
-        return filteredMaterials.slice(startIndex, startIndex + materialPageSize);
+        return filteredMaterials.slice(
+            startIndex,
+            startIndex + materialPageSize,
+        );
     }, [filteredMaterials, materialPage, materialPageSize]);
 
     const marginValue = useMemo(() => {
@@ -201,10 +208,11 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }
     }, [materialPage, materialTotalPages]);
 
-    const handleSelectCustomer = (item) => {
+    const handleSelectCustomer = async (item) => {
+        const customerName = renderValue(item.nm_cs);
         setCustomerForm((prev) => ({
             ...prev,
-            nama: renderValue(item.nm_cs),
+            nama: customerName,
             alamat: renderValue(item.alamat_cs),
             telepon: renderValue(item.telp_cs),
             fax: renderValue(item.fax_cs),
@@ -213,6 +221,28 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             kode: renderValue(item.kd_cs),
         }));
         setCustomerModalOpen(false);
+
+        // AI Suggestion for Franco
+        try {
+            const response = await fetch(
+                `/marketing/quotation/suggest-franco?customer=${encodeURIComponent(
+                    customerName,
+                )}`,
+            );
+            if (response.ok) {
+                const data = await response.json();
+                setDetailForm((prev) => ({
+                    ...prev,
+                    franco: data.franco,
+                }));
+            }
+        } catch (error) {
+            console.error('Failed to fetch franco suggestion:', error);
+            setDetailForm((prev) => ({
+                ...prev,
+                franco: prev.franco || 'SAMARINDA',
+            }));
+        }
     };
 
     const handleSelectMaterial = (item) => {
@@ -238,7 +268,9 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                 throw new Error('Request failed');
             }
             const data = await response.json();
-            setCustomerList(Array.isArray(data?.customers) ? data.customers : []);
+            setCustomerList(
+                Array.isArray(data?.customers) ? data.customers : [],
+            );
         } catch (error) {
             setCustomerError('Gagal memuat data customer.');
         } finally {
@@ -260,7 +292,9 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                 throw new Error('Request failed');
             }
             const data = await response.json();
-            setMaterialList(Array.isArray(data?.materials) ? data.materials : []);
+            setMaterialList(
+                Array.isArray(data?.materials) ? data.materials : [],
+            );
         } catch (error) {
             setMaterialError('Gagal memuat data material.');
         } finally {
@@ -314,35 +348,39 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
 
     const handleSubmit = (event) => {
         event.preventDefault();
-        router.post('/marketing/quotation', {
-            db: customerForm.db,
-            tgl_penawaran: customerForm.tglPenawaran || todayDate(),
-            customer: fillOrSpace(customerForm.nama),
-            alamat: fillOrSpace(customerForm.alamat),
-            telp: fillOrSpace(customerForm.telepon),
-            fax: fillOrSpace(customerForm.fax),
-            email: fillOrSpace(customerForm.email),
-            attend: fillOrSpace(customerForm.attend),
-            payment: fillOrSpace(detailForm.payment),
-            validity: fillOrSpace(detailForm.validity),
-            delivery: fillOrSpace(detailForm.delivery),
-            franco: fillOrSpace(detailForm.franco),
-            note1: fillOrSpace(detailForm.note1),
-            note2: fillOrSpace(detailForm.note2),
-            note3: fillOrSpace(detailForm.note3),
-            materials: materialItems.map((item) => ({
-                material: item.nama,
-                quantity: item.quantity,
-                harga_modal: item.hargaModal,
-                harga_penawaran: item.hargaPenawaran,
-                satuan: item.satuan,
-                margin: item.margin,
-                remark: item.remark,
-            })),
-        }, {
-            onStart: () => setIsSubmitting(true),
-            onFinish: () => setIsSubmitting(false),
-        });
+        router.post(
+            '/marketing/quotation',
+            {
+                db: customerForm.db,
+                tgl_penawaran: customerForm.tglPenawaran || todayDate(),
+                customer: fillOrSpace(customerForm.nama),
+                alamat: fillOrSpace(customerForm.alamat),
+                telp: fillOrSpace(customerForm.telepon),
+                fax: fillOrSpace(customerForm.fax),
+                email: fillOrSpace(customerForm.email),
+                attend: fillOrSpace(customerForm.attend),
+                payment: fillOrSpace(detailForm.payment),
+                validity: fillOrSpace(detailForm.validity),
+                delivery: fillOrSpace(detailForm.delivery),
+                franco: fillOrSpace(detailForm.franco),
+                note1: fillOrSpace(detailForm.note1),
+                note2: fillOrSpace(detailForm.note2),
+                note3: fillOrSpace(detailForm.note3),
+                materials: materialItems.map((item) => ({
+                    material: item.nama,
+                    quantity: item.quantity,
+                    harga_modal: item.hargaModal,
+                    harga_penawaran: item.hargaPenawaran,
+                    satuan: item.satuan,
+                    margin: item.margin,
+                    remark: item.remark,
+                })),
+            },
+            {
+                onStart: () => setIsSubmitting(true),
+                onFinish: () => setIsSubmitting(false),
+            },
+        );
     };
 
     return (
@@ -402,7 +440,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         onChange={(event) =>
                                             setCustomerForm((prev) => ({
                                                 ...prev,
-                                                tglPenawaran: event.target.value,
+                                                tglPenawaran:
+                                                    event.target.value,
                                             }))
                                         }
                                     />
@@ -567,6 +606,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     <Input
                                         id="franco"
                                         value={detailForm.franco}
+                                        onFocus={(e) => e.target.select()}
                                         onChange={(event) =>
                                             setDetailForm((prev) => ({
                                                 ...prev,
@@ -685,14 +725,17 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     <Input
                                         id="harga_modal"
                                         type="text"
-                                        value={formatRupiahInput(materialForm.hargaModal)}
+                                        value={formatRupiahInput(
+                                            materialForm.hargaModal,
+                                        )}
                                         onChange={(event) =>
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                hargaModal: event.target.value.replace(
-                                                    /\D/g,
-                                                    ''
-                                                ),
+                                                hargaModal:
+                                                    event.target.value.replace(
+                                                        /\D/g,
+                                                        '',
+                                                    ),
                                             }))
                                         }
                                     />
@@ -704,14 +747,17 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     <Input
                                         id="harga_penawaran"
                                         type="text"
-                                        value={formatRupiahInput(materialForm.hargaPenawaran)}
+                                        value={formatRupiahInput(
+                                            materialForm.hargaPenawaran,
+                                        )}
                                         onChange={(event) =>
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                hargaPenawaran: event.target.value.replace(
-                                                    /\D/g,
-                                                    ''
-                                                ),
+                                                hargaPenawaran:
+                                                    event.target.value.replace(
+                                                        /\D/g,
+                                                        '',
+                                                    ),
                                             }))
                                         }
                                     />
@@ -720,7 +766,9 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     <Label htmlFor="margin">Margin (%)</Label>
                                     <Input
                                         id="margin"
-                                        value={marginValue ? `${marginValue}%` : ''}
+                                        value={
+                                            marginValue ? `${marginValue}%` : ''
+                                        }
                                         readOnly
                                     />
                                 </div>
@@ -830,7 +878,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                         variant="ghost"
                                                         onClick={() =>
                                                             handleRemoveMaterial(
-                                                                item.id
+                                                                item.id,
                                                             )
                                                         }
                                                     >
@@ -851,7 +899,9 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 type="button"
                                 variant="outline"
                                 onClick={() =>
-                                    setActiveStep((prev) => Math.max(0, prev - 1))
+                                    setActiveStep((prev) =>
+                                        Math.max(0, prev - 1),
+                                    )
                                 }
                                 disabled={activeStep === 0}
                             >
@@ -862,7 +912,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 variant="outline"
                                 onClick={() =>
                                     setActiveStep((prev) =>
-                                        Math.min(steps.length - 1, prev + 1)
+                                        Math.min(steps.length - 1, prev + 1),
                                     )
                                 }
                                 disabled={activeStep === steps.length - 1}
@@ -874,7 +924,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button
                                     type="submit"
-                                    disabled={isSubmitting || materialItems.length === 0}
+                                    disabled={
+                                        isSubmitting ||
+                                        materialItems.length === 0
+                                    }
                                 >
                                     {isSubmitting && (
                                         <Spinner className="mr-2" />
@@ -882,7 +935,9 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     {isSubmitting ? 'Menyimpan...' : 'Simpan'}
                                 </Button>
                                 <Button variant="outline" asChild>
-                                    <Link href="/marketing/quotation">Batal</Link>
+                                    <Link href="/marketing/quotation">
+                                        Batal
+                                    </Link>
                                 </Button>
                             </div>
                         )}
@@ -902,7 +957,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                     }
                 }}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Pilih Customer</DialogTitle>
                     </DialogHeader>
@@ -920,10 +975,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 onChange={(event) => {
                                     const value = event.target.value;
                                     setCustomerPageSize(
-                                        value === 'all' ? Infinity : Number(value)
+                                        value === 'all'
+                                            ? Infinity
+                                            : Number(value),
                                     );
                                 }}
-                                >
+                            >
                                 <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
@@ -1019,53 +1076,60 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                         </table>
                     </div>
 
-                    {customerPageSize !== Infinity && customerTotalItems > 0 && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <span>
-                                Menampilkan{' '}
-                                {Math.min(
-                                    (customerPage - 1) * customerPageSize + 1,
-                                    customerTotalItems
-                                )}
-                                -
-                                {Math.min(
-                                    customerPage * customerPageSize,
-                                    customerTotalItems
-                                )}{' '}
-                                dari {customerTotalItems} data
-                            </span>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        setCustomerPage((page) =>
-                                            Math.max(1, page - 1)
-                                        )
-                                    }
-                                    disabled={customerPage === 1}
-                                >
-                                    Sebelumnya
-                                </Button>
-                                <span className="text-sm text-muted-foreground">
-                                    Halaman {customerPage} dari{' '}
-                                    {customerTotalPages}
+                    {customerPageSize !== Infinity &&
+                        customerTotalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (customerPage - 1) * customerPageSize +
+                                            1,
+                                        customerTotalItems,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        customerPage * customerPageSize,
+                                        customerTotalItems,
+                                    )}{' '}
+                                    dari {customerTotalItems} data
                                 </span>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        setCustomerPage((page) =>
-                                            Math.min(customerTotalPages, page + 1)
-                                        )
-                                    }
-                                    disabled={customerPage === customerTotalPages}
-                                >
-                                    Berikutnya
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCustomerPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
+                                        }
+                                        disabled={customerPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {customerPage} dari{' '}
+                                        {customerTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCustomerPage((page) =>
+                                                Math.min(
+                                                    customerTotalPages,
+                                                    page + 1,
+                                                ),
+                                            )
+                                        }
+                                        disabled={
+                                            customerPage === customerTotalPages
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
                 </DialogContent>
             </Dialog>
 
@@ -1081,7 +1145,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                     }
                 }}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Pilih Material</DialogTitle>
                     </DialogHeader>
@@ -1099,10 +1163,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 onChange={(event) => {
                                     const value = event.target.value;
                                     setMaterialPageSize(
-                                        value === 'all' ? Infinity : Number(value)
+                                        value === 'all'
+                                            ? Infinity
+                                            : Number(value),
                                     );
                                 }}
-                                >
+                            >
                                 <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={25}>25</option>
@@ -1132,8 +1198,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     <th className="px-4 py-3 text-left">
                                         Material
                                     </th>
-                                    <th className="px-4 py-3 text-left">Unit</th>
-                                    <th className="px-4 py-3 text-left">Stok</th>
+                                    <th className="px-4 py-3 text-left">
+                                        Unit
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Stok
+                                    </th>
                                     <th className="px-4 py-3 text-left">
                                         Remark
                                     </th>
@@ -1200,52 +1270,60 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                         </table>
                     </div>
 
-                    {materialPageSize !== Infinity && materialTotalItems > 0 && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <span>
-                                Menampilkan{' '}
-                                {Math.min(
-                                    (materialPage - 1) * materialPageSize + 1,
-                                    materialTotalItems
-                                )}
-                                -
-                                {Math.min(
-                                    materialPage * materialPageSize,
-                                    materialTotalItems
-                                )}{' '}
-                                dari {materialTotalItems} data
-                            </span>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        setMaterialPage((page) =>
-                                            Math.max(1, page - 1)
-                                        )
-                                    }
-                                    disabled={materialPage === 1}
-                                >
-                                    Sebelumnya
-                                </Button>
-                                <span className="text-sm text-muted-foreground">
-                                    Halaman {materialPage} dari {materialTotalPages}
+                    {materialPageSize !== Infinity &&
+                        materialTotalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (materialPage - 1) * materialPageSize +
+                                            1,
+                                        materialTotalItems,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        materialPage * materialPageSize,
+                                        materialTotalItems,
+                                    )}{' '}
+                                    dari {materialTotalItems} data
                                 </span>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        setMaterialPage((page) =>
-                                            Math.min(materialTotalPages, page + 1)
-                                        )
-                                    }
-                                    disabled={materialPage === materialTotalPages}
-                                >
-                                    Berikutnya
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setMaterialPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
+                                        }
+                                        disabled={materialPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {materialPage} dari{' '}
+                                        {materialTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setMaterialPage((page) =>
+                                                Math.min(
+                                                    materialTotalPages,
+                                                    page + 1,
+                                                ),
+                                            )
+                                        }
+                                        disabled={
+                                            materialPage === materialTotalPages
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
                 </DialogContent>
             </Dialog>
         </AppLayout>

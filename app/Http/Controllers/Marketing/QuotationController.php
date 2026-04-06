@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
+use App\Services\Marketing\QuotationDss;
 
 class QuotationController
 {
@@ -631,5 +632,14 @@ class QuotationController
         return redirect()
             ->route('marketing.quotation.index')
             ->with('success', 'Data quotation berhasil disimpan.');
+    }
+
+    public function suggestFranco(Request $request)
+    {
+        $customerName = $request->query('customer');
+        $dss = new \App\Services\Marketing\QuotationDss();
+        $franco = $dss->suggestFranco($customerName ?: '');
+
+        return response()->json(['franco' => $franco]);
     }
 }
