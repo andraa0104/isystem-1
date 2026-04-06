@@ -268,9 +268,17 @@ class PurchaseOrderInController
                 ->with('error', 'Data PO In tidak ditemukan.');
         }
 
-        $purchaseOrderInItems = DB::table('tb_detailpoin')
-            ->where('kode_poin', $kodePoin)
-            ->orderBy('line_no')
+        $purchaseOrderInItems = DB::table('tb_detailpoin as d')
+            ->where('d.kode_poin',  $kodePoin)
+            ->addSelect([
+                'd.*',
+                'has_pr' => DB::table('tb_detailpr as pr')
+                    ->whereColumn('pr.ref_po', DB::raw(DB::getPdo()->quote((string)$purchaseOrderIn->no_poin)))
+                    ->whereColumn('pr.for_customer', DB::raw(DB::getPdo()->quote((string)$purchaseOrderIn->customer_name)))
+                    ->whereColumn('pr.kd_material', 'd.kd_material')
+                    ->selectRaw('count(*)')
+            ])
+            ->orderBy('d.line_no')
             ->get();
 
         return Inertia::render('marketing/purchase-order-in/edit', [
@@ -677,15 +685,26 @@ class PurchaseOrderInController
                     $totalDetail = isset($item['total_price_po_in'])
                         ? (float) $item['total_price_po_in']
                         : ($qty * $price);
+
+                    $kdMaterial = trim((string) ($item['kd_material'] ?? ''));
+                    $stok = 0;
+                    if (!empty($kdMaterial)) {
+                        $stok = (float) (DB::table('tb_material')
+                            ->where('kd_material', $kdMaterial)
+                            ->value('stok') ?? 0);
+                    }
+
+                    $sisaQtyPr = ($qty < $stok) ? $qty : max(0, $qty - $stok);
+
                     DB::table('tb_detailpoin')->insert([
                         'id' => $detailId + $index,
                         'id_poin' => $headerId,
                         'kode_poin' => $kodePoin,
                         'line_no' => $index + 1,
-                        'kd_material' => trim((string) ($item['kd_material'] ?? '')),
+                        'kd_material' => $kdMaterial,
                         'material' => trim((string) ($item['material'] ?? '')),
                         'qty' => $qty,
-                        'sisa_qtypr' => $qty,
+                        'sisa_qtypr' => $sisaQtyPr,
                         'sisa_qtydo' => $qty,
                         'satuan' => trim((string) ($item['satuan'] ?? '')),
                         'price_po_in' => $price,
@@ -815,35 +834,55 @@ class PurchaseOrderInController
                     }
 
                     if ($resolvedId !== null) {
-                        DB::table('tb_detailpoin')
-                            ->where('id', $resolvedId)
-                            ->where('kode_poin', $kodePoin)
-                            ->update([
-                                'id_poin' => $headerId,
-                                'line_no' => $index + 1,
-                                'kd_material' => trim((string) ($item['kd_material'] ?? '')),
-                                'material' => trim((string) ($item['material'] ?? '')),
-                                'qty' => $qty,
-                                'sisa_qtypr' => $qty,
-                                'sisa_qtydo' => $qty,
-                                'satuan' => trim((string) ($item['satuan'] ?? '')),
-                                'price_po_in' => $price,
-                                'total_price_po_in' => $totalDetail,
-                                'remark' => trim((string) ($item['remark'] ?? '')),
-                                'updated_at' => $nowGmt8,
-                            ]);
+                                    $kdMaterial = trim((string) ($item['kd_material'] ?? ''));
+                                    $stok = 0;
+                                    if (!empty($kdMaterial)) {
+                                        $stok = (float) (DB::table('tb_material')
+                                            ->where('kd_material', $kdMaterial)
+                                            ->value('stok') ?? 0);
+                                    }
+
+                                    $sisaQtyPr = ($qty < $stok) ? $qty : max(0, $qty - $stok);
+
+                                    DB::table('tb_detailpoin')
+                                        ->where('id', $resolvedId)
+                                        ->where('kode_poin', $kodePoin)
+                                        ->update([
+                                            'id_poin' => $headerId,
+                                            'line_no' => $index + 1,
+                                            'kd_material' => $kdMaterial,
+                                            'material' => trim((string) ($item['material'] ?? '')),
+                                            'qty' => $qty,
+                                            'sisa_qtypr' => $sisaQtyPr,
+                                            'sisa_qtydo' => $qty,
+                                            'satuan' => trim((string) ($item['satuan'] ?? '')),
+                                            'price_po_in' => $price,
+                                            'total_price_po_in' => $totalDetail,
+                                            'remark' => trim((string) ($item['remark'] ?? '')),
+                                            'updated_at' => $nowGmt8,
+                                        ]);
                         $keptIds[] = $resolvedId;
                     } else {
+                        $kdMaterial = trim((string) ($item['kd_material'] ?? ''));
+                        $stok = 0;
+                        if (!empty($kdMaterial)) {
+                            $stok = (float) (DB::table('tb_material')
+                                ->where('kd_material', $kdMaterial)
+                                ->value('stok') ?? 0);
+                        }
+
+                        $sisaQtyPr = ($qty < $stok) ? $qty : max(0, $qty - $stok);
+
                         $insertId = $nextId++;
                         DB::table('tb_detailpoin')->insert([
                             'id' => $insertId,
                             'id_poin' => $headerId,
                             'kode_poin' => $kodePoin,
                             'line_no' => $index + 1,
-                            'kd_material' => trim((string) ($item['kd_material'] ?? '')),
+                            'kd_material' => $kdMaterial,
                             'material' => trim((string) ($item['material'] ?? '')),
                             'qty' => $qty,
-                            'sisa_qtypr' => $qty,
+                            'sisa_qtypr' => $sisaQtyPr,
                             'sisa_qtydo' => $qty,
                             'satuan' => trim((string) ($item['satuan'] ?? '')),
                             'price_po_in' => $price,
@@ -951,14 +990,24 @@ class PurchaseOrderInController
                 : ($qty * $price);
             $nowGmt8 = now('Asia/Singapore');
 
+            $kdMaterial = trim((string) ($validated['kd_material'] ?? ''));
+            $stok = 0;
+            if (!empty($kdMaterial)) {
+                $stok = (float) (DB::table('tb_material')
+                    ->where('kd_material', $kdMaterial)
+                    ->value('stok') ?? 0);
+            }
+
+            $sisaQtyPr = ($qty < $stok) ? $qty : max(0, $qty - $stok);
+
             DB::table('tb_detailpoin')
                 ->where('kode_poin', $kodePoin)
                 ->where('id', $detailId)
                 ->update([
-                    'kd_material' => trim((string) ($validated['kd_material'] ?? '')),
+                    'kd_material' => $kdMaterial,
                     'material' => trim((string) $validated['material']),
                     'qty' => $qty,
-                    'sisa_qtypr' => $qty,
+                    'sisa_qtypr' => $sisaQtyPr,
                     'sisa_qtydo' => $qty,
                     'satuan' => trim((string) ($validated['satuan'] ?? '')),
                     'price_po_in' => $price,

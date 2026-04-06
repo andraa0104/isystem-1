@@ -373,18 +373,19 @@ export default function PurchaseOrderInIndex({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Purchase Order In" />
             <div className="flex h-full flex-1 flex-col gap-5 p-4">
-                <section className="rounded-2xl border border-sidebar-border/70 bg-gradient-to-r from-slate-900 via-slate-800 to-zinc-900 p-5 text-white shadow-lg">
+                {/* Header section with solid background for better legacy OS compatibility */}
+                <section className="rounded-2xl border border-slate-700 bg-slate-900 p-5 text-white shadow-lg">
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <div>
-                            <p className="text-xs tracking-[0.22em] text-white/70 uppercase">
+                            <p className="text-xs font-bold tracking-[0.22em] text-slate-300 uppercase">
                                 Marketing Workspace
                             </p>
-                            <h1 className="mt-1 text-2xl font-semibold">
+                            <h1 className="mt-1 text-2xl font-bold">
                                 Purchase Order In (PO In)
                             </h1>
                         </div>
                         <Button
-                            className="bg-white text-slate-900 hover:bg-white/90"
+                            className="border-2 border-slate-700 bg-white font-bold text-slate-900 hover:bg-slate-100"
                             onClick={() =>
                                 router.visit(
                                     '/marketing/purchase-order-in/create',
