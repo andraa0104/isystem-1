@@ -677,8 +677,12 @@ export default function PurchaseOrderInEdit({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Edit PO In" />
             <div className="flex h-full flex-1 flex-col gap-5 p-4">
-                <section className="rounded-2xl border border-sidebar-border/70 bg-gradient-to-r from-zinc-950 via-zinc-900 to-slate-900 p-5 text-white shadow-lg">
-                    <h1 className="mt-1 text-2xl font-semibold">
+                {/* Header section with explicit hex background for maximum compatibility */}
+                <section
+                    className="rounded-2xl border border-slate-700 bg-[#0f172a] p-5 text-white shadow-lg"
+                    style={{ backgroundColor: '#0f172a' }}
+                >
+                    <h1 className="mt-1 text-2xl font-bold text-white">
                         Edit Purchase Order In
                     </h1>
                 </section>

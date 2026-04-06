@@ -11,7 +11,14 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
-import { CalendarDays, Landmark, PackageSearch, Pencil, ReceiptText, Trash2 } from 'lucide-react';
+import {
+    CalendarDays,
+    Landmark,
+    PackageSearch,
+    Pencil,
+    ReceiptText,
+    Trash2,
+} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -27,7 +34,8 @@ const toNumber = (value) => {
     return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-const formatRupiah = (value) => `Rp ${new Intl.NumberFormat('id-ID').format(toNumber(value))}`;
+const formatRupiah = (value) =>
+    `Rp ${new Intl.NumberFormat('id-ID').format(toNumber(value))}`;
 const toDisplayDate = (value) => {
     const text = String(value ?? '').trim();
     if (!text) {
@@ -41,7 +49,9 @@ const toDisplayDate = (value) => {
 };
 
 const normalizeDateInput = (value) => {
-    const digits = String(value ?? '').replace(/\D/g, '').slice(0, 8);
+    const digits = String(value ?? '')
+        .replace(/\D/g, '')
+        .slice(0, 8);
     if (digits.length <= 2) {
         return digits;
     }
@@ -90,7 +100,11 @@ const isValidDmyDate = (value) => {
     const day = Number(match[1]);
     const month = Number(match[2]);
     const year = Number(match[3]);
-    if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) {
+    if (
+        !Number.isInteger(day) ||
+        !Number.isInteger(month) ||
+        !Number.isInteger(year)
+    ) {
         return false;
     }
     if (year < 1900 || month < 1 || month > 12 || day < 1) {
@@ -112,7 +126,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     const [materialTotal, setMaterialTotal] = useState(0);
     const [materialLoading, setMaterialLoading] = useState(false);
     const [materialError, setMaterialError] = useState('');
-    const [isMaterialCreateModalOpen, setIsMaterialCreateModalOpen] = useState(false);
+    const [isMaterialCreateModalOpen, setIsMaterialCreateModalOpen] =
+        useState(false);
     const [materialCreateForm, setMaterialCreateForm] = useState({
         material: '',
         unit: '',
@@ -130,7 +145,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     const [customerTotal, setCustomerTotal] = useState(0);
     const [customerLoading, setCustomerLoading] = useState(false);
     const [customerError, setCustomerError] = useState('');
-    const [isCustomerCreateModalOpen, setIsCustomerCreateModalOpen] = useState(false);
+    const [isCustomerCreateModalOpen, setIsCustomerCreateModalOpen] =
+        useState(false);
     const [customerCreateForm, setCustomerCreateForm] = useState({
         nm_cs: '',
         alamat_cs: '',
@@ -178,12 +194,15 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         if (editingItemId) {
             setItems((prev) =>
                 prev.map((item) =>
-                    item.id === editingItemId ? { ...item, ...itemForm } : item
-                )
+                    item.id === editingItemId ? { ...item, ...itemForm } : item,
+                ),
             );
             setEditingItemId(null);
         } else {
-            setItems((prev) => [...prev, { ...itemForm, id: `${Date.now()}-${Math.random()}` }]);
+            setItems((prev) => [
+                ...prev,
+                { ...itemForm, id: `${Date.now()}-${Math.random()}` },
+            ]);
         }
         setValidationErrors((prev) => ({ ...prev, materials: '' }));
         setItemForm({
@@ -206,7 +225,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             errors.date = 'Date PO In wajib format dd/mm/yyyy yang valid.';
         }
         if (!isValidDmyDate(form.deliveryDate)) {
-            errors.deliveryDate = 'Delivery Date wajib format dd/mm/yyyy yang valid.';
+            errors.deliveryDate =
+                'Delivery Date wajib format dd/mm/yyyy yang valid.';
         }
         if (!String(form.customerName ?? '').trim()) {
             errors.customerName = 'Nama Customer wajib diisi.';
@@ -249,7 +269,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 qty: toNumber(item.qty),
                 satuan: item.unit,
                 price_po_in: toNumber(item.unitPrice),
-                total_price_po_in: toNumber(item.qty) * toNumber(item.unitPrice),
+                total_price_po_in:
+                    toNumber(item.qty) * toNumber(item.unitPrice),
                 remark: item.note,
             })),
         };
@@ -318,20 +339,25 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
 
     const itemTotalPricePoIn = useMemo(
         () => toNumber(itemForm.qty) * toNumber(itemForm.unitPrice),
-        [itemForm.qty, itemForm.unitPrice]
+        [itemForm.qty, itemForm.unitPrice],
     );
 
     const totalPrice = useMemo(
-        () => items.reduce((total, item) => total + toNumber(item.qty) * toNumber(item.unitPrice), 0),
-        [items]
+        () =>
+            items.reduce(
+                (total, item) =>
+                    total + toNumber(item.qty) * toNumber(item.unitPrice),
+                0,
+            ),
+        [items],
     );
     const ppnPercentInput = useMemo(
         () => toNumber(form.ppnPercent),
-        [form.ppnPercent]
+        [form.ppnPercent],
     );
     const ppnPercentValue = useMemo(
         () => Math.min(11, ppnPercentInput),
-        [ppnPercentInput]
+        [ppnPercentInput],
     );
     const dpp = useMemo(() => {
         if (!ppnPercentInput) {
@@ -341,7 +367,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     }, [ppnPercentInput, totalPrice]);
     const ppn = useMemo(
         () => Math.round(totalPrice * (ppnPercentValue / 100)),
-        [totalPrice, ppnPercentValue]
+        [totalPrice, ppnPercentValue],
     );
     const grandTotal = useMemo(() => totalPrice + ppn, [totalPrice, ppn]);
 
@@ -358,20 +384,27 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         setMaterialError('');
         try {
             const params = new URLSearchParams();
-            params.set('per_page', materialPageSize === Infinity ? 'all' : String(materialPageSize));
+            params.set(
+                'per_page',
+                materialPageSize === Infinity
+                    ? 'all'
+                    : String(materialPageSize),
+            );
             params.set('page', String(materialCurrentPage));
             if (materialSearchTerm.trim()) {
                 params.set('search', materialSearchTerm.trim());
             }
             const response = await fetch(
                 `/marketing/purchase-order-in/materials?${params.toString()}`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             );
             if (!response.ok) {
                 throw new Error('Request failed');
             }
             const data = await response.json();
-            setMaterialList(Array.isArray(data?.materials) ? data.materials : []);
+            setMaterialList(
+                Array.isArray(data?.materials) ? data.materials : [],
+            );
             setMaterialTotal(Number(data?.total ?? 0));
         } catch (error) {
             setMaterialError('Gagal memuat data material.');
@@ -385,20 +418,25 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         setCustomerError('');
         try {
             const params = new URLSearchParams();
-            params.set('per_page', customerPageSize === Infinity ? 'all' : customerPageSize);
+            params.set(
+                'per_page',
+                customerPageSize === Infinity ? 'all' : customerPageSize,
+            );
             params.set('page', customerCurrentPage);
             if (customerSearchTerm.trim()) {
                 params.set('search', customerSearchTerm.trim());
             }
             const response = await fetch(
                 `/marketing/purchase-order-in/customers?${params.toString()}`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             );
             if (!response.ok) {
                 throw new Error('Request failed');
             }
             const data = await response.json();
-            setCustomerList(Array.isArray(data?.customers) ? data.customers : []);
+            setCustomerList(
+                Array.isArray(data?.customers) ? data.customers : [],
+            );
             setCustomerTotal(Number(data?.total ?? 0));
         } catch (error) {
             setCustomerError('Gagal memuat data customer.');
@@ -436,16 +474,19 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 .querySelector('meta[name="csrf-token"]')
                 ?.getAttribute('content');
 
-            const response = await fetch('/marketing/purchase-order-in/customers', {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': token ?? '',
-                    'X-Requested-With': 'XMLHttpRequest',
+            const response = await fetch(
+                '/marketing/purchase-order-in/customers',
+                {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': token ?? '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify(customerCreateForm),
                 },
-                body: JSON.stringify(customerCreateForm),
-            });
+            );
 
             const data = await response.json().catch(() => ({}));
             if (!response.ok) {
@@ -454,7 +495,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
                 throw new Error(
                     data?.message ||
-                        (data?.errors && Object.values(data.errors).flat()[0]) ||
+                        (data?.errors &&
+                            Object.values(data.errors).flat()[0]) ||
                         'Gagal menyimpan customer.',
                 );
             }
@@ -479,7 +521,10 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 npwp2_cs: '',
                 Attnd: '',
             });
-            toast('success', data?.message || 'Data customer berhasil disimpan.');
+            toast(
+                'success',
+                data?.message || 'Data customer berhasil disimpan.',
+            );
         } catch (error) {
             toast('error', error?.message || 'Gagal menyimpan customer.');
         } finally {
@@ -497,16 +542,19 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 .querySelector('meta[name="csrf-token"]')
                 ?.getAttribute('content');
 
-            const response = await fetch('/marketing/purchase-order-in/materials', {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': token ?? '',
-                    'X-Requested-With': 'XMLHttpRequest',
+            const response = await fetch(
+                '/marketing/purchase-order-in/materials',
+                {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': token ?? '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify(materialCreateForm),
                 },
-                body: JSON.stringify(materialCreateForm),
-            });
+            );
 
             const data = await response.json().catch(() => ({}));
             if (!response.ok) {
@@ -515,7 +563,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
                 throw new Error(
                     data?.message ||
-                        (data?.errors && Object.values(data.errors).flat()[0]) ||
+                        (data?.errors &&
+                            Object.values(data.errors).flat()[0]) ||
                         'Gagal menyimpan material.',
                 );
             }
@@ -555,7 +604,12 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             return;
         }
         loadCustomers();
-    }, [isCustomerModalOpen, customerCurrentPage, customerPageSize, customerSearchTerm]);
+    }, [
+        isCustomerModalOpen,
+        customerCurrentPage,
+        customerPageSize,
+        customerSearchTerm,
+    ]);
 
     const customerTotalPages = useMemo(() => {
         if (customerPageSize === Infinity) {
@@ -573,7 +627,12 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             return;
         }
         loadMaterials();
-    }, [isMaterialModalOpen, materialCurrentPage, materialPageSize, materialSearchTerm]);
+    }, [
+        isMaterialModalOpen,
+        materialCurrentPage,
+        materialPageSize,
+        materialSearchTerm,
+    ]);
 
     const materialTotalItems = materialTotal;
     const materialTotalPages = useMemo(() => {
@@ -592,7 +651,10 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             kodeMaterial: material.kd_material ?? '',
             material: material.material ?? '',
             unit: material.unit ?? prev.unit,
-            unitPrice: String(material.harga ?? material.price ?? '').replace(/[^\d]/g, ''),
+            unitPrice: String(material.harga ?? material.price ?? '').replace(
+                /[^\d]/g,
+                '',
+            ),
         }));
         setIsMaterialModalOpen(false);
     };
@@ -601,8 +663,14 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Tambah PO In" />
             <div className="flex h-full flex-1 flex-col gap-5 p-4">
-                <section className="rounded-2xl border border-sidebar-border/70 bg-gradient-to-r from-zinc-950 via-zinc-900 to-slate-900 p-5 text-white shadow-lg">
-                    <h1 className="mt-1 text-2xl font-semibold">Form Purchase Order In</h1>
+                {/* Header section with explicit hex background for maximum compatibility */}
+                <section
+                    className="rounded-2xl border border-slate-700 bg-[#0f172a] p-5 text-white shadow-lg"
+                    style={{ backgroundColor: '#0f172a' }}
+                >
+                    <h1 className="mt-1 text-2xl font-bold text-white">
+                        Form Purchase Order In
+                    </h1>
                 </section>
 
                 <div className="grid gap-5">
@@ -610,57 +678,91 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                         <article className="rounded-2xl border border-sidebar-border/70 bg-background p-4 shadow-sm">
                             <div className="mb-4 flex items-center gap-2">
                                 <Landmark className="size-4 text-muted-foreground" />
-                                <h2 className="text-base font-semibold">Informasi Header</h2>
+                                <h2 className="text-base font-semibold">
+                                    Informasi Header
+                                </h2>
                             </div>
                             <div className="grid gap-4 md:grid-cols-4">
                                 <div className="grid gap-4 md:col-span-4 md:grid-cols-3">
                                     <div className="grid gap-2">
-                                        <Label htmlFor="no_poin">No PO In</Label>
+                                        <Label htmlFor="no_poin">
+                                            No PO In
+                                        </Label>
                                         <Input
                                             id="no_poin"
-                                            className={validationErrors.noPoin ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                                            className={
+                                                validationErrors.noPoin
+                                                    ? 'border-red-500 focus-visible:ring-red-500'
+                                                    : ''
+                                            }
                                             placeholder="PO In dari Customer"
                                             value={form.noPoin}
                                             onChange={(event) => {
-                                                setForm((prev) => ({ ...prev, noPoin: event.target.value }));
-                                                setValidationErrors((prev) => ({ ...prev, noPoin: '' }));
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    noPoin: event.target.value,
+                                                }));
+                                                setValidationErrors((prev) => ({
+                                                    ...prev,
+                                                    noPoin: '',
+                                                }));
                                             }}
                                         />
                                         {validationErrors.noPoin && (
-                                            <p className="text-xs text-red-500">{validationErrors.noPoin}</p>
+                                            <p className="text-xs text-red-500">
+                                                {validationErrors.noPoin}
+                                            </p>
                                         )}
                                     </div>
                                     <div className="grid gap-2">
-                                        <Label htmlFor="tanggal">Date PO In</Label>
+                                        <Label htmlFor="tanggal">
+                                            Date PO In
+                                        </Label>
                                         <div className="relative flex gap-2">
                                             <Input
                                                 id="tanggal"
-                                                className={validationErrors.date ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                                                className={
+                                                    validationErrors.date
+                                                        ? 'border-red-500 focus-visible:ring-red-500'
+                                                        : ''
+                                                }
                                                 value={form.date}
                                                 placeholder="dd/mm/yyyy"
-                                                onFocus={(event) => event.target.select()}
+                                                onFocus={(event) =>
+                                                    event.target.select()
+                                                }
                                                 onChange={(event) =>
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        date: normalizeDateInput(event.target.value),
+                                                        date: normalizeDateInput(
+                                                            event.target.value,
+                                                        ),
                                                     }))
                                                 }
-                                                onBlur={(event) =>
-                                                    {
-                                                        setForm((prev) => ({
+                                                onBlur={(event) => {
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        date: clampDmyValue(
+                                                            event.target.value,
+                                                        ),
+                                                    }));
+                                                    setValidationErrors(
+                                                        (prev) => ({
                                                             ...prev,
-                                                            date: clampDmyValue(event.target.value),
-                                                        }));
-                                                        setValidationErrors((prev) => ({ ...prev, date: '' }));
-                                                    }
-                                                }
+                                                            date: '',
+                                                        }),
+                                                    );
+                                                }}
                                             />
                                             <Button
                                                 type="button"
                                                 variant="outline"
                                                 className="shrink-0 px-3"
                                                 onClick={() => {
-                                                    if (datePickerRef.current?.showPicker) {
+                                                    if (
+                                                        datePickerRef.current
+                                                            ?.showPicker
+                                                    ) {
                                                         datePickerRef.current.showPicker();
                                                         return;
                                                     }
@@ -678,47 +780,78 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 onChange={(event) => {
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        date: toDisplayDate(event.target.value),
+                                                        date: toDisplayDate(
+                                                            event.target.value,
+                                                        ),
                                                     }));
-                                                    setValidationErrors((prev) => ({ ...prev, date: '' }));
+                                                    setValidationErrors(
+                                                        (prev) => ({
+                                                            ...prev,
+                                                            date: '',
+                                                        }),
+                                                    );
                                                 }}
                                             />
                                         </div>
                                         {validationErrors.date && (
-                                            <p className="text-xs text-red-500">{validationErrors.date}</p>
+                                            <p className="text-xs text-red-500">
+                                                {validationErrors.date}
+                                            </p>
                                         )}
                                     </div>
                                     <div className="grid gap-2">
-                                        <Label htmlFor="delivery_date">Delivery Date</Label>
+                                        <Label htmlFor="delivery_date">
+                                            Delivery Date
+                                        </Label>
                                         <div className="relative flex gap-2">
                                             <Input
                                                 id="delivery_date"
-                                                className={validationErrors.deliveryDate ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                                                className={
+                                                    validationErrors.deliveryDate
+                                                        ? 'border-red-500 focus-visible:ring-red-500'
+                                                        : ''
+                                                }
                                                 value={form.deliveryDate}
                                                 placeholder="dd/mm/yyyy"
-                                                onFocus={(event) => event.target.select()}
+                                                onFocus={(event) =>
+                                                    event.target.select()
+                                                }
                                                 onChange={(event) =>
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        deliveryDate: normalizeDateInput(event.target.value),
+                                                        deliveryDate:
+                                                            normalizeDateInput(
+                                                                event.target
+                                                                    .value,
+                                                            ),
                                                     }))
                                                 }
-                                                onBlur={(event) =>
-                                                    {
-                                                        setForm((prev) => ({
+                                                onBlur={(event) => {
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        deliveryDate:
+                                                            clampDmyValue(
+                                                                event.target
+                                                                    .value,
+                                                            ),
+                                                    }));
+                                                    setValidationErrors(
+                                                        (prev) => ({
                                                             ...prev,
-                                                            deliveryDate: clampDmyValue(event.target.value),
-                                                        }));
-                                                        setValidationErrors((prev) => ({ ...prev, deliveryDate: '' }));
-                                                    }
-                                                }
+                                                            deliveryDate: '',
+                                                        }),
+                                                    );
+                                                }}
                                             />
                                             <Button
                                                 type="button"
                                                 variant="outline"
                                                 className="shrink-0 px-3"
                                                 onClick={() => {
-                                                    if (deliveryDatePickerRef.current?.showPicker) {
+                                                    if (
+                                                        deliveryDatePickerRef
+                                                            .current?.showPicker
+                                                    ) {
                                                         deliveryDatePickerRef.current.showPicker();
                                                         return;
                                                     }
@@ -732,24 +865,39 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 ref={deliveryDatePickerRef}
                                                 type="date"
                                                 className="pointer-events-none absolute h-0 w-0 opacity-0"
-                                                value={toIsoDate(form.deliveryDate)}
+                                                value={toIsoDate(
+                                                    form.deliveryDate,
+                                                )}
                                                 onChange={(event) => {
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        deliveryDate: toDisplayDate(event.target.value),
+                                                        deliveryDate:
+                                                            toDisplayDate(
+                                                                event.target
+                                                                    .value,
+                                                            ),
                                                     }));
-                                                    setValidationErrors((prev) => ({ ...prev, deliveryDate: '' }));
+                                                    setValidationErrors(
+                                                        (prev) => ({
+                                                            ...prev,
+                                                            deliveryDate: '',
+                                                        }),
+                                                    );
                                                 }}
                                             />
                                         </div>
                                         {validationErrors.deliveryDate && (
-                                            <p className="text-xs text-red-500">{validationErrors.deliveryDate}</p>
+                                            <p className="text-xs text-red-500">
+                                                {validationErrors.deliveryDate}
+                                            </p>
                                         )}
                                     </div>
                                 </div>
                                 <div className="grid gap-4 md:col-span-4 md:grid-cols-4">
                                     <div className="grid gap-2 md:col-span-1">
-                                        <Label htmlFor="customer_code">Kode Customer</Label>
+                                        <Label htmlFor="customer_code">
+                                            Kode Customer
+                                        </Label>
                                         <Input
                                             id="customer_code"
                                             value={form.customerCode}
@@ -758,11 +906,17 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         />
                                     </div>
                                     <div className="grid gap-2 md:col-span-3">
-                                        <Label htmlFor="customer_name">Nama Customer</Label>
+                                        <Label htmlFor="customer_name">
+                                            Nama Customer
+                                        </Label>
                                         <div className="flex gap-2">
                                             <Input
                                                 id="customer_name"
-                                                className={validationErrors.customerName ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                                                className={
+                                                    validationErrors.customerName
+                                                        ? 'border-red-500 focus-visible:ring-red-500'
+                                                        : ''
+                                                }
                                                 value={form.customerName}
                                                 readOnly
                                                 placeholder="Pilih customer"
@@ -771,7 +925,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 type="button"
                                                 variant="outline"
                                                 onClick={() => {
-                                                    setIsCustomerModalOpen(true);
+                                                    setIsCustomerModalOpen(
+                                                        true,
+                                                    );
                                                     setCustomerSearchTerm('');
                                                     setCustomerPageSize(5);
                                                     setCustomerCurrentPage(1);
@@ -781,68 +937,106 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             </Button>
                                         </div>
                                         {validationErrors.customerName && (
-                                            <p className="text-xs text-red-500">{validationErrors.customerName}</p>
+                                            <p className="text-xs text-red-500">
+                                                {validationErrors.customerName}
+                                            </p>
                                         )}
                                     </div>
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="payment_term">Payment Term</Label>
+                                    <Label htmlFor="payment_term">
+                                        Payment Term
+                                    </Label>
                                     <Input
                                         id="payment_term"
                                         value={form.paymentTerm}
-                                        onFocus={(event) => event.target.select()}
-                                        onChange={(event) => setForm((prev) => ({ ...prev, paymentTerm: event.target.value }))}
+                                        onFocus={(event) =>
+                                            event.target.select()
+                                        }
+                                        onChange={(event) =>
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                paymentTerm: event.target.value,
+                                            }))
+                                        }
                                     />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="ppn_percent">PPN (%)</Label>
                                     <Input
                                         id="ppn_percent"
-                                        className={validationErrors.ppnPercent ? 'border-red-500 focus-visible:ring-red-500' : ''}
+                                        className={
+                                            validationErrors.ppnPercent
+                                                ? 'border-red-500 focus-visible:ring-red-500'
+                                                : ''
+                                        }
                                         inputMode="decimal"
                                         value={form.ppnPercent}
-                                        onChange={(event) =>
-                                            {
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    ppnPercent: event.target.value.replace(/[^\d.]/g, ''),
-                                                }));
-                                                setValidationErrors((prev) => ({ ...prev, ppnPercent: '' }));
-                                            }
-                                        }
+                                        onChange={(event) => {
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                ppnPercent:
+                                                    event.target.value.replace(
+                                                        /[^\d.]/g,
+                                                        '',
+                                                    ),
+                                            }));
+                                            setValidationErrors((prev) => ({
+                                                ...prev,
+                                                ppnPercent: '',
+                                            }));
+                                        }}
                                     />
                                     {validationErrors.ppnPercent && (
-                                        <p className="text-xs text-red-500">{validationErrors.ppnPercent}</p>
+                                        <p className="text-xs text-red-500">
+                                            {validationErrors.ppnPercent}
+                                        </p>
                                     )}
                                 </div>
                                 <div className="grid gap-2 md:col-span-2">
-                                    <Label htmlFor="franco_loco">Franco/Loco</Label>
+                                    <Label htmlFor="franco_loco">
+                                        Franco/Loco
+                                    </Label>
                                     <Input
                                         id="franco_loco"
-                                        className={validationErrors.francoLoco ? 'border-red-500 focus-visible:ring-red-500' : ''}
-                                        value={form.francoLoco}
-                                        onChange={(event) =>
-                                            {
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    francoLoco: event.target.value,
-                                                }));
-                                                setValidationErrors((prev) => ({ ...prev, francoLoco: '' }));
-                                            }
+                                        className={
+                                            validationErrors.francoLoco
+                                                ? 'border-red-500 focus-visible:ring-red-500'
+                                                : ''
                                         }
+                                        value={form.francoLoco}
+                                        onChange={(event) => {
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                francoLoco: event.target.value,
+                                            }));
+                                            setValidationErrors((prev) => ({
+                                                ...prev,
+                                                francoLoco: '',
+                                            }));
+                                        }}
                                     />
                                     {validationErrors.francoLoco && (
-                                        <p className="text-xs text-red-500">{validationErrors.francoLoco}</p>
+                                        <p className="text-xs text-red-500">
+                                            {validationErrors.francoLoco}
+                                        </p>
                                     )}
                                 </div>
                                 <div className="grid gap-2 md:col-span-4">
-                                    <Label htmlFor="doc_note">Catatan Dokumen</Label>
+                                    <Label htmlFor="doc_note">
+                                        Catatan Dokumen
+                                    </Label>
                                     <textarea
                                         id="doc_note"
                                         rows={3}
                                         className="rounded-md border border-sidebar-border/70 bg-background px-3 py-2 text-sm"
                                         value={form.note}
-                                        onChange={(event) => setForm((prev) => ({ ...prev, note: event.target.value }))}
+                                        onChange={(event) =>
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                note: event.target.value,
+                                            }))
+                                        }
                                         placeholder="Catatan internal untuk tim marketing/purchasing"
                                     />
                                 </div>
@@ -850,58 +1044,86 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                         </article>
 
                         <aside className="grid content-start gap-3 self-start">
-                        <article className="rounded-2xl border border-sidebar-border/70 bg-background p-4 shadow-sm">
-                            <div className="mb-4 flex items-center gap-2">
-                                <ReceiptText className="size-4 text-muted-foreground" />
-                                <h2 className="text-base font-semibold">Ringkasan</h2>
-                            </div>
-                            <div className="space-y-3 text-sm">
-                                <div className="flex items-center justify-between border-t border-sidebar-border/70 pt-3">
-                                    <span className="text-muted-foreground">Total Price</span>
-                                    <span className="font-semibold">{formatRupiah(totalPrice)}</span>
+                            <article className="rounded-2xl border border-sidebar-border/70 bg-background p-4 shadow-sm">
+                                <div className="mb-4 flex items-center gap-2">
+                                    <ReceiptText className="size-4 text-muted-foreground" />
+                                    <h2 className="text-base font-semibold">
+                                        Ringkasan
+                                    </h2>
                                 </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground">DPP</span>
-                                    <span className="font-semibold">{formatRupiah(dpp)}</span>
+                                <div className="space-y-3 text-sm">
+                                    <div className="flex items-center justify-between border-t border-sidebar-border/70 pt-3">
+                                        <span className="text-muted-foreground">
+                                            Total Price
+                                        </span>
+                                        <span className="font-semibold">
+                                            {formatRupiah(totalPrice)}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-muted-foreground">
+                                            DPP
+                                        </span>
+                                        <span className="font-semibold">
+                                            {formatRupiah(dpp)}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-muted-foreground">
+                                            PPN ({form.ppnPercent || '0'}%)
+                                        </span>
+                                        <span className="font-semibold">
+                                            {formatRupiah(ppn)}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between border-t border-sidebar-border/70 pt-3">
+                                        <span className="text-muted-foreground">
+                                            Grand Total
+                                        </span>
+                                        <span className="text-lg font-semibold">
+                                            {formatRupiah(grandTotal)}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground">
-                                        PPN ({form.ppnPercent || '0'}%)
-                                    </span>
-                                    <span className="font-semibold">{formatRupiah(ppn)}</span>
-                                </div>
-                                <div className="flex items-center justify-between border-t border-sidebar-border/70 pt-3">
-                                    <span className="text-muted-foreground">Grand Total</span>
-                                    <span className="text-lg font-semibold">{formatRupiah(grandTotal)}</span>
-                                </div>
-                            </div>
-                        </article>
+                            </article>
 
-                        <div className="flex flex-wrap gap-2">
-                            <Button
-                                className="flex-1"
-                                type="button"
-                                onClick={handleSavePoIn}
-                                disabled={isSubmitting}
-                            >
-                                {isSubmitting && <Spinner className="mr-2" />}
-                                Simpan PO In
-                            </Button>
-                            <Button variant="outline" asChild className="flex-1">
-                                <Link href="/marketing/purchase-order-in">Batal</Link>
-                            </Button>
-                        </div>
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    className="flex-1"
+                                    type="button"
+                                    onClick={handleSavePoIn}
+                                    disabled={isSubmitting}
+                                >
+                                    {isSubmitting && (
+                                        <Spinner className="mr-2" />
+                                    )}
+                                    Simpan PO In
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    asChild
+                                    className="flex-1"
+                                >
+                                    <Link href="/marketing/purchase-order-in">
+                                        Batal
+                                    </Link>
+                                </Button>
+                            </div>
                         </aside>
                     </section>
 
                     <article className="rounded-2xl border border-sidebar-border/70 bg-background p-4 shadow-sm">
                         <div className="mb-4 flex items-center gap-2">
                             <PackageSearch className="size-4 text-muted-foreground" />
-                            <h2 className="text-base font-semibold">Item Material</h2>
+                            <h2 className="text-base font-semibold">
+                                Item Material
+                            </h2>
                         </div>
                         <div className="grid gap-4 md:grid-cols-8">
                             <div className="grid gap-2 md:col-span-1">
-                                <Label htmlFor="kode_material">Kode Material</Label>
+                                <Label htmlFor="kode_material">
+                                    Kode Material
+                                </Label>
                                 <Input
                                     id="kode_material"
                                     value={itemForm.kodeMaterial}
@@ -943,7 +1165,12 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     id="qty"
                                     type="number"
                                     value={itemForm.qty}
-                                    onChange={(event) => setItemForm((prev) => ({ ...prev, qty: event.target.value }))}
+                                    onChange={(event) =>
+                                        setItemForm((prev) => ({
+                                            ...prev,
+                                            qty: event.target.value,
+                                        }))
+                                    }
                                 />
                             </div>
                             <div className="grid gap-2 md:col-span-1">
@@ -951,24 +1178,37 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 <Input
                                     id="unit"
                                     value={itemForm.unit}
-                                    onChange={(event) => setItemForm((prev) => ({ ...prev, unit: event.target.value }))}
+                                    onChange={(event) =>
+                                        setItemForm((prev) => ({
+                                            ...prev,
+                                            unit: event.target.value,
+                                        }))
+                                    }
                                 />
                             </div>
                             <div className="grid gap-2 md:col-span-3">
                                 <Label htmlFor="price">Price PO In</Label>
                                 <Input
                                     id="price"
-                                    value={formatRupiahInput(itemForm.unitPrice)}
+                                    value={formatRupiahInput(
+                                        itemForm.unitPrice,
+                                    )}
                                     onChange={(event) =>
                                         setItemForm((prev) => ({
                                             ...prev,
-                                            unitPrice: event.target.value.replace(/[^\d]/g, ''),
+                                            unitPrice:
+                                                event.target.value.replace(
+                                                    /[^\d]/g,
+                                                    '',
+                                                ),
                                         }))
                                     }
                                 />
                             </div>
                             <div className="grid gap-2 md:col-span-3">
-                                <Label htmlFor="total_price_po_in">Total Price PO In</Label>
+                                <Label htmlFor="total_price_po_in">
+                                    Total Price PO In
+                                </Label>
                                 <Input
                                     id="total_price_po_in"
                                     value={formatRupiah(itemTotalPricePoIn)}
@@ -980,13 +1220,20 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 <Input
                                     id="item_note"
                                     value={itemForm.note}
-                                    onChange={(event) => setItemForm((prev) => ({ ...prev, note: event.target.value }))}
+                                    onChange={(event) =>
+                                        setItemForm((prev) => ({
+                                            ...prev,
+                                            note: event.target.value,
+                                        }))
+                                    }
                                 />
                             </div>
                         </div>
                         <div className="mt-4">
                             <Button type="button" onClick={handleAddItem}>
-                                {editingItemId ? 'Simpan Perubahan' : 'Tambah Item'}
+                                {editingItemId
+                                    ? 'Simpan Perubahan'
+                                    : 'Tambah Item'}
                             </Button>
                             {editingItemId && (
                                 <Button
@@ -1004,42 +1251,89 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             <table className="w-full text-sm">
                                 <thead className="bg-muted/40 text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 text-left">No</th>
-                                        <th className="px-4 py-3 text-left">Kode Material</th>
-                                        <th className="px-4 py-3 text-left">Material</th>
-                                        <th className="px-4 py-3 text-left">Qty</th>
-                                        <th className="px-4 py-3 text-left">Satuan</th>
-                                        <th className="px-4 py-3 text-left">Price PO In</th>
-                                        <th className="px-4 py-3 text-left">Total Price PO In</th>
-                                        <th className="px-4 py-3 text-left">Remark</th>
-                                        <th className="px-4 py-3 text-left">Aksi</th>
+                                        <th className="px-4 py-3 text-left">
+                                            No
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Kode Material
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Material
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Qty
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Satuan
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Price PO In
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Total Price PO In
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Remark
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Aksi
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {items.length === 0 && (
                                         <tr>
-                                            <td className="px-4 py-8 text-center text-muted-foreground" colSpan={9}>
+                                            <td
+                                                className="px-4 py-8 text-center text-muted-foreground"
+                                                colSpan={9}
+                                            >
                                                 Belum ada item material.
                                             </td>
                                         </tr>
                                     )}
                                     {items.map((item, index) => (
-                                        <tr key={item.id} className="border-t border-sidebar-border/70">
-                                            <td className="px-4 py-3">{index + 1}</td>
-                                            <td className="px-4 py-3">{item.kodeMaterial || '-'}</td>
-                                            <td className="px-4 py-3">{item.material}</td>
-                                            <td className="px-4 py-3">{item.qty}</td>
-                                            <td className="px-4 py-3">{item.unit}</td>
-                                            <td className="px-4 py-3">{formatRupiah(item.unitPrice)}</td>
-                                            <td className="px-4 py-3">{formatRupiah(toNumber(item.qty) * toNumber(item.unitPrice))}</td>
-                                            <td className="px-4 py-3">{item.note || '-'}</td>
+                                        <tr
+                                            key={item.id}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {index + 1}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.kodeMaterial || '-'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.material}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.qty}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.unit}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatRupiah(item.unitPrice)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatRupiah(
+                                                    toNumber(item.qty) *
+                                                        toNumber(
+                                                            item.unitPrice,
+                                                        ),
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.note || '-'}
+                                            </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
                                                     <Button
                                                         type="button"
                                                         variant="outline"
                                                         size="sm"
-                                                        onClick={() => handleEditItem(item)}
+                                                        onClick={() =>
+                                                            handleEditItem(item)
+                                                        }
                                                         title="Edit"
                                                     >
                                                         <Pencil className="size-4" />
@@ -1048,7 +1342,11 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                         type="button"
                                                         variant="outline"
                                                         size="sm"
-                                                        onClick={() => handleDeleteItem(item.id)}
+                                                        onClick={() =>
+                                                            handleDeleteItem(
+                                                                item.id,
+                                                            )
+                                                        }
                                                         title="Hapus"
                                                     >
                                                         <Trash2 className="size-4" />
@@ -1061,7 +1359,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             </table>
                         </div>
                         {validationErrors.materials && (
-                            <p className="mt-2 text-xs text-red-500">{validationErrors.materials}</p>
+                            <p className="mt-2 text-xs text-red-500">
+                                {validationErrors.materials}
+                            </p>
                         )}
                     </article>
                 </div>
@@ -1081,7 +1381,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     }
                 }}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Pilih Material</DialogTitle>
                         <DialogDescription className="sr-only">
@@ -1104,7 +1404,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     setMaterialPageSize(
                                         value === 'all'
                                             ? Infinity
-                                            : Number(value)
+                                            : Number(value),
                                     );
                                     setMaterialCurrentPage(1);
                                 }}
@@ -1170,7 +1470,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                         type="button"
                                                         variant="outline"
                                                         onClick={() =>
-                                                            setIsMaterialCreateModalOpen(true)
+                                                            setIsMaterialCreateModalOpen(
+                                                                true,
+                                                            )
                                                         }
                                                     >
                                                         Buat Material
@@ -1223,12 +1525,12 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         (materialCurrentPage - 1) *
                                             materialPageSize +
                                             1,
-                                        materialTotalItems
+                                        materialTotalItems,
                                     )}
                                     -
                                     {Math.min(
                                         materialCurrentPage * materialPageSize,
-                                        materialTotalItems
+                                        materialTotalItems,
                                     )}{' '}
                                     dari {materialTotalItems} data
                                 </span>
@@ -1238,7 +1540,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         size="sm"
                                         onClick={() =>
                                             setMaterialCurrentPage((page) =>
-                                                Math.max(1, page - 1)
+                                                Math.max(1, page - 1),
                                             )
                                         }
                                         disabled={materialCurrentPage === 1}
@@ -1256,8 +1558,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             setMaterialCurrentPage((page) =>
                                                 Math.min(
                                                     materialTotalPages,
-                                                    page + 1
-                                                )
+                                                    page + 1,
+                                                ),
                                             )
                                         }
                                         disabled={
@@ -1282,7 +1584,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     }
                 }}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Tambah Material</DialogTitle>
                         <DialogDescription className="sr-only">
@@ -1293,7 +1595,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     <form className="space-y-4" onSubmit={handleCreateMaterial}>
                         <div className="grid gap-4 md:grid-cols-2">
                             <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="new_material">Nama Material</Label>
+                                <Label htmlFor="new_material">
+                                    Nama Material
+                                </Label>
                                 <Input
                                     id="new_material"
                                     value={materialCreateForm.material}
@@ -1349,7 +1653,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 )}
                             </div>
                             <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="new_material_remark">Remark</Label>
+                                <Label htmlFor="new_material_remark">
+                                    Remark
+                                </Label>
                                 <Input
                                     id="new_material_remark"
                                     value={materialCreateForm.remark}
@@ -1371,12 +1677,16 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => setIsMaterialCreateModalOpen(false)}
+                                onClick={() =>
+                                    setIsMaterialCreateModalOpen(false)
+                                }
                             >
                                 Batal
                             </Button>
                             <Button type="submit" disabled={isMaterialCreating}>
-                                {isMaterialCreating ? 'Menyimpan...' : 'Simpan Data'}
+                                {isMaterialCreating
+                                    ? 'Menyimpan...'
+                                    : 'Simpan Data'}
                             </Button>
                         </div>
                     </form>
@@ -1396,7 +1706,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     }
                 }}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Pilih Customer</DialogTitle>
                         <DialogDescription className="sr-only">
@@ -1419,7 +1729,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     setCustomerPageSize(
                                         value === 'all'
                                             ? Infinity
-                                            : Number(value)
+                                            : Number(value),
                                     );
                                     setCustomerCurrentPage(1);
                                 }}
@@ -1450,10 +1760,18 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                         <table className="w-full text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 text-left">Kode CS</th>
-                                    <th className="px-4 py-3 text-left">Customer</th>
-                                    <th className="px-4 py-3 text-left">Kota</th>
-                                    <th className="px-4 py-3 text-left">Action</th>
+                                    <th className="px-4 py-3 text-left">
+                                        Kode CS
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Customer
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Kota
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Action
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1473,7 +1791,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                         type="button"
                                                         variant="outline"
                                                         onClick={() =>
-                                                            setIsCustomerCreateModalOpen(true)
+                                                            setIsCustomerCreateModalOpen(
+                                                                true,
+                                                            )
                                                         }
                                                     >
                                                         Buat Data Customer
@@ -1504,11 +1824,20 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 onClick={() => {
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        customerCode: item.kd_cs ?? '',
-                                                        customerName: item.nm_cs ?? '',
+                                                        customerCode:
+                                                            item.kd_cs ?? '',
+                                                        customerName:
+                                                            item.nm_cs ?? '',
                                                     }));
-                                                    setValidationErrors((prev) => ({ ...prev, customerName: '' }));
-                                                    setIsCustomerModalOpen(false);
+                                                    setValidationErrors(
+                                                        (prev) => ({
+                                                            ...prev,
+                                                            customerName: '',
+                                                        }),
+                                                    );
+                                                    setIsCustomerModalOpen(
+                                                        false,
+                                                    );
                                                 }}
                                             >
                                                 Pilih
@@ -1525,13 +1854,15 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             <span>
                                 Menampilkan{' '}
                                 {Math.min(
-                                    (customerCurrentPage - 1) * customerPageSize + 1,
-                                    customerTotal
+                                    (customerCurrentPage - 1) *
+                                        customerPageSize +
+                                        1,
+                                    customerTotal,
                                 )}
                                 -
                                 {Math.min(
                                     customerCurrentPage * customerPageSize,
-                                    customerTotal
+                                    customerTotal,
                                 )}{' '}
                                 dari {customerTotal} data
                             </span>
@@ -1540,26 +1871,33 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     variant="outline"
                                     size="sm"
                                     onClick={() =>
-                                        setCustomerCurrentPage((p) => Math.max(1, p - 1))
+                                        setCustomerCurrentPage((p) =>
+                                            Math.max(1, p - 1),
+                                        )
                                     }
                                     disabled={customerCurrentPage === 1}
                                 >
                                     Sebelumnya
                                 </Button>
                                 <span className="text-sm text-muted-foreground">
-                                    Halaman {customerCurrentPage} dari {customerTotalPages}
+                                    Halaman {customerCurrentPage} dari{' '}
+                                    {customerTotalPages}
                                 </span>
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() =>
                                         setCustomerCurrentPage((p) =>
-                                            Math.min(customerTotalPages || p, p + 1)
+                                            Math.min(
+                                                customerTotalPages || p,
+                                                p + 1,
+                                            ),
                                         )
                                     }
                                     disabled={
                                         customerTotalPages
-                                            ? customerCurrentPage >= customerTotalPages
+                                            ? customerCurrentPage >=
+                                              customerTotalPages
                                             : true
                                     }
                                 >
@@ -1580,7 +1918,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     }
                 }}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Tambah Customer</DialogTitle>
                         <DialogDescription className="sr-only">
@@ -1687,7 +2025,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 />
                             </div>
                             <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="new_npwp1_cs">Alamat NPWP 1</Label>
+                                <Label htmlFor="new_npwp1_cs">
+                                    Alamat NPWP 1
+                                </Label>
                                 <Input
                                     id="new_npwp1_cs"
                                     value={customerCreateForm.npwp1_cs}
@@ -1700,7 +2040,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 />
                             </div>
                             <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="new_npwp2_cs">Alamat NPWP 2</Label>
+                                <Label htmlFor="new_npwp2_cs">
+                                    Alamat NPWP 2
+                                </Label>
                                 <Input
                                     id="new_npwp2_cs"
                                     value={customerCreateForm.npwp2_cs}
@@ -1717,12 +2059,16 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => setIsCustomerCreateModalOpen(false)}
+                                onClick={() =>
+                                    setIsCustomerCreateModalOpen(false)
+                                }
                             >
                                 Batal
                             </Button>
                             <Button type="submit" disabled={isCustomerCreating}>
-                                {isCustomerCreating ? 'Menyimpan...' : 'Simpan Data'}
+                                {isCustomerCreating
+                                    ? 'Menyimpan...'
+                                    : 'Simpan Data'}
                             </Button>
                         </div>
                     </form>

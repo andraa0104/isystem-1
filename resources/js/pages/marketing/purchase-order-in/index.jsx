@@ -6,7 +6,9 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { useAppearance } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
 import { Head, router } from '@inertiajs/react';
 import {
     AlertCircle,
@@ -130,6 +132,9 @@ export default function PurchaseOrderInIndex({
     filters = {},
     pagination = {},
 }) {
+    const { resolvedAppearance } = useAppearance();
+    const isDark = resolvedAppearance === 'dark';
+
     const [search, setSearch] = useState(filters.search ?? '');
     const [perPage, setPerPage] = useState(String(filters.per_page ?? '5'));
     const [statusFilter, setStatusFilter] = useState(filters.status ?? 'all');
@@ -373,19 +378,26 @@ export default function PurchaseOrderInIndex({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Purchase Order In" />
             <div className="flex h-full flex-1 flex-col gap-5 p-4">
-                {/* Header section with solid background for better legacy OS compatibility */}
-                <section className="rounded-2xl border border-slate-700 bg-slate-900 p-5 text-white shadow-lg">
+                {/* Header section with explicit hex background for maximum compatibility */}
+                <section
+                    className="rounded-2xl border border-slate-700 bg-[#0f172a] p-5 text-white shadow-lg"
+                    style={{ backgroundColor: '#0f172a' }}
+                >
                     <div className="flex flex-wrap items-center justify-between gap-4">
                         <div>
-                            <p className="text-xs font-bold tracking-[0.22em] text-slate-300 uppercase">
+                            <p className="text-xs font-bold tracking-[0.22em] text-[#e2e8f0] uppercase">
                                 Marketing Workspace
                             </p>
-                            <h1 className="mt-1 text-2xl font-bold">
+                            <h1 className="mt-1 text-2xl font-bold text-white">
                                 Purchase Order In (PO In)
                             </h1>
                         </div>
                         <Button
-                            className="border-2 border-slate-700 bg-white font-bold text-slate-900 hover:bg-slate-100"
+                            className="border-2 border-slate-700 bg-[#ffffff] font-bold text-[#0f172a] hover:bg-[#f1f5f9]"
+                            style={{
+                                backgroundColor: '#ffffff',
+                                color: '#0f172a',
+                            }}
                             onClick={() =>
                                 router.visit(
                                     '/marketing/purchase-order-in/create',
@@ -400,7 +412,15 @@ export default function PurchaseOrderInIndex({
                 <section className="grid gap-3 md:grid-cols-3">
                     {/* Card PO IN Outstanding */}
                     <article
-                        className="cursor-pointer rounded-xl border border-sidebar-border/70 bg-background p-4 shadow-sm transition hover:border-amber-400/50 hover:shadow-md"
+                        className={cn(
+                            'cursor-pointer rounded-xl border p-4 shadow-sm transition hover:shadow-md',
+                            isDark
+                                ? 'border-slate-800 bg-[#1e293b] text-white hover:border-amber-400/50'
+                                : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-amber-400/50',
+                        )}
+                        style={{
+                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        }}
                         onClick={() => {
                             setActiveModal('outstanding');
                             setModalSearch('');
@@ -408,23 +428,46 @@ export default function PurchaseOrderInIndex({
                             setModalPage(1);
                         }}
                     >
-                        <div className="mb-3 inline-flex rounded-lg bg-muted p-2">
+                        <div
+                            className={cn(
+                                'mb-3 inline-flex rounded-lg p-2',
+                                isDark ? 'bg-slate-800' : 'bg-[#f1f5f9]',
+                            )}
+                        >
                             <ClipboardCheck className="size-4 text-amber-600" />
                         </div>
-                        <p className="text-xs tracking-wide text-muted-foreground uppercase">
+                        <p
+                            className={cn(
+                                'text-xs font-bold tracking-wide uppercase',
+                                isDark ? 'text-slate-400' : 'text-slate-600',
+                            )}
+                        >
                             PO IN Outstanding
                         </p>
-                        <p className="mt-1 text-2xl font-semibold">
+                        <p className="mt-1 text-2xl font-bold">
                             {summary.outstanding ?? 0}
                         </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <p
+                            className={cn(
+                                'mt-1 text-xs font-medium',
+                                isDark ? 'text-slate-500' : 'text-slate-500',
+                            )}
+                        >
                             Belum Dibuat PR
                         </p>
                     </article>
 
                     {/* Card PO IN Belum PR */}
                     <article
-                        className="cursor-pointer rounded-xl border border-sidebar-border/70 bg-background p-4 shadow-sm transition hover:border-rose-400/50 hover:shadow-md"
+                        className={cn(
+                            'cursor-pointer rounded-xl border p-4 shadow-sm transition hover:shadow-md',
+                            isDark
+                                ? 'border-slate-800 bg-[#1e293b] text-white hover:border-rose-400/50'
+                                : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-rose-400/50',
+                        )}
+                        style={{
+                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        }}
                         onClick={() => {
                             setActiveModal('belum_pr');
                             setModalSearch('');
@@ -432,23 +475,46 @@ export default function PurchaseOrderInIndex({
                             setModalPage(1);
                         }}
                     >
-                        <div className="mb-3 inline-flex rounded-lg bg-muted p-2">
+                        <div
+                            className={cn(
+                                'mb-3 inline-flex rounded-lg p-2',
+                                isDark ? 'bg-slate-800' : 'bg-[#f1f5f9]',
+                            )}
+                        >
                             <AlertCircle className="size-4 text-rose-600" />
                         </div>
-                        <p className="text-xs tracking-wide text-muted-foreground uppercase">
+                        <p
+                            className={cn(
+                                'text-xs font-bold tracking-wide uppercase',
+                                isDark ? 'text-slate-400' : 'text-slate-600',
+                            )}
+                        >
                             PO IN Sisa PR
                         </p>
-                        <p className="mt-1 text-2xl font-semibold">
+                        <p className="mt-1 text-2xl font-bold">
                             {summary.belum_pr ?? 0}
                         </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <p
+                            className={cn(
+                                'mt-1 text-xs font-medium',
+                                isDark ? 'text-slate-500' : 'text-slate-500',
+                            )}
+                        >
                             Masih ada sisa Material yang belum dibuat PR
                         </p>
                     </article>
 
                     {/* Card PO IN Terealisasi */}
                     <article
-                        className="cursor-pointer rounded-xl border border-sidebar-border/70 bg-background p-4 shadow-sm transition hover:border-emerald-400/50 hover:shadow-md"
+                        className={cn(
+                            'cursor-pointer rounded-xl border p-4 shadow-sm transition hover:shadow-md',
+                            isDark
+                                ? 'border-slate-800 bg-[#1e293b] text-white hover:border-emerald-400/50'
+                                : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-emerald-400/50',
+                        )}
+                        style={{
+                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        }}
                         onClick={() => {
                             setActiveModal('realized');
                             setModalSearch('');
@@ -457,11 +523,21 @@ export default function PurchaseOrderInIndex({
                         }}
                     >
                         <div className="mb-3 flex items-center justify-between gap-2">
-                            <span className="inline-flex rounded-lg bg-muted p-2">
+                            <span
+                                className={cn(
+                                    'inline-flex rounded-lg p-2',
+                                    isDark ? 'bg-slate-800' : 'bg-[#f1f5f9]',
+                                )}
+                            >
                                 <ShieldCheck className="size-4 text-emerald-600" />
                             </span>
                             <select
-                                className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs"
+                                className={cn(
+                                    'h-8 rounded-md border px-2 text-xs font-bold ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                    isDark
+                                        ? 'border-slate-700 bg-slate-800 text-white'
+                                        : 'border-slate-300 bg-[#ffffff] text-slate-900',
+                                )}
                                 value={realizedPeriod}
                                 onClick={(event) => event.stopPropagation()}
                                 onChange={(event) =>
@@ -474,13 +550,23 @@ export default function PurchaseOrderInIndex({
                                 <option value="this_year">Tahun Ini</option>
                             </select>
                         </div>
-                        <p className="text-xs tracking-wide text-muted-foreground uppercase">
+                        <p
+                            className={cn(
+                                'text-xs font-bold tracking-wide uppercase',
+                                isDark ? 'text-slate-400' : 'text-slate-600',
+                            )}
+                        >
                             PO IN Terealisasi
                         </p>
-                        <p className="mt-1 text-2xl font-semibold">
+                        <p className="mt-1 text-2xl font-bold">
                             {realizedItemsByPeriod.length}
                         </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
+                        <p
+                            className={cn(
+                                'mt-1 text-xs font-medium',
+                                isDark ? 'text-slate-500' : 'text-slate-500',
+                            )}
+                        >
                             Semua material sudah PR —{' '}
                             {periodLabelMap[realizedPeriod]}
                         </p>
