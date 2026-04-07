@@ -39,10 +39,6 @@ class InvoiceMasukController
                 ->with('error', 'Data invoice tidak ditemukan.');
         }
 
-        $noGudang = DB::table('tb_kdmi')
-            ->where('ref_pr', $header->ref_po)
-            ->value('no_doc');
-
         $items = DB::table('tb_invin')
             ->where('no_doc', $noDoc)
             ->get();
@@ -50,7 +46,6 @@ class InvoiceMasukController
         return Inertia::render('pembelian/invoice-masuk/edit', [
             'invoice' => $header,
             'invoiceItems' => $items,
-            'noGudang' => $noGudang,
         ]);
     }
     public function data(Request $request)
@@ -184,11 +179,6 @@ class InvoiceMasukController
                 'message' => 'Data invoice tidak ditemukan.',
             ], 404);
         }
-
-        $noGudang = DB::table('tb_kdmi')
-            ->where('ref_pr', $header->ref_po)
-            ->value('no_doc');
-
         $items = DB::table('tb_invin')
             ->where('no_doc', $noDoc)
             ->get();
@@ -209,27 +199,32 @@ class InvoiceMasukController
                 'pembayaran' => $header->pembayaran,
                 'sisa_bayar' => $header->sisa_bayar,
                 'tgl_bayar' => $header->tgl_bayar,
-                'no_gudang' => $noGudang,
             ],
             'items' => $items,
         ]);
     }
 
-    public function poList(Request $request)
+    public function miList(Request $request)
     {
         $search = $request->query('search');
         $pageSize = $request->query('pageSize', 5);
 
-        $query = DB::table('tb_kdmi')
-            ->select('no_doc', 'ref_pr', 'vdr', 'posting_tgl')
-            ->orderByDesc('no_doc');
+        $query = DB::table('tb_detailpo')
+            ->select('no_gudang', 'no_po as ref_pr', 'nm_vdr as vdr', 'for_cus as posting_tgl')
+            ->whereNotNull('no_gudang')
+            ->where('no_gudang', 'like', '%MI%')
+            ->whereRaw("TRIM(no_gudang) <> ''")
+            ->whereRaw("COALESCE(end_fl, 0) <> COALESCE(qty, 0)")
+            ->groupBy('no_gudang', 'no_po', 'nm_vdr', 'for_cus')
+            ->orderByDesc('no_gudang');
 
         if ($search) {
             $term = '%'.trim($search).'%';
             $query->where(function ($q) use ($term) {
-                $q->where('no_doc', 'like', $term)
-                    ->orWhere('ref_pr', 'like', $term)
-                    ->orWhere('vdr', 'like', $term);
+                $q->where('no_gudang', 'like', $term)
+                    ->orWhere('no_po', 'like', $term)
+                    ->orWhere('nm_vdr', 'like', $term)
+                    ->orWhere('for_cus', 'like', $term);
             });
         }
 
@@ -240,55 +235,62 @@ class InvoiceMasukController
         return response()->json(['data' => $data]);
     }
 
-    public function poDetail(Request $request)
+    public function miDetail(Request $request)
     {
         $noGudang = $request->query('no_gudang');
         if (!$noGudang) {
             return response()->json(['message' => 'No gudang wajib diisi'], 400);
         }
 
-        $header = DB::table('tb_kdmi')
-            ->where('no_doc', $noGudang)
+        $header = DB::table('tb_detailpo')
+            ->where('no_gudang', $noGudang)
             ->first();
 
         if (!$header) {
-            return response()->json(['message' => 'Data gudang tidak ditemukan'], 404);
+            return response()->json(['message' => 'Data MI tidak ditemukan'], 404);
         }
 
         $vendorCode = DB::table('tb_vendor')
-            ->where('nm_vdr', $header->vdr)
+            ->where('nm_vdr', $header->nm_vdr)
             ->value('kd_vdr');
-
-        $poDetail = DB::table('tb_detailpo')
-            ->where('no_po', $header->ref_pr)
-            ->first();
 
         return response()->json([
             'header' => [
-                'no_gudang' => $header->no_doc,
-                'ref_po' => $header->ref_pr,
-                'vendor' => $header->vdr,
+                'no_gudang' => $header->no_gudang,
+                'ref_po' => $header->no_po,
+                'vendor' => $header->nm_vdr,
                 'kd_vdr' => $vendorCode,
-                'payment_terms' => $poDetail->payment_terms ?? null,
-                'ppn' => $poDetail->ppn ?? 0,
+                'customer' => $header->for_cus,
+                'payment_terms' => $header->payment_terms ?? null,
+                'ppn' => $header->ppn ?? 0,
             ],
         ]);
     }
 
-    public function poMaterials(Request $request)
+    public function miMaterials(Request $request)
     {
         $noGudang = $request->query('no_gudang');
         if (!$noGudang) {
             return response()->json(['message' => 'No gudang wajib diisi'], 400);
         }
 
-        $items = DB::table('tb_mi')
-            ->where('no_doc', $noGudang)
-            ->select('kd_mat', 'material', 'qty', 'unit', 'price', 'total_price')
+        // Fetch materials that are not fully invoiced yet
+        $items = DB::table('tb_detailpo')
+            ->where('no_gudang', $noGudang)
+            ->whereRaw("COALESCE(end_fl, 0) <> COALESCE(qty, 0)")
+            ->select('kd_mat', 'material', 'qty', 'end_fl', 'unit', 'price')
             ->get();
+
+        // Calculate remaining qty and total_price for frontend
+        foreach ($items as $item) {
+            $remainingQty = (float)$item->qty - (float)($item->end_fl ?? 0);
+            $item->qty = $remainingQty; // Set current qty to remaining
+            $item->total_price = (float)$remainingQty * (float)$item->price;
+        }
 
         return response()->json(['items' => $items]);
     }
+
 
     public function store(Request $request)
     {
@@ -375,6 +377,7 @@ class InvoiceMasukController
                 'no_doc' => $newCode,
                 't_doc' => $payload['no_receipt'],
                 'ref_po' => $payload['ref_po'],
+                'no_gudang' => $payload['no_gudang'],
                 'doc_rec' => $docRec,
                 'inv_d' => $invDate,
                 'post' => $postDate,
@@ -399,15 +402,11 @@ class InvoiceMasukController
                     ->where('kd_mat', $item['kd_mat'])
                     ->value('id_po');
 
-                $idMi = DB::table('tb_mi')
-                    ->where('no_doc', $payload['no_gudang'])
-                    ->where('kd_mat', $item['kd_mat'])
-                    ->value('id');
-
                 $items[] = [
                     'no_doc' => $newCode,
                     't_doc' => $payload['no_receipt'],
                     'ref_po' => $payload['ref_po'],
+                    'no_gudang' => $payload['no_gudang'],
                     'doc_rec' => $docRecDetail,
                     'inv_d' => $invDateDetail,
                     'p_term' => $payload['p_term'],
@@ -425,13 +424,29 @@ class InvoiceMasukController
                     'rest_po' => 0,
                     'post' => $postDateDetail,
                     'id_po' => $idPo,
-                    'id_mi' => $idMi,
                 ];
 
-                DB::table('tb_mi')
-                    ->where('no_doc', $payload['no_gudang'])
+                // Update tb_detailpo with custom logic
+                $prev = DB::table('tb_detailpo')
+                    ->where('no_po', $payload['ref_po'])
+                    ->where('no_gudang', $payload['no_gudang'])
                     ->where('kd_mat', $item['kd_mat'])
-                    ->update(['inv' => 1]);
+                    ->first(['ir_mat', 'ir_price', 'end_fl']);
+
+                $newIrMat = (float)$item['qty'] - (float)($prev->ir_mat ?? 0);
+                $newIrPrice = (float)$item['total_price'] - (float)($prev->ir_price ?? 0);
+                $newEndFl = (float)($prev->end_fl ?? 0) + (float)$item['qty'];
+
+                DB::table('tb_detailpo')
+                    ->where('no_po', $payload['ref_po'])
+                    ->where('no_gudang', $payload['no_gudang'])
+                    ->where('kd_mat', $item['kd_mat'])
+                    ->update([
+                        'ir_mat' => $newIrMat,
+                        'ir_price' => $newIrPrice,
+                        'end_fl' => $newEndFl,
+                        'end_gr' => DB::raw("COALESCE(end_gr, 0) + " . (float)$item['total_price'])
+                    ]);
             }
 
             DB::table('tb_invin')->insert($items);
@@ -517,7 +532,6 @@ class InvoiceMasukController
                     ->where('no_po', $refPo)
                     ->update([
                         'end_fl' => 0,
-                        'end_gr' => 0,
                     ]);
             }
 
@@ -527,14 +541,19 @@ class InvoiceMasukController
                 ->get();
 
             if ($refPo) {
+                $noGudang = $header->no_gudang ?? null;
                 foreach ($detailItems as $item) {
-                    DB::table('tb_detailpo')
+                    $q = DB::table('tb_detailpo')
                         ->where('no_po', $refPo)
-                        ->where('kd_mat', $item->kd_mat)
-                        ->update([
-                            'gr_mat' => $item->qty_gr ?? 0,
-                            'gr_price' => $item->ttl_harga ?? 0,
-                        ]);
+                        ->where('kd_mat', $item->kd_mat);
+                    
+                    if ($noGudang) {
+                        $q->where('no_gudang', $noGudang);
+                    }
+                    
+                    $q->decrement('end_fl', (float)($item->qty_gr ?? 0), [
+                        'end_gr' => DB::raw("COALESCE(end_gr, 0) - " . (float)($item->ttl_harga ?? 0))
+                    ]);
                 }
             }
 

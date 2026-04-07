@@ -591,6 +591,8 @@ class DeliveryOrderController
         $remarkValue = $remarkInput === null ? ' ' : $remarkInput;
         $refPr = $request->input('ref_pr');
         $newDateInput = $request->input('date');
+        $stockNow = $request->input('stock_now');
+
         try {
             $parsed = $newDateInput ? \Carbon\Carbon::parse($newDateInput) : null;
             $newDate = $parsed ? $parsed->format('d.m.Y') : $newDateInput;
@@ -608,6 +610,8 @@ class DeliveryOrderController
                 $refPr,
                 $oldQty,
                 $newQty,
+                $newDate,
+                $stockNow,
                 $parseNumber
             ) {
                 DB::table('tb_do')
@@ -617,7 +621,17 @@ class DeliveryOrderController
                         'date' => $newDate,
                         'qty' => $newQtyInput,
                         'remark' => $remarkValue,
+                        'total' => (float)$newQty * (float)($row->harga ?? 0),
                     ]);
+
+                if ($row->mat && $stockNow !== null) {
+                    DB::table('tb_material')
+                        ->whereRaw('lower(trim(material)) = ?', [strtolower(trim((string) $row->mat))])
+                        ->update([
+                            'stok' => $stockNow,
+                            'rest_stock' => $stockNow,
+                        ]);
+                }
 
                 if (!$refPr) {
                     return;
@@ -655,7 +669,9 @@ class DeliveryOrderController
             return back()->with('error', $exception->getMessage());
         }
 
-        return back()->with('success', 'Data DO berhasil diperbarui.');
+        return redirect()
+            ->route('marketing.delivery-order.index')
+            ->with('success', 'Data DO berhasil diperbarui.');
     }
 
     public function destroyDetail(Request $request, $noDo, $lineNo)

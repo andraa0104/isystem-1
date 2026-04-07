@@ -158,22 +158,40 @@ class TransferMaterialController
                             ->update($update);
                     }
 
-                    // Saat qty == miu => ambil No MI lalu update ke tb_detailpo.no_gudang.
-                    if (
-                        $newMiu !== null
-                        && $totalQty !== null
-                        && abs($newMiu - $totalQty) < 0.000001
-                        && Schema::hasTable('tb_detailpo')
-                        && Schema::hasColumn('tb_detailpo', 'no_gudang')
-                    ) {
+                    // Update tb_detailpo with tracking logic
+                    if (Schema::hasTable('tb_detailpo')) {
                         $matCol = Schema::hasColumn('tb_detailpo', 'kd_mat')
                             ? 'kd_mat'
                             : (Schema::hasColumn('tb_detailpo', 'no_material') ? 'no_material' : null);
                         if ($matCol) {
-                            DB::table('tb_detailpo')
-                                ->where('no_po', (string) ($row->ref_po ?? ''))
+                            $refPo = (string)($row->ref_po ?? '');
+                            $prev = DB::table('tb_detailpo')
+                                ->where('no_po', $refPo)
                                 ->where($matCol, $kdMat)
-                                ->update(['no_gudang' => $noDoc]);
+                                ->first(['end_gr', 'ir_mat', 'ir_price']);
+
+                            $detailUpdate = [
+                                'gr_mat' => $qty,
+                                'gr_price' => $deltaValue,
+                                'end_gr' => (float)($prev->end_gr ?? 0) + $qty,
+                                'ir_mat' => (float)($prev->ir_mat ?? 0) + $qty,
+                                'ir_price' => (float)($prev->ir_price ?? 0) + $deltaValue,
+                            ];
+
+                            // Saat qty == miu => update no_gudang
+                            if (
+                                $newMiu !== null
+                                && $totalQty !== null
+                                && abs($newMiu - $totalQty) < 0.000001
+                                && Schema::hasColumn('tb_detailpo', 'no_gudang')
+                            ) {
+                                $detailUpdate['no_gudang'] = $noDoc;
+                            }
+
+                            DB::table('tb_detailpo')
+                                ->where('no_po', $refPo)
+                                ->where($matCol, $kdMat)
+                                ->update($detailUpdate);
                         }
                     }
 
@@ -449,16 +467,32 @@ class TransferMaterialController
 
                     DB::table('tb_mi')->insert($insert);
 
-                    // Saat qty == miu (transfer full) => update tb_detailpo.no_gudang dengan No MI (no_doc).
+                    // Update tb_detailpo with tracking logic
+                    $prev = DB::table('tb_detailpo')
+                        ->where('no_po', $refPo)
+                        ->where($matCol, $kdMat)
+                        ->first(['end_gr', 'ir_mat', 'ir_price']);
+
+                    $detailUpdate = [
+                        'gr_mat' => $qty,
+                        'gr_price' => $totalTransfer,
+                        'end_gr' => (float)($prev->end_gr ?? 0) + $qty,
+                        'ir_mat' => (float)($prev->ir_mat ?? 0) + $qty,
+                        'ir_price' => (float)($prev->ir_price ?? 0) + $totalTransfer,
+                    ];
+
+                    // Saat transfer full => update no_gudang
                     if (
                         Schema::hasColumn('tb_detailpo', 'no_gudang')
                         && abs($remainingAfter) < 0.000001
                     ) {
-                        DB::table('tb_detailpo')
-                            ->where('no_po', $refPo)
-                            ->where($matCol, $kdMat)
-                            ->update(['no_gudang' => $noDoc]);
+                        $detailUpdate['no_gudang'] = $noDoc;
                     }
+
+                    DB::table('tb_detailpo')
+                        ->where('no_po', $refPo)
+                        ->where($matCol, $kdMat)
+                        ->update($detailUpdate);
 
                     // Update tb_material: stok += qty, harga = price (overwrite, not add)
                     if (Schema::hasTable('tb_material') && Schema::hasColumn('tb_material', 'kd_material')) {

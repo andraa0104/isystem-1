@@ -132,7 +132,7 @@ class DataMaterialController
         try {
             DB::transaction(function () use ($key, $table, $id) {
                 $row = DB::table($table)
-                    ->select('id', 'no_doc')
+                    ->select('*')
                     ->where('id', (int) $id)
                     ->lockForUpdate()
                     ->first();
@@ -150,6 +150,41 @@ class DataMaterialController
 
                 if ($noDoc === '') {
                     return;
+                }
+
+                // If MI or MIS, revert tb_detailpo counters
+                if ($key === 'mi' || $key === 'mis') {
+                    $refPo = (string) ($row->ref_po ?? '');
+                    $kdMat = (string) ($row->kd_mat ?? '');
+                    $qty = (float) ($row->qty ?? 0);
+                    $price = (float) ($row->price ?? 0);
+
+                    if ($refPo !== '' && $kdMat !== '' && Schema::hasTable('tb_detailpo')) {
+                        $matCol = Schema::hasColumn('tb_detailpo', 'kd_mat')
+                            ? 'kd_mat'
+                            : (Schema::hasColumn('tb_detailpo', 'no_material') ? 'no_material' : null);
+
+                        if ($matCol) {
+                            $prev = DB::table('tb_detailpo')
+                                ->where('no_po', $refPo)
+                                ->where($matCol, $kdMat)
+                                ->lockForUpdate()
+                                ->first(['ir_mat', 'ir_price', 'gr_mat', 'gr_price', 'end_gr']);
+
+                            if ($prev) {
+                                DB::table('tb_detailpo')
+                                    ->where('no_po', $refPo)
+                                    ->where($matCol, $kdMat)
+                                    ->update([
+                                        'ir_mat' => (float)$prev->ir_mat - $qty,
+                                        'ir_price' => (float)$prev->ir_price - ($qty * $price),
+                                        'gr_mat' => (float)$prev->gr_mat + $qty,
+                                        'gr_price' => (float)$prev->gr_price + ($qty * $price),
+                                        'end_gr' => (float)$prev->end_gr - $qty,
+                                    ]);
+                            }
+                        }
+                    }
                 }
 
                 // Cleanup header table when the document no longer exists in detail table.

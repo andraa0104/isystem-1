@@ -35,7 +35,7 @@ class PenerimaanMaterialController
         $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
 
         $base = DB::table('tb_detailpo')
-            ->whereRaw("UPPER(TRIM(COALESCE(no_gudang, ''))) NOT LIKE '%MI%'");
+            ->where('gr_mat', '<>', 0);
 
         if ($search !== '') {
             $base->where(function ($q) use ($search) {
@@ -76,11 +76,12 @@ class PenerimaanMaterialController
         $query = DB::table('tb_detailpo')
             ->leftJoin('tb_material', 'tb_material.kd_material', '=', 'tb_detailpo.kd_mat')
             ->where('tb_detailpo.no_po', $noPo)
-            ->whereRaw("UPPER(TRIM(COALESCE(tb_detailpo.no_gudang, ''))) NOT LIKE '%MI%'")
+            ->where('tb_detailpo.gr_mat', '<>', 0)
             ->select(
                 'tb_detailpo.kd_mat',
                 'tb_detailpo.material',
                 'tb_detailpo.qty',
+                'tb_detailpo.gr_mat',
                 'tb_detailpo.unit',
                 'tb_detailpo.price',
                 'tb_detailpo.no_gudang',
@@ -215,11 +216,17 @@ class PenerimaanMaterialController
                     ]);
 
                     // Update tb_detailpo based on No PO & Kode Material
+                    $prev = DB::table('tb_detailpo')
+                        ->where('no_po', $data['no_po'])
+                        ->where($detailMatColumn, $kdMat)
+                        ->first(['end_gr', 'ir_mat', 'ir_price']);
+
                     $detailUpdate = [
-                        'ir_mat' => $row['qty'],
-                        'ir_price' => $row['total_price'],
-                        'gr_mat' => 0,
-                        'gr_price' => 0,
+                        'gr_mat' => $row['qty'],
+                        'gr_price' => $row['total_price'],
+                        'end_gr' => (float)($prev->end_gr ?? 0) + (float)$row['qty'],
+                        'ir_mat' => (float)($prev->ir_mat ?? 0) + (float)$row['qty'],
+                        'ir_price' => (float)($prev->ir_price ?? 0) + (float)$row['total_price'],
                     ];
                     // no_gudang will be set in TransferMaterialController when qty == miu.
 

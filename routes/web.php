@@ -816,12 +816,12 @@ Route::get('pembelian/invoice-masuk/create', [InvoiceMasukController::class, 'cr
     ->name('pembelian.invoice-masuk.create');
 Route::get('pembelian/invoice-masuk/{noDoc}/edit', [InvoiceMasukController::class, 'edit'])
     ->name('pembelian.invoice-masuk.edit');
-Route::get('pembelian/invoice-masuk/po-list', [InvoiceMasukController::class, 'poList'])
-    ->name('pembelian.invoice-masuk.po-list');
-Route::get('pembelian/invoice-masuk/po-detail', [InvoiceMasukController::class, 'poDetail'])
-    ->name('pembelian.invoice-masuk.po-detail');
-Route::get('pembelian/invoice-masuk/po-materials', [InvoiceMasukController::class, 'poMaterials'])
-    ->name('pembelian.invoice-masuk.po-materials');
+Route::get('pembelian/invoice-masuk/mi-list', [InvoiceMasukController::class, 'miList'])
+    ->name('pembelian.invoice-masuk.mi-list');
+Route::get('pembelian/invoice-masuk/mi-detail', [InvoiceMasukController::class, 'miDetail'])
+    ->name('pembelian.invoice-masuk.mi-detail');
+Route::get('pembelian/invoice-masuk/mi-materials', [InvoiceMasukController::class, 'miMaterials'])
+    ->name('pembelian.invoice-masuk.mi-materials');
 Route::get('pembelian/invoice-masuk/paid', [InvoiceMasukController::class, 'paid'])
     ->name('pembelian.invoice-masuk.paid');
 Route::get('pembelian/invoice-masuk/{noDoc}', [InvoiceMasukController::class, 'detail'])

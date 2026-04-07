@@ -13,8 +13,8 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, Trash2 } from 'lucide-react';
-import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const formatDate = (date) => {
     if (!date) return '';
@@ -37,9 +37,9 @@ const renderValue = (value) =>
 
 export default function DeliveryOrderEdit({
     deliveryOrder,
-        items = [],
-        prItems = [],
-    }) {
+    items = [],
+    prItems = [],
+}) {
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [sourceItems, setSourceItems] = useState(prItems);
@@ -61,6 +61,7 @@ export default function DeliveryOrderEdit({
         unit: '',
         remark: '',
         last_stock: 0,
+        original_qty: 0,
         stock_now: 0,
     });
 
@@ -93,18 +94,19 @@ export default function DeliveryOrderEdit({
             (item.kd_material && prLookup.get(`kd:${item.kd_material}`)) ||
             (item.material && prLookup.get(`mat:${item.material}`));
         const lastStock = Number(source?.last_stock ?? 0);
-        const qty = item.qty ?? '';
-        const stockNow = lastStock - Number(qty || 0);
+        const originalQty = Number(item.qty ?? 0);
+        const stockNow = lastStock; // If NewQty == OriginalQty, StockNow = LastStock
 
         setSelectedLineNo(item.no);
         setInputItem({
             no: item.no,
             kd_material: item.kd_material ?? '',
             material: item.material ?? '',
-            qty: qty,
+            qty: item.qty ?? '',
             unit: item.unit ?? '',
             remark: item.remark ?? '',
             last_stock: lastStock,
+            original_qty: originalQty,
             stock_now: stockNow,
         });
     };
@@ -115,7 +117,8 @@ export default function DeliveryOrderEdit({
             const newValue = { ...prev, [name]: value };
             if (name === 'qty') {
                 const qtyVal = Number(value || 0);
-                newValue.stock_now = prev.last_stock - qtyVal;
+                newValue.stock_now =
+                    prev.last_stock + prev.original_qty - qtyVal;
             }
             return newValue;
         });
@@ -127,13 +130,14 @@ export default function DeliveryOrderEdit({
         }
 
         router.put(
-                `/marketing/delivery-order/${encodeURIComponent(
-                    deliveryOrder.no_do,
-                )}/detail/${encodeURIComponent(inputItem.no)}`,
+            `/marketing/delivery-order/${encodeURIComponent(
+                deliveryOrder.no_do,
+            )}/detail/${encodeURIComponent(inputItem.no)}`,
             {
                 qty: inputItem.qty,
                 remark: inputItem.remark,
                 date: formData.date,
+                stock_now: inputItem.stock_now,
             },
             {
                 preserveScroll: true,
@@ -201,7 +205,9 @@ export default function DeliveryOrderEdit({
                                 Accept: 'application/json',
                                 'X-CSRF-TOKEN':
                                     document
-                                        .querySelector('meta[name="csrf-token"]')
+                                        .querySelector(
+                                            'meta[name="csrf-token"]',
+                                        )
                                         ?.getAttribute('content') ?? '',
                             },
                         },
@@ -209,7 +215,10 @@ export default function DeliveryOrderEdit({
 
                     const data = await response.json().catch(() => ({}));
                     if (!response.ok) {
-                        throw new Error(data?.message || 'Gagal menghapus data material DO.');
+                        throw new Error(
+                            data?.message ||
+                                'Gagal menghapus data material DO.',
+                        );
                     }
 
                     return data;
@@ -223,7 +232,9 @@ export default function DeliveryOrderEdit({
 
             setFormData((prev) => ({
                 ...prev,
-                items: prev.items.filter((row) => String(row.no) !== String(item.no)),
+                items: prev.items.filter(
+                    (row) => String(row.no) !== String(item.no),
+                ),
             }));
 
             if (String(selectedLineNo) === String(item.no)) {
@@ -240,7 +251,10 @@ export default function DeliveryOrderEdit({
                 });
             }
 
-            showToast(result.value?.message || 'Data material DO berhasil dihapus.', 'success');
+            showToast(
+                result.value?.message || 'Data material DO berhasil dihapus.',
+                'success',
+            );
         });
     };
 
@@ -339,10 +353,13 @@ export default function DeliveryOrderEdit({
                                         onClick={handleSaveStep1}
                                         disabled={isSubmitting}
                                     >
-                                        {isSubmitting ? 'Menyimpan...' : 'Simpan Data'}
+                                        {isSubmitting
+                                            ? 'Menyimpan...'
+                                            : 'Simpan Data'}
                                     </Button>
                                     <Button onClick={nextStep}>
-                                        Next <ArrowRight className="ml-2 h-4 w-4" />
+                                        Next{' '}
+                                        <ArrowRight className="ml-2 h-4 w-4" />
                                     </Button>
                                 </div>
                             </div>
@@ -413,11 +430,18 @@ export default function DeliveryOrderEdit({
                                             value={inputItem.stock_now}
                                         />
                                     </div>
-                                    <div className="flex items-end justify-end lg:col-span-4">
+                                    <div className="flex flex-col items-end justify-end gap-2 lg:col-span-4">
+                                        {inputItem.stock_now < 0 && (
+                                            <p className="text-xs font-semibold text-destructive">
+                                                Stock now tidak boleh minus.
+                                            </p>
+                                        )}
                                         <Button
                                             onClick={handleUpdateItem}
                                             disabled={
-                                                isSubmitting || !inputItem.no
+                                                isSubmitting ||
+                                                !inputItem.no ||
+                                                inputItem.stock_now < 0
                                             }
                                         >
                                             {isSubmitting
@@ -486,9 +510,13 @@ export default function DeliveryOrderEdit({
                                                                     type="button"
                                                                     variant="ghost"
                                                                     size="icon"
-                                                                    onClick={(event) => {
+                                                                    onClick={(
+                                                                        event,
+                                                                    ) => {
                                                                         event.stopPropagation();
-                                                                        handleDeleteItem(item);
+                                                                        handleDeleteItem(
+                                                                            item,
+                                                                        );
                                                                     }}
                                                                     aria-label="Hapus material"
                                                                 >

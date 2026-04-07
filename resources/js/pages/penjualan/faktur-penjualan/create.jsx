@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
     Table,
     TableBody,
@@ -18,7 +19,7 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
-import { Search, Trash2 } from 'lucide-react';
+import { FileText, Hash, Package, Search, Trash2, User } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
@@ -141,8 +142,7 @@ export default function FakturPenjualanCreate() {
         if (outstandingPageSize === Infinity) {
             return filteredOutstanding;
         }
-        const startIndex =
-            (outstandingCurrentPage - 1) * outstandingPageSize;
+        const startIndex = (outstandingCurrentPage - 1) * outstandingPageSize;
         return filteredOutstanding.slice(
             startIndex,
             startIndex + outstandingPageSize,
@@ -211,7 +211,7 @@ export default function FakturPenjualanCreate() {
         const qty = toNumber(item.qty);
         const hpp = toNumber(item.hpp);
         setMaterialInput({
-            no_ref: type === 'do' ? item.no_do ?? '' : item.no_dob ?? '',
+            no_ref: type === 'do' ? (item.no_do ?? '') : (item.no_dob ?? ''),
             kd_material: item.kd_material ?? '',
             material: item.mat ?? '',
             qty: item.qty ?? '',
@@ -228,10 +228,12 @@ export default function FakturPenjualanCreate() {
         const { name, value } = event.target;
         setMaterialInput((prev) => {
             const next = { ...prev, [name]: value };
-            if (name === 'qty' || name === 'hpp') {
+            if (name === 'qty' || name === 'hpp' || name === 'price') {
                 const qty = toNumber(name === 'qty' ? value : next.qty);
                 const hpp = toNumber(name === 'hpp' ? value : next.hpp);
+                const price = toNumber(name === 'price' ? value : next.price);
                 next.total_hpp = qty * hpp;
+                next.total = qty * price;
             }
             return next;
         });
@@ -246,8 +248,7 @@ export default function FakturPenjualanCreate() {
             {
                 ...materialInput,
                 total_hpp:
-                    toNumber(materialInput.qty) *
-                    toNumber(materialInput.hpp),
+                    toNumber(materialInput.qty) * toNumber(materialInput.hpp),
             },
         ]);
         setMaterialInput({
@@ -303,7 +304,9 @@ export default function FakturPenjualanCreate() {
                 }
                 const doData = await doResponse.json();
                 const doAddData = await doAddResponse.json();
-                setDoMaterials(Array.isArray(doData?.items) ? doData.items : []);
+                setDoMaterials(
+                    Array.isArray(doData?.items) ? doData.items : [],
+                );
                 setDoAddMaterials(
                     Array.isArray(doAddData?.items) ? doAddData.items : [],
                 );
@@ -351,7 +354,9 @@ export default function FakturPenjualanCreate() {
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-xl font-semibold">Tambah Invoice</h1>
+                        <h1 className="text-xl font-semibold">
+                            Tambah Invoice
+                        </h1>
                         <p className="text-sm text-muted-foreground">
                             Isi data invoice dalam dua langkah
                         </p>
@@ -403,7 +408,9 @@ export default function FakturPenjualanCreate() {
                                 </Button>
                             </div>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">Date</span>
+                                <span className="text-muted-foreground">
+                                    Date
+                                </span>
                                 <Input
                                     type="date"
                                     value={formData.date}
@@ -435,20 +442,25 @@ export default function FakturPenjualanCreate() {
                                     Nomor Faktur Pajak
                                 </span>
                                 <Input
-                                    value={formatInvoiceNumber(formData.no_invoice)}
+                                    value={formatInvoiceNumber(
+                                        formData.no_invoice,
+                                    )}
                                     onChange={(event) =>
                                         setFormData((prev) => ({
                                             ...prev,
-                                            no_invoice: event.target.value.replace(
-                                                /\D/g,
-                                                '',
-                                            ),
+                                            no_invoice:
+                                                event.target.value.replace(
+                                                    /\D/g,
+                                                    '',
+                                                ),
                                         }))
                                     }
                                 />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">Ref PO In</span>
+                                <span className="text-muted-foreground">
+                                    Ref PO In
+                                </span>
                                 <Input value={formData.ref_po_in} readOnly />
                             </label>
                             <label className="space-y-2 text-sm">
@@ -464,7 +476,9 @@ export default function FakturPenjualanCreate() {
                                 <Input value={formData.nm_cs} readOnly />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">PPN</span>
+                                <span className="text-muted-foreground">
+                                    PPN
+                                </span>
                                 <Input
                                     type="number"
                                     value={formData.ppn}
@@ -513,7 +527,8 @@ export default function FakturPenjualanCreate() {
                                             doMaterials.length === 0 && (
                                                 <TableRow>
                                                     <TableCell colSpan={7}>
-                                                        Memuat data material DO...
+                                                        Memuat data material
+                                                        DO...
                                                     </TableCell>
                                                 </TableRow>
                                             )}
@@ -531,14 +546,27 @@ export default function FakturPenjualanCreate() {
                                                 key={`do-${item.no_do ?? item.mat}-${index}`}
                                                 className="cursor-pointer hover:bg-muted/60"
                                                 onClick={() =>
-                                                    handleSelectMaterial(item, 'do')
+                                                    handleSelectMaterial(
+                                                        item,
+                                                        'do',
+                                                    )
                                                 }
                                             >
-                                                <TableCell>{index + 1}</TableCell>
-                                                <TableCell>{item.no_do}</TableCell>
-                                                <TableCell>{item.mat}</TableCell>
-                                                <TableCell>{item.qty}</TableCell>
-                                                <TableCell>{item.unit}</TableCell>
+                                                <TableCell>
+                                                    {index + 1}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.no_do}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.mat}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.qty}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.unit}
+                                                </TableCell>
                                                 <TableCell>
                                                     {formatRupiah(item.harga)}
                                                 </TableCell>
@@ -594,14 +622,27 @@ export default function FakturPenjualanCreate() {
                                                 key={`do-add-${item.no_dob ?? item.mat}-${index}`}
                                                 className="cursor-pointer hover:bg-muted/60"
                                                 onClick={() =>
-                                                    handleSelectMaterial(item, 'dot')
+                                                    handleSelectMaterial(
+                                                        item,
+                                                        'dot',
+                                                    )
                                                 }
                                             >
-                                                <TableCell>{index + 1}</TableCell>
-                                                <TableCell>{item.no_dob}</TableCell>
-                                                <TableCell>{item.mat}</TableCell>
-                                                <TableCell>{item.qty}</TableCell>
-                                                <TableCell>{item.unit}</TableCell>
+                                                <TableCell>
+                                                    {index + 1}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.no_dob}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.mat}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.qty}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.unit}
+                                                </TableCell>
                                                 <TableCell>
                                                     {formatRupiah(item.harga)}
                                                 </TableCell>
@@ -614,8 +655,16 @@ export default function FakturPenjualanCreate() {
                                                         className="text-destructive hover:text-destructive/80"
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            setDoAddMaterials((prev) =>
-                                                                prev.filter((_, i) => i !== index),
+                                                            setDoAddMaterials(
+                                                                (prev) =>
+                                                                    prev.filter(
+                                                                        (
+                                                                            _,
+                                                                            i,
+                                                                        ) =>
+                                                                            i !==
+                                                                            index,
+                                                                    ),
                                                             );
                                                         }}
                                                     >
@@ -677,36 +726,42 @@ export default function FakturPenjualanCreate() {
                                 <div className="grid gap-2">
                                     <Label>Price</Label>
                                     <Input
-                                        name="price"
-                                        value={materialInput.price}
-                                        onChange={handleMaterialInputChange}
+                                        value={formatRupiah(
+                                            materialInput.price,
+                                        )}
+                                        readOnly
                                     />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Total Price</Label>
                                     <Input
-                                        name="total"
-                                        value={materialInput.total}
-                                        onChange={handleMaterialInputChange}
+                                        value={formatRupiah(
+                                            materialInput.total,
+                                        )}
+                                        readOnly
                                     />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>HPP</Label>
                                     <Input
-                                        name="hpp"
-                                        value={materialInput.hpp}
-                                        onChange={handleMaterialInputChange}
+                                        value={formatRupiah(materialInput.hpp)}
+                                        readOnly
                                     />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Total HPP</Label>
                                     <Input
-                                        value={formatRupiah(materialInput.total_hpp)}
+                                        value={formatRupiah(
+                                            materialInput.total_hpp,
+                                        )}
                                         readOnly
                                     />
                                 </div>
                                 <div className="flex items-end">
-                                    <Button type="button" onClick={handleAddMaterialRow}>
+                                    <Button
+                                        type="button"
+                                        onClick={handleAddMaterialRow}
+                                    >
                                         Tambah Data
                                     </Button>
                                 </div>
@@ -746,14 +801,24 @@ export default function FakturPenjualanCreate() {
                                             <TableRow
                                                 key={`material-${item.no_ref}-${index}`}
                                             >
-                                                <TableCell>{index + 1}</TableCell>
-                                                <TableCell>{item.no_ref}</TableCell>
+                                                <TableCell>
+                                                    {index + 1}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.no_ref}
+                                                </TableCell>
                                                 <TableCell>
                                                     {item.kd_material}
                                                 </TableCell>
-                                                <TableCell>{item.material}</TableCell>
-                                                <TableCell>{item.qty}</TableCell>
-                                                <TableCell>{item.unit}</TableCell>
+                                                <TableCell>
+                                                    {item.material}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.qty}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.unit}
+                                                </TableCell>
                                                 <TableCell>
                                                     {formatRupiah(item.price)}
                                                 </TableCell>
@@ -764,15 +829,25 @@ export default function FakturPenjualanCreate() {
                                                     {formatRupiah(item.hpp)}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {formatRupiah(item.total_hpp)}
+                                                    {formatRupiah(
+                                                        item.total_hpp,
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-center">
                                                     <button
                                                         type="button"
                                                         className="text-destructive hover:text-destructive/80"
                                                         onClick={() =>
-                                                            setMaterialRows((prev) =>
-                                                                prev.filter((_, i) => i !== index),
+                                                            setMaterialRows(
+                                                                (prev) =>
+                                                                    prev.filter(
+                                                                        (
+                                                                            _,
+                                                                            i,
+                                                                        ) =>
+                                                                            i !==
+                                                                            index,
+                                                                    ),
                                                             )
                                                         }
                                                     >
@@ -840,7 +915,9 @@ export default function FakturPenjualanCreate() {
                             <Button
                                 type="button"
                                 onClick={handleSubmit}
-                                disabled={isSubmitting || materialRows.length === 0}
+                                disabled={
+                                    isSubmitting || materialRows.length === 0
+                                }
                             >
                                 Tambah Invoice
                             </Button>
@@ -849,95 +926,203 @@ export default function FakturPenjualanCreate() {
                 )}
             </div>
 
-            <Dialog open={isOutstandingOpen} onOpenChange={setIsOutstandingOpen}>
-                <DialogContent className="h-[100dvh] w-screen max-w-none overflow-hidden p-0">
-                    <DialogHeader>
-                        <DialogTitle className="px-6 pt-6">
-                            DO Outstanding
-                        </DialogTitle>
+            <Dialog
+                open={isOutstandingOpen}
+                onOpenChange={setIsOutstandingOpen}
+            >
+                <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden p-0 sm:h-[85vh] sm:w-[95vw] sm:max-w-5xl sm:rounded-2xl">
+                    <DialogHeader className="shrink-0 border-b bg-background/80 px-6 py-4 backdrop-blur">
+                        <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                <Package className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-semibold">
+                                    DO Outstanding
+                                </DialogTitle>
+                                <p className="text-xs text-muted-foreground">
+                                    Pilih Delivery Order yang belum ditagihkan
+                                </p>
+                            </div>
+                        </div>
                     </DialogHeader>
-                    <div className="flex h-[calc(100dvh-80px)] flex-col gap-4 overflow-hidden px-6 pb-6">
-                        <div className="flex flex-wrap items-center gap-3 text-sm">
-                            <select
-                                className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3"
-                                value={
-                                    outstandingPageSize === Infinity
-                                        ? 'all'
-                                        : outstandingPageSize
-                                }
-                                onChange={(event) => {
-                                    const value = event.target.value;
-                                    setOutstandingPageSize(
-                                        value === 'all' ? Infinity : Number(value),
-                                    );
-                                    setOutstandingCurrentPage(1);
-                                }}
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value="all">Semua</option>
-                            </select>
-                            <Input
-                                placeholder="Cari DO outstanding..."
-                                value={outstandingSearchTerm}
-                                onChange={(event) =>
-                                    setOutstandingSearchTerm(event.target.value)
-                                }
-                            />
+
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="relative flex-1 sm:max-w-md">
+                                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <Input
+                                    placeholder="Cari No DO, Ref PO, Nama Customer..."
+                                    value={outstandingSearchTerm}
+                                    onChange={(event) =>
+                                        setOutstandingSearchTerm(
+                                            event.target.value,
+                                        )
+                                    }
+                                    className="pl-9"
+                                />
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <span className="text-sm font-medium text-muted-foreground">
+                                    Tampil
+                                </span>
+                                <select
+                                    className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+                                    value={
+                                        outstandingPageSize === Infinity
+                                            ? 'all'
+                                            : outstandingPageSize
+                                    }
+                                    onChange={(event) => {
+                                        const value = event.target.value;
+                                        setOutstandingPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value),
+                                        );
+                                        setOutstandingCurrentPage(1);
+                                    }}
+                                >
+                                    <option value={5}>5 Baris</option>
+                                    <option value={10}>10 Baris</option>
+                                    <option value={25}>25 Baris</option>
+                                    <option value={50}>50 Baris</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </div>
                         </div>
-                        <div className="flex-1 overflow-auto rounded-md border">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Ref PO</TableHead>
-                                        <TableHead>Kode CS</TableHead>
-                                        <TableHead>Customer</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {displayedOutstanding.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={3}>
-                                                {outstandingLoading
-                                                    ? 'Memuat data DO outstanding...'
-                                                    : outstandingError ||
-                                                      'Tidak ada DO outstanding.'}
-                                            </TableCell>
+
+                        <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border bg-card shadow-sm">
+                            <div className="h-full overflow-auto overscroll-contain">
+                                <Table>
+                                    <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/80">
+                                        <TableRow className="hover:bg-transparent">
+                                            <TableHead className="w-[15%] px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    <Hash className="h-3.5 w-3.5 text-primary" />
+                                                    No DO
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="w-[25%] px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    <FileText className="h-3.5 w-3.5 text-primary" />
+                                                    Ref PO
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="w-[15%] px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    <Hash className="h-3.5 w-3.5 text-primary" />
+                                                    Kode CS
+                                                </div>
+                                            </TableHead>
+                                            <TableHead className="w-[45%] px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    <User className="h-3.5 w-3.5 text-primary" />
+                                                    Customer
+                                                </div>
+                                            </TableHead>
                                         </TableRow>
-                                    )}
-                                    {displayedOutstanding.map((item) => (
-                                        <TableRow
-                                            key={`do-${item.no_do}`}
-                                            className="cursor-pointer hover:bg-muted/60"
-                                            onClick={() =>
-                                                handleSelectOutstanding(item)
-                                            }
-                                        >
-                                            <TableCell>{item.ref_po}</TableCell>
-                                            <TableCell>{item.kd_cs}</TableCell>
-                                            <TableCell>{item.nm_cs}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {outstandingLoading && (
+                                            <>
+                                                {Array.from({
+                                                    length:
+                                                        outstandingPageSize ===
+                                                        Infinity
+                                                            ? 5
+                                                            : outstandingPageSize,
+                                                }).map((_, i) => (
+                                                    <TableRow
+                                                        key={`skeleton-${i}`}
+                                                    >
+                                                        <TableCell className="px-4 py-3">
+                                                            <Skeleton className="h-4 w-24" />
+                                                        </TableCell>
+                                                        <TableCell className="px-4 py-3">
+                                                            <Skeleton className="h-4 w-32" />
+                                                        </TableCell>
+                                                        <TableCell className="px-4 py-3">
+                                                            <Skeleton className="h-4 w-16" />
+                                                        </TableCell>
+                                                        <TableCell className="px-4 py-3">
+                                                            <Skeleton className="h-4 w-48" />
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </>
+                                        )}
+                                        {!outstandingLoading &&
+                                            displayedOutstanding.length ===
+                                                0 && (
+                                                <TableRow>
+                                                    <TableCell
+                                                        colSpan={4}
+                                                        className="h-32 text-center"
+                                                    >
+                                                        <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                                                            <Search className="h-8 w-8 opacity-20" />
+                                                            <p>
+                                                                {outstandingError ||
+                                                                    'Tidak ada DO outstanding.'}
+                                                            </p>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        {!outstandingLoading &&
+                                            displayedOutstanding.map((item) => (
+                                                <TableRow
+                                                    key={`do-${item.no_do}`}
+                                                    className="group cursor-pointer transition-colors hover:bg-primary/5"
+                                                    onClick={() =>
+                                                        handleSelectOutstanding(
+                                                            item,
+                                                        )
+                                                    }
+                                                >
+                                                    <TableCell className="px-4 py-3 text-muted-foreground group-hover:text-primary">
+                                                        {item.no_do}
+                                                    </TableCell>
+                                                    <TableCell className="px-4 py-3 font-medium text-foreground group-hover:text-primary">
+                                                        {item.ref_po}
+                                                    </TableCell>
+                                                    <TableCell className="px-4 py-3 text-muted-foreground">
+                                                        {item.kd_cs}
+                                                    </TableCell>
+                                                    <TableCell className="px-4 py-3 font-medium text-foreground">
+                                                        {item.nm_cs}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         </div>
+
                         {outstandingPageSize !== Infinity &&
                             outstandingTotalItems > 0 && (
-                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                    <span>
+                                <div className="flex flex-col items-center justify-between gap-4 border-t pt-4 sm:flex-row">
+                                    <span className="text-sm text-muted-foreground">
                                         Menampilkan{' '}
-                                        {(outstandingCurrentPage - 1) *
-                                            outstandingPageSize +
-                                            1}{' '}
+                                        <span className="font-medium text-foreground">
+                                            {(outstandingCurrentPage - 1) *
+                                                outstandingPageSize +
+                                                1}
+                                        </span>{' '}
                                         -{' '}
-                                        {Math.min(
-                                            outstandingCurrentPage *
-                                                outstandingPageSize,
-                                            outstandingTotalItems,
-                                        )}{' '}
-                                        dari {outstandingTotalItems} data
+                                        <span className="font-medium text-foreground">
+                                            {Math.min(
+                                                outstandingCurrentPage *
+                                                    outstandingPageSize,
+                                                outstandingTotalItems,
+                                            )}
+                                        </span>{' '}
+                                        dari{' '}
+                                        <span className="font-medium text-foreground">
+                                            {outstandingTotalItems}
+                                        </span>{' '}
+                                        data
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <Button
@@ -946,17 +1131,22 @@ export default function FakturPenjualanCreate() {
                                             size="sm"
                                             onClick={() =>
                                                 setOutstandingCurrentPage(
-                                                    (page) => Math.max(1, page - 1),
+                                                    (page) =>
+                                                        Math.max(1, page - 1),
                                                 )
                                             }
-                                            disabled={outstandingCurrentPage === 1}
+                                            disabled={
+                                                outstandingCurrentPage === 1 ||
+                                                outstandingLoading
+                                            }
+                                            className="h-8 rounded-lg"
                                         >
                                             Sebelumnya
                                         </Button>
-                                        <span>
-                                            Halaman {outstandingCurrentPage} dari{' '}
+                                        <div className="flex items-center justify-center rounded-lg bg-muted px-3 py-1 text-sm font-medium">
+                                            {outstandingCurrentPage} /{' '}
                                             {outstandingTotalPages}
-                                        </span>
+                                        </div>
                                         <Button
                                             type="button"
                                             variant="outline"
@@ -972,8 +1162,10 @@ export default function FakturPenjualanCreate() {
                                             }
                                             disabled={
                                                 outstandingCurrentPage ===
-                                                outstandingTotalPages
+                                                    outstandingTotalPages ||
+                                                outstandingLoading
                                             }
+                                            className="h-8 rounded-lg"
                                         >
                                             Berikutnya
                                         </Button>
@@ -986,26 +1178,26 @@ export default function FakturPenjualanCreate() {
         </AppLayout>
     );
 }
-    const handleSubmit = () => {
-        router.post(
-            '/penjualan/faktur-penjualan',
-            {
-                date: formData.date,
-                due_date: formData.dueDate,
-                ref_po_in: formData.ref_po_in,
-                kd_cs: formData.kd_cs,
-                nm_cs: formData.nm_cs,
-                ppn: formData.ppn,
-                no_fakturpajak: formatInvoiceNumber(formData.no_invoice),
-                materials: materialRows,
-                grand_total_price: grandTotalPrice,
-                total_ppn: totalPpn,
-                grand_total_hpp: grandTotalHpp,
-                grand_total_with_ppn: grandTotalWithPpn,
-            },
-            {
-                onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
-            },
-        );
-    };
+const handleSubmit = () => {
+    router.post(
+        '/penjualan/faktur-penjualan',
+        {
+            date: formData.date,
+            due_date: formData.dueDate,
+            ref_po_in: formData.ref_po_in,
+            kd_cs: formData.kd_cs,
+            nm_cs: formData.nm_cs,
+            ppn: formData.ppn,
+            no_fakturpajak: formatInvoiceNumber(formData.no_invoice),
+            materials: materialRows,
+            grand_total_price: grandTotalPrice,
+            total_ppn: totalPpn,
+            grand_total_hpp: grandTotalHpp,
+            grand_total_with_ppn: grandTotalWithPpn,
+        },
+        {
+            onStart: () => setIsSubmitting(true),
+            onFinish: () => setIsSubmitting(false),
+        },
+    );
+};
