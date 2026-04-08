@@ -85,7 +85,30 @@ class PurchaseOrderInController
                 'p.date_poin',
                 'p.delivery_date',
                 'p.customer_name',
-                'p.grand_total'
+                'p.grand_total',
+                DB::raw("case when exists (
+                    select 1 from tb_pr pr
+                    where lower(trim(pr.ref_po)) = lower(trim(p.no_poin))
+                ) then 0 else 1 end as can_delete"),
+                DB::raw("case 
+                    when not exists (
+                        select 1 from tb_detailpoin d
+                        where d.kode_poin = p.kode_poin
+                        and coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(d.qty as decimal(18,4)), 0)
+                    ) and exists (
+                        select 1 from tb_detailpoin d where d.kode_poin = p.kode_poin
+                    ) then 'outstanding'
+                    when exists (
+                        select 1 from tb_detailpoin d
+                        where d.kode_poin = p.kode_poin
+                        and coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) < coalesce(cast(d.qty as decimal(18,4)), 0)
+                    ) and exists (
+                        select 1 from tb_detailpoin d
+                        where d.kode_poin = p.kode_poin
+                        and coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0
+                    ) then 'sisa_pr'
+                    else 'realized'
+                end as status_poin")
             );
 
         if ($search !== '') {
@@ -162,7 +185,8 @@ class PurchaseOrderInController
                 DB::raw("case when exists (
                     select 1 from tb_pr pr
                     where lower(trim(pr.ref_po)) = lower(trim(p.no_poin))
-                ) then 0 else 1 end as can_delete")
+                ) then 0 else 1 end as can_delete"),
+                DB::raw("'outstanding' as status_poin")
             )
             ->orderByDesc('p.id')
             ->get();
@@ -190,7 +214,8 @@ class PurchaseOrderInController
                 DB::raw("case when exists (
                     select 1 from tb_pr pr
                     where lower(trim(pr.ref_po)) = lower(trim(p.no_poin))
-                ) then 0 else 1 end as can_delete")
+                ) then 0 else 1 end as can_delete"),
+                DB::raw("'sisa_pr' as status_poin")
             )
             ->orderByDesc('p.id')
             ->get();
@@ -209,7 +234,12 @@ class PurchaseOrderInController
                 'p.date_poin',
                 'p.delivery_date',
                 'p.customer_name',
-                'p.grand_total'
+                'p.grand_total',
+                DB::raw("case when exists (
+                    select 1 from tb_pr pr
+                    where lower(trim(pr.ref_po)) = lower(trim(p.no_poin))
+                ) then 0 else 1 end as can_delete"),
+                DB::raw("'realized' as status_poin")
             )
             ->orderByDesc('p.id')
             ->get();
