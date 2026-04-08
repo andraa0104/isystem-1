@@ -117,6 +117,11 @@ class FortifyServiceProvider extends ServiceProvider
                     Cookie::queue('login_user', $user->pengguna);
                     Cookie::queue('login_user_name', $user->name);
                     Cookie::queue('login_last_online', (string) ($user->last_online ?? ''));
+                    
+                    Pengguna::on($connection)
+                        ->where('pengguna', $user->pengguna)
+                        ->update(['Sesi' => 'Y']);
+
                     return $user;
                 }
             }

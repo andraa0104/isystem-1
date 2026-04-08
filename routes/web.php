@@ -170,13 +170,9 @@ Route::post('/heartbeat-simple', function (Request $request) {
         DB::purge($connection);
         DB::reconnect($connection);
 
-        $column = config('tenants.last_online_column', 'LastOnline');
         Pengguna::on($connection)
             ->where('pengguna', $username)
-            ->update([
-                'Sesi' => 'Y',
-                $column => now('Asia/Singapore'),
-            ]);
+            ->update(['Sesi' => 'Y']);
     }
 
     $key = 'browser_active:' . ($database ?: 'default') . ':' . $username;

@@ -77,7 +77,8 @@ class AuthenticateFromCookie
         if (Auth::check()) {
             $currentUsername = $request->user()?->getAuthIdentifier();
             if ($isStale($currentUsername, true)) {
-                $this->updateLastOnline($database, $currentUsername);
+                $lastSeen = Cache::store('file')->get('browser_active:' . ($database ?: 'default') . ':' . $currentUsername);
+                $this->updateSessionStatus($database, $currentUsername, 'T', $lastSeen);
                 Auth::logout();
                 try {
                     $request->session()->invalidate();
@@ -106,7 +107,8 @@ class AuthenticateFromCookie
         }
 
         if ($isStale($username, false)) {
-            $this->updateLastOnline($database, $username);
+            $lastSeen = Cache::store('file')->get('browser_active:' . ($database ?: 'default') . ':' . $username);
+            $this->updateSessionStatus($database, $username, 'T', $lastSeen);
             $response = $next($request);
             Cookie::queue(Cookie::forget('login_user'));
             Cookie::queue(Cookie::forget('login_user_name'));
@@ -117,6 +119,9 @@ class AuthenticateFromCookie
         $user = Pengguna::where('pengguna', $username)->first();
         if ($user) {
             Auth::login($user);
+            
+            // Re-activate session in DB (marking as online, but don't touch LastOnline)
+            $this->updateSessionStatus($database, $username, 'Y', null, false);
         } elseif (!$isGuestAllowedPath($request)) {
             return $guestResponse($request);
         }
@@ -124,7 +129,7 @@ class AuthenticateFromCookie
         return $next($request);
     }
 
-    private function updateLastOnline(?string $database, ?string $username): void
+    private function updateSessionStatus(?string $database, ?string $username, string $status, $timestamp = null, bool $updateTimestamp = true): void
     {
         if (!$database || !$username) {
             return;
@@ -139,14 +144,21 @@ class AuthenticateFromCookie
         config(["database.connections.$connection.database" => $database]);
 
         $column = config('tenants.last_online_column', 'LastOnline');
+        $updateData = ['Sesi' => $status];
+        
+        if ($updateTimestamp) {
+            if ($timestamp) {
+                $updateData[$column] = \Carbon\Carbon::createFromTimestamp($timestamp)->timezone('Asia/Singapore');
+            } else {
+                $updateData[$column] = now('Asia/Singapore');
+            }
+        }
+
         try {
             DB::connection($connection)
                 ->table('tb_pengguna')
                 ->where('pengguna', $username)
-                ->update([
-                    $column => now('Asia/Singapore'),
-                    'Sesi' => 'T',
-                ]);
+                ->update($updateData);
         } catch (\Throwable) {
             // ignore
         }
