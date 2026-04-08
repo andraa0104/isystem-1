@@ -706,22 +706,7 @@ export default function PurchaseOrderInIndex({
                                                 >
                                                     <Eye className="size-4" />
                                                 </Button>
-                                                {item.status_poin ===
-                                                    'outstanding' && (
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            router.visit(
-                                                                `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
-                                                            )
-                                                        }
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Button>
-                                                )}
+                                                {/* Edit icon removed from main table per user request */}
                                                 <a
                                                     href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
                                                     target="_blank"
