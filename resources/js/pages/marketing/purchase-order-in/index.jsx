@@ -1344,27 +1344,29 @@ export default function PurchaseOrderInIndex({
                                                         >
                                                             <Pencil className="size-4" />
                                                         </Button>
-                                                        {Number(
-                                                            item.can_delete ??
-                                                                0,
-                                                        ) === 1 && (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                title="Hapus"
-                                                                onClick={() => {
-                                                                    setConfirmDeleteKode(
-                                                                        item.kode_poin,
-                                                                    );
-                                                                    setIsConfirmDeleteOpen(
-                                                                        true,
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <Trash2 className="size-4" />
-                                                            </Button>
-                                                        )}
+                                                        {activeModal ===
+                                                            'outstanding' &&
+                                                            Number(
+                                                                item.can_delete ??
+                                                                    0,
+                                                            ) === 1 && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    title="Hapus"
+                                                                    onClick={() => {
+                                                                        setConfirmDeleteKode(
+                                                                            item.kode_poin,
+                                                                        );
+                                                                        setIsConfirmDeleteOpen(
+                                                                            true,
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Trash2 className="size-4" />
+                                                                </Button>
+                                                            )}
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-center gap-2">
