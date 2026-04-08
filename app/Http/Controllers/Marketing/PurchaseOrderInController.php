@@ -954,18 +954,7 @@ class PurchaseOrderInController
                 ->with('error', 'Data PO In tidak ditemukan.');
         }
 
-        // Safety check: Don't delete if referenced in PR
-        $hasPr = DB::table('tb_pr')
-            ->where('ref_po', $header->no_poin)
-            ->exists();
-
-        if ($hasPr) {
-            $msg = 'PO In tidak dapat dihapus karena sudah dibuatkan PR atau sisa PR sudah diproses.';
-            if ($request->expectsJson()) {
-                return response()->json(['message' => $msg], 400);
-            }
-            return back()->with('error', $msg);
-        }
+        // Safety check removed per user request to allow deletion from Outstanding modal
 
         try {
             DB::transaction(function () use ($kodePoin) {

@@ -1345,22 +1345,25 @@ export default function PurchaseOrderInIndex({
                                                         >
                                                             <Pencil className="size-4" />
                                                         </Button>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            title="Hapus"
-                                                            onClick={() => {
-                                                                setConfirmDeleteKode(
-                                                                    item.kode_poin,
-                                                                );
-                                                                setIsConfirmDeleteOpen(
-                                                                    true,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <Trash2 className="size-4" />
-                                                        </Button>
+                                                        {activeModal ===
+                                                            'outstanding' && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                title="Hapus"
+                                                                onClick={() => {
+                                                                    setConfirmDeleteKode(
+                                                                        item.kode_poin,
+                                                                    );
+                                                                    setIsConfirmDeleteOpen(
+                                                                        true,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-center gap-2">
