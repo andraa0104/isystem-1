@@ -55,15 +55,10 @@ use App\Http\Controllers\Keuangan\InputPembelianController;
 use App\Http\Controllers\Keuangan\InputPenjualanController;
 use App\Http\Controllers\Keuangan\MutasiKasController;
 use App\Http\Controllers\Keuangan\JurnalPenyesuaianController as KeuanganJurnalPenyesuaianController;
-use Inertia\Inertia;
 use Laravel\Fortify\Features;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cookie;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use App\Models\Pengguna;
 use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 if (!function_exists('onlineUsersSetKey')) {
