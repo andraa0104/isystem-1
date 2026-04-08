@@ -352,6 +352,11 @@ class PurchaseOrderController
             }
         }
 
+        if ($request->header('X-Inertia')) {
+            session()->flash('success', 'Data PO berhasil disimpan.');
+            return inertia_location(route('pembelian.purchase-order.index'));
+        }
+
         return redirect()
             ->route('pembelian.purchase-order.index')
             ->with('success', 'Data PO berhasil disimpan.');
@@ -556,7 +561,16 @@ class PurchaseOrderController
                     ]);
             });
         } catch (\Throwable $exception) {
+            if ($request->header('X-Inertia')) {
+                session()->flash('error', 'Gagal memperbarui data: ' . $exception->getMessage());
+                return inertia_location(route('pembelian.purchase-order.index'));
+            }
             return back()->with('error', $exception->getMessage());
+        }
+
+        if ($request->header('X-Inertia')) {
+            session()->flash('success', 'Data PO berhasil diperbarui.');
+            return inertia_location(route('pembelian.purchase-order.index'));
         }
 
         return redirect()
@@ -649,13 +663,22 @@ class PurchaseOrderController
                     ]);
             });
         } catch (\Throwable $exception) {
+            if ($request->header('X-Inertia')) {
+                session()->flash('error', 'Gagal memperbarui detail: ' . $exception->getMessage());
+                return inertia_location(route('pembelian.purchase-order.edit', $noPo));
+            }
             return back()->with('error', $exception->getMessage());
+        }
+
+        if ($request->header('X-Inertia')) {
+            session()->flash('success', 'Detail PO berhasil diperbarui.');
+            return inertia_location(route('pembelian.purchase-order.edit', $noPo));
         }
 
         return back()->with('success', 'Detail PO berhasil diperbarui.');
     }
 
-    public function destroyDetail($noPo, $kdMat)
+    public function destroyDetail(Request $request, $noPo, $kdMat)
     {
         try {
             DB::transaction(function () use ($noPo, $kdMat) {
@@ -732,9 +755,18 @@ class PurchaseOrderController
                     ]);
             });
         } catch (\Throwable $e) {
+            if ($request->header('X-Inertia')) {
+                session()->flash('error', 'Gagal menghapus material: ' . $e->getMessage());
+                return inertia_location(route('pembelian.purchase-order.edit', $noPo));
+            }
             return redirect()
                 ->back()
                 ->with('error', 'Gagal menghapus material: '.$e->getMessage());
+        }
+
+        if ($request->header('X-Inertia')) {
+            session()->flash('success', 'Material berhasil dihapus.');
+            return inertia_location(route('pembelian.purchase-order.edit', $noPo));
         }
 
         return redirect()

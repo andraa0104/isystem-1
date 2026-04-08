@@ -586,8 +586,17 @@ class PurchaseRequirementController
                     continue;
                 }
 
+                if ($request->header('X-Inertia')) {
+                    session()->flash('error', 'Gagal menyimpan data: ' . $exception->getMessage());
+                    return inertia_location(route('marketing.purchase-requirement.index'));
+                }
                 return back()->with('error', $exception->getMessage());
             }
+        }
+
+        if ($request->header('X-Inertia')) {
+            session()->flash('success', 'Data PR berhasil disimpan.');
+            return inertia_location(route('marketing.purchase-requirement.index'));
         }
 
         return redirect()
@@ -686,7 +695,16 @@ class PurchaseRequirementController
                 }
             });
         } catch (\Throwable $exception) {
+            if ($request->header('X-Inertia')) {
+                session()->flash('error', 'Gagal memperbarui data: ' . $exception->getMessage());
+                return inertia_location(route('marketing.purchase-requirement.index'));
+            }
             return back()->with('error', $exception->getMessage());
+        }
+
+        if ($request->header('X-Inertia')) {
+            session()->flash('success', 'Data PR berhasil diperbarui.');
+            return inertia_location(route('marketing.purchase-requirement.index'));
         }
 
         return redirect()
@@ -785,10 +803,15 @@ class PurchaseRequirementController
             'tgl_ubah' => $timestamp,
         ]);
 
+        if ($request->header('X-Inertia')) {
+            session()->flash('success', 'Detail PR berhasil diperbarui.');
+            return inertia_location(route('marketing.purchase-requirement.edit', $noPr));
+        }
+
         return back()->with('success', 'Detail PR berhasil diperbarui.');
     }
 
-    public function destroyDetail($noPr, $detailNo)
+    public function destroyDetail(Request $request, $noPr, $detailNo)
     {
         $detail = DB::table('tb_detailpr')
             ->where('no_pr', $noPr)
@@ -826,10 +849,15 @@ class PurchaseRequirementController
             return back()->with('error', 'Detail PR tidak ditemukan.');
         }
 
+        if ($request->header('X-Inertia')) {
+            session()->flash('success', 'Detail PR berhasil dihapus.');
+            return inertia_location(route('marketing.purchase-requirement.edit', $noPr));
+        }
+
         return back()->with('success', 'Detail PR berhasil dihapus.');
     }
 
-    public function destroy($noPr)
+    public function destroy(Request $request, $noPr)
     {
         $noPr = trim((string) $noPr);
         if ($noPr === '') {
@@ -879,63 +907,78 @@ class PurchaseRequirementController
             return Str::limit($string, $length, '');
         };
 
-        DB::transaction(function () use ($details, $noPr, $timestamp, $truncate) {
-            if ($details->isNotEmpty()) {
-                // Return reserved qty back to PO In detail before deleting PR detail rows.
-                foreach ($details as $row) {
-                    $qtyValue = is_numeric($row->qty ?? null) ? (float) $row->qty : 0;
-                    $kdMaterial = strtolower(trim((string) ($row->kd_material ?? '')));
-                    $refPo = strtolower(trim((string) ($row->ref_po ?? '')));
+        try {
+            DB::transaction(function () use ($details, $noPr, $timestamp, $truncate) {
+                if ($details->isNotEmpty()) {
+                    // Return reserved qty back to PO In detail before deleting PR detail rows.
+                    foreach ($details as $row) {
+                        $qtyValue = is_numeric($row->qty ?? null) ? (float) $row->qty : 0;
+                        $kdMaterial = strtolower(trim((string) ($row->kd_material ?? '')));
+                        $refPo = strtolower(trim((string) ($row->ref_po ?? '')));
 
-                    if ($qtyValue <= 0 || $kdMaterial === '' || $refPo === '') {
-                        continue;
+                        if ($qtyValue <= 0 || $kdMaterial === '' || $refPo === '') {
+                            continue;
+                        }
+
+                        DB::table('tb_detailpoin')
+                            ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
+                            ->whereRaw(
+                                'lower(trim(kode_poin)) in (select lower(trim(kode_poin)) from tb_poin where lower(trim(no_poin)) = ?)',
+                                [$refPo]
+                            )
+                            ->update([
+                                'sisa_qtypr' => DB::raw(sprintf(
+                                    'coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F',
+                                    $qtyValue
+                                )),
+                            ]);
                     }
 
-                    DB::table('tb_detailpoin')
-                        ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
-                        ->whereRaw(
-                            'lower(trim(kode_poin)) in (select lower(trim(kode_poin)) from tb_poin where lower(trim(no_poin)) = ?)',
-                            [$refPo]
-                        )
-                        ->update([
-                            'sisa_qtypr' => DB::raw(sprintf(
-                                'coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F',
-                                $qtyValue
-                            )),
-                        ]);
+                    $payload = $details->map(function ($row) use ($timestamp, $truncate) {
+                        return [
+                            'no_pr' => $truncate($row->no_pr, 50),
+                            'date' => $truncate($row->date, 50),
+                            'payment' => $truncate($row->payment, 100),
+                            'for_customer' => $truncate($row->for_customer, 191),
+                            'ref_po' => $truncate($row->ref_po, 100),
+                            'no' => $row->no,
+                            'kd_material' => $truncate($row->kd_material, 100),
+                            'material' => $truncate($row->material, 191),
+                            'qty' => $row->qty,
+                            'unit' => $row->unit,
+                            'stok' => $row->stok,
+                            'unit_price' => $row->unit_price,
+                            'total_price' => $row->total_price,
+                            'price_po' => $row->price_po,
+                            'margin' => $truncate($row->margin ?: '0%', 50),
+                            'renmark' => $truncate($row->renmark ?: ' ', 191),
+                            'qty_po' => $row->qty_po,
+                            'sisa_pr' => $row->sisa_pr,
+                            'id' => $row->id,
+                            'tgl_hapus' => $timestamp,
+                        ];
+                    })->all();
+
+                    DB::table('tb_hapus')->insert($payload);
                 }
 
-                $payload = $details->map(function ($row) use ($timestamp, $truncate) {
-                    return [
-                        'no_pr' => $truncate($row->no_pr, 50),
-                        'date' => $truncate($row->date, 50),
-                        'payment' => $truncate($row->payment, 100),
-                        'for_customer' => $truncate($row->for_customer, 191),
-                        'ref_po' => $truncate($row->ref_po, 100),
-                        'no' => $row->no,
-                        'kd_material' => $truncate($row->kd_material, 100),
-                        'material' => $truncate($row->material, 191),
-                        'qty' => $row->qty,
-                        'unit' => $row->unit,
-                        'stok' => $row->stok,
-                        'unit_price' => $row->unit_price,
-                        'total_price' => $row->total_price,
-                        'price_po' => $row->price_po,
-                        'margin' => $truncate($row->margin ?: '0%', 50),
-                        'renmark' => $truncate($row->renmark ?: ' ', 191),
-                        'qty_po' => $row->qty_po,
-                        'sisa_pr' => $row->sisa_pr,
-                        'id' => $row->id,
-                        'tgl_hapus' => $timestamp,
-                    ];
-                })->all();
-
-                DB::table('tb_hapus')->insert($payload);
+                DB::table('tb_detailpr')->where('no_pr', $noPr)->delete();
+                DB::table('tb_pr')->where('no_pr', $noPr)->delete();
+            });
+        } catch (\Throwable $e) {
+            if ($request->header('X-Inertia')) {
+                session()->flash('error', 'Gagal menghapus PR: ' . $e->getMessage());
+                return inertia_location(route('marketing.purchase-requirement.index'));
             }
+            return response()->json([
+                'message' => 'Gagal menghapus PR: ' . $e->getMessage(),
+            ], 500);
+        }
 
-            DB::table('tb_detailpr')->where('no_pr', $noPr)->delete();
-            DB::table('tb_pr')->where('no_pr', $noPr)->delete();
-        });
+        if ($request->header('X-Inertia')) {
+            session()->flash('success', 'Data PR berhasil dihapus.');
+            return inertia_location(route('marketing.purchase-requirement.index'));
+        }
 
         return response()->json([
             'message' => 'Data PR berhasil dihapus.',

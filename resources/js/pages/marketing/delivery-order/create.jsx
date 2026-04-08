@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 import {
     Table,
     TableBody,
@@ -379,22 +380,22 @@ export default function DeliveryOrderCreate() {
 
                                 {/* Inputs */}
                                 <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-4">
-                                <div className="space-y-2 lg:col-span-4">
-                                    <Label>Material</Label>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            readOnly
-                                            placeholder="Kode"
-                                            value={inputItem.kd_material}
-                                            className="w-40"
-                                        />
-                                        <Input
-                                            readOnly
-                                            placeholder="Nama Material"
-                                            value={inputItem.material}
-                                        />
+                                    <div className="space-y-2 lg:col-span-4">
+                                        <Label>Material</Label>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                readOnly
+                                                placeholder="Kode"
+                                                value={inputItem.kd_material}
+                                                className="w-40"
+                                            />
+                                            <Input
+                                                readOnly
+                                                placeholder="Nama Material"
+                                                value={inputItem.material}
+                                            />
+                                        </div>
                                     </div>
-                                </div>
                                     <div className="space-y-2">
                                         <Label>Qty</Label>
                                         <Input
@@ -538,6 +539,7 @@ export default function DeliveryOrderCreate() {
                                     formData.items.length === 0
                                 }
                             >
+                                {isSubmitting && <Spinner className="mr-2" />}
                                 {isSubmitting ? 'Menyimpan...' : 'Simpan DO'}
                             </Button>
                         </div>
@@ -547,7 +549,7 @@ export default function DeliveryOrderCreate() {
 
             {/* Modal Pilih PO In */}
             <Dialog open={isPrModalOpen} onOpenChange={setIsPrModalOpen}>
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none flex flex-col">
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Pilih PO In</DialogTitle>
                         <DialogDescription>
@@ -559,13 +561,15 @@ export default function DeliveryOrderCreate() {
                             Tampilkan
                             <select
                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                value={prPageSize === Infinity ? 'all' : prPageSize}
+                                value={
+                                    prPageSize === Infinity ? 'all' : prPageSize
+                                }
                                 onChange={(event) => {
                                     const value = event.target.value;
                                     setPrPageSize(
                                         value === 'all'
                                             ? Infinity
-                                            : Number(value)
+                                            : Number(value),
                                     );
                                 }}
                             >
@@ -577,12 +581,14 @@ export default function DeliveryOrderCreate() {
                             </select>
                         </label>
                         <div className="flex flex-1 items-center gap-2">
-                        <Input
-                            placeholder="Cari kode PO In, no PO In, customer..."
-                            value={prSearchTerm}
-                            onChange={(e) => setPrSearchTerm(e.target.value)}
-                        />
-                        <Button onClick={() => fetchPrs(1)}>Cari</Button>
+                            <Input
+                                placeholder="Cari kode PO In, no PO In, customer..."
+                                value={prSearchTerm}
+                                onChange={(e) =>
+                                    setPrSearchTerm(e.target.value)
+                                }
+                            />
+                            <Button onClick={() => fetchPrs(1)}>Cari</Button>
                         </div>
                     </div>
 
@@ -623,10 +629,20 @@ export default function DeliveryOrderCreate() {
                                             className="cursor-pointer hover:bg-muted/50"
                                             onClick={() => handleSelectPr(poin)}
                                         >
-                                            <TableCell>{renderValue(poin.kode_poin)}</TableCell>
-                                            <TableCell>{renderValue(poin.no_poin)}</TableCell>
-                                            <TableCell>{renderValue(poin.date_poin)}</TableCell>
-                                            <TableCell>{renderValue(poin.customer_name)}</TableCell>
+                                            <TableCell>
+                                                {renderValue(poin.kode_poin)}
+                                            </TableCell>
+                                            <TableCell>
+                                                {renderValue(poin.no_poin)}
+                                            </TableCell>
+                                            <TableCell>
+                                                {renderValue(poin.date_poin)}
+                                            </TableCell>
+                                            <TableCell>
+                                                {renderValue(
+                                                    poin.customer_name,
+                                                )}
+                                            </TableCell>
                                             <TableCell>
                                                 <Button
                                                     size="sm"
@@ -646,26 +662,26 @@ export default function DeliveryOrderCreate() {
 
                     {prPageSize !== Infinity && (
                         <div className="flex items-center justify-between pt-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => fetchPrs(prPage - 1)}
-                            disabled={prPage <= 1}
-                        >
-                            Prev
-                        </Button>
-                        <span className="text-sm text-muted-foreground">
-                            Page {prPage} of {prTotalPages}
-                        </span>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => fetchPrs(prPage + 1)}
-                            disabled={prPage >= prTotalPages}
-                        >
-                            Next
-                        </Button>
-                    </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fetchPrs(prPage - 1)}
+                                disabled={prPage <= 1}
+                            >
+                                Prev
+                            </Button>
+                            <span className="text-sm text-muted-foreground">
+                                Page {prPage} of {prTotalPages}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fetchPrs(prPage + 1)}
+                                disabled={prPage >= prTotalPages}
+                            >
+                                Next
+                            </Button>
+                        </div>
                     )}
                 </DialogContent>
             </Dialog>

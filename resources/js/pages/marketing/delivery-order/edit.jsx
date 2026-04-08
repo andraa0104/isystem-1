@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 import {
     Table,
     TableBody,
@@ -353,6 +354,9 @@ export default function DeliveryOrderEdit({
                                         onClick={handleSaveStep1}
                                         disabled={isSubmitting}
                                     >
+                                        {isSubmitting && (
+                                            <Spinner className="mr-2" />
+                                        )}
                                         {isSubmitting
                                             ? 'Menyimpan...'
                                             : 'Simpan Data'}
@@ -444,6 +448,9 @@ export default function DeliveryOrderEdit({
                                                 inputItem.stock_now < 0
                                             }
                                         >
+                                            {isSubmitting && (
+                                                <Spinner className="mr-2" />
+                                            )}
                                             {isSubmitting
                                                 ? 'Menyimpan...'
                                                 : 'Edit Data'}

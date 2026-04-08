@@ -746,10 +746,19 @@ class PurchaseOrderInController
                 }
             });
 
+            if ($request->header('X-Inertia')) {
+                session()->flash('success', 'Data PO IN berhasil disimpan.');
+                return inertia_location(route('marketing.purchase-order-in.index'));
+            }
+
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil disimpan.');
         } catch (\Throwable $e) {
+            if ($request->header('X-Inertia')) {
+                session()->flash('error', 'Gagal menyimpan data: ' . $e->getMessage());
+                return inertia_location(route('marketing.purchase-order-in.index'));
+            }
             return back()->with('error', $e->getMessage());
         }
     }
@@ -931,10 +940,19 @@ class PurchaseOrderInController
                     ->delete();
             });
 
+            if ($request->header('X-Inertia')) {
+                session()->flash('success', 'Data PO IN berhasil diperbarui.');
+                return inertia_location(route('marketing.purchase-order-in.index'));
+            }
+
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil diperbarui.');
         } catch (\Throwable $e) {
+            if ($request->header('X-Inertia')) {
+                session()->flash('error', 'Gagal memperbarui data: ' . $e->getMessage());
+                return inertia_location(route('marketing.purchase-order-in.index'));
+            }
             return back()->with('error', $e->getMessage());
         }
     }
@@ -967,13 +985,19 @@ class PurchaseOrderInController
                     ->delete();
             });
 
-            if ($request->expectsJson()) {
-                return response()->json(['message' => 'PO In berhasil dihapus.']);
+            if ($request->header('X-Inertia')) {
+                session()->flash('success', 'PO In berhasil dihapus.');
+                return inertia_location('/marketing/purchase-order-in');
             }
+
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil dihapus.');
         } catch (\Throwable $e) {
+            if ($request->header('X-Inertia')) {
+                session()->flash('error', 'Gagal menghapus data: ' . $e->getMessage());
+                return inertia_location('/marketing/purchase-order-in');
+            }
             if ($request->expectsJson()) {
                 return response()->json(['message' => $e->getMessage()], 500);
             }

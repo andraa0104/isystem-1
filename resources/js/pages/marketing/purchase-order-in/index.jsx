@@ -3,6 +3,7 @@ import {
     Dialog,
     DialogClose,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -1457,6 +1458,9 @@ export default function PurchaseOrderInIndex({
                     <DialogContent className="max-w-md">
                         <DialogHeader>
                             <DialogTitle>Hapus PO In?</DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Konfirmasi penghapusan data Purchase Order In.
+                            </DialogDescription>
                         </DialogHeader>
                         <p className="text-sm text-muted-foreground">
                             Data header dan detail material akan dihapus
