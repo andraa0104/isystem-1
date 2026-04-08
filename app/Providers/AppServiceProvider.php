@@ -22,6 +22,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Dynamic APP_URL to support both IPv4 and IPv6 on custom ports (e.g. 8083)
+        if (isset($_SERVER['HTTP_HOST'])) {
+            $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https://' : 'http://';
+            config(['app.url' => $protocol . $_SERVER['HTTP_HOST']]);
+        }
+
         Event::listen(Logout::class, function (Logout $event): void {
             if (!$event->user) {
                 return;

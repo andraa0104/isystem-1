@@ -142,11 +142,12 @@ Route::post('/login-simple', function (Request $request) {
     $loginCookieMinutes = 0;
     $tenantCookieMinutes = 0;
 
-    return redirect('/dashboard')
-        ->withCookie(cookie('tenant_database', $database, $tenantCookieMinutes))
-        ->withCookie(cookie('login_user', $user->pengguna, $loginCookieMinutes))
-        ->withCookie(cookie('login_user_name', $user->name, $loginCookieMinutes))
-        ->withCookie(cookie('login_last_online', (string) ($user->last_online ?? ''), $loginCookieMinutes));
+    Cookie::queue('tenant_database', $database, $tenantCookieMinutes);
+    Cookie::queue('login_user', $user->pengguna, $loginCookieMinutes);
+    Cookie::queue('login_user_name', $user->name, $loginCookieMinutes);
+    Cookie::queue('login_last_online', (string) ($user->last_online ?? ''), $loginCookieMinutes);
+
+    return Inertia::location('/dashboard');
 });
 
 
