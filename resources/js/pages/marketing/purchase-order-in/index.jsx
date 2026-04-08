@@ -1329,44 +1329,38 @@ export default function PurchaseOrderInIndex({
                                                     'outstanding' ||
                                                 activeModal === 'belum_pr' ? (
                                                     <div className="flex items-center gap-2">
-                                                        {item.status_poin ===
-                                                            'outstanding' && (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() => {
-                                                                    setActiveModal(
-                                                                        null,
-                                                                    );
-                                                                    router.visit(
-                                                                        `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
-                                                                    );
-                                                                }}
-                                                                title="Edit"
-                                                            >
-                                                                <Pencil className="size-4" />
-                                                            </Button>
-                                                        )}
-                                                        {item.status_poin ===
-                                                            'outstanding' && (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                title="Hapus"
-                                                                onClick={() => {
-                                                                    setConfirmDeleteKode(
-                                                                        item.kode_poin,
-                                                                    );
-                                                                    setIsConfirmDeleteOpen(
-                                                                        true,
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <Trash2 className="size-4" />
-                                                            </Button>
-                                                        )}
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setActiveModal(
+                                                                    null,
+                                                                );
+                                                                router.visit(
+                                                                    `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
+                                                                );
+                                                            }}
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            title="Hapus"
+                                                            onClick={() => {
+                                                                setConfirmDeleteKode(
+                                                                    item.kode_poin,
+                                                                );
+                                                                setIsConfirmDeleteOpen(
+                                                                    true,
+                                                                );
+                                                            }}
+                                                        >
+                                                            <Trash2 className="size-4" />
+                                                        </Button>
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-center gap-2">
