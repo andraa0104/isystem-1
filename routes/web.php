@@ -1,6 +1,22 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\DB;
+
+Route::get('/debug-url', function() {
+    return [
+        'app_url' => config('app.url'),
+        'http_host' => $_SERVER['HTTP_HOST'] ?? 'not set',
+        'request_host' => request()->getHost(),
+        'request_port' => request()->getPort(),
+        'full_url' => url('/dashboard'),
+    ];
+});
+
 use App\Http\Controllers\Marketing\QuotationController;
 use App\Http\Controllers\Marketing\PurchaseRequirementController;
 use App\Http\Controllers\Marketing\PurchaseOrderController;
