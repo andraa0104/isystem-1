@@ -72,9 +72,9 @@ class PurchaseOrderInController
             $perPage = 5;
         }
 
-        $statusFilter = request()->query('status', 'all');
+        $statusFilter = request()->query('status', 'outstanding');
         if (!in_array($statusFilter, ['all', 'outstanding', 'sisa_pr', 'realized'])) {
-            $statusFilter = 'all';
+            $statusFilter = 'outstanding';
         }
 
         $query = DB::table('tb_poin as p')
@@ -941,17 +941,30 @@ class PurchaseOrderInController
 
     public function destroy(Request $request, $kodePoin)
     {
-        $exists = DB::table('tb_poin')
+        $header = DB::table('tb_poin')
             ->where('kode_poin', $kodePoin)
-            ->exists();
+            ->first();
 
-        if (!$exists) {
+        if (!$header) {
             if ($request->expectsJson()) {
                 return response()->json(['message' => 'Data PO In tidak ditemukan.'], 404);
             }
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('error', 'Data PO In tidak ditemukan.');
+        }
+
+        // Safety check: Don't delete if referenced in PR
+        $hasPr = DB::table('tb_pr')
+            ->where('ref_po', $header->no_poin)
+            ->exists();
+
+        if ($hasPr) {
+            $msg = 'PO In tidak dapat dihapus karena sudah dibuatkan PR atau sisa PR sudah diproses.';
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $msg], 400);
+            }
+            return back()->with('error', $msg);
         }
 
         try {

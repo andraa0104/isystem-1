@@ -642,9 +642,6 @@ export default function PurchaseOrderInIndex({
                                         Grand Total
                                     </th>
                                     <th className="px-4 py-3 text-left">
-                                        Status
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
                                         Action
                                     </th>
                                 </tr>
@@ -695,25 +692,6 @@ export default function PurchaseOrderInIndex({
                                             {formatRupiah(item.grand_total)}
                                         </td>
                                         <td className="px-4 py-3">
-                                            {item.status_poin ===
-                                                'outstanding' && (
-                                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                                                    Outstanding
-                                                </span>
-                                            )}
-                                            {item.status_poin === 'sisa_pr' && (
-                                                <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-800 dark:bg-rose-900/30 dark:text-rose-400">
-                                                    Sisa PR
-                                                </span>
-                                            )}
-                                            {item.status_poin ===
-                                                'realized' && (
-                                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                                    Realized
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
                                                 <Button
                                                     type="button"
@@ -744,28 +722,6 @@ export default function PurchaseOrderInIndex({
                                                         <Pencil className="size-4" />
                                                     </Button>
                                                 )}
-                                                {item.status_poin ===
-                                                    'outstanding' &&
-                                                    Number(
-                                                        item.can_delete ?? 0,
-                                                    ) === 1 && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            title="Hapus"
-                                                            onClick={() => {
-                                                                setConfirmDeleteKode(
-                                                                    item.kode_poin,
-                                                                );
-                                                                setIsConfirmDeleteOpen(
-                                                                    true,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <Trash2 className="size-4" />
-                                                        </Button>
-                                                    )}
                                                 <a
                                                     href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
                                                     target="_blank"
@@ -1338,9 +1294,6 @@ export default function PurchaseOrderInIndex({
                                             Grand Total
                                         </th>
                                         <th className="px-4 py-3 text-left">
-                                            Status
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
                                             Action
                                         </th>
                                     </tr>
@@ -1387,69 +1340,48 @@ export default function PurchaseOrderInIndex({
                                                 {formatRupiah(item.grand_total)}
                                             </td>
                                             <td className="px-4 py-3">
-                                                {item.status_poin ===
-                                                    'outstanding' && (
-                                                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                                                        Outstanding
-                                                    </span>
-                                                )}
-                                                {item.status_poin ===
-                                                    'sisa_pr' && (
-                                                    <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-medium text-rose-800 dark:bg-rose-900/30 dark:text-rose-400">
-                                                        Sisa PR
-                                                    </span>
-                                                )}
-                                                {item.status_poin ===
-                                                    'realized' && (
-                                                    <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                                                        Realized
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3">
                                                 {activeModal ===
                                                     'outstanding' ||
                                                 activeModal === 'belum_pr' ? (
                                                     <div className="flex items-center gap-2">
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                setActiveModal(
-                                                                    null,
-                                                                );
-                                                                router.visit(
-                                                                    `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
-                                                                );
-                                                            }}
-                                                            title="Edit"
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                        </Button>
-                                                        {activeModal ===
-                                                            'outstanding' &&
-                                                            Number(
-                                                                item.can_delete ??
-                                                                    0,
-                                                            ) === 1 && (
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    title="Hapus"
-                                                                    onClick={() => {
-                                                                        setConfirmDeleteKode(
-                                                                            item.kode_poin,
-                                                                        );
-                                                                        setIsConfirmDeleteOpen(
-                                                                            true,
-                                                                        );
-                                                                    }}
-                                                                >
-                                                                    <Trash2 className="size-4" />
-                                                                </Button>
-                                                            )}
+                                                        {item.status_poin ===
+                                                            'outstanding' && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    setActiveModal(
+                                                                        null,
+                                                                    );
+                                                                    router.visit(
+                                                                        `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
+                                                                    );
+                                                                }}
+                                                                title="Edit"
+                                                            >
+                                                                <Pencil className="size-4" />
+                                                            </Button>
+                                                        )}
+                                                        {item.status_poin ===
+                                                            'outstanding' && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                title="Hapus"
+                                                                onClick={() => {
+                                                                    setConfirmDeleteKode(
+                                                                        item.kode_poin,
+                                                                    );
+                                                                    setIsConfirmDeleteOpen(
+                                                                        true,
+                                                                    );
+                                                                }}
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-center gap-2">
