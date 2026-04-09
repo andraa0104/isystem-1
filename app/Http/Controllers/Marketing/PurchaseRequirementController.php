@@ -586,11 +586,7 @@ class PurchaseRequirementController
                     continue;
                 }
 
-                if ($request->header('X-Inertia')) {
-                    session()->flash('error', 'Gagal menyimpan data: ' . $exception->getMessage());
-                    return inertia_location(route('marketing.purchase-requirement.index'));
-                }
-                return back()->with('error', $exception->getMessage());
+                return back()->with('error', 'Gagal menyimpan data: ' . $exception->getMessage());
             }
         }
 
@@ -695,11 +691,7 @@ class PurchaseRequirementController
                 }
             });
         } catch (\Throwable $exception) {
-            if ($request->header('X-Inertia')) {
-                session()->flash('error', 'Gagal memperbarui data: ' . $exception->getMessage());
-                return inertia_location(route('marketing.purchase-requirement.index'));
-            }
-            return back()->with('error', $exception->getMessage());
+            return back()->with('error', 'Gagal memperbarui data: ' . $exception->getMessage());
         }
 
         if ($request->header('X-Inertia')) {
@@ -735,73 +727,85 @@ class PurchaseRequirementController
             $dateFormatted = $request->input('date');
         }
 
-        DB::table('tb_detailpr')
-            ->where('no_pr', $noPr)
-            ->where('no', $detailNo)
-            ->update([
+        try {
+            DB::table('tb_detailpr')
+                ->where('no_pr', $noPr)
+                ->where('no', $detailNo)
+                ->update([
+                    'date' => $dateFormatted,
+                    'payment' => $request->input('payment'),
+                    'for_customer' => $request->input('for_customer'),
+                    'ref_po' => $request->input('ref_po'),
+                    'kd_material' => $request->input('kd_material'),
+                    'material' => $request->input('material'),
+                    'qty' => $request->input('qty'),
+                    'unit' => $request->input('unit'),
+                    'stok' => $request->input('stok'),
+                    'unit_price' => $request->input('unit_price'),
+                    'total_price' => $request->input('total_price'),
+                    'price_po' => $request->input('price_po'),
+                    'margin' => $request->input('margin') ?: '0%',
+                    'renmark' => $request->input('renmark') ?: ' ',
+                    'sisa_pr' => max(0, ((float) $request->input('qty')) - ((float) $request->input('stok'))),
+                ]);
+
+            $oldQty = is_numeric($existingDetail->qty ?? null) ? (float) $existingDetail->qty : 0;
+            $newQty = is_numeric($request->input('qty')) ? (float) $request->input('qty') : 0;
+            $kdMaterial = strtolower(trim((string) ($request->input('kd_material') ?: $existingDetail->kd_material)));
+            $refPo = strtolower(trim((string) ($request->input('ref_po') ?: $existingDetail->ref_po)));
+
+            if ($kdMaterial !== '' && $refPo !== '') {
+                $detailPo = DB::table('tb_detailpoin')
+                    ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
+                    ->whereRaw('lower(trim(kode_poin)) in (select lower(trim(kode_poin)) from tb_poin where lower(trim(no_poin)) = ?)', [$refPo])
+                    ->orderBy('id', 'desc')
+                    ->first(['id', 'sisa_qtypr']);
+
+                if ($detailPo) {
+                    DB::table('tb_detailpoin')
+                        ->where('id', $detailPo->id)
+                        ->update([
+                            'sisa_qtypr' => DB::raw(sprintf(
+                                'greatest(coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F - %.4F, 0)',
+                                $oldQty,
+                                $newQty
+                            )),
+                        ]);
+                }
+
+                // Update tb_material.stok
+                $diff = $newQty - $oldQty;
+                DB::table('tb_material')
+                    ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
+                    ->update([
+                        'stok' => DB::raw(sprintf(
+                            'coalesce(cast(stok as decimal(18,4)), 0) - %.4F',
+                            $diff
+                        )),
+                    ]);
+            }
+
+            DB::table('tb_ubah')->insert([
+                'no_pr' => $noPr,
                 'date' => $dateFormatted,
                 'payment' => $request->input('payment'),
-                'for_customer' => $request->input('for_customer'),
                 'ref_po' => $request->input('ref_po'),
+                'no' => $detailNo,
+                'id' => $detailNo,
+                'for_customer' => $request->input('for_customer'),
                 'kd_material' => $request->input('kd_material'),
                 'material' => $request->input('material'),
                 'qty' => $request->input('qty'),
-                'unit' => $request->input('unit'),
-                'stok' => $request->input('stok'),
                 'unit_price' => $request->input('unit_price'),
                 'total_price' => $request->input('total_price'),
                 'price_po' => $request->input('price_po'),
                 'margin' => $request->input('margin') ?: '0%',
                 'renmark' => $request->input('renmark') ?: ' ',
-                'sisa_pr' => max(0, ((float) $request->input('qty')) - ((float) $request->input('stok'))),
+                'tgl_ubah' => $timestamp,
             ]);
-
-        $oldQty = is_numeric($existingDetail->qty ?? null) ? (float) $existingDetail->qty : 0;
-        $newQty = is_numeric($request->input('qty')) ? (float) $request->input('qty') : 0;
-        $kdMaterial = strtolower(trim((string) ($request->input('kd_material') ?: $existingDetail->kd_material)));
-        $refPo = strtolower(trim((string) ($request->input('ref_po') ?: $existingDetail->ref_po)));
-
-        if ($kdMaterial !== '' && $refPo !== '') {
-            $kodePoin = DB::table('tb_poin')
-                ->whereRaw('lower(trim(no_poin)) = ?', [$refPo])
-                ->value('kode_poin');
-
-            if ($kodePoin) {
-                DB::table('tb_detailpoin')
-                    ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string) $kodePoin))])
-                    ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
-                    ->update([
-                        'sisa_qtypr' => DB::raw(sprintf(
-                            'greatest(coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F - %.4F, 0)',
-                            $oldQty,
-                            $newQty
-                        )),
-                    ]);
-            }
+        } catch (\Throwable $exception) {
+            return back()->with('error', 'Gagal memperbarui detail: ' . $exception->getMessage());
         }
-
-        DB::table('tb_ubah')->insert([
-            'no_pr' => $noPr,
-            'date' => $dateFormatted,
-            'payment' => $request->input('payment'),
-            'ref_po' => $request->input('ref_po'),
-            'no' => $detailNo,
-            'id' => $detailNo,
-            'for_customer' => $request->input('for_customer'),
-            'kd_material' => $request->input('kd_material'),
-            'material' => $request->input('material'),
-            'qty' => $request->input('qty'),
-            'qty_po' => $request->input('qty'),
-            'sisa_pr' => max(0, ((float) $request->input('qty')) - ((float) $request->input('stok'))),
-            'unit' => $request->input('unit'),
-            'stok' => $request->input('stok'),
-            'unit_price' => $request->input('unit_price'),
-            'total_price' => $request->input('total_price'),
-            'price_po' => $request->input('price_po'),
-            'margin' => $request->input('margin') ?: '0%',
-            'renmark' => $request->input('renmark') ?: ' ',
-            'tgl_ubah' => $timestamp,
-        ]);
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Detail PR berhasil diperbarui.');
@@ -828,12 +832,29 @@ class PurchaseRequirementController
             $refPo = strtolower(trim((string) ($detail->ref_po ?? '')));
 
             if ($kdMaterial !== '' && $refPo !== '') {
-                DB::table('tb_detailpoin')
+                $detailPo = DB::table('tb_detailpoin')
                     ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
                     ->whereRaw('lower(trim(kode_poin)) in (select lower(trim(kode_poin)) from tb_poin where lower(trim(no_poin)) = ?)', [$refPo])
+                    ->orderBy('id', 'desc')
+                    ->first(['id', 'sisa_qtypr']);
+
+                if ($detailPo) {
+                    DB::table('tb_detailpoin')
+                        ->where('id', $detailPo->id)
+                        ->update([
+                            'sisa_qtypr' => DB::raw(sprintf(
+                                'coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F',
+                                $qtyValue
+                            )),
+                        ]);
+                }
+
+                // Update tb_material.stok (restore stock)
+                DB::table('tb_material')
+                    ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
                     ->update([
-                        'sisa_qtypr' => DB::raw(sprintf(
-                            'coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F',
+                        'stok' => DB::raw(sprintf(
+                            'coalesce(cast(stok as decimal(18,4)), 0) + %.4F',
                             $qtyValue
                         )),
                     ]);
@@ -966,13 +987,7 @@ class PurchaseRequirementController
                 DB::table('tb_pr')->where('no_pr', $noPr)->delete();
             });
         } catch (\Throwable $e) {
-            if ($request->header('X-Inertia')) {
-                session()->flash('error', 'Gagal menghapus PR: ' . $e->getMessage());
-                return inertia_location(route('marketing.purchase-requirement.index'));
-            }
-            return response()->json([
-                'message' => 'Gagal menghapus PR: ' . $e->getMessage(),
-            ], 500);
+            return back()->with('error', 'Gagal menghapus PR: ' . $e->getMessage());
         }
 
         if ($request->header('X-Inertia')) {

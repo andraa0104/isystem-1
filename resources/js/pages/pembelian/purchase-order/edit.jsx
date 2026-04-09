@@ -1,3 +1,4 @@
+import { ActionIconButton } from '@/components/action-icon-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -8,13 +9,12 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import AppLayout from '@/layouts/app-layout';
 import { Spinner } from '@/components/ui/spinner';
+import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
-import { Pencil, Trash2 } from 'lucide-react';
-import { ActionIconButton } from '@/components/action-icon-button';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -123,7 +123,9 @@ export default function PurchaseOrderEdit({
         return purchaseRequirements.filter((item) => {
             const values = [item.no_pr, item.ref_po, item.for_customer];
             return values.some((value) =>
-                String(value ?? '').toLowerCase().includes(term)
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
             );
         });
     }, [prSearchTerm, purchaseRequirements]);
@@ -152,7 +154,9 @@ export default function PurchaseOrderEdit({
         }
 
         return vendors.filter((item) =>
-            String(item.nm_vdr ?? '').toLowerCase().includes(term)
+            String(item.nm_vdr ?? '')
+                .toLowerCase()
+                .includes(term),
         );
     }, [vendorSearchTerm, vendors]);
 
@@ -180,7 +184,9 @@ export default function PurchaseOrderEdit({
     const divisor = includePpn ? 1 + ppnRate : 1;
     const netPrice = divisor ? basePriceValue / divisor : basePriceValue;
     const isPriceEmpty =
-        materialForm.price === '' || materialForm.price === null || Number.isNaN(materialForm.price);
+        materialForm.price === '' ||
+        materialForm.price === null ||
+        Number.isNaN(materialForm.price);
     const qtyValue = parseNumber(materialForm.qty);
     const grossAmount = qtyValue * (includePpn ? basePriceValue : netPrice);
     const totalPriceValue = isPriceEmpty ? '' : grossAmount;
@@ -240,7 +246,7 @@ export default function PurchaseOrderEdit({
 
             router.delete(
                 `/pembelian/purchase-order/${encodeURIComponent(
-                    purchaseOrder.no_po
+                    purchaseOrder.no_po,
                 )}/detail/${encodeURIComponent(item.kodeMaterial)}`,
                 {
                     preserveScroll: true,
@@ -250,16 +256,23 @@ export default function PurchaseOrderEdit({
                             prev.filter(
                                 (mat) =>
                                     String(mat.kodeMaterial) !==
-                                    String(item.kodeMaterial)
-                            )
+                                    String(item.kodeMaterial),
+                            ),
                         );
-                        Swal.fire('Terhapus', 'Material berhasil dihapus.', 'success');
+                        Swal.fire(
+                            'Terhapus',
+                            'Material berhasil dihapus.',
+                            'success',
+                        );
                     },
                     onError: () => {
-                        // Pesan error sudah dibawa oleh flash; tampilkan default.
-                        Swal.fire('Gagal', 'Gagal menghapus material.', 'error');
+                        Swal.fire(
+                            'Gagal',
+                            'Gagal menghapus material.',
+                            'error',
+                        );
                     },
-                }
+                },
             );
         });
     };
@@ -288,7 +301,11 @@ export default function PurchaseOrderEdit({
             materialForm.price === '' || materialForm.price === null;
 
         const payload = {
-            price: isPriceEmpty ? '' : includePpn ? netPrice : materialForm.price,
+            price: isPriceEmpty
+                ? ''
+                : includePpn
+                  ? netPrice
+                  : materialForm.price,
             ppn: includePpn ? `${formData.ppn ?? 0}%` : materialForm.ppn,
             total_price: isPriceEmpty ? '' : totalPriceValue,
             qty: materialForm.qty,
@@ -296,34 +313,33 @@ export default function PurchaseOrderEdit({
 
         router.put(
             `/pembelian/purchase-order/${encodeURIComponent(
-                purchaseOrder.no_po
+                purchaseOrder.no_po,
             )}/detail/${editingMaterialId}`,
             payload,
             {
                 preserveScroll: true,
                 preserveState: true,
                 onStart: () => setSavingMaterialId(editingMaterialId),
-                onFinish: () => setSavingMaterialId(null),
                 onSuccess: () => {
                     setMaterialItems((prev) =>
                         prev.map((item) =>
                             item.id === editingMaterialId
                                 ? {
-                                    ...item,
-                                    price: payload.price,
-                                    ppn: payload.ppn,
-                                    totalPrice: payload.total_price,
-                                    qty: materialForm.qty,
-                                    inEx: includePpn ? 'IN' : 'EX',
-                                }
-                            : item
-                    )
-                );
+                                      ...item,
+                                      price: payload.price,
+                                      ppn: payload.ppn,
+                                      totalPrice: payload.total_price,
+                                      qty: materialForm.qty,
+                                      inEx: includePpn ? 'IN' : 'EX',
+                                  }
+                                : item,
+                        ),
+                    );
                     setSavingMaterialId(null);
                     handleCancelEditMaterial();
                 },
                 onError: () => setSavingMaterialId(null),
-            }
+            },
         );
     };
 
@@ -352,8 +368,7 @@ export default function PurchaseOrderEdit({
             return;
         }
 
-        const rawPpn =
-            purchaseOrderDetails[0]?.ppn ?? purchaseOrder.ppn ?? '';
+        const rawPpn = purchaseOrderDetails[0]?.ppn ?? purchaseOrder.ppn ?? '';
         const parsedPpn =
             typeof rawPpn === 'string' ? rawPpn.replace('%', '') : rawPpn;
 
@@ -443,9 +458,7 @@ export default function PurchaseOrderEdit({
 
             if (inEx === 'IN') {
                 const gross =
-                    totalPriceField > 0
-                        ? totalPriceField
-                        : price * hasQty;
+                    totalPriceField > 0 ? totalPriceField : price * hasQty;
                 const net = rate > 0 ? gross / (1 + rate) : gross;
                 const ppn = gross - net;
                 acc.netSum += net;
@@ -458,13 +471,13 @@ export default function PurchaseOrderEdit({
             }
             return acc;
         },
-        { netSum: 0, ppnSum: 0, grossSum: 0 }
+        { netSum: 0, ppnSum: 0, grossSum: 0 },
     );
 
     const handleSubmit = () => {
         router.put(
             `/pembelian/purchase-order/${encodeURIComponent(
-                purchaseOrder?.no_po ?? ''
+                purchaseOrder?.no_po ?? '',
             )}`,
             {
                 ref_pr: formData.refPr,
@@ -499,8 +512,13 @@ export default function PurchaseOrderEdit({
             },
             {
                 onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
-            }
+                onError: () => setIsSubmitting(false),
+                onSuccess: (page) => {
+                    if (page?.props?.flash?.error) {
+                        setIsSubmitting(false);
+                    }
+                },
+            },
         );
     };
 
@@ -576,7 +594,9 @@ export default function PurchaseOrderEdit({
                                 <Input value={formData.forCustomer} readOnly />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">Date</span>
+                                <span className="text-muted-foreground">
+                                    Date
+                                </span>
                                 <Input
                                     type="date"
                                     value={formData.date}
@@ -592,10 +612,7 @@ export default function PurchaseOrderEdit({
                                 <span className="text-muted-foreground">
                                     Ref PO Masuk
                                 </span>
-                                <Input
-                                    value={formData.refPoMasuk}
-                                    readOnly
-                                />
+                                <Input value={formData.refPoMasuk} readOnly />
                             </label>
                         </CardContent>
                         <div className="flex justify-end gap-2 px-6 pb-6">
@@ -651,7 +668,9 @@ export default function PurchaseOrderEdit({
                                 />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">Attended</span>
+                                <span className="text-muted-foreground">
+                                    Attended
+                                </span>
                                 <Input
                                     value={formData.attended}
                                     onChange={(event) =>
@@ -663,7 +682,9 @@ export default function PurchaseOrderEdit({
                                 />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">PPN</span>
+                                <span className="text-muted-foreground">
+                                    PPN
+                                </span>
                                 <Input
                                     type="number"
                                     value={formData.ppn}
@@ -718,7 +739,9 @@ export default function PurchaseOrderEdit({
                                 />
                             </label>
                             <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">Note 1</span>
+                                <span className="text-muted-foreground">
+                                    Note 1
+                                </span>
                                 <Input
                                     value={formData.note1}
                                     onChange={(event) =>
@@ -730,7 +753,9 @@ export default function PurchaseOrderEdit({
                                 />
                             </label>
                             <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">Note 2</span>
+                                <span className="text-muted-foreground">
+                                    Note 2
+                                </span>
                                 <Input
                                     value={formData.note2}
                                     onChange={(event) =>
@@ -742,7 +767,9 @@ export default function PurchaseOrderEdit({
                                 />
                             </label>
                             <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">Note 3</span>
+                                <span className="text-muted-foreground">
+                                    Note 3
+                                </span>
                                 <Input
                                     value={formData.note3}
                                     onChange={(event) =>
@@ -754,7 +781,9 @@ export default function PurchaseOrderEdit({
                                 />
                             </label>
                             <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">Note 4</span>
+                                <span className="text-muted-foreground">
+                                    Note 4
+                                </span>
                                 <Input
                                     value={formData.note4}
                                     onChange={(event) =>
@@ -790,11 +819,17 @@ export default function PurchaseOrderEdit({
                             <div className="grid gap-4 lg:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label>Kode Material</Label>
-                                    <Input value={materialForm.kodeMaterial} readOnly />
+                                    <Input
+                                        value={materialForm.kodeMaterial}
+                                        readOnly
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Material</Label>
-                                    <Input value={materialForm.material} readOnly />
+                                    <Input
+                                        value={materialForm.material}
+                                        readOnly
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Qty</Label>
@@ -812,7 +847,10 @@ export default function PurchaseOrderEdit({
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Satuan</Label>
-                                    <Input value={materialForm.satuan} readOnly />
+                                    <Input
+                                        value={materialForm.satuan}
+                                        readOnly
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Price</Label>
@@ -829,14 +867,20 @@ export default function PurchaseOrderEdit({
                                                 price: event.target.value,
                                             }))
                                         }
-                                        disabled={!editingMaterialId || includePpn}
+                                        disabled={
+                                            !editingMaterialId || includePpn
+                                        }
                                     />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>PPN</Label>
                                     <Input
                                         type="number"
-                                        value={includePpn ? ppnTotal : materialForm.ppn || 0}
+                                        value={
+                                            includePpn
+                                                ? ppnTotal
+                                                : materialForm.ppn || 0
+                                        }
                                         onChange={(event) =>
                                             setMaterialForm((prev) => ({
                                                 ...prev,
@@ -853,7 +897,8 @@ export default function PurchaseOrderEdit({
                                             type="checkbox"
                                             checked={includePpn}
                                             onChange={(event) => {
-                                                const checked = event.target.checked;
+                                                const checked =
+                                                    event.target.checked;
                                                 setIncludePpn(checked);
                                                 setMaterialForm((prev) => ({
                                                     ...prev,
@@ -887,7 +932,8 @@ export default function PurchaseOrderEdit({
                                                     editingMaterialId
                                             }
                                         >
-                                            {savingMaterialId === editingMaterialId
+                                            {savingMaterialId ===
+                                            editingMaterialId
                                                 ? 'Menyimpan...'
                                                 : 'Simpan Data'}
                                         </Button>
@@ -922,15 +968,15 @@ export default function PurchaseOrderEdit({
                                             <th className="px-4 py-3 text-left">
                                                 Satuan
                                             </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Price
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        PPN
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        IN/EX
-                                    </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Price
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                PPN
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                IN/EX
+                                            </th>
                                             <th className="px-4 py-3 text-left">
                                                 Total Price
                                             </th>
@@ -946,7 +992,8 @@ export default function PurchaseOrderEdit({
                                                     className="px-4 py-6 text-center text-muted-foreground"
                                                     colSpan={9}
                                                 >
-                                                    Belum ada material ditambahkan.
+                                                    Belum ada material
+                                                    ditambahkan.
                                                 </td>
                                             </tr>
                                         )}
@@ -959,7 +1006,9 @@ export default function PurchaseOrderEdit({
                                                     {index + 1}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {renderValue(item.kodeMaterial)}
+                                                    {renderValue(
+                                                        item.kodeMaterial,
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {renderValue(item.material)}
@@ -973,15 +1022,17 @@ export default function PurchaseOrderEdit({
                                                 <td className="px-4 py-3">
                                                     {renderValue(item.price)}
                                                 </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.ppn)}
-                                            </td>
-                                <td className="px-4 py-3">
-                                                {item.inEx ?? 'EX'}
-                                </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.totalPrice)}
-                                            </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.ppn)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {item.inEx ?? 'EX'}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(
+                                                        item.totalPrice,
+                                                    )}
+                                                </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-1">
                                                         <ActionIconButton
@@ -1022,7 +1073,10 @@ export default function PurchaseOrderEdit({
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Total PPN</Label>
-                                    <Input value={formatRupiah(totalPpnSum)} readOnly />
+                                    <Input
+                                        value={formatRupiah(totalPpnSum)}
+                                        readOnly
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Grand Total</Label>
@@ -1066,7 +1120,7 @@ export default function PurchaseOrderEdit({
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Data Vendor</DialogTitle>
                         </DialogHeader>
@@ -1086,7 +1140,7 @@ export default function PurchaseOrderEdit({
                                         setVendorPageSize(
                                             value === 'all'
                                                 ? Infinity
-                                                : Number(value)
+                                                : Number(value),
                                         );
                                         setVendorCurrentPage(1);
                                     }}
@@ -1189,57 +1243,62 @@ export default function PurchaseOrderEdit({
                             </table>
                         </div>
 
-                        {vendorPageSize !== Infinity && vendorTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (vendorCurrentPage - 1) * vendorPageSize +
-                                            1,
-                                        vendorTotalItems
-                                    )}
-                                    -
-                                    {Math.min(
-                                        vendorCurrentPage * vendorPageSize,
-                                        vendorTotalItems
-                                    )}{' '}
-                                    dari {vendorTotalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setVendorCurrentPage((page) =>
-                                                Math.max(1, page - 1)
-                                            )
-                                        }
-                                        disabled={vendorCurrentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span className="text-sm text-muted-foreground">
-                                        Halaman {vendorCurrentPage} dari{' '}
-                                        {vendorTotalPages}
+                        {vendorPageSize !== Infinity &&
+                            vendorTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                    <span>
+                                        Menampilkan{' '}
+                                        {Math.min(
+                                            (vendorCurrentPage - 1) *
+                                                vendorPageSize +
+                                                1,
+                                            vendorTotalItems,
+                                        )}
+                                        -
+                                        {Math.min(
+                                            vendorCurrentPage * vendorPageSize,
+                                            vendorTotalItems,
+                                        )}{' '}
+                                        dari {vendorTotalItems} data
                                     </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setVendorCurrentPage((page) =>
-                                                Math.min(
-                                                    vendorTotalPages,
-                                                    page + 1
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setVendorCurrentPage((page) =>
+                                                    Math.max(1, page - 1),
                                                 )
-                                            )
-                                        }
-                                        disabled={vendorCurrentPage === vendorTotalPages}
-                                    >
-                                        Berikutnya
-                                    </Button>
+                                            }
+                                            disabled={vendorCurrentPage === 1}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground">
+                                            Halaman {vendorCurrentPage} dari{' '}
+                                            {vendorTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setVendorCurrentPage((page) =>
+                                                    Math.min(
+                                                        vendorTotalPages,
+                                                        page + 1,
+                                                    ),
+                                                )
+                                            }
+                                            disabled={
+                                                vendorCurrentPage ===
+                                                vendorTotalPages
+                                            }
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
                     </DialogContent>
                 </Dialog>
             </div>

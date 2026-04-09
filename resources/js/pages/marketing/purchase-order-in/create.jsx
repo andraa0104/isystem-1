@@ -118,6 +118,7 @@ const isValidDmyDate = (value) => {
 export default function PurchaseOrderInCreate({ defaults = {} }) {
     const datePickerRef = useRef(null);
     const deliveryDatePickerRef = useRef(null);
+    const qtyRef = useRef(null);
     const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
@@ -281,16 +282,11 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 'X-Skip-Loading-Overlay': '1',
             },
             onStart: () => setIsSubmitting(true),
-            onFinish: () => setIsSubmitting(false),
+            onError: () => setIsSubmitting(false),
             onSuccess: (page) => {
                 if (page?.props?.flash?.error) {
-                    return;
+                    setIsSubmitting(false);
                 }
-                router.visit('/marketing/purchase-order-in', {
-                    headers: {
-                        'X-Skip-Loading-Overlay': '1',
-                    },
-                });
             },
         });
     };
@@ -651,12 +647,12 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             kodeMaterial: material.kd_material ?? '',
             material: material.material ?? '',
             unit: material.unit ?? prev.unit,
-            unitPrice: String(material.harga ?? material.price ?? '').replace(
-                /[^\d]/g,
-                '',
-            ),
         }));
         setIsMaterialModalOpen(false);
+        // Delay focus to allow modal close animation and state updates to settle
+        setTimeout(() => {
+            qtyRef.current?.focus();
+        }, 100);
     };
 
     return (
@@ -1163,6 +1159,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 <Label htmlFor="qty">Qty</Label>
                                 <Input
                                     id="qty"
+                                    ref={qtyRef}
                                     type="number"
                                     value={itemForm.qty}
                                     onChange={(event) =>

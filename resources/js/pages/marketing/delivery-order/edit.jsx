@@ -144,20 +144,24 @@ export default function DeliveryOrderEdit({
                 preserveScroll: true,
                 preserveState: true,
                 onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
-                onSuccess: () => {
-                    setFormData((prev) => ({
-                        ...prev,
-                        items: prev.items.map((row) =>
-                            String(row.no) === String(inputItem.no)
-                                ? {
-                                      ...row,
-                                      qty: inputItem.qty,
-                                      remark: inputItem.remark,
-                                  }
-                                : row,
-                        ),
-                    }));
+                onError: () => setIsSubmitting(false),
+                onSuccess: (page) => {
+                    if (page?.props?.flash?.error) {
+                        setIsSubmitting(false);
+                    } else {
+                        setFormData((prev) => ({
+                            ...prev,
+                            items: prev.items.map((row) =>
+                                String(row.no) === String(inputItem.no)
+                                    ? {
+                                          ...row,
+                                          qty: inputItem.qty,
+                                          remark: inputItem.remark,
+                                      }
+                                    : row,
+                            ),
+                        }));
+                    }
                 },
             },
         );
@@ -277,9 +281,12 @@ export default function DeliveryOrderEdit({
                 preserveScroll: true,
                 preserveState: true,
                 onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
-                onSuccess: () => {},
-                onError: () => {},
+                onError: () => setIsSubmitting(false),
+                onSuccess: (page) => {
+                    if (page?.props?.flash?.error) {
+                        setIsSubmitting(false);
+                    }
+                },
             },
         );
     };

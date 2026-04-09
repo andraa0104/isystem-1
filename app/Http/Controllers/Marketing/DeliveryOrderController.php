@@ -103,11 +103,7 @@ class DeliveryOrderController
                     ]);
             });
         } catch (\Throwable $e) {
-            if ($request->header('X-Inertia')) {
-                session()->flash('error', 'Gagal memperbarui data: ' . $e->getMessage());
-                return inertia_location(route('marketing.delivery-order.index'));
-            }
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', 'Gagal memperbarui data: ' . $e->getMessage());
         }
 
         if ($request->header('X-Inertia')) {
@@ -563,11 +559,7 @@ class DeliveryOrderController
                 }
             });
         } catch (\Throwable $exception) {
-            if ($request->header('X-Inertia')) {
-                session()->flash('error', 'Gagal menyimpan data: ' . $exception->getMessage());
-                return inertia_location(route('marketing.delivery-order.index'));
-            }
-            return back()->with('error', $exception->getMessage());
+            return back()->with('error', 'Gagal menyimpan data: ' . $exception->getMessage());
         }
 
         if ($request->header('X-Inertia')) {
@@ -684,11 +676,7 @@ class DeliveryOrderController
                 ]);
             });
         } catch (\Throwable $exception) {
-            if ($request->header('X-Inertia')) {
-                session()->flash('error', 'Gagal memperbarui detail: ' . $exception->getMessage());
-                return inertia_location(route('marketing.delivery-order.index'));
-            }
-            return back()->with('error', $exception->getMessage());
+            return back()->with('error', 'Gagal memperbarui detail: ' . $exception->getMessage());
         }
 
         if ($request->header('X-Inertia')) {
@@ -759,15 +747,7 @@ class DeliveryOrderController
                     ->delete();
             });
         } catch (\Throwable $exception) {
-            $message = $exception->getMessage();
-            if ($request->header('X-Inertia')) {
-                session()->flash('error', 'Gagal menghapus material: ' . $message);
-                return inertia_location(route('marketing.delivery-order.index'));
-            }
-            if ($request->expectsJson()) {
-                return response()->json(['message' => $message], 500);
-            }
-            return back()->with('error', $message);
+            return back()->with('error', 'Gagal menghapus material: ' . $exception->getMessage());
         }
 
         $successMessage = 'Data material DO berhasil dihapus.';
@@ -852,13 +832,7 @@ class DeliveryOrderController
                 DB::table('tb_kddo')->where('no_do', $noDo)->delete();
             });
         } catch (\Throwable $e) {
-            if ($request->header('X-Inertia')) {
-                session()->flash('error', 'Gagal menghapus DO: ' . $e->getMessage());
-                return inertia_location(route('marketing.delivery-order.index'));
-            }
-            return response()->json([
-                'message' => 'Gagal menghapus DO: '.$e->getMessage(),
-            ], 500);
+            return back()->with('error', 'Gagal menghapus DO: ' . $e->getMessage());
         }
 
         if ($request->expectsJson()) {

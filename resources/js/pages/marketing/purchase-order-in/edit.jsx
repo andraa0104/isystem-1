@@ -385,19 +385,14 @@ export default function PurchaseOrderInEdit({
                     'X-Skip-Loading-Overlay': '1',
                 },
                 onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
                 onSuccess: (page) => {
                     if (page?.props?.flash?.error) {
                         toastError(page.props.flash.error);
-                        return;
+                        setIsSubmitting(false);
                     }
-                    router.visit('/marketing/purchase-order-in', {
-                        headers: {
-                            'X-Skip-Loading-Overlay': '1',
-                        },
-                    });
                 },
                 onError: (errors) => {
+                    setIsSubmitting(false);
                     const first = Object.values(errors ?? {})[0];
                     const msg = Array.isArray(first) ? first[0] : first;
                     toastError(msg || 'Gagal memperbarui PO In.');
@@ -1302,17 +1297,21 @@ export default function PurchaseOrderInEdit({
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleEditItem(item)
-                                                        }
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Button>
+                                                    {!item.hasPr && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                handleEditItem(
+                                                                    item,
+                                                                )
+                                                            }
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Button>
+                                                    )}
                                                     {!item.hasPr && (
                                                         <Button
                                                             type="button"

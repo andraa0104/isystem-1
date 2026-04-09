@@ -347,9 +347,8 @@ export default function PurchaseOrderInIndex({
                     setActiveModal(null);
                     setIsConfirmDeleteOpen(false);
                     setConfirmDeleteKode('');
-                    fetchTable({ page: pagination?.page ?? 1 });
                 },
-                onFinish: () => setIsDeleting(false),
+                onError: () => setIsDeleting(false),
             },
         );
     };

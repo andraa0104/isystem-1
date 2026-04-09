@@ -469,7 +469,12 @@ export default function PurchaseRequirementCreate() {
             },
             {
                 onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
+                onError: () => setIsSubmitting(false),
+                onSuccess: (page) => {
+                    if (page?.props?.flash?.error) {
+                        setIsSubmitting(false);
+                    }
+                },
             },
         );
     };

@@ -440,8 +440,7 @@ class PurchaseOrderInController
                 'kd_material',
                 'material',
                 'unit',
-                'stok',
-                'harga'
+                'stok'
             );
 
         if ($search !== '') {
@@ -750,16 +749,11 @@ class PurchaseOrderInController
                 session()->flash('success', 'Data PO IN berhasil disimpan.');
                 return inertia_location(route('marketing.purchase-order-in.index'));
             }
-
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil disimpan.');
         } catch (\Throwable $e) {
-            if ($request->header('X-Inertia')) {
-                session()->flash('error', 'Gagal menyimpan data: ' . $e->getMessage());
-                return inertia_location(route('marketing.purchase-order-in.index'));
-            }
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', 'Gagal menyimpan data: ' . $e->getMessage());
         }
     }
 
@@ -944,16 +938,11 @@ class PurchaseOrderInController
                 session()->flash('success', 'Data PO IN berhasil diperbarui.');
                 return inertia_location(route('marketing.purchase-order-in.index'));
             }
-
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil diperbarui.');
         } catch (\Throwable $e) {
-            if ($request->header('X-Inertia')) {
-                session()->flash('error', 'Gagal memperbarui data: ' . $e->getMessage());
-                return inertia_location(route('marketing.purchase-order-in.index'));
-            }
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', 'Gagal memperbarui data: ' . $e->getMessage());
         }
     }
 
@@ -994,14 +983,10 @@ class PurchaseOrderInController
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil dihapus.');
         } catch (\Throwable $e) {
-            if ($request->header('X-Inertia')) {
-                session()->flash('error', 'Gagal menghapus data: ' . $e->getMessage());
-                return inertia_location('/marketing/purchase-order-in');
-            }
             if ($request->expectsJson()) {
                 return response()->json(['message' => $e->getMessage()], 500);
             }
-            return back()->with('error', $e->getMessage());
+            return back()->with('error', 'Gagal menghapus data: ' . $e->getMessage());
         }
     }
 
@@ -1027,6 +1012,22 @@ class PurchaseOrderInController
                 return response()->json([
                     'message' => 'Data material tidak ditemukan.',
                 ], 404);
+            }
+
+            // Check if this material has been used in a PR
+            $poHeader = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
+            if ($poHeader) {
+                $hasPr = DB::table('tb_detailpr')
+                    ->where('ref_po', $poHeader->no_poin)
+                    ->where('for_customer', $poHeader->customer_name)
+                    ->where('kd_material', $detail->kd_material)
+                    ->exists();
+
+                if ($hasPr) {
+                    return response()->json([
+                        'message' => 'Material tidak dapat diubah karena sudah dibuat PR.',
+                    ], 422);
+                }
             }
 
             $validated = $request->validate([
@@ -1094,6 +1095,33 @@ class PurchaseOrderInController
                 return response()->json([
                     'message' => 'Data PO In tidak ditemukan.',
                 ], 404);
+            }
+
+            $detail = DB::table('tb_detailpoin')
+                ->where('kode_poin', $kodePoin)
+                ->where('id', $detailId)
+                ->first();
+
+            if (!$detail) {
+                return response()->json([
+                    'message' => 'Data material tidak ditemukan.',
+                ], 404);
+            }
+
+            // Check if this material has been used in a PR
+            $poHeader = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
+            if ($poHeader) {
+                $hasPr = DB::table('tb_detailpr')
+                    ->where('ref_po', $poHeader->no_poin)
+                    ->where('for_customer', $poHeader->customer_name)
+                    ->where('kd_material', $detail->kd_material)
+                    ->exists();
+
+                if ($hasPr) {
+                    return response()->json([
+                        'message' => 'Material tidak dapat dihapus karena sudah dibuat PR.',
+                    ], 422);
+                }
             }
 
             $deleted = DB::table('tb_detailpoin')

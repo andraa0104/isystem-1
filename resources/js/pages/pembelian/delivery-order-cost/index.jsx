@@ -1,10 +1,6 @@
+import { ActionIconButton } from '@/components/action-icon-button';
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 import {
     Card,
     CardContent,
@@ -12,15 +8,18 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ActionIconButton } from '@/components/action-icon-button';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { formatDateId } from '@/lib/formatters';
 import { Head } from '@inertiajs/react';
 import { Eye, Pencil, Printer } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { readApiError, normalizeApiError } from '@/lib/api-error';
-import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
-import { formatDateId } from '@/lib/formatters';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -195,8 +194,7 @@ export default function DeliveryOrderCostIndex({
         if (outstandingPageSize === Infinity) {
             return outstandingFiltered;
         }
-        const startIndex =
-            (outstandingCurrentPage - 1) * outstandingPageSize;
+        const startIndex = (outstandingCurrentPage - 1) * outstandingPageSize;
         return outstandingFiltered.slice(
             startIndex,
             startIndex + outstandingPageSize,
@@ -232,7 +230,9 @@ export default function DeliveryOrderCostIndex({
                 setDetailHeader(data?.header ?? null);
             })
             .catch((error) => {
-                setDetailError(normalizeApiError(error, 'Gagal memuat detail DOBi.'));
+                setDetailError(
+                    normalizeApiError(error, 'Gagal memuat detail DOBi.'),
+                );
             })
             .finally(() => {
                 setDetailLoading(false);
@@ -262,7 +262,9 @@ export default function DeliveryOrderCostIndex({
                 );
             })
             .catch((error) => {
-                setOutstandingError(normalizeApiError(error, 'Gagal memuat data DOBi.'));
+                setOutstandingError(
+                    normalizeApiError(error, 'Gagal memuat data DOBi.'),
+                );
             })
             .finally(() => {
                 setOutstandingLoading(false);
@@ -416,98 +418,85 @@ export default function DeliveryOrderCostIndex({
                             </label>
                         </div>
 
-	                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-	                            <table className="w-full text-sm">
-	                                <thead className="bg-muted/50 text-muted-foreground sticky top-0 z-10">
-	                                    <tr>
-	                                        <th className="px-4 py-3 text-left">
-	                                            No DOBi
-	                                        </th>
-	                                        <th className="px-4 py-3 text-left">
-	                                            Date
-	                                        </th>
-	                                        <th className="px-4 py-3 text-left">
-	                                            Status
-	                                        </th>
-	                                        <th className="px-4 py-3 text-left">
-	                                            Permintaan
-	                                        </th>
-	                                        <th className="px-4 py-3 text-left">
-	                                            Departemen
-	                                        </th>
-	                                        <th className="px-4 py-3 text-left">
-	                                            Action
-	                                        </th>
-	                                    </tr>
-	                                </thead>
-	                                <tbody>
-	                                    {displayedDeliveryOrders.length === 0 && (
-	                                        <tr>
-	                                            <td
-	                                                className="px-4 py-6 text-center text-muted-foreground"
-	                                                colSpan={6}
-	                                            >
-	                                                Belum ada data DOBi.
-	                                            </td>
-	                                        </tr>
-	                                    )}
-	                                    {displayedDeliveryOrders.map((item) => (
-	                                        <tr
-	                                            key={item.no_alokasi}
-	                                            className="border-t border-sidebar-border/70"
-	                                        >
-	                                            <td className="px-4 py-3">
-	                                                {item.no_alokasi}
-	                                            </td>
-	                                            <td className="px-4 py-3">
-	                                                {formatDateId(item.date)}
-	                                            </td>
-	                                            <td className="px-4 py-3">
-	                                                {(() => {
-	                                                    const s = getDoBiStatus(item);
-	                                                    return (
-	                                                        <Badge variant={s.variant}>
-	                                                            {s.label}
-	                                                        </Badge>
-	                                                    );
-	                                                })()}
-	                                            </td>
-	                                            <td className="px-4 py-3">
-	                                                {item.ref_permintaan}
-	                                            </td>
-	                                            <td className="px-4 py-3">
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="sticky top-0 z-10 bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left">
+                                            No DOBi
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Date
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Permintaan
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Departemen
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Action
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {displayedDeliveryOrders.length === 0 && (
+                                        <tr>
+                                            <td
+                                                className="px-4 py-6 text-center text-muted-foreground"
+                                                colSpan={5}
+                                            >
+                                                Belum ada data DOBi.
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {displayedDeliveryOrders.map((item) => (
+                                        <tr
+                                            key={item.no_alokasi}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {item.no_alokasi}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatDateId(item.date)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.ref_permintaan}
+                                            </td>
+                                            <td className="px-4 py-3">
                                                 {item.kd_cs}
                                             </td>
-	                                            <td className="px-4 py-3">
-	                                                <div className="flex items-center gap-2">
-	                                                    <ActionIconButton
-	                                                        label="Detail"
-	                                                        onClick={() =>
-	                                                            handleOpenDetailModal(
-	                                                                item,
-	                                                            )
-	                                                        }
-	                                                    >
-	                                                        <Eye className="size-4" />
-	                                                    </ActionIconButton>
-	                                                    <ActionIconButton
-	                                                        label="Cetak"
-	                                                        asChild
-	                                                    >
-	                                                        <a
-	                                                            href={`/pembelian/delivery-order-cost/${encodeURIComponent(
-	                                                                item.no_alokasi,
-	                                                            )}/print`}
-	                                                            target="_blank"
-	                                                            rel="noreferrer"
-	                                                        >
-	                                                            <Printer className="size-4" />
-	                                                        </a>
-	                                                    </ActionIconButton>
-	                                                </div>
-	                                            </td>
-	                                        </tr>
-	                                    ))}
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    <ActionIconButton
+                                                        label="Detail"
+                                                        onClick={() =>
+                                                            handleOpenDetailModal(
+                                                                item,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </ActionIconButton>
+                                                    <ActionIconButton
+                                                        label="Cetak"
+                                                        asChild
+                                                    >
+                                                        <a
+                                                            href={`/pembelian/delivery-order-cost/${encodeURIComponent(
+                                                                item.no_alokasi,
+                                                            )}/print`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                        >
+                                                            <Printer className="size-4" />
+                                                        </a>
+                                                    </ActionIconButton>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
@@ -520,7 +509,11 @@ export default function DeliveryOrderCostIndex({
                                         (currentPage - 1) * pageSize + 1,
                                         totalItems,
                                     )}
-                                    -{Math.min(currentPage * pageSize, totalItems)}{' '}
+                                    -
+                                    {Math.min(
+                                        currentPage * pageSize,
+                                        totalItems,
+                                    )}{' '}
                                     dari {totalItems} data
                                 </span>
                                 <div className="flex items-center gap-2">
@@ -558,8 +551,11 @@ export default function DeliveryOrderCostIndex({
                 </Card>
             </div>
 
-            <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none flex flex-col">
+            <Dialog
+                open={isDetailModalOpen}
+                onOpenChange={setIsDetailModalOpen}
+            >
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Detail Delivery Order Cost</DialogTitle>
                     </DialogHeader>
@@ -574,7 +570,9 @@ export default function DeliveryOrderCostIndex({
                                 </div>
                             </div>
                             <div>
-                                <div className="text-muted-foreground">Date</div>
+                                <div className="text-muted-foreground">
+                                    Date
+                                </div>
                                 <div className="font-semibold">
                                     {renderValue(detailHeader?.date)}
                                 </div>
@@ -604,7 +602,9 @@ export default function DeliveryOrderCostIndex({
                                 </div>
                             </div>
                             <div>
-                                <div className="text-muted-foreground">Nama</div>
+                                <div className="text-muted-foreground">
+                                    Nama
+                                </div>
                                 <div className="font-semibold">
                                     {renderValue(detailHeader?.nm_cs)}
                                 </div>
@@ -651,31 +651,31 @@ export default function DeliveryOrderCostIndex({
                             </label>
                         </div>
 
-	                        <div className="overflow-x-auto rounded-lg border border-sidebar-border/70">
-	                            <table className="w-full text-sm">
-	                                <thead className="bg-muted/50 text-muted-foreground sticky top-0 z-10">
-	                                    <tr>
-	                                        <th className="px-4 py-3 text-left">
-	                                            No
-	                                        </th>
-	                                        <th className="px-4 py-3 text-left">
-	                                            Material
-	                                        </th>
-	                                        <th className="px-4 py-3 text-right">
-	                                            Qty
-	                                        </th>
-	                                        <th className="px-4 py-3 text-left">
-	                                            Satuan
-	                                        </th>
-	                                        <th className="px-4 py-3 text-right">
-	                                            Harga
-	                                        </th>
-	                                        <th className="px-4 py-3 text-right">
-	                                            Total
-	                                        </th>
-	                                        <th className="px-4 py-3 text-left">
-	                                            Remark
-	                                        </th>
+                        <div className="overflow-x-auto rounded-lg border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="sticky top-0 z-10 bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left">
+                                            No
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Material
+                                        </th>
+                                        <th className="px-4 py-3 text-right">
+                                            Qty
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Satuan
+                                        </th>
+                                        <th className="px-4 py-3 text-right">
+                                            Harga
+                                        </th>
+                                        <th className="px-4 py-3 text-right">
+                                            Total
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Remark
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -687,106 +687,121 @@ export default function DeliveryOrderCostIndex({
                                             lastDetailNoAlokasi
                                                 ? () =>
                                                       handleOpenDetailModal({
-                                                          no_alokasi: lastDetailNoAlokasi,
+                                                          no_alokasi:
+                                                              lastDetailNoAlokasi,
                                                       })
                                                 : undefined
                                         }
-                                        isEmpty={!detailLoading && !detailError && displayedDetailItems.length === 0}
+                                        isEmpty={
+                                            !detailLoading &&
+                                            !detailError &&
+                                            displayedDetailItems.length === 0
+                                        }
                                         emptyTitle="Tidak ada data."
                                     />
-                                    {!detailLoading && !detailError && displayedDetailItems.map((item, index) => (
-                                            <tr
-                                                key={`${item.no_alokasi}-${index}`}
-                                                className="border-t border-sidebar-border/70"
-                                            >
-                                                <td className="px-4 py-3">
-                                                    {index +
-                                                        1 +
-                                                        (detailCurrentPage -
-                                                            1) *
-                                                            (detailPageSize ===
-                                                            Infinity
-                                                                ? 0
-                                                                : detailPageSize)}
-                                                </td>
-	                                                <td className="px-4 py-3">
-	                                                    {item.mat}
-	                                                </td>
-	                                                <td className="px-4 py-3 text-right whitespace-nowrap">
-	                                                    {formatNumber(item.qty)}
-	                                                </td>
-	                                                <td className="px-4 py-3">
-	                                                    {item.unit}
-	                                                </td>
-	                                                <td className="px-4 py-3 text-right whitespace-nowrap">
-	                                                    {formatNumber(item.harga)}
-	                                                </td>
-	                                                <td className="px-4 py-3 text-right whitespace-nowrap">
-	                                                    {formatNumber(item.total)}
-	                                                </td>
-	                                                <td className="px-4 py-3">
-	                                                    {item.remark}
-	                                                </td>
-                                            </tr>
-                                        ))}
+                                    {!detailLoading &&
+                                        !detailError &&
+                                        displayedDetailItems.map(
+                                            (item, index) => (
+                                                <tr
+                                                    key={`${item.no_alokasi}-${index}`}
+                                                    className="border-t border-sidebar-border/70"
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        {index +
+                                                            1 +
+                                                            (detailCurrentPage -
+                                                                1) *
+                                                                (detailPageSize ===
+                                                                Infinity
+                                                                    ? 0
+                                                                    : detailPageSize)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.mat}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                        {formatNumber(item.qty)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.unit}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                        {formatNumber(
+                                                            item.harga,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                        {formatNumber(
+                                                            item.total,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.remark}
+                                                    </td>
+                                                </tr>
+                                            ),
+                                        )}
                                 </tbody>
                             </table>
                         </div>
 
-                        {detailPageSize !== Infinity && detailTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (detailCurrentPage - 1) *
-                                            detailPageSize +
-                                            1,
-                                        detailTotalItems,
-                                    )}
-                                    -
-                                    {Math.min(
-                                        detailCurrentPage * detailPageSize,
-                                        detailTotalItems,
-                                    )}{' '}
-                                    dari {detailTotalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setDetailCurrentPage((page) =>
-                                                Math.max(1, page - 1),
-                                            )
-                                        }
-                                        disabled={detailCurrentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span className="text-sm text-muted-foreground">
-                                        Halaman {detailCurrentPage} dari{' '}
-                                        {detailTotalPages}
+                        {detailPageSize !== Infinity &&
+                            detailTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                    <span>
+                                        Menampilkan{' '}
+                                        {Math.min(
+                                            (detailCurrentPage - 1) *
+                                                detailPageSize +
+                                                1,
+                                            detailTotalItems,
+                                        )}
+                                        -
+                                        {Math.min(
+                                            detailCurrentPage * detailPageSize,
+                                            detailTotalItems,
+                                        )}{' '}
+                                        dari {detailTotalItems} data
                                     </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setDetailCurrentPage((page) =>
-                                                Math.min(
-                                                    detailTotalPages,
-                                                    page + 1,
-                                                ),
-                                            )
-                                        }
-                                        disabled={
-                                            detailCurrentPage === detailTotalPages
-                                        }
-                                    >
-                                        Selanjutnya
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setDetailCurrentPage((page) =>
+                                                    Math.max(1, page - 1),
+                                                )
+                                            }
+                                            disabled={detailCurrentPage === 1}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground">
+                                            Halaman {detailCurrentPage} dari{' '}
+                                            {detailTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setDetailCurrentPage((page) =>
+                                                    Math.min(
+                                                        detailTotalPages,
+                                                        page + 1,
+                                                    ),
+                                                )
+                                            }
+                                            disabled={
+                                                detailCurrentPage ===
+                                                detailTotalPages
+                                            }
+                                        >
+                                            Selanjutnya
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
                         <div className="flex items-center justify-end text-sm font-semibold">
                             Grand Total: Rp {formatNumber(detailGrandTotal)}
@@ -799,7 +814,7 @@ export default function DeliveryOrderCostIndex({
                 open={isOutstandingModalOpen}
                 onOpenChange={setIsOutstandingModalOpen}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none flex flex-col">
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col !rounded-none">
                     <DialogHeader>
                         <DialogTitle>DO Biaya Belum Dibebankan</DialogTitle>
                     </DialogHeader>
@@ -842,73 +857,74 @@ export default function DeliveryOrderCostIndex({
                             />
                         </label>
                     </div>
-	                    <div className="flex-1 overflow-auto rounded-md border">
-	                        <table className="w-full text-sm">
-	                            <thead className="bg-muted/50 text-muted-foreground sticky top-0 z-10">
-	                                <tr>
-	                                    <th className="px-4 py-3 text-left">
-	                                        No DOBi
-	                                    </th>
-	                                    <th className="px-4 py-3 text-left">
-	                                        Date
-	                                    </th>
-	                                    <th className="px-4 py-3 text-left">
-	                                        Status
-	                                    </th>
-	                                    <th className="px-4 py-3 text-left">
-	                                        Permintaan
-	                                    </th>
-	                                    <th className="px-4 py-3 text-left">
-	                                        Departemen
-	                                    </th>
-	                                    <th className="px-4 py-3 text-left">
-	                                        Action
-	                                    </th>
-	                                </tr>
-	                            </thead>
-	                            <tbody>
-	                                <PlainTableStateRows
-	                                    columns={6}
-	                                    loading={outstandingLoading}
-	                                    error={outstandingError}
-	                                    onRetry={loadOutstanding}
-	                                    isEmpty={!outstandingLoading && !outstandingError && displayedOutstanding.length === 0}
-	                                    emptyTitle="Tidak ada data."
-	                                />
-	                                {!outstandingLoading && !outstandingError && displayedOutstanding.map((item) => (
-	                                        <tr
-	                                            key={`outstanding-${item.no_alokasi}`}
-	                                            className="border-t border-sidebar-border/70"
-	                                        >
-	                                            <td className="px-4 py-3">
-	                                                {item.no_alokasi}
-	                                            </td>
-	                                            <td className="px-4 py-3">
-	                                                {formatDateId(item.date)}
-	                                            </td>
-	                                            <td className="px-4 py-3">
-	                                                <Badge variant="secondary">
-	                                                    Outstanding
-	                                                </Badge>
-	                                            </td>
-	                                            <td className="px-4 py-3">
-	                                                {item.ref_permintaan}
-	                                            </td>
-	                                            <td className="px-4 py-3">
+                    <div className="flex-1 overflow-auto rounded-md border">
+                        <table className="w-full text-sm">
+                            <thead className="sticky top-0 z-10 bg-muted/50 text-muted-foreground">
+                                <tr>
+                                    <th className="px-4 py-3 text-left">
+                                        No DOBi
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Date
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Permintaan
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Departemen
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Action
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <PlainTableStateRows
+                                    columns={5}
+                                    loading={outstandingLoading}
+                                    error={outstandingError}
+                                    onRetry={loadOutstanding}
+                                    isEmpty={
+                                        !outstandingLoading &&
+                                        !outstandingError &&
+                                        displayedOutstanding.length === 0
+                                    }
+                                    emptyTitle="Tidak ada data."
+                                />
+                                {!outstandingLoading &&
+                                    !outstandingError &&
+                                    displayedOutstanding.map((item) => (
+                                        <tr
+                                            key={`outstanding-${item.no_alokasi}`}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {item.no_alokasi}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatDateId(item.date)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.ref_permintaan}
+                                            </td>
+                                            <td className="px-4 py-3">
                                                 {item.kd_cs}
                                             </td>
-	                                            <td className="px-4 py-3">
-	                                                <ActionIconButton label="Edit" asChild>
-	                                                    <a
-	                                                        href={`/pembelian/delivery-order-cost/${encodeURIComponent(
-	                                                            item.no_alokasi,
-	                                                        )}/edit`}
-	                                                    >
-	                                                        <Pencil className="size-4" />
-	                                                    </a>
-	                                                </ActionIconButton>
-	                                            </td>
-	                                        </tr>
+                                            <td className="px-4 py-3">
+                                                <ActionIconButton
+                                                    label="Edit"
+                                                    asChild
+                                                >
+                                                    <a
+                                                        href={`/pembelian/delivery-order-cost/${encodeURIComponent(
+                                                            item.no_alokasi,
+                                                        )}/edit`}
+                                                    >
+                                                        <Pencil className="size-4" />
+                                                    </a>
+                                                </ActionIconButton>
+                                            </td>
+                                        </tr>
                                     ))}
                             </tbody>
                         </table>
