@@ -52,9 +52,9 @@ class PurchaseRequirementController
                 'pr.ref_po',
                 'pr.payment',
                 DB::raw('coalesce(detail.sisa_pr_sum, 0) as sisa_pr'),
-                DB::raw('case when coalesce(detail.po_items_count,0) = 0 then 1 else 0 end as outstanding_count'),
-                DB::raw('case when coalesce(detail.remaining_items_count,1) = 0 then 1 else 0 end as realized_count'),
-                DB::raw('case when coalesce(detail.po_items_count,0) > 0 and coalesce(detail.remaining_items_count,0) > 0 then 1 else 0 end as sisa_po_count')
+                DB::raw('case when detail.no_pr is not null and coalesce(detail.po_items_count,0) = 0 then 1 else 0 end as outstanding_count'),
+                DB::raw('case when detail.no_pr is not null and coalesce(detail.remaining_items_count,1) = 0 then 1 else 0 end as realized_count'),
+                DB::raw('case when detail.no_pr is not null and coalesce(detail.po_items_count,0) > 0 and coalesce(detail.remaining_items_count,0) > 0 then 1 else 0 end as sisa_po_count')
             )
             ->orderBy('pr.date', 'desc')
             ->orderBy('pr.no_pr', 'desc')
