@@ -354,7 +354,7 @@ class PurchaseOrderController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data PO berhasil disimpan.');
-            return inertia_location(route('pembelian.purchase-order.index'));
+            return inertia_location('/pembelian/purchase-order');
         }
 
         return redirect()
@@ -566,7 +566,7 @@ class PurchaseOrderController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data PO berhasil diperbarui.');
-            return inertia_location(route('pembelian.purchase-order.index'));
+            return inertia_location('/pembelian/purchase-order');
         }
 
         return redirect()
@@ -664,7 +664,7 @@ class PurchaseOrderController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Detail PO berhasil diperbarui.');
-            return inertia_location(route('pembelian.purchase-order.edit', $noPo));
+            return inertia_location('/pembelian/purchase-order/' . $noPo . '/edit');
         }
 
         return back()->with('success', 'Detail PO berhasil diperbarui.');
@@ -752,7 +752,7 @@ class PurchaseOrderController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Material berhasil dihapus.');
-            return inertia_location(route('pembelian.purchase-order.edit', $noPo));
+            return inertia_location('/pembelian/purchase-order/' . $noPo . '/edit');
         }
 
         return redirect()

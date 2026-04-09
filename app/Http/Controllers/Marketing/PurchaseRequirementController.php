@@ -592,7 +592,7 @@ class PurchaseRequirementController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data PR berhasil disimpan.');
-            return inertia_location(route('marketing.purchase-requirement.index'));
+            return inertia_location('/marketing/purchase-requirement');
         }
 
         return redirect()
@@ -696,7 +696,7 @@ class PurchaseRequirementController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data PR berhasil diperbarui.');
-            return inertia_location(route('marketing.purchase-requirement.index'));
+            return inertia_location('/marketing/purchase-requirement');
         }
 
         return redirect()
@@ -809,7 +809,7 @@ class PurchaseRequirementController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Detail PR berhasil diperbarui.');
-            return inertia_location(route('marketing.purchase-requirement.edit', $noPr));
+            return inertia_location('/marketing/purchase-requirement/' . $noPr . '/edit');
         }
 
         return back()->with('success', 'Detail PR berhasil diperbarui.');
@@ -872,7 +872,7 @@ class PurchaseRequirementController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Detail PR berhasil dihapus.');
-            return inertia_location(route('marketing.purchase-requirement.edit', $noPr));
+            return inertia_location('/marketing/purchase-requirement/' . $noPr . '/edit');
         }
 
         return back()->with('success', 'Detail PR berhasil dihapus.');
@@ -992,7 +992,7 @@ class PurchaseRequirementController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data PR berhasil dihapus.');
-            return inertia_location(route('marketing.purchase-requirement.index'));
+            return inertia_location('/marketing/purchase-requirement');
         }
 
         return response()->json([

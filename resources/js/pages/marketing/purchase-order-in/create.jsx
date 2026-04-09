@@ -87,7 +87,11 @@ const toIsoDate = (value) => {
     if (dmyMatch) {
         return `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
     }
-    return text;
+    const isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoMatch) {
+        return text;
+    }
+    return '';
 };
 
 const isValidDmyDate = (value) => {

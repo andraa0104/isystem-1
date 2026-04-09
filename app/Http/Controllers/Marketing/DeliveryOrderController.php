@@ -108,7 +108,7 @@ class DeliveryOrderController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data DO berhasil diperbarui.');
-            return inertia_location(route('marketing.delivery-order.index'));
+            return inertia_location('/marketing/delivery-order');
         }
 
         return back()->with('success', 'Data DO berhasil diperbarui.');
@@ -564,7 +564,7 @@ class DeliveryOrderController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data DO berhasil disimpan.');
-            return inertia_location(route('marketing.delivery-order.index'));
+            return inertia_location('/marketing/delivery-order');
         }
 
         return redirect()
@@ -681,7 +681,7 @@ class DeliveryOrderController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data DO berhasil diperbarui.');
-            return inertia_location(route('marketing.delivery-order.index'));
+            return inertia_location('/marketing/delivery-order');
         }
 
         return redirect()
@@ -756,7 +756,7 @@ class DeliveryOrderController
         }
         if ($request->header('X-Inertia')) {
             session()->flash('success', $successMessage);
-            return inertia_location(route('marketing.delivery-order.index'));
+            return inertia_location('/marketing/delivery-order');
         }
 
         return back()->with('success', $successMessage);
@@ -841,7 +841,7 @@ class DeliveryOrderController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data DO berhasil dihapus.');
-            return inertia_location(route('marketing.delivery-order.index'));
+            return inertia_location('/marketing/delivery-order');
         }
     }
 

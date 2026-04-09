@@ -747,7 +747,7 @@ class PurchaseOrderInController
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'Data PO IN berhasil disimpan.');
-                return inertia_location(route('marketing.purchase-order-in.index'));
+                return inertia_location('/marketing/purchase-order-in');
             }
             return redirect()
                 ->route('marketing.purchase-order-in.index')
@@ -936,7 +936,7 @@ class PurchaseOrderInController
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'Data PO IN berhasil diperbarui.');
-                return inertia_location(route('marketing.purchase-order-in.index'));
+                return inertia_location('/marketing/purchase-order-in');
             }
             return redirect()
                 ->route('marketing.purchase-order-in.index')

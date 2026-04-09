@@ -7,6 +7,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useAppearance } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
@@ -163,6 +164,26 @@ export default function PurchaseOrderInIndex({
     const [confirmDeleteKode, setConfirmDeleteKode] = useState('');
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isTableLoading, setIsTableLoading] = useState(false);
+
+    useEffect(() => {
+        const removeStartListener = router.on('start', (event) => {
+            if (
+                event.detail.visit.url.pathname ===
+                '/marketing/purchase-order-in'
+            ) {
+                setIsTableLoading(true);
+            }
+        });
+        const removeFinishListener = router.on('finish', () => {
+            setIsTableLoading(false);
+        });
+
+        return () => {
+            removeStartListener();
+            removeFinishListener();
+        };
+    }, []);
 
     const fetchTable = (next = {}) => {
         router.get(
@@ -647,7 +668,43 @@ export default function PurchaseOrderInIndex({
                                 </tr>
                             </thead>
                             <tbody>
-                                {purchaseOrderIns.length === 0 && (
+                                {isTableLoading ? (
+                                    Array.from({
+                                        length: Number(
+                                            perPage === 'all' ? 5 : perPage,
+                                        ),
+                                    }).map((_, i) => (
+                                        <tr
+                                            key={`skeleton-${i}`}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="px-4 py-3">
+                                                <Skeleton className="h-4 w-4" />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <Skeleton className="h-4 w-32" />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <Skeleton className="h-4 w-32" />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <Skeleton className="h-4 w-20" />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <Skeleton className="h-4 w-40" />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <Skeleton className="h-4 w-24" />
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <Skeleton className="h-8 w-8 rounded-md" />
+                                                    <Skeleton className="h-8 w-8 rounded-md" />
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : purchaseOrderIns.length === 0 ? (
                                     <tr>
                                         <td
                                             className="px-4 py-10 text-center text-muted-foreground"
@@ -656,70 +713,73 @@ export default function PurchaseOrderInIndex({
                                             Belum ada data PO In.
                                         </td>
                                     </tr>
+                                ) : (
+                                    purchaseOrderIns.map((item, index) => (
+                                        <tr
+                                            key={item.id ?? item.no_poin}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {pagination.per_page === 'all'
+                                                    ? index + 1
+                                                    : (Number(
+                                                          pagination.page || 1,
+                                                      ) -
+                                                          1) *
+                                                          Number(
+                                                              pagination.per_page ||
+                                                                  5,
+                                                          ) +
+                                                      index +
+                                                      1}
+                                            </td>
+                                            <td className="px-4 py-3 font-semibold">
+                                                {item.kode_poin}
+                                            </td>
+                                            <td className="px-4 py-3 font-semibold">
+                                                {item.no_poin}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatDateDisplay(
+                                                    item.date_poin,
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.customer_name}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatRupiah(item.grand_total)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            openDetailModal(
+                                                                item.kode_poin,
+                                                            )
+                                                        }
+                                                        title="Lihat"
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </Button>
+                                                    {/* Edit icon removed from main table per user request */}
+                                                    <a
+                                                        href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                                                        title="Print"
+                                                    >
+                                                        <Printer className="size-4" />
+                                                    </a>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
                                 )}
-                                {purchaseOrderIns.map((item, index) => (
-                                    <tr
-                                        key={item.id ?? item.no_poin}
-                                        className="border-t border-sidebar-border/70"
-                                    >
-                                        <td className="px-4 py-3">
-                                            {pagination.per_page === 'all'
-                                                ? index + 1
-                                                : (Number(
-                                                      pagination.page || 1,
-                                                  ) -
-                                                      1) *
-                                                      Number(
-                                                          pagination.per_page ||
-                                                              5,
-                                                      ) +
-                                                  index +
-                                                  1}
-                                        </td>
-                                        <td className="px-4 py-3 font-semibold">
-                                            {item.kode_poin}
-                                        </td>
-                                        <td className="px-4 py-3 font-semibold">
-                                            {item.no_poin}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {formatDateDisplay(item.date_poin)}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.customer_name}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {formatRupiah(item.grand_total)}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        openDetailModal(
-                                                            item.kode_poin,
-                                                        )
-                                                    }
-                                                    title="Lihat"
-                                                >
-                                                    <Eye className="size-4" />
-                                                </Button>
-                                                {/* Edit icon removed from main table per user request */}
-                                                <a
-                                                    href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                                                    title="Print"
-                                                >
-                                                    <Printer className="size-4" />
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
                             </tbody>
                         </table>
                     </div>
