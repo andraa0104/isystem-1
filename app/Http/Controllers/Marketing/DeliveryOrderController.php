@@ -16,8 +16,8 @@ class DeliveryOrderController
         $deliveryOrders = DB::table('tb_do')
             ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
             ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
-            ->orderBy('date', 'desc')
             ->orderBy('no_do', 'desc')
+            ->orderBy('date', 'desc')
             ->get();
 
         $outstandingCount = DB::table('tb_do')
@@ -320,7 +320,12 @@ class DeliveryOrderController
                 ->where('no_pr', $refPr)
                 ->get();
 
-            $prItems = $rawItems->map(function ($item) {
+            $kdMats = $rawItems->map(fn($item) => $item->kd_material ?? $item->kd_mat ?? $item->kd_mtrl)->filter()->unique()->all();
+            $stocks = DB::table('tb_material')
+                ->whereIn('kd_material', $kdMats)
+                ->pluck('stok', 'kd_material');
+
+            $prItems = $rawItems->map(function ($item) use ($stocks) {
                 $kdMaterial = $item->kd_material
                     ?? $item->kd_mat
                     ?? $item->kd_mtrl
@@ -331,14 +336,7 @@ class DeliveryOrderController
                 $sisa = $item->sisa_pr ?? $item->Sisa_pr ?? null;
                 $qty = $sisa ?? $item->qty ?? $item->Qty ?? $item->quantity ?? null;
 
-                $lastStock = 0;
-                try {
-                    $lastStock = DB::table('tb_material')
-                        ->where('kd_material', $kdMaterial)
-                        ->value('stok');
-                } catch (\Throwable $exception) {
-                    $lastStock = 0;
-                }
+                $lastStock = $stocks->get($kdMaterial) ?? 0;
 
                 return (object) [
                     'kd_material' => $kdMaterial,
@@ -444,61 +442,82 @@ class DeliveryOrderController
                     'nm_cs' => $request->input('nm_cs'),
                 ]);
 
+                // Bulk Pre-fetching
+                $kdMaterialsFromItems = collect($items)->pluck('kd_material')->filter()->unique()->all();
+                $materialNamesFromItems = collect($items)->pluck('material')->filter()->unique()->all();
+
+                $detailPrs = collect();
+                if ($refPr) {
+                    $detailPrs = DB::table('tb_detailpr')
+                        ->where('no_pr', $refPr)
+                        ->get()
+                        ->groupBy(fn($row) => strtolower(trim((string)($row->kd_material ?? $row->kd_mat ?? ''))))
+                        ->mapWithKeys(function ($group, $key) {
+                            return [$key => $group->first()];
+                        });
+                }
+
+                $materialsMap = DB::table('tb_material')
+                    ->whereIn('kd_material', $kdMaterialsFromItems)
+                    ->orWhereIn(DB::raw('lower(trim(material))'), collect($materialNamesFromItems)->map(fn($n) => strtolower(trim($n))))
+                    ->get()
+                    ->keyBy(fn($row) => strtolower(trim($row->material)));
+
+                $detailPos = collect();
+                if ($refPr) {
+                    $detailPos = DB::table('tb_detailpo')
+                        ->where('ref_pr', $refPr)
+                        ->get()
+                        ->groupBy(fn($row) => strtolower(trim((string)($row->kd_mat ?? ''))))
+                        ->mapWithKeys(function ($group, $key) {
+                            return [$key => $group->first()];
+                        });
+                }
+
+                $doPayload = [];
+                $ttldoPayload = [];
+                $materialUpdates = [];
+                $detailPrUpdates = [];
+
                 foreach ($items as $index => $item) {
                     $material = $item['material'] ?? null;
                     $kdMaterial = $item['kd_material'] ?? null;
+                    $materialLower = strtolower(trim((string)$material));
+                    $kdMaterialLower = strtolower(trim((string)$kdMaterial));
 
-                    $detailPr = null;
-                    if ($kdMaterial || $material) {
-                        $detailPrQuery = DB::table('tb_detailpr')
-                            ->where('no_pr', $refPr);
-                        if ($kdMaterial) {
-                            $detailPrQuery->where('kd_material', $kdMaterial);
-                        } else {
-                            $detailPrQuery->where('material', $material);
-                        }
-                        $detailPr = $detailPrQuery->first();
+                    $detailPr = $kdMaterialLower ? $detailPrs->get($kdMaterialLower) : null;
+                    if (!$detailPr && $materialLower) {
+                        // Fallback fallback: identify detailPr by material name if no kd_material match found in group
+                        $detailPr = $detailPrs->first(fn($row) => strtolower(trim($row->material ?? '')) === $materialLower);
                     }
 
                     $resolvedKdMat = $kdMaterial
                         ?: ($detailPr->kd_material ?? $detailPr->kd_mat ?? $detailPr->kd_mtrl ?? null);
 
-                    // ambil kd_mat dan harga dari tb_material berdasarkan nama material jika perlu
-                    $materialRow = null;
-                    if ($material) {
-                        $materialRow = DB::table('tb_material')
-                            ->whereRaw('lower(trim(material)) = ?', [strtolower(trim($material))])
-                            ->first(['kd_material', 'harga']);
-                    }
+                    $materialRow = $materialLower ? $materialsMap->get($materialLower) : null;
                     if (!$resolvedKdMat && $materialRow?->kd_material) {
                         $resolvedKdMat = $materialRow->kd_material;
                     }
 
                     $price = 0;
                     $total = 0;
-                    if ($resolvedKdMat || $material) {
-                        $detailPoQuery = DB::table('tb_detailpo')
-                            ->where('ref_pr', $refPr);
-                        if ($resolvedKdMat) {
-                            $detailPoQuery->where('kd_mat', $resolvedKdMat);
-                        } else {
-                            $detailPoQuery->where('material', $material);
+                    $resolvedKdMatLower = strtolower(trim((string)$resolvedKdMat));
+                    if ($resolvedKdMatLower) {
+                        $detailPo = $detailPos->get($resolvedKdMatLower);
+                        if (!$detailPo && $materialLower) {
+                            $detailPo = $detailPos->first(fn($row) => strtolower(trim($row->material ?? '')) === $materialLower);
                         }
-                        $detailPo = $detailPoQuery
-                            ->select('price', 'total_price')
-                            ->first();
                         if ($detailPo) {
                             $price = $detailPo->price ?? 0;
                             $total = $detailPo->total_price ?? 0;
                         }
                     }
 
-                    // price & total fallback ke tb_material.harga bila ada
                     $priceFromMaterial = $materialRow->harga ?? null;
                     $effectivePrice = $priceFromMaterial !== null ? $priceFromMaterial : $price;
                     $effectiveTotal = $parseNumber($item['qty'] ?? 0) * $parseNumber($effectivePrice);
 
-                    DB::table('tb_do')->insert([
+                    $doPayload[] = [
                         'no_do' => $noDo,
                         'date' => $formattedDate,
                         'pos_tgl' => $todayFormatted,
@@ -515,9 +534,9 @@ class DeliveryOrderController
                         'total' => $effectiveTotal,
                         'val_inv' => 0,
                         'inv' => ' ',
-                    ]);
+                    ];
 
-                    DB::table('tb_ttldo')->insert([
+                    $ttldoPayload[] = [
                         'no' => $item['no'] ?? ($index + 1),
                         'qty' => $item['qty'] ?? null,
                         'mat' => $material,
@@ -526,16 +545,14 @@ class DeliveryOrderController
                         'price' => $effectivePrice,
                         'total' => $effectiveTotal,
                         'remark' => ($item['remark'] ?? null) === null ? ' ' : $item['remark'],
-                    ]);
+                    ];
 
                     $stockNow = $item['stock_now'] ?? null;
                     if ($resolvedKdMat && $stockNow !== null) {
-                        DB::table('tb_material')
-                            ->where('kd_material', $resolvedKdMat)
-                            ->update([
-                                'stok' => $stockNow,
-                                'rest_stock' => $stockNow,
-                            ]);
+                        $materialUpdates[] = [
+                            'kd_material' => $resolvedKdMat,
+                            'stok' => $stockNow,
+                        ];
                     }
 
                     if ($detailPr && ($resolvedKdMat || $material)) {
@@ -545,17 +562,41 @@ class DeliveryOrderController
                             $newSisa = 0;
                         }
 
-                        $detailPrUpdate = DB::table('tb_detailpr')
-                            ->where('no_pr', $refPr);
-                        if ($resolvedKdMat) {
-                            $detailPrUpdate->where('kd_material', $resolvedKdMat);
-                        } elseif ($material) {
-                            $detailPrUpdate->where('material', $material);
-                        }
-                        $detailPrUpdate->update([
+                        $detailPrUpdates[] = [
+                            'no_pr' => $refPr,
+                            'kd_material' => $detailPr->kd_material ?? null,
+                            'material' => $detailPr->material ?? null,
                             'sisa_pr' => $newSisa,
-                        ]);
+                        ];
                     }
+                }
+
+                // Batch Inserts
+                if (!empty($doPayload)) {
+                    DB::table('tb_do')->insert($doPayload);
+                }
+                if (!empty($ttldoPayload)) {
+                    DB::table('tb_ttldo')->insert($ttldoPayload);
+                }
+
+                // Batch updates (executed as single queries since Laravel doesn't have bulk update easily)
+                foreach ($materialUpdates as $up) {
+                    DB::table('tb_material')
+                        ->where('kd_material', $up['kd_material'])
+                        ->update([
+                            'stok' => $up['stok'],
+                            'rest_stock' => $up['stok'],
+                        ]);
+                }
+
+                foreach ($detailPrUpdates as $up) {
+                    $q = DB::table('tb_detailpr')->where('no_pr', $up['no_pr']);
+                    if ($up['kd_material']) {
+                        $q->where('kd_material', $up['kd_material']);
+                    } else {
+                        $q->where('material', $up['material']);
+                    }
+                    $q->update(['sisa_pr' => $up['sisa_pr']]);
                 }
             });
         } catch (\Throwable $exception) {
@@ -710,6 +751,15 @@ class DeliveryOrderController
 
         try {
             DB::transaction(function () use ($noDo, $lineNo, $qty, $kdMat, $refPo) {
+                // Business rule: Minimal 1 material
+                $count = DB::table('tb_do')
+                    ->where('no_do', $noDo)
+                    ->count();
+
+                if ($count <= 1) {
+                    throw new \RuntimeException('Gagal menghapus. Minimal harus ada 1 material dalam DO.');
+                }
+
                 if ($qty > 0 && $kdMat !== '' && $refPo !== '') {
                     $kodePoin = DB::table('tb_poin')
                         ->whereRaw('lower(trim(no_poin)) = ?', [$refPo])
@@ -774,57 +824,103 @@ class DeliveryOrderController
 
         try {
             DB::transaction(function () use ($rows, $noDo) {
+                // Bulk Pre-fetching
+                $refPos = $rows->pluck('ref_po')->filter()->unique()->all();
+                $kdMats = $rows->pluck('kd_mat')->filter()->unique()->all();
+                $materialNames = $rows->pluck('mat')->filter()->unique()->all();
+
+                $poinMap = collect();
+                if (!empty($refPos)) {
+                    $poinMap = DB::table('tb_poin')
+                        ->whereIn(DB::raw('lower(trim(no_poin))'), collect($refPos)->map(fn($n) => strtolower(trim($n))))
+                        ->get()
+                        ->keyBy(fn($row) => strtolower(trim($row->no_poin)));
+                }
+
+                $materialUpdates = [];
+                $detailPrUpdates = [];
+                $detailPoinUpdates = [];
+
                 foreach ($rows as $row) {
                     $qty = (float) ($row->qty ?? 0);
                     $kdMat = $row->kd_mat ?? null;
                     $matName = $row->mat ?? null;
                     $refPo = $row->ref_po ?? null;
-                    $kodePoin = null;
-                    if ($refPo) {
-                        $kodePoin = DB::table('tb_poin')
-                            ->whereRaw('lower(trim(no_poin)) = ?', [strtolower(trim((string) $refPo))])
-                            ->value('kode_poin');
-                    }
+                    $refPoLower = strtolower(trim((string)$refPo));
+
+                    $kodePoin = $refPoLower ? $poinMap->get($refPoLower)?->kode_poin : null;
 
                     if ($kdMat) {
-                        DB::table('tb_material')
-                            ->where('kd_material', $kdMat)
-                            ->increment('stok', $qty);
+                        $materialUpdates[] = [
+                            'kd_material' => $kdMat,
+                            'qty' => $qty,
+                        ];
 
-                        $detailQuery = DB::table('tb_detailpr')
-                            ->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim($kdMat))]);
-                        if ($refPo) {
-                            $detailQuery->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($refPo))]);
-                        }
-                        $detailQuery->increment('sisa_pr', $qty);
+                        $detailPrUpdates[] = [
+                            'kd_material' => $kdMat,
+                            'ref_po' => $refPo,
+                            'qty' => $qty,
+                            'material' => null,
+                        ];
 
                         if ($kodePoin) {
-                            $poinDetailQuery = DB::table('tb_detailpoin')
-                                ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string) $kodePoin))])
-                                ->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim((string) $kdMat))]);
-
-                            if (Schema::hasColumn('tb_detailpoin', 'sisa_qtydo')) {
-                                $poinDetailQuery->increment('sisa_qtydo', $qty);
-                            }
+                            $detailPoinUpdates[] = [
+                                'kode_poin' => $kodePoin,
+                                'kd_material' => $kdMat,
+                                'qty' => $qty,
+                                'material' => null,
+                            ];
                         }
                     } elseif ($matName) {
-                        // fallback by material name
-                        DB::table('tb_detailpr')
-                            ->whereRaw('lower(trim(material)) = ?', [strtolower(trim($matName))])
-                            ->when($refPo, function ($q) use ($refPo) {
-                                $q->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($refPo))]);
-                            })
-                            ->increment('sisa_pr', $qty);
+                        $detailPrUpdates[] = [
+                            'kd_material' => null,
+                            'ref_po' => $refPo,
+                            'qty' => $qty,
+                            'material' => $matName,
+                        ];
 
                         if ($kodePoin) {
-                            $poinDetailQuery = DB::table('tb_detailpoin')
-                                ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string) $kodePoin))])
-                                ->whereRaw('lower(trim(material)) = ?', [strtolower(trim((string) $matName))]);
-
-                            if (Schema::hasColumn('tb_detailpoin', 'sisa_qtydo')) {
-                                $poinDetailQuery->increment('sisa_qtydo', $qty);
-                            }
+                            $detailPoinUpdates[] = [
+                                'kode_poin' => $kodePoin,
+                                'kd_material' => null,
+                                'qty' => $qty,
+                                'material' => $matName,
+                            ];
                         }
+                    }
+                }
+
+                // Execute Updates
+                foreach ($materialUpdates as $up) {
+                    DB::table('tb_material')
+                        ->where('kd_material', $up['kd_material'])
+                        ->increment('stok', $up['qty']);
+                }
+
+                foreach ($detailPrUpdates as $up) {
+                    $q = DB::table('tb_detailpr');
+                    if ($up['kd_material']) {
+                        $q->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim($up['kd_material']))]);
+                    } else {
+                        $q->whereRaw('lower(trim(material)) = ?', [strtolower(trim($up['material']))]);
+                    }
+                    if ($up['ref_po']) {
+                        $q->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($up['ref_po']))]);
+                    }
+                    $q->increment('sisa_pr', $up['qty']);
+                }
+
+                $hasSisaQtyDo = Schema::hasColumn('tb_detailpoin', 'sisa_qtydo');
+                if ($hasSisaQtyDo) {
+                    foreach ($detailPoinUpdates as $up) {
+                        $q = DB::table('tb_detailpoin')
+                            ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string)$up['kode_poin']))]);
+                        if ($up['kd_material']) {
+                            $q->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim((string)$up['kd_material']))]);
+                        } else {
+                            $q->whereRaw('lower(trim(material)) = ?', [strtolower(trim((string)$up['material']))]);
+                        }
+                        $q->increment('sisa_qtydo', $up['qty']);
                     }
                 }
 
@@ -923,7 +1019,12 @@ class DeliveryOrderController
             ], 500);
         }
 
-        $items = $rawItems->map(function ($item) {
+        $kdMats = $rawItems->map(fn($item) => $item->kd_material)->filter()->unique()->all();
+        $stocks = DB::table('tb_material')
+            ->whereIn('kd_material', $kdMats)
+            ->pluck('stok', 'kd_material');
+
+        $items = $rawItems->map(function ($item) use ($stocks) {
             $kdMaterial = $item->kd_material ?? null;
             $material = $item->material ?? null;
             $unit = $item->unit ?? $item->satuan ?? $item->Unit ?? '';
@@ -931,14 +1032,7 @@ class DeliveryOrderController
             $sisaDo = $item->sisa_qtydo ?? null;
             $qty = $sisaDo ?? $item->qty ?? null;
 
-            $lastStock = 0;
-            try {
-                $lastStock = DB::table('tb_material')
-                    ->where('kd_material', $kdMaterial)
-                    ->value('stok');
-            } catch (\Throwable $exception) {
-                $lastStock = 0;
-            }
+            $lastStock = $stocks->get($kdMaterial) ?? 0;
 
             return (object) [
                 'kd_material' => $kdMaterial,

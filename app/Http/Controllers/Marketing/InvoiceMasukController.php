@@ -396,11 +396,22 @@ class InvoiceMasukController
 
             $items = [];
             $rowNo = 1;
+            $kdMaterials = array_unique(array_column($payload['items'], 'kd_mat'));
+
+            // Bulk fetch PO details for all items to avoid N+1 queries
+            $poDetails = DB::table('tb_detailpo')
+                ->where('no_po', $payload['ref_po'])
+                ->where('no_gudang', $payload['no_gudang'])
+                ->whereIn('kd_mat', $kdMaterials)
+                ->get()
+                ->mapWithKeys(fn($item) => [strtolower($item->kd_mat) => $item]);
+
+            $items = [];
+            $rowNo = 1;
             foreach ($payload['items'] as $item) {
-                $idPo = DB::table('tb_detailpo')
-                    ->where('no_po', $payload['ref_po'])
-                    ->where('kd_mat', $item['kd_mat'])
-                    ->value('id_po');
+                $kdMatLower = strtolower($item['kd_mat']);
+                $prev = $poDetails->get($kdMatLower);
+                $idPo = $prev->id_po ?? 0;
 
                 $items[] = [
                     'no_doc' => $newCode,
@@ -426,13 +437,7 @@ class InvoiceMasukController
                     'id_po' => $idPo,
                 ];
 
-                // Update tb_detailpo with custom logic
-                $prev = DB::table('tb_detailpo')
-                    ->where('no_po', $payload['ref_po'])
-                    ->where('no_gudang', $payload['no_gudang'])
-                    ->where('kd_mat', $item['kd_mat'])
-                    ->first(['ir_mat', 'ir_price', 'end_fl']);
-
+                // Update tb_detailpo using pre-calculated values
                 $newIrMat = (float)$item['qty'] - (float)($prev->ir_mat ?? 0);
                 $newIrPrice = (float)$item['total_price'] - (float)($prev->ir_price ?? 0);
                 $newEndFl = (float)($prev->end_fl ?? 0) + (float)$item['qty'];
@@ -540,20 +545,32 @@ class InvoiceMasukController
                 ->select('kd_mat', 'qty_gr', 'ttl_harga')
                 ->get();
 
-            if ($refPo) {
+            if ($refPo && count($detailItems) > 0) {
                 $noGudang = $header->no_gudang ?? null;
+                $kdMaterials = $detailItems->pluck('kd_mat')->unique()->toArray();
+
+                // Bulk fetch PO details
+                $poQuery = DB::table('tb_detailpo')
+                    ->where('no_po', $refPo)
+                    ->whereIn('kd_mat', $kdMaterials);
+                
+                if ($noGudang) {
+                    $poQuery->where('no_gudang', $noGudang);
+                }
+
+                $poDetails = $poQuery->get()->groupBy(fn($item) => strtolower($item->kd_mat));
+
                 foreach ($detailItems as $item) {
-                    $q = DB::table('tb_detailpo')
-                        ->where('no_po', $refPo)
-                        ->where('kd_mat', $item->kd_mat);
-                    
-                    if ($noGudang) {
-                        $q->where('no_gudang', $noGudang);
+                    $kdMatLower = strtolower($item->kd_mat);
+                    if ($poDetails->has($kdMatLower)) {
+                        DB::table('tb_detailpo')
+                            ->where('no_po', $refPo)
+                            ->where('kd_mat', $item->kd_mat)
+                            ->when($noGudang, fn($q) => $q->where('no_gudang', $noGudang))
+                            ->decrement('end_fl', (float)($item->qty_gr ?? 0), [
+                                'end_gr' => DB::raw("COALESCE(end_gr, 0) - " . (float)($item->ttl_harga ?? 0))
+                            ]);
                     }
-                    
-                    $q->decrement('end_fl', (float)($item->qty_gr ?? 0), [
-                        'end_gr' => DB::raw("COALESCE(end_gr, 0) - " . (float)($item->ttl_harga ?? 0))
-                    ]);
                 }
             }
 

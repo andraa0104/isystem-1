@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
-import { ArrowLeft, ArrowRight, Pencil } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -152,6 +152,84 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
         );
     };
 
+    const handleDeleteItem = async (item) => {
+        if (!item?.no) return;
+
+        if (formData.items.length <= 1) {
+            Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'error',
+                title: 'Gagal menghapus. Minimal harus ada 1 material dalam DOB.',
+                showConfirmButton: false,
+                timer: 2200,
+            });
+            return;
+        }
+
+        const result = await Swal.fire({
+            title: 'Hapus material?',
+            text: `Material "${item.mat}" akan dihapus dari DO Bantu ini.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Ya, hapus!',
+            cancelButtonText: 'Batal',
+        });
+
+        if (result.isConfirmed) {
+            router.delete(
+                `/marketing/delivery-order-add/${encodeURIComponent(
+                    deliveryOrder.no_dob,
+                )}/detail/${encodeURIComponent(item.no)}`,
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    onSuccess: () => {
+                        setFormData((prev) => ({
+                            ...prev,
+                            items: prev.items.filter(
+                                (row) => String(row.no) !== String(item.no),
+                            ),
+                        }));
+                        if (String(selectedLineNo) === String(item.no)) {
+                            setSelectedLineNo(null);
+                            setInputItem({
+                                no: '',
+                                kd_mat: '',
+                                mat: '',
+                                qty: '',
+                                original_qty: 0,
+                                unit: '',
+                                remark: '',
+                                harga: '',
+                                total: '',
+                                last_stock: 0,
+                                stock_now: 0,
+                            });
+                        }
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            icon: 'success',
+                            title: 'Material berhasil dihapus.',
+                            showConfirmButton: false,
+                            timer: 2000,
+                        });
+                    },
+                    onError: (errors) => {
+                        Swal.fire(
+                            'Error',
+                            errors.message || 'Gagal menghapus material.',
+                            'error',
+                        );
+                    },
+                },
+            );
+        }
+    };
+
     const nextStep = () => setStep((s) => s + 1);
     const prevStep = () => setStep((s) => s - 1);
 
@@ -226,7 +304,10 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label>No DOT</Label>
-                                    <Input readOnly value={deliveryOrder?.no_dob ?? ''} />
+                                    <Input
+                                        readOnly
+                                        value={deliveryOrder?.no_dob ?? ''}
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Date</Label>
@@ -260,7 +341,9 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
                                     onClick={handleSaveDate}
                                     disabled={isSavingDate}
                                 >
-                                    {isSavingDate ? 'Menyimpan...' : 'Simpan Data'}
+                                    {isSavingDate
+                                        ? 'Menyimpan...'
+                                        : 'Simpan Data'}
                                 </Button>
                                 <Button onClick={nextStep}>
                                     Next <ArrowRight className="ml-2 h-4 w-4" />
@@ -305,7 +388,10 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Satuan</Label>
-                                        <Input readOnly value={inputItem.unit} />
+                                        <Input
+                                            readOnly
+                                            value={inputItem.unit}
+                                        />
                                     </div>
                                     <div className="space-y-2 lg:col-span-2">
                                         <Label>Remark</Label>
@@ -325,7 +411,10 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Total Price</Label>
-                                        <Input readOnly value={inputItem.total} />
+                                        <Input
+                                            readOnly
+                                            value={inputItem.total}
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Last Stock</Label>
@@ -377,54 +466,78 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
                                                     <TableHead className="w-[120px]">
                                                         Satuan
                                                     </TableHead>
-                                                    <TableHead>
-                                                        Harga
-                                                    </TableHead>
+                                                    <TableHead>Harga</TableHead>
                                                     <TableHead>Total</TableHead>
-                                                    <TableHead>Remark</TableHead>
+                                                    <TableHead>
+                                                        Remark
+                                                    </TableHead>
+                                                    <TableHead className="w-[80px] text-center">
+                                                        Action
+                                                    </TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {formData.items.map((item, i) => (
-                                                    <TableRow
-                                                        key={i}
-                                                        className="cursor-pointer hover:bg-muted/50"
-                                                        onClick={() =>
-                                                            handleSelectItem(
-                                                                item,
-                                                            )
-                                                        }
-                                                    >
-                                                        <TableCell>
-                                                            {item.no ?? i + 1}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.kd_mat}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.mat}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.qty}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.unit}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.harga}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.total}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.remark}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                                {formData.items.length === 0 && (
+                                                {formData.items.map(
+                                                    (item, i) => (
+                                                        <TableRow
+                                                            key={i}
+                                                            className="cursor-pointer hover:bg-muted/50"
+                                                            onClick={() =>
+                                                                handleSelectItem(
+                                                                    item,
+                                                                )
+                                                            }
+                                                        >
+                                                            <TableCell>
+                                                                {item.no ??
+                                                                    i + 1}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.kd_mat}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.mat}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.qty}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.unit}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.harga}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.total}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.remark}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={(
+                                                                        e,
+                                                                    ) => {
+                                                                        e.stopPropagation();
+                                                                        handleDeleteItem(
+                                                                            item,
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ),
+                                                )}
+                                                {formData.items.length ===
+                                                    0 && (
                                                     <TableRow>
                                                         <TableCell
-                                                            colSpan={8}
+                                                            colSpan={9}
                                                             className="text-center"
                                                         >
                                                             Belum ada data

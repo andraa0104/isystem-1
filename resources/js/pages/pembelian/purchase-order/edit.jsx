@@ -234,6 +234,15 @@ export default function PurchaseOrderEdit({
     const handleDeleteMaterial = (item) => {
         if (!purchaseOrder?.no_po) return;
 
+        if (materialItems.length <= 1) {
+            Swal.fire(
+                'Gagal',
+                'Minimal harus ada 1 material dalam PO.',
+                'error',
+            );
+            return;
+        }
+
         Swal.fire({
             title: 'Hapus material?',
             text: `Kode ${item.kodeMaterial}`,

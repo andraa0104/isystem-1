@@ -425,6 +425,11 @@ export default function PurchaseOrderInEdit({
             return;
         }
 
+        if (items.length <= 1) {
+            toastError('Gagal menghapus. Minimal harus ada 1 material.');
+            return;
+        }
+
         const result = await Swal.fire({
             title: 'Hapus material ini?',
             text: 'Material akan dihapus dari daftar edit.',

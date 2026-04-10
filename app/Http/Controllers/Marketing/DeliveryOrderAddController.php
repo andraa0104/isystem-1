@@ -701,6 +701,84 @@ class DeliveryOrderAddController
         ]);
     }
 
+    public function destroyDetail(Request $request, $noDob, $lineNo)
+    {
+        $row = DB::table('tb_dob')
+            ->where('no_dob', $noDob)
+            ->where('no', $lineNo)
+            ->first();
+
+        if (!$row) {
+            $message = 'Detail DOB tidak ditemukan.';
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 404);
+            }
+            return back()->with('error', $message);
+        }
+
+        try {
+            DB::transaction(function () use ($noDob, $lineNo, $row) {
+                // Business rule: Minimal 1 material
+                $count = DB::table('tb_dob')
+                    ->where('no_dob', $noDob)
+                    ->count();
+
+                if ($count <= 1) {
+                    throw new \RuntimeException('Gagal menghapus. Minimal harus ada 1 material dalam DOB.');
+                }
+
+                $qty = (float)($row->qty ?? 0);
+                $kdMat = $row->kd_mat ?? null;
+                $matName = $row->mat ?? null;
+                $refDo = $row->ref_do ?? null;
+
+                // 1. Restore tb_material.stok
+                if ($kdMat) {
+                    DB::table('tb_material')
+                        ->where('kd_material', $kdMat)
+                        ->increment('stok', $qty);
+                }
+
+                // 2. Restore tb_detailpr.sisa_pr
+                $refPo = null;
+                if ($refDo) {
+                    $refPo = DB::table('tb_do')
+                        ->where('no_do', $refDo)
+                        ->value('ref_po');
+                }
+
+                if ($refPo) {
+                    $detailQuery = DB::table('tb_detailpr')
+                        ->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($refPo))]);
+                    if ($kdMat) {
+                        $detailQuery->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim($kdMat))]);
+                    } elseif ($matName) {
+                        $detailQuery->whereRaw('lower(trim(material)) = ?', [strtolower(trim($matName))]);
+                    }
+                    $detailQuery->increment('sisa_pr', $qty);
+                }
+
+                // 3. Delete from tb_dob
+                DB::table('tb_dob')
+                    ->where('no_dob', $noDob)
+                    ->where('no', $lineNo)
+                    ->delete();
+            });
+        } catch (\Throwable $e) {
+            $message = 'Gagal menghapus material: '.$e->getMessage();
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 400);
+            }
+            return back()->with('error', $message);
+        }
+
+        $successMessage = 'Material berhasil dihapus.';
+        if ($request->expectsJson()) {
+            return response()->json(['message' => $successMessage]);
+        }
+        return back()->with('success', $successMessage);
+    }
+
     public function destroy(Request $request, $noDob)
     {
         $rows = DB::table('tb_dob')

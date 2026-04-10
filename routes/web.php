@@ -627,6 +627,8 @@ Route::put('marketing/delivery-order-add/{noDob}', [DeliveryOrderAddController::
     ->name('marketing.delivery-order-add.update');
 Route::put('marketing/delivery-order-add/{noDob}/detail/{lineNo}', [DeliveryOrderAddController::class, 'updateDetail'])
     ->name('marketing.delivery-order-add.detail.update');
+Route::delete('marketing/delivery-order-add/{noDob}/detail/{lineNo}', [DeliveryOrderAddController::class, 'destroyDetail'])
+    ->name('marketing.delivery-order-add.detail.destroy');
 Route::delete('marketing/delivery-order-add/{noDob}', [DeliveryOrderAddController::class, 'destroy'])
     ->name('marketing.delivery-order-add.destroy');
 Route::get('marketing/delivery-order-add/{noDob}/print', [DeliveryOrderAddController::class, 'print'])

@@ -182,6 +182,14 @@ export default function DeliveryOrderEdit({
     const handleDeleteItem = (item) => {
         if (!item?.no) return;
 
+        if (formData.items.length <= 1) {
+            showToast(
+                'Gagal menghapus. Minimal harus ada 1 material dalam DO.',
+                'error',
+            );
+            return;
+        }
+
         const activeEl = document.activeElement;
         if (activeEl instanceof HTMLElement) {
             activeEl.blur();

@@ -111,13 +111,13 @@ export default function DeliveryOrderIndex({
         });
 
         return filtered.sort((a, b) => {
-            const dateCompare = String(b.date ?? '').localeCompare(
-                String(a.date ?? ''),
+            const doCompare = String(b.no_do ?? '').localeCompare(
+                String(a.no_do ?? ''),
             );
-            if (dateCompare !== 0) {
-                return dateCompare;
+            if (doCompare !== 0) {
+                return doCompare;
             }
-            return String(b.no_do ?? '').localeCompare(String(a.no_do ?? ''));
+            return String(b.date ?? '').localeCompare(String(a.date ?? ''));
         });
     }, [deliveryOrders, searchTerm, statusFilter]);
 

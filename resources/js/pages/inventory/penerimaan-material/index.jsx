@@ -479,13 +479,21 @@ export default function PenerimaanMaterialIndex() {
             total_price: Number(r.totalPrice) || 0,
         }));
 
-        router.post('/inventory/penerimaan-material/mi', {
-            doc_date: header.docDate,
-            no_po: header.noPo,
-            ref_pr: header.refPr,
-            vendor: header.vendorName,
-            rows: payloadRows,
-        });
+        router.post(
+            '/inventory/penerimaan-material/mi',
+            {
+                doc_date: header.docDate,
+                no_po: header.noPo,
+                ref_pr: header.refPr,
+                vendor: header.vendorName,
+                rows: payloadRows,
+            },
+            {
+                onSuccess: () => {
+                    router.visit(window.location.pathname);
+                },
+            },
+        );
     };
 
     const handleSaveMis = () => {
@@ -516,13 +524,21 @@ export default function PenerimaanMaterialIndex() {
             total_price: Number(r.totalPrice) || 0,
         }));
 
-        router.post('/inventory/penerimaan-material/mis', {
-            doc_date: header.docDate,
-            no_po: header.noPo,
-            ref_pr: header.refPr,
-            vendor: header.vendorName,
-            rows: payloadRows,
-        });
+        router.post(
+            '/inventory/penerimaan-material/mis',
+            {
+                doc_date: header.docDate,
+                no_po: header.noPo,
+                ref_pr: header.refPr,
+                vendor: header.vendorName,
+                rows: payloadRows,
+            },
+            {
+                onSuccess: () => {
+                    router.visit(window.location.pathname);
+                },
+            },
+        );
     };
 
     const handleSaveMib = () => {
@@ -553,13 +569,21 @@ export default function PenerimaanMaterialIndex() {
             remark: r.remark,
         }));
 
-        router.post('/inventory/penerimaan-material/mib', {
-            doc_date: header.docDate,
-            no_po: header.noPo,
-            ref_pr: header.refPr,
-            vendor: header.vendorName,
-            rows: payloadRows,
-        });
+        router.post(
+            '/inventory/penerimaan-material/mib',
+            {
+                doc_date: header.docDate,
+                no_po: header.noPo,
+                ref_pr: header.refPr,
+                vendor: header.vendorName,
+                rows: payloadRows,
+            },
+            {
+                onSuccess: () => {
+                    router.visit(window.location.pathname);
+                },
+            },
+        );
     };
 
     const currentHeader = mode ? headerByMode[mode] : null;

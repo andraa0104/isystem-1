@@ -15,7 +15,9 @@ class PurchaseRequirementController
     {
         $period = $request->query('period', 'today');
 
-        // Aggregation subquery for performance
+        $docDateExpr = "coalesce(date(tgl), str_to_date(tgl, '%Y-%m-%d'), str_to_date(tgl, '%Y/%m/%d'), str_to_date(tgl, '%d/%m/%Y'), str_to_date(tgl, '%d-%m-%Y'), str_to_date(tgl, '%d.%m.%Y'))";
+
+        // Aggregate PR details
         $detailAgg = DB::table('tb_detailpr')
             ->select(
                 'no_pr',
@@ -26,14 +28,48 @@ class PurchaseRequirementController
             )
             ->groupBy('no_pr');
 
-        // Outstanding and Sisa PO summary in one query
+        // Aggregate PO dates for realized PRs
+        $poAgg = DB::table('tb_detailpo')
+            ->select(
+                'ref_pr',
+                DB::raw("max({$docDateExpr}) as latest_po_date")
+            )
+            ->whereNotNull('ref_pr')
+            ->groupBy('ref_pr');
+
+        $now = now();
+        $startDate = null;
+        $endDate = null;
+
+        if ($period === 'today') {
+            $startDate = $endDate = $now->toDateString();
+        } elseif ($period === 'this_week') {
+            $startDate = $now->startOfWeek()->toDateString();
+            $endDate = $now->endOfWeek()->toDateString();
+        } elseif ($period === 'this_month') {
+            $startDate = $now->startOfMonth()->toDateString();
+            $endDate = $now->endOfMonth()->toDateString();
+        } elseif ($period === 'this_year') {
+            $startDate = $now->startOfYear()->toDateString();
+            $endDate = $now->endOfYear()->toDateString();
+        }
+
+        $periodFilterRaw = "1=1";
+        if ($startDate && $endDate) {
+            $periodFilterRaw = "latest_po_date between '{$startDate}' and '{$endDate}'";
+        }
+
+        // Summary calculations
         $summaryData = DB::table('tb_pr as pr')
             ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
+            ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
             ->select(
                 DB::raw('sum(case when detail.po_items_count = 0 then 1 else 0 end) as outstanding_count'),
                 DB::raw('sum(case when detail.po_items_count = 0 then detail.total_price_sum else 0 end) as outstanding_total'),
                 DB::raw('sum(case when detail.po_items_count > 0 and detail.remaining_items_count > 0 then 1 else 0 end) as sisa_po_count'),
-                DB::raw('sum(case when detail.po_items_count > 0 and detail.remaining_items_count > 0 then detail.total_price_sum else 0 end) as sisa_po_total')
+                DB::raw('sum(case when detail.po_items_count > 0 and detail.remaining_items_count > 0 then detail.total_price_sum else 0 end) as sisa_po_total'),
+                DB::raw("sum(case when detail.remaining_items_count = 0 and {$periodFilterRaw} then 1 else 0 end) as realized_count"),
+                DB::raw("sum(case when detail.remaining_items_count = 0 and {$periodFilterRaw} then detail.total_price_sum else 0 end) as realized_total")
             )
             ->first();
 
@@ -41,10 +77,13 @@ class PurchaseRequirementController
         $outstandingTotal = (float) ($summaryData->outstanding_total ?? 0);
         $sisaPoCount = (int) ($summaryData->sisa_po_count ?? 0);
         $sisaPoTotal = (float) ($summaryData->sisa_po_total ?? 0);
+        $realizedCount = (int) ($summaryData->realized_count ?? 0);
+        $realizedTotal = (float) ($summaryData->realized_total ?? 0);
 
         // Main table data
         $purchaseRequirements = DB::table('tb_pr as pr')
             ->leftJoinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
+            ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
             ->select(
                 'pr.no_pr',
                 'pr.date',
@@ -53,7 +92,7 @@ class PurchaseRequirementController
                 'pr.payment',
                 DB::raw('coalesce(detail.sisa_pr_sum, 0) as sisa_pr'),
                 DB::raw('case when detail.no_pr is not null and coalesce(detail.po_items_count,0) = 0 then 1 else 0 end as outstanding_count'),
-                DB::raw('case when detail.no_pr is not null and coalesce(detail.remaining_items_count,1) = 0 then 1 else 0 end as realized_count'),
+                DB::raw("case when detail.no_pr is not null and coalesce(detail.remaining_items_count,1) = 0 and {$periodFilterRaw} then 1 else 0 end as realized_count"),
                 DB::raw('case when detail.no_pr is not null and coalesce(detail.po_items_count,0) > 0 and coalesce(detail.remaining_items_count,0) > 0 then 1 else 0 end as sisa_po_count')
             )
             ->orderBy('pr.date', 'desc')
@@ -64,13 +103,12 @@ class PurchaseRequirementController
             'purchaseRequirements' => $purchaseRequirements,
             'outstandingCount' => $outstandingCount,
             'sisaPoCount' => $sisaPoCount,
-            'realizedCount' => 0,
+            'realizedCount' => $realizedCount,
             'outstandingTotal' => $outstandingTotal,
             'sisaPoTotal' => $sisaPoTotal,
-            'realizedTotal' => 0,
+            'realizedTotal' => $realizedTotal,
             'period' => $period,
-            // Realized summary is intentionally loaded lazily on the frontend to speed up initial page load.
-            'realizedDeferred' => true,
+            'realizedDeferred' => false, // No longer deferred as we calculate it correctly now
         ]);
     }
 
@@ -179,7 +217,7 @@ class PurchaseRequirementController
     public function realized(Request $request)
     {
         $period = $request->query('period', 'today');
-        $docDateExpr = "coalesce(date(do.pos_tgl), str_to_date(do.pos_tgl, '%Y-%m-%d'), str_to_date(do.pos_tgl, '%Y/%m/%d'), str_to_date(do.pos_tgl, '%d/%m/%Y'), str_to_date(do.pos_tgl, '%d-%m-%Y'), str_to_date(do.pos_tgl, '%d.%m.%Y'))";
+        $docDateExpr = "coalesce(date(tgl), str_to_date(tgl, '%Y-%m-%d'), str_to_date(tgl, '%Y/%m/%d'), str_to_date(tgl, '%d/%m/%Y'), str_to_date(tgl, '%d-%m-%Y'), str_to_date(tgl, '%d.%m.%Y'))";
 
         $detailAgg = DB::table('tb_detailpr')
             ->select(
@@ -189,45 +227,50 @@ class PurchaseRequirementController
             )
             ->groupBy('no_pr');
 
+        $poAgg = DB::table('tb_detailpo')
+            ->select(
+                'ref_pr',
+                DB::raw("max({$docDateExpr}) as latest_po_date")
+            )
+            ->whereNotNull('ref_pr')
+            ->groupBy('ref_pr');
+
         $query = DB::table('tb_pr as pr')
             ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
+            ->joinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
             ->where('detail.remaining_items_count', '=', 0)
-            ->join('tb_do as do', function ($join) {
-                $join->on(DB::raw('lower(trim(pr.ref_po))'), '=', DB::raw('lower(trim(do.ref_po))'));
-            })
             ->select(
                 'pr.no_pr',
-                DB::raw('coalesce(do.pos_tgl, pr.date) as date'),
+                DB::raw('po.latest_po_date as date'),
                 'pr.for_customer',
                 'pr.ref_po',
                 'pr.payment',
                 DB::raw('0 as outstanding_count'),
                 DB::raw('1 as realized_count'),
                 'detail.total_price_sum'
-            )
-            ->distinct();
+            );
 
         $now = now();
         if ($period === 'today') {
-            $query->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
+            $query->whereRaw("po.latest_po_date = ?", [$now->toDateString()]);
         } elseif ($period === 'this_week') {
-            $query->whereRaw("{$docDateExpr} between ? and ?", [
+            $query->whereRaw("po.latest_po_date between ? and ?", [
                 $now->startOfWeek()->toDateString(),
                 $now->endOfWeek()->toDateString(),
             ]);
         } elseif ($period === 'this_month') {
-            $query->whereRaw("month({$docDateExpr}) = ?", [$now->month])
-                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+            $query->whereRaw("month(po.latest_po_date) = ?", [$now->month])
+                ->whereRaw("year(po.latest_po_date) = ?", [$now->year]);
         } elseif ($period === 'this_year') {
-            $query->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+            $query->whereRaw("year(po.latest_po_date) = ?", [$now->year]);
         }
 
         $purchaseRequirements = $query
-            ->orderByRaw('coalesce(do.pos_tgl, pr.date) desc')
+            ->orderBy('po.latest_po_date', 'desc')
             ->orderBy('pr.no_pr', 'desc')
             ->get();
 
-        $realizedTotal = $purchaseRequirements->unique('no_pr')->sum('total_price_sum');
+        $realizedTotal = $purchaseRequirements->sum('total_price_sum');
 
         return response()->json([
             'purchaseRequirements' => $purchaseRequirements,
@@ -522,10 +565,26 @@ class PurchaseRequirementController
                         'ref_po' => $request->input('ref_po'),
                     ]);
 
+                    // Collect all detail IDs and material/ref_po pairs to optimize lookups
+                    $detailIdsToUpdate = [];
+                    foreach ($materials as $item) {
+                        if (isset($item['detail_id']) && is_numeric($item['detail_id']) && (float)($item['qty'] ?? 0) > 0) {
+                            $detailIdsToUpdate[] = (int) $item['detail_id'];
+                        }
+                    }
+
+                    $detailPoinLookup = [];
+                    if (!empty($detailIdsToUpdate)) {
+                        $detailPoinLookup = DB::table('tb_detailpoin')
+                            ->whereIn('id', $detailIdsToUpdate)
+                            ->pluck('sisa_qtypr', 'id')
+                            ->all();
+                    }
+
+                    $insertData = [];
                     foreach ($materials as $index => $item) {
                         $qtyValue = is_numeric($item['qty'] ?? null) ? (float) $item['qty'] : 0;
-
-                        DB::table('tb_detailpr')->insert([
+                        $insertData[] = [
                             'date' => $request->input('date'),
                             'payment' => $request->input('payment'),
                             'for_customer' => $request->input('for_customer'),
@@ -544,13 +603,14 @@ class PurchaseRequirementController
                             'renmark' => $item['renmark'] ?: ' ',
                             'qty_po' => 0,
                             'sisa_pr' => max(0, ((float) ($item['qty'] ?? 0)) - ((float) ($item['stok'] ?? 0))),
-                        ]);
+                        ];
 
                         if ($qtyValue > 0) {
                             $detailId = $item['detail_id'] ?? null;
                             if (is_numeric($detailId)) {
+                                $detailId = (int) $detailId;
                                 DB::table('tb_detailpoin')
-                                    ->where('id', (int) $detailId)
+                                    ->where('id', $detailId)
                                     ->update([
                                         'sisa_qtypr' => DB::raw(sprintf(
                                             'greatest(coalesce(cast(sisa_qtypr as decimal(18,4)), 0) - %.4F, 0)',
@@ -558,6 +618,8 @@ class PurchaseRequirementController
                                         )),
                                     ]);
                             } else {
+                                // For items without explicit ID, we still have to do the lookup
+                                // But we try to limit it to one update query
                                 DB::table('tb_detailpoin')
                                     ->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim((string) ($item['kd_material'] ?? '')))])
                                     ->whereRaw('lower(trim(kode_poin)) in (select lower(trim(kode_poin)) from tb_poin where lower(trim(no_poin)) = ?)', [
@@ -571,6 +633,9 @@ class PurchaseRequirementController
                                     ]);
                             }
                         }
+                    }
+                    if (!empty($insertData)) {
+                        DB::table('tb_detailpr')->insert($insertData);
                     }
                 });
                 break;
@@ -630,6 +695,22 @@ class PurchaseRequirementController
 
         try {
             DB::transaction(function () use ($request, $materials, $noPr, $timestamp, $dateFormatted) {
+                // 1. Revert existing quotas before deleting
+                $oldDetails = DB::table('tb_detailpr')
+                    ->where('no_pr', $noPr)
+                    ->get();
+
+                foreach ($oldDetails as $oldItem) {
+                    if ($oldItem->ref_po && $oldItem->kd_material) {
+                        DB::table('tb_detailpoin as d')
+                            ->join('tb_poin as p', 'd.kode_poin', '=', 'p.kode_poin')
+                            ->whereRaw('lower(trim(p.no_poin)) = ?', [strtolower(trim($oldItem->ref_po))])
+                            ->whereRaw('lower(trim(d.kd_material)) = ?', [strtolower(trim($oldItem->kd_material))])
+                            ->increment('d.sisa_qtypr', (float)$oldItem->qty);
+                    }
+                }
+
+                // 2. Update PR master
                 DB::table('tb_pr')
                     ->where('no_pr', $noPr)
                     ->update([
@@ -639,13 +720,22 @@ class PurchaseRequirementController
                         'ref_po' => $request->input('ref_po'),
                     ]);
 
+                // 3. Delete old details
                 DB::table('tb_detailpr')
                     ->where('no_pr', $noPr)
                     ->delete();
 
+                $insertDetails = [];
+                $insertUbah = [];
+
+                // 4. Prepare and consume new quotas
                 foreach ($materials as $index => $item) {
                     $noValue = $item['no'] ?? ($index + 1);
-                    DB::table('tb_detailpr')->insert([
+                    $qtyRaw = (float)($item['qty'] ?? 0);
+                    $stok = (float)($item['stok'] ?? 0);
+                    $sisaPr = max(0, $qtyRaw - $stok);
+
+                    $insertDetails[] = [
                         'date' => $dateFormatted,
                         'payment' => $request->input('payment'),
                         'for_customer' => $request->input('for_customer'),
@@ -654,19 +744,19 @@ class PurchaseRequirementController
                         'no_pr' => $noPr,
                         'kd_material' => $item['kd_material'] ?? null,
                         'material' => $item['material'] ?? null,
-                        'qty' => $item['qty'] ?? null,
+                        'qty' => $qtyRaw,
                         'unit' => $item['unit'] ?? null,
-                        'stok' => $item['stok'] ?? null,
+                        'stok' => $stok,
                         'unit_price' => $item['unit_price'] ?? null,
                         'total_price' => $item['total_price'] ?? null,
                         'price_po' => $item['price_po'] ?? null,
                         'margin' => $item['margin'] ?: '0%',
                         'renmark' => $item['renmark'] ?: ' ',
                         'qty_po' => 0,
-                        'sisa_pr' => max(0, ((float) ($item['qty'] ?? 0)) - ((float) ($item['stok'] ?? 0))),
-                    ]);
+                        'sisa_pr' => $sisaPr,
+                    ];
 
-                    DB::table('tb_ubah')->insert([
+                    $insertUbah[] = [
                         'no_pr' => $noPr,
                         'date' => $dateFormatted,
                         'payment' => $request->input('payment'),
@@ -676,18 +766,34 @@ class PurchaseRequirementController
                         'for_customer' => $request->input('for_customer'),
                         'kd_material' => $item['kd_material'] ?? null,
                         'material' => $item['material'] ?? null,
-                        'qty' => $item['qty'] ?? null,
-                        'qty_po' => $item['qty'] ?? null,
-                        'sisa_pr' => max(0, ((float) ($item['qty'] ?? 0)) - ((float) ($item['stok'] ?? 0))),
+                        'qty' => $qtyRaw,
+                        'qty_po' => $qtyRaw,
+                        'sisa_pr' => $sisaPr,
                         'unit' => $item['unit'] ?? null,
-                        'stok' => $item['stok'] ?? null,
+                        'stok' => $stok,
                         'unit_price' => $item['unit_price'] ?? null,
                         'total_price' => $item['total_price'] ?? null,
                         'price_po' => $item['price_po'] ?? null,
                         'margin' => $item['margin'] ?: '0%',
                         'renmark' => $item['renmark'] ?: ' ',
                         'tgl_ubah' => $timestamp,
-                    ]);
+                    ];
+
+                    // Consume quota
+                    if ($request->input('ref_po') && ($item['kd_material'] ?? null)) {
+                        DB::table('tb_detailpoin as d')
+                            ->join('tb_poin as p', 'd.kode_poin', '=', 'p.kode_poin')
+                            ->whereRaw('lower(trim(p.no_poin)) = ?', [strtolower(trim($request->input('ref_po')))])
+                            ->whereRaw('lower(trim(d.kd_material)) = ?', [strtolower(trim($item['kd_material']))])
+                            ->decrement('d.sisa_qtypr', $qtyRaw);
+                    }
+                }
+
+                if (!empty($insertDetails)) {
+                    DB::table('tb_detailpr')->insert($insertDetails);
+                }
+                if (!empty($insertUbah)) {
+                    DB::table('tb_ubah')->insert($insertUbah);
                 }
             });
         } catch (\Throwable $exception) {
@@ -696,7 +802,7 @@ class PurchaseRequirementController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data PR berhasil diperbarui.');
-            return inertia_location('/marketing/purchase-requirement');
+            return to_route('marketing.purchase-requirement.index');
         }
 
         return redirect()
@@ -773,16 +879,6 @@ class PurchaseRequirementController
                         ]);
                 }
 
-                // Update tb_material.stok
-                $diff = $newQty - $oldQty;
-                DB::table('tb_material')
-                    ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
-                    ->update([
-                        'stok' => DB::raw(sprintf(
-                            'coalesce(cast(stok as decimal(18,4)), 0) - %.4F',
-                            $diff
-                        )),
-                    ]);
             }
 
             DB::table('tb_ubah')->insert([
@@ -796,6 +892,10 @@ class PurchaseRequirementController
                 'kd_material' => $request->input('kd_material'),
                 'material' => $request->input('material'),
                 'qty' => $request->input('qty'),
+                'qty_po' => $request->input('qty'),
+                'sisa_pr' => max(0, ((float) $request->input('qty')) - ((float) $request->input('stok'))),
+                'unit' => $request->input('unit'),
+                'stok' => $request->input('stok'),
                 'unit_price' => $request->input('unit_price'),
                 'total_price' => $request->input('total_price'),
                 'price_po' => $request->input('price_po'),
@@ -809,7 +909,7 @@ class PurchaseRequirementController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Detail PR berhasil diperbarui.');
-            return inertia_location('/marketing/purchase-requirement/' . $noPr . '/edit');
+            return to_route('marketing.purchase-requirement.index');
         }
 
         return back()->with('success', 'Detail PR berhasil diperbarui.');
@@ -817,6 +917,15 @@ class PurchaseRequirementController
 
     public function destroyDetail(Request $request, $noPr, $detailNo)
     {
+        // Global Check: Minimal 1 material
+        $itemCount = DB::table('tb_detailpr')
+            ->where('no_pr', $noPr)
+            ->count();
+
+        if ($itemCount <= 1) {
+            return back()->with('error', 'Data PR minimal harus memiliki 1 material.');
+        }
+
         $detail = DB::table('tb_detailpr')
             ->where('no_pr', $noPr)
             ->where('no', $detailNo)
@@ -832,11 +941,12 @@ class PurchaseRequirementController
             $refPo = strtolower(trim((string) ($detail->ref_po ?? '')));
 
             if ($kdMaterial !== '' && $refPo !== '') {
-                $detailPo = DB::table('tb_detailpoin')
-                    ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
-                    ->whereRaw('lower(trim(kode_poin)) in (select lower(trim(kode_poin)) from tb_poin where lower(trim(no_poin)) = ?)', [$refPo])
-                    ->orderBy('id', 'desc')
-                    ->first(['id', 'sisa_qtypr']);
+                $detailPo = DB::table('tb_detailpoin as d')
+                    ->join('tb_poin as p', 'd.kode_poin', '=', 'p.kode_poin')
+                    ->whereRaw('lower(trim(p.no_poin)) = ?', [strtolower(trim($refPo))])
+                    ->whereRaw('lower(trim(d.kd_material)) = ?', [strtolower(trim($kdMaterial))])
+                    ->orderBy('d.id', 'desc')
+                    ->first(['d.id', 'd.sisa_qtypr']);
 
                 if ($detailPo) {
                     DB::table('tb_detailpoin')
@@ -848,16 +958,6 @@ class PurchaseRequirementController
                             )),
                         ]);
                 }
-
-                // Update tb_material.stok (restore stock)
-                DB::table('tb_material')
-                    ->whereRaw('lower(trim(kd_material)) = ?', [$kdMaterial])
-                    ->update([
-                        'stok' => DB::raw(sprintf(
-                            'coalesce(cast(stok as decimal(18,4)), 0) + %.4F',
-                            $qtyValue
-                        )),
-                    ]);
             }
         }
 
@@ -868,11 +968,6 @@ class PurchaseRequirementController
 
         if (!$deleted) {
             return back()->with('error', 'Detail PR tidak ditemukan.');
-        }
-
-        if ($request->header('X-Inertia')) {
-            session()->flash('success', 'Detail PR berhasil dihapus.');
-            return inertia_location('/marketing/purchase-requirement/' . $noPr . '/edit');
         }
 
         return back()->with('success', 'Detail PR berhasil dihapus.');

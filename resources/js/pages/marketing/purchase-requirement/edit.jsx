@@ -86,10 +86,10 @@ export default function PurchaseRequirementEdit({
 }) {
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [editingDetailNo, setEditingDetailNo] = useState(null);
+    const [editingId, setEditingId] = useState(null);
     const [editingDraft, setEditingDraft] = useState(null);
-    const [savingMaterialId, setSavingMaterialId] = useState(null);
-    const [deletingMaterialId, setDeletingMaterialId] = useState(null);
+    const [savingMaterialId, setSavingMaterialId] = useState('');
+    const [deletingMaterialId, setDeletingMaterialId] = useState('');
 
     const detailDateSource = purchaseRequirementDetails?.[0]?.date;
 
@@ -155,7 +155,7 @@ export default function PurchaseRequirementEdit({
                 page: materialCurrentPage,
             });
             const response = await fetch(
-                `/marketing/purchase-requirement/api/materials?${params}`,
+                `/marketing/purchase-requirement/materials?${params}`,
             );
             if (!response.ok) throw new Error('Failed to fetch materials');
             const data = await response.json();
@@ -207,17 +207,22 @@ export default function PurchaseRequirementEdit({
     }, [listSearch, listPageSize]);
 
     const openEditCard = (item) => {
-        setEditingDetailNo(item.detailNo);
+        setEditingId(item.id);
+        const totalPrice = calculateTotalPrice(
+            item.qtyDetail ?? 0,
+            item.priceEstimate ?? 0,
+        );
         setEditingDraft({
             kodeMaterial: item.kodeMaterial ?? '',
             namaMaterial: item.namaMaterial ?? '',
             stok: item.stok ?? '',
             qtyDetail: item.qtyDetail ?? 0, // tb_detailpr.qty (derived)
             originalQtyDetail: item.qtyDetail ?? 0, // fixed reference
-            qty: item.qty ?? '',                      // sisa_pr (editable)
-            originalSisaPr: parseFloat(item.qty ?? 0),  // fixed reference for delta
+            qty: item.qty ?? '', // sisa_pr (editable)
+            originalSisaPr: parseFloat(item.qty ?? 0), // fixed reference for delta
             satuan: item.satuan ?? '',
             priceEstimate: item.priceEstimate ?? '',
+            totalPrice: totalPrice,
             priceInPo: item.priceInPo ?? '',
             margin: item.margin ?? '',
             remark: item.remark ?? '',
@@ -225,7 +230,7 @@ export default function PurchaseRequirementEdit({
     };
 
     const closeEditCard = () => {
-        setEditingDetailNo(null);
+        setEditingId(null);
         setEditingDraft(null);
     };
 
@@ -254,11 +259,25 @@ export default function PurchaseRequirementEdit({
                     next.priceEstimate,
                 );
             }
+            // Always recalc total price
+            next.totalPrice = calculateTotalPrice(
+                next.qtyDetail,
+                next.priceEstimate,
+            );
             return next;
         });
     };
 
     const handleDeleteMaterial = (item) => {
+        if (materialItems.length <= 1) {
+            Swal.fire({
+                title: 'Gagal',
+                text: 'Data PR minimal harus memiliki 1 material.',
+                icon: 'error',
+            });
+            return;
+        }
+
         Swal.fire({
             title: 'Hapus material?',
             text: 'Apakah yakin data ini dihapus?',
@@ -281,13 +300,14 @@ export default function PurchaseRequirementEdit({
                 {
                     preserveScroll: true,
                     preserveState: true,
-                    onStart: () => setDeletingMaterialId(item.detailNo),
-                    onError: () => setDeletingMaterialId(null),
+                    onStart: () => setDeletingMaterialId(item.detailNo || ''),
+                    onError: () => setDeletingMaterialId(''),
                     onSuccess: () => {
+                        setDeletingMaterialId('');
                         setMaterialItems((prev) =>
                             prev.filter((it) => it.id !== item.id),
                         );
-                        if (editingDetailNo === item.detailNo) {
+                        if (editingId === item.id) {
                             closeEditCard();
                         }
                     },
@@ -297,7 +317,21 @@ export default function PurchaseRequirementEdit({
     };
 
     const handleSaveCard = (item) => {
-        if (!purchaseRequirement?.no_pr || !item.detailNo || !editingDraft) {
+        if (!purchaseRequirement?.no_pr || !editingDraft) {
+            return;
+        }
+
+        // For newly added items (no detailNo), commit draft to local state then trigger full submit
+        if (!item.detailNo) {
+            const updatedItems = materialItems.map((it) =>
+                it.id === item.id ? { ...it, ...editingDraft } : it,
+            );
+            setMaterialItems(updatedItems);
+            // We pass the updated items directly to handleSubmit or use the state if we can trust it.
+            // Since setMaterialItems is async, we should probably manually construct the payload or use a useEffect.
+            // But a simpler way is to just call a helper that handles the router.put with the fresh array.
+            submitFullUpdate(updatedItems);
+            closeEditCard();
             return;
         }
 
@@ -331,12 +365,13 @@ export default function PurchaseRequirementEdit({
             {
                 preserveScroll: true,
                 preserveState: true,
-                onStart: () => setSavingMaterialId(item.detailNo),
-                onError: () => setSavingMaterialId(null),
+                onStart: () => setSavingMaterialId(item.detailNo || ''),
+                onError: () => setSavingMaterialId(''),
                 onSuccess: () => {
+                    setSavingMaterialId('');
                     setMaterialItems((prev) =>
                         prev.map((it) =>
-                            it.detailNo === item.detailNo
+                            it.id === item.id
                                 ? {
                                       ...it,
                                       kodeMaterial: payload.kd_material,
@@ -360,8 +395,8 @@ export default function PurchaseRequirementEdit({
         );
     };
 
-    const handleSubmit = (event) => {
-        event.preventDefault();
+    const submitFullUpdate = (itemsToSubmit) => {
+        setIsSubmitting(true);
         router.put(
             `/marketing/purchase-requirement/${encodeURIComponent(purchaseRequirement?.no_pr ?? '')}`,
             {
@@ -369,11 +404,11 @@ export default function PurchaseRequirementEdit({
                 payment: formData.payment,
                 for_customer: formData.forCustomer,
                 ref_po: formData.refPo,
-                materials: materialItems.map((item, index) => ({
+                materials: itemsToSubmit.map((item, index) => ({
                     no: index + 1,
                     kd_material: item.kodeMaterial,
                     material: item.namaMaterial,
-                    qty: item.qty,
+                    qty: item.qtyDetail, // Consistent with updateDetail
                     unit: item.satuan,
                     stok: item.stok,
                     unit_price: item.priceEstimate,
@@ -387,12 +422,15 @@ export default function PurchaseRequirementEdit({
                 onStart: () => setIsSubmitting(true),
                 onError: () => setIsSubmitting(false),
                 onSuccess: (page) => {
-                    if (page?.props?.flash?.error) {
-                        setIsSubmitting(false);
-                    }
+                    setIsSubmitting(false);
                 },
             },
         );
+    };
+
+    const handleSubmit = (event) => {
+        event.preventDefault();
+        submitFullUpdate(materialItems);
     };
 
     return (
@@ -572,8 +610,7 @@ export default function PurchaseRequirementEdit({
 
                             {paginatedItems.map((item, index) => {
                                 const globalIndex = filteredItems.indexOf(item);
-                                const isEditing =
-                                    editingDetailNo === item.detailNo;
+                                const isEditing = editingId === item.id;
                                 const source =
                                     isEditing && editingDraft
                                         ? editingDraft
@@ -626,8 +663,9 @@ export default function PurchaseRequirementEdit({
                                                         size="icon"
                                                         title="Hapus material"
                                                         disabled={
+                                                            item.detailNo &&
                                                             deletingMaterialId ===
-                                                            item.detailNo
+                                                                item.detailNo
                                                         }
                                                         onClick={() =>
                                                             handleDeleteMaterial(
@@ -635,8 +673,9 @@ export default function PurchaseRequirementEdit({
                                                             )
                                                         }
                                                     >
-                                                        {deletingMaterialId ===
-                                                        item.detailNo ? (
+                                                        {item.detailNo &&
+                                                        deletingMaterialId ===
+                                                            item.detailNo ? (
                                                             <Spinner className="h-4 w-4" />
                                                         ) : (
                                                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -671,9 +710,10 @@ export default function PurchaseRequirementEdit({
                                                     type="number"
                                                     min="0"
                                                     value={
-                                                        isEditing
+                                                        (isEditing
                                                             ? source.qtyDetail
-                                                            : item.qtyDetail
+                                                            : item.qtyDetail) ??
+                                                        ''
                                                     }
                                                     readOnly={!isEditing}
                                                     onChange={(event) =>
@@ -689,7 +729,7 @@ export default function PurchaseRequirementEdit({
                                                 <Input
                                                     type="number"
                                                     min="0"
-                                                    value={source.qty}
+                                                    value={source.qty ?? ''}
                                                     readOnly={!isEditing}
                                                     onChange={(event) =>
                                                         updateDraft(
@@ -727,7 +767,10 @@ export default function PurchaseRequirementEdit({
                                                     type="number"
                                                     min="0"
                                                     step="any"
-                                                    value={source.priceEstimate}
+                                                    value={
+                                                        source.priceEstimate ??
+                                                        ''
+                                                    }
                                                     readOnly={!isEditing}
                                                     onChange={(event) =>
                                                         updateDraft(
@@ -774,17 +817,19 @@ export default function PurchaseRequirementEdit({
                                                 <Button
                                                     type="button"
                                                     disabled={
+                                                        item.detailNo &&
                                                         savingMaterialId ===
-                                                        item.detailNo
+                                                            item.detailNo
                                                     }
                                                     onClick={() =>
                                                         handleSaveCard(item)
                                                     }
                                                 >
-                                                    {savingMaterialId ===
-                                                        item.detailNo && (
-                                                        <Spinner className="mr-2" />
-                                                    )}
+                                                    {item.detailNo &&
+                                                        savingMaterialId ===
+                                                            item.detailNo && (
+                                                            <Spinner className="mr-2" />
+                                                        )}
                                                     Simpan
                                                 </Button>
                                             </div>
@@ -882,16 +927,18 @@ export default function PurchaseRequirementEdit({
                     open={isMaterialModalOpen}
                     onOpenChange={setIsMaterialModalOpen}
                 >
-                    <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none border-none p-0 shadow-2xl">
+                    <DialogContent
+                        aria-describedby={undefined}
+                        className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none border-none p-0 shadow-2xl"
+                    >
                         <DialogHeader className="border-b bg-muted/30 p-6">
                             <DialogTitle className="text-xl">
                                 Pilih Material
                             </DialogTitle>
-                            <DialogDescription>
-                                Pilih material dari database inventory untuk PR
-                                ini.
-                            </DialogDescription>
                         </DialogHeader>
+                        <DialogDescription className="sr-only">
+                            Pilih material dari database inventory untuk PR ini.
+                        </DialogDescription>
 
                         <div className="flex-1 space-y-6 overflow-auto p-6">
                             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -949,9 +996,6 @@ export default function PurchaseRequirementEdit({
                                             <TableHead className="text-right">
                                                 Stok
                                             </TableHead>
-                                            <TableHead className="text-right">
-                                                Harga Est.
-                                            </TableHead>
                                             <TableHead className="w-[80px]"></TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -988,16 +1032,6 @@ export default function PurchaseRequirementEdit({
                                                     <TableCell className="text-right">
                                                         {m.stok}
                                                     </TableCell>
-                                                    <TableCell className="text-right font-bold text-primary">
-                                                        {new Intl.NumberFormat(
-                                                            'id-ID',
-                                                            {
-                                                                style: 'currency',
-                                                                currency: 'IDR',
-                                                                maximumFractionDigits: 0,
-                                                            },
-                                                        ).format(m.harga)}
-                                                    </TableCell>
                                                     <TableCell>
                                                         <Button
                                                             size="sm"
@@ -1015,6 +1049,7 @@ export default function PurchaseRequirementEdit({
                                                                             m.material,
                                                                         stok: m.stok,
                                                                         qty: 0,
+                                                                        qtyDetail: 0,
                                                                         satuan: m.unit,
                                                                         priceEstimate:
                                                                             m.harga ||

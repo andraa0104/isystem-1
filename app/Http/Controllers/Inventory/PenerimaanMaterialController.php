@@ -165,6 +165,7 @@ class PenerimaanMaterialController
                 // Stock column is `stok` (tb_stok doesn't exist in this DB).
                 $stockColumn = Schema::hasColumn('tb_material', 'stok') ? 'stok' : null;
                 $priceColumn = Schema::hasColumn('tb_material', 'harga') ? 'harga' : null;
+                $stockCol = Schema::hasColumn('tb_material', 'stok') ? 'stok' : null;
 
                 $detailMatColumn = Schema::hasColumn('tb_detailpo', 'kd_mat')
                     ? 'kd_mat'
@@ -173,86 +174,194 @@ class PenerimaanMaterialController
                     throw new \RuntimeException('Kolom kd_mat/no_material tidak ditemukan di tb_detailpo.');
                 }
 
-                foreach (array_values($data['rows']) as $i => $row) {
-                    $no = $i + 1;
-                    $kdMat = (string) $row['kd_mat'];
-                    $qtyNum = is_numeric($row['qty']) ? (float) $row['qty'] : 0.0;
+                $kdMaterials = array_unique(array_column($data['rows'], 'kd_mat'));
 
-                    $idPo = 0;
-                    if ($detailMatColumn && Schema::hasColumn('tb_detailpo', 'id_po')) {
-                        $found = DB::table('tb_detailpo')
-                            ->where('no_po', $data['no_po'])
-                            ->where($detailMatColumn, $kdMat)
-                            ->value('id_po');
-                        $idPo = $found === null ? 0 : $found;
+                // Bulk fetch PO details
+                $poDetails = DB::table('tb_detailpo')
+                    ->where('no_po', $data['no_po'])
+                    ->whereIn($detailMatColumn, $kdMaterials)
+                    ->get()
+                    ->mapWithKeys(fn($item) => [strtolower($item->{$detailMatColumn}) => $item]);
+
+                // Bulk fetch Materials
+                $materials = $stockColumn || $priceColumn
+                    ? DB::table('tb_material')
+                        ->whereIn('kd_material', $kdMaterials)
+                        ->get()
+                        ->mapWithKeys(fn($item) => [strtolower($item->kd_material) => $item])
+                    : collect();
+
+                // Bulk fetch Existing MI records for Upsert logic
+                $existingMis = DB::table('tb_mi')
+                    ->where('ref_po', $data['no_po'])
+                    ->where('inv', 0)
+                    ->get()
+                    ->groupBy(fn($item) => strtolower($item->kd_mat));
+
+                // Determine noDoc: use existing if available, else generate new
+                $noDoc = null;
+                foreach ($existingMis as $group) {
+                    if ($group->first()->no_doc) {
+                        $noDoc = $group->first()->no_doc;
+                        break;
                     }
+                }
 
-                    // Insert detail to tb_mi (per-row)
-                    DB::table('tb_mi')->insert([
+                // If not found in materials, check the header table directly (tb_kdmi)
+                if (!$noDoc) {
+                    $existingHeader = DB::table("tb_kdmi")
+                        ->where("ref_pr", $data["no_po"]) // PO number in tb_kdmi.ref_pr
+                        ->first();
+
+                    if ($existingHeader) {
+                        // Safeguard: Reuse only if NO items for this header are invoiced
+                        $anyInvoiced = DB::table("tb_mi")
+                            ->where("no_doc", $existingHeader->no_doc)
+                            ->where("inv", 1)
+                            ->exists();
+
+                        if (!$anyInvoiced) {
+                            $noDoc = $existingHeader->no_doc;
+                        }
+                    }
+                }
+
+                if (!$noDoc) {
+                    // Generate new MI code
+                    $last = DB::table('tb_kdmi')
+                        ->select('no_doc')
+                        ->where('no_doc', 'like', 'MI%')
+                        ->orderByDesc('no_doc')
+                        ->lockForUpdate()
+                        ->first();
+
+                    $lastNum = 0;
+                    if ($last && isset($last->no_doc)) {
+                        $digits = preg_replace('/\\D+/', '', (string) $last->no_doc);
+                        if ($digits !== '') {
+                            $lastNum = (int) $digits;
+                        }
+                    }
+                    $noDoc = 'MI' . str_pad((string) ($lastNum + 1), 8, '0', STR_PAD_LEFT);
+
+                    // Header insert to tb_kdmi
+                    DB::table('tb_kdmi')->insert([
                         'no_doc' => $noDoc,
-                        'ref_po' => $data['no_po'],
-                        'ref_pr' => $data['ref_pr'] ?? '',
+                        'ref_pr' => $data['no_po'],
+                        'ref_po' => $data['ref_pr'] ?? '',
                         'vdr' => $data['vendor'] ?? '',
                         'doc_tgl' => $docTgl,
                         'posting_tgl' => $postingTgl,
-                        'no' => $no,
-                        'kd_mat' => $kdMat,
-                        'material' => (string) $row['material'],
-                        'qty' => $row['qty'],
-                        'unit' => (string) $row['unit'],
-                        'price' => $row['price'],
-                        'total_price' => $row['total_price'],
-                        'id_po' => $idPo,
-                        // Keep MIU = 0 on receipt; MIU will be filled by transfer (MIS/MIB -> MI).
-                        'miu' => 0,
-                        'harga_miu' => 0,
-                        'mis' => 0,
-                        'harga_mis' => 0,
-                        'mib' => 0,
-                        'harga_mib' => 0,
-                        'transfer_mis' => 0,
-                        'transfer_mib' => 0,
-                        'inv' => 0,
                     ]);
+                }
 
-                    // Update tb_detailpo based on No PO & Kode Material
-                    $prev = DB::table('tb_detailpo')
-                        ->where('no_po', $data['no_po'])
-                        ->where($detailMatColumn, $kdMat)
-                        ->first(['end_gr', 'ir_mat', 'ir_price']);
+                $miInserts = [];
 
-                    $detailUpdate = [
-                        'gr_mat' => $row['qty'],
-                        'gr_price' => $row['total_price'],
-                        'end_gr' => (float)($prev->end_gr ?? 0) + (float)$row['qty'],
-                        'ir_mat' => (float)($prev->ir_mat ?? 0) + (float)$row['qty'],
-                        'ir_price' => (float)($prev->ir_price ?? 0) + (float)$row['total_price'],
-                    ];
-                    // no_gudang will be set in TransferMaterialController when qty == miu.
+                foreach (array_values($data['rows']) as $i => $row) {
+                    $no = $i + 1;
+                    $kdMat = (string) $row['kd_mat'];
+                    $kdMatLower = strtolower($kdMat);
+                    $qtyNum = is_numeric($row['qty']) ? (float) $row['qty'] : 0.0;
+                    $totalPrice = is_numeric($row['total_price']) ? (float) $row['total_price'] : 0.0;
+
+                    $poDetail = $poDetails->get($kdMatLower);
+                    $idPo = $poDetail->id_po ?? 0;
+
+                    // Check for existing record for UPSERT
+                    $existingMiSet = $existingMis->get($kdMatLower);
+                    $existingMi = $existingMiSet ? $existingMiSet->first() : null;
+
+                    if ($existingMi) {
+                        // Update existing tb_mi: Increment quantities and prices
+                        $newQtyTotal = (float)($existingMi->qty ?? 0) + $qtyNum;
+                        $newMiuTotal = (float)($existingMi->miu ?? 0) + $qtyNum;
+                        $newPriceTotal = (float)($existingMi->total_price ?? 0) + $totalPrice;
+                        $newHargaMiuTotal = (float)($existingMi->harga_miu ?? 0) + $totalPrice;
+
+                        DB::table('tb_mi')
+                            ->where('no_doc', $existingMi->no_doc)
+                            ->where('kd_mat', $existingMi->kd_mat)
+                            ->update([
+                                'qty' => $newQtyTotal,
+                                'miu' => $newMiuTotal,
+                                'total_price' => $newPriceTotal,
+                                'harga_miu' => $newHargaMiuTotal,
+                                'price' => $row['price'], // Update to latest price
+                                'doc_tgl' => $docTgl,
+                                'posting_tgl' => $postingTgl,
+                            ]);
+                    } else {
+                        // Prepare insert for tb_mi
+                        $miInserts[] = [
+                            'no_doc' => $noDoc,
+                            'ref_po' => $data['no_po'],
+                            'ref_pr' => $data['ref_pr'] ?? '',
+                            'vdr' => $data['vendor'] ?? '',
+                            'doc_tgl' => $docTgl,
+                            'posting_tgl' => $postingTgl,
+                            'no' => $no,
+                            'kd_mat' => $kdMat,
+                            'material' => (string) $row['material'],
+                            'qty' => $row['qty'],
+                            'unit' => (string) $row['unit'],
+                            'price' => $row['price'],
+                            'total_price' => $row['total_price'],
+                            'id_po' => $idPo,
+                            'miu' => $row['qty'],
+                            'harga_miu' => $row['total_price'],
+                            'mis' => 0,
+                            'harga_mis' => 0,
+                            'mib' => 0,
+                            'harga_mib' => 0,
+                            'transfer_mis' => 0,
+                            'transfer_mib' => 0,
+                            'inv' => 0,
+                        ];
+                    }
+
+                    // PO Detail Tracking: correct remaining balance
+                    $newGrMat = (float)($poDetail->gr_mat ?? 0) - $qtyNum;
+                    $newGrPrice = (float)($poDetail->gr_price ?? 0) - $totalPrice;
+                    $newEndGr = (float)($poDetail->end_gr ?? 0) + $qtyNum;
+                    $newIrMat = (float)($poDetail->ir_mat ?? 0) + $qtyNum;
+                    $newIrPrice = (float)($poDetail->ir_price ?? 0) + $totalPrice;
 
                     DB::table('tb_detailpo')
                         ->where('no_po', $data['no_po'])
                         ->where($detailMatColumn, $kdMat)
-                        ->update($detailUpdate);
+                        ->update([
+                            'gr_mat' => $newGrMat,
+                            'gr_price' => $newGrPrice,
+                            'end_gr' => $newEndGr,
+                            'ir_mat' => $newIrMat,
+                            'ir_price' => $newIrPrice,
+                            'no_gudang' => $noDoc, // Warehouse Tracking
+                        ]);
 
-                    // Update stock in tb_material
-                    if ($stockColumn) {
-                        $currentStock = DB::table('tb_material')
-                            ->where('kd_material', $kdMat)
-                            ->value($stockColumn);
-                        $currentStockNum = is_numeric($currentStock) ? (float) $currentStock : 0;
-                        $newStock = $currentStockNum + $qtyNum;
+                    // Update Material stock
+                    if ($stockColumn || $priceColumn) {
+                        $material = $materials->get($kdMatLower);
+                        if ($material) {
+                            $updateData = [];
+                            if ($stockColumn) {
+                                $currentStockNum = is_numeric($material->{$stockColumn}) ? (float) $material->{$stockColumn} : 0;
+                                $newStock = $currentStockNum + $qtyNum;
+                                $updateData[$stockColumn] = $newStock;
+                                $updateData['rest_stock'] = $newStock; // Sync rest_stock
+                            }
+                            if ($priceColumn) {
+                                $updateData[$priceColumn] = $row['price'];
+                            }
 
-                        DB::table('tb_material')
-                            ->where('kd_material', $kdMat)
-                            ->update([$stockColumn => $newStock]);
+                            DB::table('tb_material')->where('kd_material', $kdMat)->update($updateData);
+                        }
                     }
+                }
 
-                    // Update last price in tb_material to match PO price used.
-                    if ($priceColumn) {
-                        DB::table('tb_material')
-                            ->where('kd_material', $kdMat)
-                            ->update([$priceColumn => $row['price']]);
+                // Execute Batch Inserts
+                if (!empty($miInserts)) {
+                    foreach (array_chunk($miInserts, 100) as $chunk) {
+                        DB::table('tb_mi')->insert($chunk);
                     }
                 }
             });
@@ -307,33 +416,6 @@ class PenerimaanMaterialController
                 $docTgl = \Carbon\Carbon::parse($data['doc_date'])->format('d.m.Y');
                 $postingTgl = $now->format('d.m.Y');
 
-                // Generate MI code: MI + 8 digits (last + 1)
-                $last = DB::table('tb_kdmi')
-                    ->select('no_doc')
-                    ->where('no_doc', 'like', 'MI%')
-                    ->orderByDesc('no_doc')
-                    ->lockForUpdate()
-                    ->first();
-
-                $lastNum = 0;
-                if ($last && isset($last->no_doc)) {
-                    $digits = preg_replace('/\\D+/', '', (string) $last->no_doc);
-                    if ($digits !== '') {
-                        $lastNum = (int) $digits;
-                    }
-                }
-                $noDoc = 'MI' . str_pad((string) ($lastNum + 1), 8, '0', STR_PAD_LEFT);
-
-                // Header insert to tb_kdmi
-                DB::table('tb_kdmi')->insert([
-                    'no_doc' => $noDoc,
-                    'ref_pr' => $data['no_po'],
-                    'ref_po' => $data['ref_pr'] ?? '',
-                    'vdr' => $data['vendor'] ?? '',
-                    'doc_tgl' => $docTgl,
-                    'posting_tgl' => $postingTgl,
-                ]);
-
                 $detailMatColumn = Schema::hasColumn('tb_detailpo', 'kd_mat')
                     ? 'kd_mat'
                     : (Schema::hasColumn('tb_detailpo', 'no_material') ? 'no_material' : null);
@@ -342,53 +424,185 @@ class PenerimaanMaterialController
                 }
 
                 $priceColumn = Schema::hasColumn('tb_material', 'harga') ? 'harga' : null;
+                $stockCol = Schema::hasColumn('tb_material', 'stok') ? 'stok' : null;
+
+                $kdMaterials = array_unique(array_column($data['rows'], 'kd_mat'));
+
+                // Bulk fetch PO details for id_po
+                $poDetails = DB::table('tb_detailpo')
+                    ->where('no_po', $data['no_po'])
+                    ->whereIn($detailMatColumn, $kdMaterials)
+                    ->get()
+                    ->mapWithKeys(fn($item) => [strtolower($item->{$detailMatColumn}) => $item]);
+
+                // Bulk fetch Materials for stock update
+                $materials = DB::table('tb_material')
+                    ->whereIn('kd_material', $kdMaterials)
+                    ->get()
+                    ->mapWithKeys(fn($item) => [strtolower($item->kd_material) => $item]);
+
+                // Bulk fetch Existing MI records for Upsert logic
+                $existingMis = DB::table('tb_mi')
+                    ->where('ref_po', $data['no_po'])
+                    ->where('inv', 0)
+                    ->get()
+                    ->groupBy(fn($item) => strtolower($item->kd_mat));
+
+                // Determine noDoc: use existing if available, else generate new
+                $noDoc = null;
+                foreach ($existingMis as $group) {
+                    if ($group->first()->no_doc) {
+                        $noDoc = $group->first()->no_doc;
+                        break;
+                    }
+                }
+
+                // If not found in materials, check the header table directly (tb_kdmi)
+                if (!$noDoc) {
+                    $existingHeader = DB::table("tb_kdmi")
+                        ->where("ref_pr", $data["no_po"]) // PO number in tb_kdmi.ref_pr
+                        ->first();
+
+                    if ($existingHeader) {
+                        // Safeguard: Reuse only if NO items for this header are invoiced
+                        $anyInvoiced = DB::table("tb_mi")
+                            ->where("no_doc", $existingHeader->no_doc)
+                            ->where("inv", 1)
+                            ->exists();
+
+                        if (!$anyInvoiced) {
+                            $noDoc = $existingHeader->no_doc;
+                        }
+                    }
+                }
+
+                if (!$noDoc) {
+                    // Generate new MI code
+                    $last = DB::table('tb_kdmi')
+                        ->select('no_doc')
+                        ->where('no_doc', 'like', 'MI%')
+                        ->orderByDesc('no_doc')
+                        ->lockForUpdate()
+                        ->first();
+
+                    $lastNum = 0;
+                    if ($last && isset($last->no_doc)) {
+                        $digits = preg_replace('/\\D+/', '', (string) $last->no_doc);
+                        if ($digits !== '') {
+                            $lastNum = (int) $digits;
+                        }
+                    }
+                    $noDoc = 'MI' . str_pad((string) ($lastNum + 1), 8, '0', STR_PAD_LEFT);
+
+                    // Header insert to tb_kdmi
+                    DB::table('tb_kdmi')->insert([
+                        'no_doc' => $noDoc,
+                        'ref_pr' => $data['no_po'],
+                        'ref_po' => $data['ref_pr'] ?? '',
+                        'vdr' => $data['vendor'] ?? '',
+                        'doc_tgl' => $docTgl,
+                        'posting_tgl' => $postingTgl,
+                    ]);
+                }
+
+                $miInserts = [];
 
                 foreach (array_values($data['rows']) as $i => $row) {
                     $no = $i + 1;
                     $kdMat = (string) $row['kd_mat'];
+                    $kdMatLower = strtolower($kdMat);
                     $qtyNum = is_numeric($row['qty']) ? (float) $row['qty'] : 0.0;
+                    $totalPrice = is_numeric($row['total_price']) ? (float) $row['total_price'] : 0.0;
 
-                    $idPo = 0;
-                    if (Schema::hasColumn('tb_detailpo', 'id_po')) {
-                        $found = DB::table('tb_detailpo')
-                            ->where('no_po', $data['no_po'])
-                            ->where($detailMatColumn, $kdMat)
-                            ->value('id_po');
-                        $idPo = $found === null ? 0 : $found;
+                    $poDetail = $poDetails->get($kdMatLower);
+                    $idPo = $poDetail->id_po ?? 0;
+
+                    // Check for existing record for UPSERT
+                    $existingMiSet = $existingMis->get($kdMatLower);
+                    $existingMi = $existingMiSet ? $existingMiSet->first() : null;
+
+                    if ($existingMi) {
+                        // Update existing tb_mi (MIS): Increment qty and mis
+                        $newQtyTotal = (float)($existingMi->qty ?? 0) + $qtyNum;
+                        $newMisTotal = (float)($existingMi->mis ?? 0) + $qtyNum;
+                        $newPriceTotal = (float)($existingMi->total_price ?? 0) + $totalPrice;
+                        $newHargaMisTotal = (float)($existingMi->harga_mis ?? 0) + $totalPrice;
+
+                        DB::table('tb_mi')
+                            ->where('no_doc', $existingMi->no_doc)
+                            ->where('kd_mat', $existingMi->kd_mat)
+                            ->update([
+                                'qty' => $newQtyTotal,
+                                'mis' => $newMisTotal,
+                                'total_price' => $newPriceTotal,
+                                'harga_mis' => $newHargaMisTotal,
+                                'price' => $row['price'],
+                                'doc_tgl' => $docTgl,
+                                'posting_tgl' => $postingTgl,
+                            ]);
+                    } else {
+                        // Prepare insert for tb_mi
+                        $miInserts[] = [
+                            'no_doc' => $noDoc,
+                            'ref_po' => $data['no_po'],
+                            'ref_pr' => $data['ref_pr'] ?? '',
+                            'vdr' => $data['vendor'] ?? '',
+                            'doc_tgl' => $docTgl,
+                            'posting_tgl' => $postingTgl,
+                            'no' => $no,
+                            'kd_mat' => $kdMat,
+                            'material' => (string) $row['material'],
+                            'qty' => $row['qty'],
+                            'mis' => $row['qty'],
+                            'unit' => (string) $row['unit'],
+                            'price' => $row['price'],
+                            'total_price' => $row['total_price'],
+                            'harga_mis' => $row['total_price'],
+                            'id_po' => $idPo,
+                            'miu' => 0,
+                            'harga_miu' => 0,
+                            'mib' => 0,
+                            'harga_mib' => 0,
+                            'transfer_mis' => 0,
+                            'transfer_mib' => 0,
+                            'inv' => 0,
+                        ];
                     }
 
-                    // Insert MIS detail to tb_mi (per-row)
-                    DB::table('tb_mi')->insert([
-                        'no_doc' => $noDoc,
-                        'ref_po' => $data['no_po'],
-                        'ref_pr' => $data['ref_pr'] ?? '',
-                        'vdr' => $data['vendor'] ?? '',
-                        'doc_tgl' => $docTgl,
-                        'posting_tgl' => $postingTgl,
-                        'no' => $no,
-                        'kd_mat' => $kdMat,
-                        'material' => (string) $row['material'],
-                        'qty' => $row['qty'],
-                        'mis' => $row['qty'],
-                        'unit' => (string) $row['unit'],
-                        'price' => $row['price'],
-                        'total_price' => $row['total_price'],
-                        'harga_mis' => $row['total_price'],
-                        'id_po' => $idPo,
-                        'miu' => 0,
-                        'harga_miu' => 0,
-                        'mib' => 0,
-                        'harga_mib' => 0,
-                        'transfer_mis' => 0,
-                        'transfer_mib' => 0,
-                        'inv' => 0,
-                    ]);
+                    // Warehouse Tracking for MIS
+                    if ($poDetail) {
+                        DB::table('tb_detailpo')
+                            ->where('no_po', $data['no_po'])
+                            ->where($detailMatColumn, $kdMat)
+                            ->update(['no_gudang' => $noDoc]);
+                    }
 
-                    // Update last price in tb_material to match PO price used.
-                    if ($priceColumn) {
-                        DB::table('tb_material')
-                            ->where('kd_material', $kdMat)
-                            ->update([$priceColumn => $row['price']]);
+                    // Update stock and rest_stock and last price in tb_material
+                    $material = $materials->get($kdMatLower);
+                    if ($material) {
+                        $updateData = [];
+                        if ($priceColumn) {
+                            $updateData[$priceColumn] = $row['price'];
+                        }
+
+                        // Sync stok and rest_stock
+                        if ($stockCol) {
+                            $currentStockNum = is_numeric($material->{$stockCol}) ? (float) $material->{$stockCol} : 0;
+                            $newStock = $currentStockNum + $qtyNum;
+                            $updateData[$stockCol] = $newStock;
+                            $updateData['rest_stock'] = $newStock;
+                        }
+
+                        if (!empty($updateData)) {
+                            DB::table('tb_material')->where('kd_material', $kdMat)->update($updateData);
+                        }
+                    }
+                }
+
+                // Batch insert MI details
+                if (!empty($miInserts)) {
+                    foreach (array_chunk($miInserts, 100) as $chunk) {
+                        DB::table('tb_mi')->insert($chunk);
                     }
                 }
             });
@@ -438,40 +652,6 @@ class PenerimaanMaterialController
                 $docTgl = \Carbon\Carbon::parse($data['doc_date'])->format('d.m.Y');
                 $postingTgl = $now->format('d.m.Y');
 
-                // Generate MIB code: MIB + 7 digits (last + 1)
-                $last = DB::table('tb_kdmib')
-                    ->select('no_doc')
-                    ->where('no_doc', 'like', 'MIB%')
-                    ->orderByDesc('no_doc')
-                    ->lockForUpdate()
-                    ->first();
-
-                $lastNum = 0;
-                if ($last && isset($last->no_doc)) {
-                    $digits = preg_replace('/\\D+/', '', (string) $last->no_doc);
-                    if ($digits !== '') {
-                        $lastNum = (int) $digits;
-                    }
-                }
-                $noDoc = 'MIB' . str_pad((string) ($lastNum + 1), 7, '0', STR_PAD_LEFT);
-
-                // Header insert to tb_kdmib
-                $header = [
-                    'no_doc' => $noDoc,
-                    'ref_po' => $data['no_po'],
-                    'ref_pr' => $data['ref_pr'] ?? '',
-                    'vdr' => $data['vendor'] ?? '',
-                    'doc_tgl' => $docTgl,
-                    'posting_tgl' => $postingTgl,
-                ];
-                // Only keep columns that exist.
-                $header = array_filter(
-                    $header,
-                    fn ($_, $col) => Schema::hasColumn('tb_kdmib', $col),
-                    ARRAY_FILTER_USE_BOTH
-                );
-                DB::table('tb_kdmib')->insert($header);
-
                 $detailMatColumn = Schema::hasColumn('tb_detailpo', 'kd_mat')
                     ? 'kd_mat'
                     : (Schema::hasColumn('tb_detailpo', 'no_material') ? 'no_material' : null);
@@ -479,50 +659,164 @@ class PenerimaanMaterialController
                     throw new \RuntimeException('Kolom kd_mat/no_material tidak ditemukan di tb_detailpo.');
                 }
 
+                $kdMaterials = array_unique(array_column($data['rows'], 'kd_mat'));
+
+                // Bulk fetch PO details
+                $poDetails = DB::table('tb_detailpo')
+                    ->where('no_po', $data['no_po'])
+                    ->whereIn($detailMatColumn, $kdMaterials)
+                    ->get()
+                    ->mapWithKeys(fn($item) => [strtolower($item->{$detailMatColumn}) => $item]);
+
+                // Bulk fetch Existing MIB records for Upsert logic
+                // Join with tb_kdmib to verify ref_po
+                $existingMibs = DB::table('tb_mib')
+                    ->join('tb_kdmib', 'tb_kdmib.no_doc', '=', 'tb_mib.no_doc')
+                    ->where('tb_kdmib.ref_po', $data['no_po'])
+                    ->select('tb_mib.*')
+                    ->get()
+                    ->groupBy(fn($item) => strtolower($item->kd_mat));
+
+                // Determine noDoc: use existing if available, else generate new
+                $noDoc = null;
+                foreach ($existingMibs as $group) {
+                    if ($group->first()->no_doc) {
+                        $noDoc = $group->first()->no_doc;
+                        break;
+                    }
+                }
+
+                // If not found in materials, check the header table directly (tb_kdmib)
+                if (!$noDoc) {
+                    $existingHeader = DB::table('tb_kdmib')
+                        ->where('ref_po', $data['no_po'])
+                        ->first();
+                    if ($existingHeader) {
+                        $noDoc = $existingHeader->no_doc;
+                    }
+                }
+
+                if (!$noDoc) {
+                    // Generate new MIB code: MIB + 7 digits (last + 1)
+                    $last = DB::table('tb_kdmib')
+                        ->select('no_doc')
+                        ->where('no_doc', 'like', 'MIB%')
+                        ->orderByDesc('no_doc')
+                        ->lockForUpdate()
+                        ->first();
+
+                    $lastNum = 0;
+                    if ($last && isset($last->no_doc)) {
+                        $digits = preg_replace('/\\D+/', '', (string) $last->no_doc);
+                        if ($digits !== '') {
+                            $lastNum = (int) $digits;
+                        }
+                    }
+                    $noDoc = 'MIB' . str_pad((string) ($lastNum + 1), 7, '0', STR_PAD_LEFT);
+
+                    // Header insert to tb_kdmib
+                    $header = [
+                        'no_doc' => $noDoc,
+                        'ref_po' => $data['no_po'],
+                        'ref_pr' => $data['ref_pr'] ?? '',
+                        'vdr' => $data['vendor'] ?? '',
+                        'doc_tgl' => $docTgl,
+                        'posting_tgl' => $postingTgl,
+                    ];
+                    // Only keep columns that exist.
+                    $header = array_filter(
+                        $header,
+                        fn ($_, $col) => Schema::hasColumn('tb_kdmib', $col),
+                        ARRAY_FILTER_USE_BOTH
+                    );
+                    DB::table('tb_kdmib')->insert($header);
+                }
+
+                // Move schema checks outside loop
+                $hasMis = Schema::hasColumn('tb_mib', 'mis');
+                $hasHargaMis = Schema::hasColumn('tb_mib', 'harga_mis');
+                $mibColumns = Schema::getColumnListing('tb_mib');
+
+                $mibInserts = [];
+
                 foreach (array_values($data['rows']) as $i => $row) {
                     $no = $i + 1;
                     $kdMat = (string) $row['kd_mat'];
+                    $kdMatLower = strtolower($kdMat);
+                    $qtyNum = is_numeric($row['qty']) ? (float) $row['qty'] : 0.0;
+                    $totalPrice = is_numeric($row['total_price']) ? (float) $row['total_price'] : 0.0;
 
-                    $idPo = 0;
-                    if (Schema::hasColumn('tb_detailpo', 'id_po')) {
-                        $found = DB::table('tb_detailpo')
-                            ->where('no_po', $data['no_po'])
-                            ->where($detailMatColumn, $kdMat)
-                            ->value('id_po');
-                        $idPo = $found === null ? 0 : $found;
+                    $poDetail = $poDetails->get($kdMatLower);
+                    $idPo = $poDetail->id_po ?? 0;
+
+                    // Check for existing record for UPSERT
+                    $existingMibSet = $existingMibs->get($kdMatLower);
+                    $existingMib = $existingMibSet ? $existingMibSet->first() : null;
+
+                    if ($existingMib) {
+                        // Update existing tb_mib: Increment qty and rest_mat
+                        $newQtyTotal = (float)($existingMib->qty ?? 0) + $qtyNum;
+                        $newRestMatTotal = (float)($existingMib->rest_mat ?? 0) + $qtyNum;
+                        $newPriceTotal = (float)($existingMib->total_price ?? 0) + $totalPrice;
+
+                        $updateData = [
+                            'qty' => $newQtyTotal,
+                            'rest_mat' => $newRestMatTotal,
+                            'total_price' => $newPriceTotal,
+                            'price' => $row['price'],
+                        ];
+
+                        if ($hasMis) {
+                            $updateData['mis'] = $newQtyTotal;
+                        }
+                        if ($hasHargaMis) {
+                            $updateData['harga_mis'] = $newPriceTotal;
+                        }
+
+                        // Filter existing columns
+                        $updateData = array_intersect_key($updateData, array_flip($mibColumns));
+
+                        DB::table('tb_mib')
+                            ->where('no_doc', $existingMib->no_doc)
+                            ->where('kd_mat', $existingMib->kd_mat)
+                            ->update($updateData);
+                    } else {
+                        // Prepare insert for tb_mib
+                        $insert = [
+                            'no_doc' => $noDoc,
+                            'keterangan' => (string) ($row['remark'] ?? ''),
+                            'no' => $no,
+                            'kd_mat' => $kdMat,
+                            'material' => (string) $row['material'],
+                            'qty' => $row['qty'],
+                            'unit' => (string) $row['unit'],
+                            'price' => $row['price'],
+                            'total_price' => $row['total_price'],
+                            'id_po' => $idPo,
+                            'transfer' => 0,
+                            'rest_mat' => $row['qty'],
+                        ];
+
+                        if ($hasMis) {
+                            $insert['mis'] = $row['qty'];
+                        }
+                        if ($hasHargaMis) {
+                            $insert['harga_mis'] = $row['total_price'];
+                        }
+
+                        // Only insert existing columns
+                        $insert = array_intersect_key($insert, array_flip($mibColumns));
+
+                        $mibInserts[] = $insert;
                     }
 
-                    $insert = [
-                        'no_doc' => $noDoc,
-                        'keterangan' => (string) ($row['remark'] ?? ''),
-                        'no' => $no,
-                        'kd_mat' => $kdMat,
-                        'material' => (string) $row['material'],
-                        'qty' => $row['qty'],
-                        'unit' => (string) $row['unit'],
-                        'price' => $row['price'],
-                        'total_price' => $row['total_price'],
-                        'id_po' => $idPo,
-                        'transfer' => 0,
-                        'rest_mat' => 0,
-                    ];
+                    // DO NOT update tb_detailpo.no_gudang for MIB as per user request
+                }
 
-                    // Some schemas use mis/harga_mis for MIB table; set if columns exist.
-                    if (Schema::hasColumn('tb_mib', 'mis')) {
-                        $insert['mis'] = $row['qty'];
+                if (!empty($mibInserts)) {
+                    foreach (array_chunk($mibInserts, 100) as $chunk) {
+                        DB::table('tb_mib')->insert($chunk);
                     }
-                    if (Schema::hasColumn('tb_mib', 'harga_mis')) {
-                        $insert['harga_mis'] = $row['total_price'];
-                    }
-
-                    // Only insert existing columns to avoid SQL errors.
-                    $insert = array_filter(
-                        $insert,
-                        fn ($_, $col) => Schema::hasColumn('tb_mib', $col),
-                        ARRAY_FILTER_USE_BOTH
-                    );
-
-                    DB::table('tb_mib')->insert($insert);
                 }
             });
         } catch (\Throwable $e) {
