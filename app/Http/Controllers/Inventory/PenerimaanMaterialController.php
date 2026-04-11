@@ -569,15 +569,38 @@ class PenerimaanMaterialController
                         ];
                     }
 
-                    // Warehouse Tracking for MIS
+                    // Update PO balances even for MIS to keep tracking consistent
+                    if ($poDetail) {
+                        $newGrMat = (float)($poDetail->gr_mat ?? 0) - $qtyNum;
+                        $newGrPrice = (float)($poDetail->gr_price ?? 0) - $totalPrice;
+                        $newEndGr = (float)($poDetail->end_gr ?? 0) + $qtyNum;
+                        $newIrMat = (float)($poDetail->ir_mat ?? 0) + $qtyNum;
+                        $newIrPrice = (float)($poDetail->ir_price ?? 0) + $totalPrice;
+
+                        DB::table('tb_detailpo')
+                            ->where('no_po', $data['no_po'])
+                            ->where($detailMatColumn, $kdMat)
+                            ->update([
+                                'gr_mat' => $newGrMat,
+                                'gr_price' => $newGrPrice,
+                                'end_gr' => $newEndGr,
+                                'ir_mat' => $newIrMat,
+                                'ir_price' => $newIrPrice,
+                            ]);
+                    }
+
+                    // Warehouse Tracking for MIS - Skipped per user request (material not arrived yet)
+                    /*
                     if ($poDetail) {
                         DB::table('tb_detailpo')
                             ->where('no_po', $data['no_po'])
                             ->where($detailMatColumn, $kdMat)
                             ->update(['no_gudang' => $noDoc]);
                     }
+                    */
 
-                    // Update stock and rest_stock and last price in tb_material
+                    // Update stock and rest_stock and last price in tb_material - Skipped per user request
+                    /*
                     $material = $materials->get($kdMatLower);
                     if ($material) {
                         $updateData = [];
@@ -597,6 +620,7 @@ class PenerimaanMaterialController
                             DB::table('tb_material')->where('kd_material', $kdMat)->update($updateData);
                         }
                     }
+                    */
                 }
 
                 // Batch insert MI details

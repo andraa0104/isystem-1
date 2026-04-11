@@ -144,6 +144,8 @@ export default function PenerimaanMaterialIndex() {
         mib: [],
     }));
 
+    const [isSaving, setIsSaving] = useState(false);
+
     // Debounce PO search
     useEffect(() => {
         const handler = setTimeout(() => setPoDebouncedSearch(poSearch), 400);
@@ -479,6 +481,7 @@ export default function PenerimaanMaterialIndex() {
             total_price: Number(r.totalPrice) || 0,
         }));
 
+        setIsSaving(true);
         router.post(
             '/inventory/penerimaan-material/mi',
             {
@@ -489,9 +492,20 @@ export default function PenerimaanMaterialIndex() {
                 rows: payloadRows,
             },
             {
+                headers: { 'X-Skip-Loading-Overlay': '1' },
                 onSuccess: () => {
-                    router.visit(window.location.pathname);
+                    setHeaderByMode((prev) => ({
+                        ...prev,
+                        mi: {
+                            docDate: todayISO(),
+                            noPo: '',
+                            refPr: '',
+                            vendorName: '',
+                        },
+                    }));
+                    setRowsByMode((prev) => ({ ...prev, mi: [] }));
                 },
+                onFinish: () => setIsSaving(false),
             },
         );
     };
@@ -524,6 +538,7 @@ export default function PenerimaanMaterialIndex() {
             total_price: Number(r.totalPrice) || 0,
         }));
 
+        setIsSaving(true);
         router.post(
             '/inventory/penerimaan-material/mis',
             {
@@ -534,9 +549,20 @@ export default function PenerimaanMaterialIndex() {
                 rows: payloadRows,
             },
             {
+                headers: { 'X-Skip-Loading-Overlay': '1' },
                 onSuccess: () => {
-                    router.visit(window.location.pathname);
+                    setHeaderByMode((prev) => ({
+                        ...prev,
+                        mis: {
+                            docDate: todayISO(),
+                            noPo: '',
+                            refPr: '',
+                            vendorName: '',
+                        },
+                    }));
+                    setRowsByMode((prev) => ({ ...prev, mis: [] }));
                 },
+                onFinish: () => setIsSaving(false),
             },
         );
     };
@@ -569,6 +595,7 @@ export default function PenerimaanMaterialIndex() {
             remark: r.remark,
         }));
 
+        setIsSaving(true);
         router.post(
             '/inventory/penerimaan-material/mib',
             {
@@ -579,9 +606,20 @@ export default function PenerimaanMaterialIndex() {
                 rows: payloadRows,
             },
             {
+                headers: { 'X-Skip-Loading-Overlay': '1' },
                 onSuccess: () => {
-                    router.visit(window.location.pathname);
+                    setHeaderByMode((prev) => ({
+                        ...prev,
+                        mib: {
+                            docDate: todayISO(),
+                            noPo: '',
+                            refPr: '',
+                            vendorName: '',
+                        },
+                    }));
+                    setRowsByMode((prev) => ({ ...prev, mib: [] }));
                 },
+                onFinish: () => setIsSaving(false),
             },
         );
     };
@@ -1033,25 +1071,40 @@ export default function PenerimaanMaterialIndex() {
                                     <Button
                                         type="button"
                                         onClick={handleSaveMi}
+                                        disabled={isSaving}
                                     >
+                                        {isSaving && (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        )}
                                         Simpan Data MI
                                     </Button>
                                 ) : mode === 'mis' ? (
                                     <Button
                                         type="button"
                                         onClick={handleSaveMis}
+                                        disabled={isSaving}
                                     >
+                                        {isSaving && (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        )}
                                         Simpan Data MIS
                                     </Button>
                                 ) : mode === 'mib' ? (
                                     <Button
                                         type="button"
                                         onClick={handleSaveMib}
+                                        disabled={isSaving}
                                     >
+                                        {isSaving && (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        )}
                                         Simpan Data MIB
                                     </Button>
                                 ) : (
-                                    <Button type="button">
+                                    <Button type="button" disabled={isSaving}>
+                                        {isSaving && (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        )}
                                         Simpan Data {modeLabel}
                                     </Button>
                                 )}

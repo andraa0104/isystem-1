@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
 import { store } from '@/routes/login-store';
 import { Head, useForm, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 const databaseLabels = {
     dbsja: 'DB SJA',
     dbbbbs: 'DB B3S',
@@ -25,6 +26,8 @@ export default function Login({ status, databases = [], selectedDatabase }) {
         ...store.form(),
         database: defaultDatabase || store.form().database, // Ensure default database is set
     });
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const isLoading = processing || isLoggingIn;
     const pageErrors = page.props?.errors ?? {};
     const flashError = page.props?.flash?.error ?? null;
     const authError =
@@ -36,7 +39,9 @@ export default function Login({ status, databases = [], selectedDatabase }) {
 
     const submit = (e) => {
         e.preventDefault();
+        setIsLoggingIn(true);
         post('/login-simple', {
+            onError: () => setIsLoggingIn(false),
             onFinish: () => reset('password'),
         });
     };
@@ -121,9 +126,9 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                         <Label htmlFor="remember">Remember me</Label>
                     </div> */}
 
-                    <Button type="submit" className="mt-4 w-full" tabIndex={4} disabled={processing} data-test="login-button">
-                        {processing && <Spinner />}
-                        Log in
+                    <Button type="submit" className="mt-4 w-full" tabIndex={4} disabled={isLoading} data-test="login-button">
+                        {isLoading && <Spinner />}
+                        {isLoading ? 'Processing...' : 'Log in'}
                     </Button>
                 </div>
             </form>

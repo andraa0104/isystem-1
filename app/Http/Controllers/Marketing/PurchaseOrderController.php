@@ -76,34 +76,19 @@ class PurchaseOrderController
     public function outstandingPurchaseRequirements()
     {
         $purchaseRequirements = DB::table('tb_pr as pr')
-            ->leftJoin(
-                DB::raw('(
-                    select
-                        no_pr,
-                        sum(
-                            case
-                                when coalesce(cast(replace(sisa_pr, \',\', \'\') as decimal(18,4)), 0) <> 0
-                                then 1
-                                else 0
-                            end
-                        ) as outstanding_count
-                    from tb_detailpr
-                    group by no_pr
-                ) as detail'),
-                'pr.no_pr',
-                '=',
-                'detail.no_pr'
-            )
+            ->whereExists(function ($query) {
+                $query->select(DB::raw(1))
+                    ->from('tb_detailpr as dpr')
+                    ->whereColumn('dpr.no_pr', 'pr.no_pr')
+                    ->whereRaw("coalesce(cast(replace(dpr.sisa_pr, ',', '') as decimal(18,4)), 0) <> 0");
+            })
             ->select(
                 'pr.no_pr',
                 'pr.date',
                 'pr.for_customer',
-                'pr.ref_po',
-                DB::raw('coalesce(detail.outstanding_count, 0) as outstanding_count')
+                'pr.ref_po'
             )
-            ->where(DB::raw('coalesce(detail.outstanding_count, 0)'), '>', 0)
             ->orderBy('pr.no_pr', 'desc')
-            ->orderBy('pr.date', 'desc')
             ->get();
 
         return response()->json([

@@ -72,7 +72,7 @@ export default function PurchaseOrderCreate({
     const [vendorError, setVendorError] = useState(null);
 
     const [prSearchTerm, setPrSearchTerm] = useState('');
-    const [prPageSize, setPrPageSize] = useState(10);
+    const [prPageSize, setPrPageSize] = useState(5);
     const [prCurrentPage, setPrCurrentPage] = useState(1);
 
     const [vendorSearchTerm, setVendorSearchTerm] = useState('');
@@ -112,18 +112,22 @@ export default function PurchaseOrderCreate({
 
     const filteredPr = useMemo(() => {
         const term = prSearchTerm.trim().toLowerCase();
-        if (!term) {
-            return prList;
+        let items = prList;
+
+        if (term) {
+            items = prList.filter((item) => {
+                const values = [item.no_pr, item.ref_po, item.for_customer];
+                return values.some((value) =>
+                    String(value ?? '')
+                        .toLowerCase()
+                        .includes(term),
+                );
+            });
         }
 
-        return prList.filter((item) => {
-            const values = [item.no_pr, item.ref_po, item.for_customer];
-            return values.some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(term),
-            );
-        });
+        return [...items].sort((a, b) =>
+            String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')),
+        );
     }, [prSearchTerm, prList]);
 
     const prTotalItems = filteredPr.length;
@@ -1171,7 +1175,7 @@ export default function PurchaseOrderCreate({
                             loadPrs();
                         } else {
                             setPrSearchTerm('');
-                            setPrPageSize(10);
+                            setPrPageSize(5);
                             setPrCurrentPage(1);
                         }
                     }}
@@ -1201,6 +1205,7 @@ export default function PurchaseOrderCreate({
                                         setPrCurrentPage(1);
                                     }}
                                 >
+                                    <option value={5}>5</option>
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
                                     <option value={50}>50</option>
@@ -1229,6 +1234,9 @@ export default function PurchaseOrderCreate({
                                             No PR
                                         </th>
                                         <th className="px-4 py-3 text-left">
+                                            Date
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
                                             Customer
                                         </th>
                                         <th className="px-4 py-3 text-left">
@@ -1241,7 +1249,7 @@ export default function PurchaseOrderCreate({
                                 </thead>
                                 <tbody>
                                     <PlainTableStateRows
-                                        columns={4}
+                                        columns={5}
                                         loading={
                                             prLoading &&
                                             displayedPr.length === 0
@@ -1266,6 +1274,9 @@ export default function PurchaseOrderCreate({
                                         >
                                             <td className="px-4 py-3">
                                                 {renderValue(item.no_pr)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.date)}
                                             </td>
                                             <td className="px-4 py-3">
                                                 {renderValue(item.for_customer)}
