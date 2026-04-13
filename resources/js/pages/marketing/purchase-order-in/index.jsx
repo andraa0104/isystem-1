@@ -83,10 +83,14 @@ const toDate = (value) => {
     return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const isInPeriod = (value, period) => {
+const isInPeriod = (value, period, startCustom, endCustom) => {
     const date = toDate(value);
     if (!date) {
         return false;
+    }
+
+    if (period === 'all') {
+        return true;
     }
 
     const now = new Date();
@@ -122,7 +126,22 @@ const isInPeriod = (value, period) => {
         );
     }
 
-    return date.getFullYear() === now.getFullYear();
+    if (period === 'this_year') {
+        return date.getFullYear() === now.getFullYear();
+    }
+
+    if (period === 'range') {
+        const s = toDate(startCustom);
+        const e = toDate(endCustom);
+        if (!s || !e) {
+            return true;
+        }
+        const start = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+        const end = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+        return startOfDate >= start && startOfDate <= end;
+    }
+
+    return true;
 };
 
 export default function PurchaseOrderInIndex({
@@ -130,6 +149,7 @@ export default function PurchaseOrderInIndex({
     outstandingPurchaseOrderIns = [],
     belumPrPurchaseOrderIns = [],
     realizedPurchaseOrderIns = [],
+    allPurchaseOrderIns = [],
     summary = {},
     filters = {},
     pagination = {},
@@ -141,7 +161,17 @@ export default function PurchaseOrderInIndex({
     const [perPage, setPerPage] = useState(String(filters.per_page ?? '5'));
     const [statusFilter, setStatusFilter] = useState(filters.status ?? 'all');
     const [realizedPeriod, setRealizedPeriod] = useState('today');
+    const [dataPoInPeriod, setDataPoInPeriod] = useState('today');
+    const [dataPoInStart, setDataPoInStart] = useState('');
+    const [dataPoInEnd, setDataPoInEnd] = useState('');
     const [activeModal, setActiveModal] = useState(null);
+
+    // Trigger lazy load for allPurchaseOrderIns when modal is opened
+    useEffect(() => {
+        if (activeModal === 'all_data' && allPurchaseOrderIns.length === 0) {
+            router.reload({ only: ['allPurchaseOrderIns'] });
+        }
+    }, [activeModal]);
     const [modalSearch, setModalSearch] = useState('');
     const [modalPageSize, setModalPageSize] = useState(5);
     const [modalPage, setModalPage] = useState(1);
@@ -249,12 +279,31 @@ export default function PurchaseOrderInIndex({
         [realizedPurchaseOrderIns, realizedPeriod],
     );
 
+    const dataItemsByPeriod = useMemo(
+        () =>
+            allPurchaseOrderIns.filter((item) =>
+                isInPeriod(
+                    item.date_poin,
+                    dataPoInPeriod,
+                    dataPoInStart,
+                    dataPoInEnd,
+                ),
+            ),
+        [allPurchaseOrderIns, dataPoInPeriod, dataPoInStart, dataPoInEnd],
+    );
+
+    // dataPoInTotalAmount removed for performance
+
+    // dataPoInTotalAmount removed for performance
+
     const modalItems =
         activeModal === 'outstanding'
             ? outstandingItems
             : activeModal === 'belum_pr'
               ? belumPrItems
-              : realizedItemsByPeriod;
+              : activeModal === 'all_data'
+                ? dataItemsByPeriod
+                : realizedItemsByPeriod;
 
     const modalFilteredItems = useMemo(() => {
         const term = modalSearch.trim().toLowerCase();
@@ -430,7 +479,7 @@ export default function PurchaseOrderInIndex({
                     </div>
                 </section>
 
-                <section className="grid gap-3 md:grid-cols-3">
+                <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {/* Card PO IN Outstanding */}
                     <article
                         className={cn(
@@ -590,6 +639,139 @@ export default function PurchaseOrderInIndex({
                         >
                             Semua material sudah PR —{' '}
                             {periodLabelMap[realizedPeriod]}
+                        </p>
+                    </article>
+
+                    {/* Card Data PO IN (Total) */}
+                    <article
+                        className={cn(
+                            'cursor-pointer rounded-xl border p-4 shadow-sm transition hover:shadow-md',
+                            isDark
+                                ? 'border-slate-800 bg-[#1e293b] text-white hover:border-blue-400/50'
+                                : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-blue-400/50',
+                        )}
+                        style={{
+                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        }}
+                        onClick={() => {
+                            setActiveModal('all_data');
+                            setModalSearch('');
+                            setModalPageSize(5);
+                            setModalPage(1);
+                        }}
+                    >
+                        <div className="mb-3 flex items-center justify-between gap-2">
+                            <span
+                                className={cn(
+                                    'inline-flex rounded-lg p-2',
+                                    isDark ? 'bg-slate-800' : 'bg-[#f1f5f9]',
+                                )}
+                            >
+                                <Search className="size-4 text-blue-600" />
+                            </span>
+                            <select
+                                className={cn(
+                                    'h-8 rounded-md border px-2 text-xs font-bold ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                                    isDark
+                                        ? 'border-slate-700 bg-slate-800 text-white'
+                                        : 'border-slate-300 bg-[#ffffff] text-slate-900',
+                                )}
+                                value={dataPoInPeriod}
+                                onClick={(event) => event.stopPropagation()}
+                                onChange={(event) =>
+                                    setDataPoInPeriod(event.target.value)
+                                }
+                            >
+                                <option value="today">Hari Ini</option>
+                                <option value="this_week">Minggu Ini</option>
+                                <option value="this_month">Bulan Ini</option>
+                                <option value="this_year">Tahun Ini</option>
+                                <option value="range">Range Tanggal</option>
+                            </select>
+                        </div>
+                        {dataPoInPeriod === 'range' && (
+                            <div
+                                className="mb-3 flex flex-wrap gap-2"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="flex flex-1 flex-col gap-1">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase">
+                                        Dari
+                                    </label>
+                                    <input
+                                        type="date"
+                                        className={cn(
+                                            'h-8 w-full rounded-md border px-2 text-xs',
+                                            isDark
+                                                ? 'border-slate-700 bg-slate-800 text-white'
+                                                : 'border-slate-300 bg-[#ffffff] text-slate-900',
+                                        )}
+                                        value={dataPoInStart}
+                                        onChange={(e) =>
+                                            setDataPoInStart(e.target.value)
+                                        }
+                                    />
+                                </div>
+                                <div className="flex flex-1 flex-col gap-1">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase">
+                                        Sampai
+                                    </label>
+                                    <input
+                                        type="date"
+                                        className={cn(
+                                            'h-8 w-full rounded-md border px-2 text-xs',
+                                            isDark
+                                                ? 'border-slate-700 bg-slate-800 text-white'
+                                                : 'border-slate-300 bg-[#ffffff] text-slate-900',
+                                        )}
+                                        value={dataPoInEnd}
+                                        onChange={(e) =>
+                                            setDataPoInEnd(e.target.value)
+                                        }
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        <p
+                            className={cn(
+                                'text-xs font-bold tracking-wide uppercase',
+                                isDark ? 'text-slate-400' : 'text-slate-600',
+                            )}
+                        >
+                            Total Data PO IN
+                        </p>
+                        <div className="mt-1 flex items-baseline gap-2">
+                            <p className="text-2xl font-bold">
+                                {dataPoInPeriod === 'range'
+                                    ? dataItemsByPeriod.length
+                                    : (summary.data_counts?.[
+                                          dataPoInPeriod === 'this_week'
+                                              ? 'week'
+                                              : dataPoInPeriod === 'this_month'
+                                                ? 'month'
+                                                : dataPoInPeriod === 'this_year'
+                                                  ? 'year'
+                                                  : dataPoInPeriod
+                                      ] ?? 0)}
+                            </p>
+                            <p
+                                className={cn(
+                                    'text-sm font-semibold',
+                                    isDark
+                                        ? 'text-slate-400'
+                                        : 'text-slate-500',
+                                )}
+                            >
+                            </p>
+                        </div>
+                        {/* Grand Total removed per user request for performance */}
+                        <p
+                            className={cn(
+                                'mt-2 text-[10px] font-medium',
+                                isDark ? 'text-slate-500' : 'text-slate-500',
+                            )}
+                        >
+                            Laporan Keseluruhan PO IN
                         </p>
                     </article>
                 </section>
@@ -1265,11 +1447,13 @@ export default function PurchaseOrderInIndex({
                     <DialogContent className="h-[96vh] w-[99vw] max-w-[99vw] p-4 sm:!max-w-[99vw]">
                         <DialogHeader>
                             <DialogTitle>
-                                {activeModal === 'outstanding'
-                                    ? 'Data PO IN Outstanding'
-                                    : activeModal === 'belum_pr'
-                                      ? 'Data PO IN Sisa PR'
-                                      : `Data PO IN Terealisasi (${periodLabelMap[realizedPeriod]})`}
+                                {activeModal === 'all_data'
+                                    ? 'Data PO IN'
+                                    : activeModal === 'outstanding'
+                                      ? 'Data PO IN Outstanding'
+                                      : activeModal === 'belum_pr'
+                                        ? 'Data PO IN Sisa PR'
+                                        : `Data PO IN Terealisasi (${periodLabelMap[realizedPeriod]})`}
                             </DialogTitle>
                         </DialogHeader>
 

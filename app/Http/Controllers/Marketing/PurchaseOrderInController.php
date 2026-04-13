@@ -236,17 +236,43 @@ class PurchaseOrderInController
             ->orderByDesc('p.id')
             ->get();
 
+        $now = now();
+        $startToday = $now->copy()->startOfDay()->toDateString();
+        $startWeek = $now->copy()->startOfWeek()->toDateString();
+        $startMonth = $now->copy()->startOfMonth()->toDateString();
+        $startYear = $now->copy()->startOfYear()->toDateString();
+
+        $periodCounts = DB::table('tb_poin')
+            ->selectRaw("count(case when date_poin >= ? then 1 end) as today", [$startToday])
+            ->selectRaw("count(case when date_poin >= ? then 1 end) as week", [$startWeek])
+            ->selectRaw("count(case when date_poin >= ? then 1 end) as month", [$startMonth])
+            ->selectRaw("count(case when date_poin >= ? then 1 end) as year", [$startYear])
+            ->first();
+
+        // Optimized summary data only
         return Inertia::render('marketing/purchase-order-in/index', [
             'summary' => [
                 'total'      => DB::table('tb_poin')->count(),
                 'outstanding' => $outstandingTotal,
                 'belum_pr'   => $belumPrTotal,
                 'realized'   => $realizedTotal,
+                'data_counts' => [
+                    'today' => $periodCounts->today,
+                    'week'  => $periodCounts->week,
+                    'month' => $periodCounts->month,
+                    'year'  => $periodCounts->year,
+                ]
             ],
             'purchaseOrderIns'          => $rows,
             'outstandingPurchaseOrderIns' => $outstandingRows,
             'belumPrPurchaseOrderIns'   => $belumPrRows,
             'realizedPurchaseOrderIns'  => $realizedRows,
+            'allPurchaseOrderIns'       => Inertia::lazy(fn () => 
+                DB::table('tb_poin as p')
+                    ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.customer_name', 'p.grand_total')
+                    ->orderByDesc('p.id')
+                    ->get()
+            ),
             'filters' => [
                 'search'   => $search,
                 'per_page' => $perPage === null ? 'all' : (string) $perPage,
@@ -712,6 +738,7 @@ class PurchaseOrderInController
                     ->all();
 
                 $detailId = (int) (DB::table('tb_detailpoin')->max('id') ?? 0) + 1;
+                $detailData = [];
                 foreach (($validated['materials'] ?? []) as $index => $item) {
                     $qty = (float) ($item['qty'] ?? 0);
                     $price = (float) ($item['price_po_in'] ?? 0);
@@ -724,7 +751,7 @@ class PurchaseOrderInController
 
                     $sisaQtyPr = max(0, $qty - $stok);
 
-                    DB::table('tb_detailpoin')->insert([
+                    $detailData[] = [
                         'id' => $detailId + $index,
                         'id_poin' => $headerId,
                         'kode_poin' => $kodePoin,
@@ -740,7 +767,11 @@ class PurchaseOrderInController
                         'remark' => trim((string) ($item['remark'] ?? '')),
                         'created_at' => $nowGmt8,
                         'updated_at' => $nowGmt8,
-                    ]);
+                    ];
+                }
+
+                if (!empty($detailData)) {
+                    DB::table('tb_detailpoin')->insert($detailData);
                 }
             });
 
@@ -839,11 +870,13 @@ class PurchaseOrderInController
                     ->where('kode_poin', $kodePoin)
                     ->value('id') ?? 0);
 
-                $existingIds = DB::table('tb_detailpoin')
+                $existingDetails = DB::table('tb_detailpoin')
                     ->where('kode_poin', $kodePoin)
-                    ->pluck('id')
-                    ->map(fn ($id) => (int) $id)
-                    ->all();
+                    ->select('id', 'created_at')
+                    ->get()
+                    ->keyBy('id');
+
+                $existingIds = $existingDetails->keys()->all();
 
                 $existingSet = array_flip($existingIds);
                 $keptIds = [];
@@ -859,6 +892,9 @@ class PurchaseOrderInController
                     ->whereIn('kd_material', $materialKeys)
                     ->pluck('stok', 'kd_material')
                     ->all();
+
+                $detailData = [];
+                $keptIds = [];
 
                 foreach (($validated['materials'] ?? []) as $index => $item) {
                     $qty = (float) ($item['qty'] ?? 0);
@@ -880,46 +916,33 @@ class PurchaseOrderInController
                     $stok = (float) ($materialStocks[$kdMaterial] ?? 0);
                     $sisaQtyPr = max(0, $qty - $stok);
 
-                    if ($resolvedId !== null) {
-                        DB::table('tb_detailpoin')
-                            ->where('id', $resolvedId)
-                            ->where('kode_poin', $kodePoin)
-                            ->update([
-                                'id_poin' => $headerId,
-                                'line_no' => $index + 1,
-                                'kd_material' => $kdMaterial,
-                                'material' => trim((string) ($item['material'] ?? '')),
-                                'qty' => $qty,
-                                'sisa_qtypr' => $sisaQtyPr,
-                                'sisa_qtydo' => $qty,
-                                'satuan' => trim((string) ($item['satuan'] ?? '')),
-                                'price_po_in' => $price,
-                                'total_price_po_in' => $totalDetail,
-                                'remark' => trim((string) ($item['remark'] ?? '')),
-                                'updated_at' => $nowGmt8,
-                            ]);
-                        $keptIds[] = $resolvedId;
-                    } else {
-                        $insertId = $nextId++;
-                        DB::table('tb_detailpoin')->insert([
-                            'id' => $insertId,
-                            'id_poin' => $headerId,
-                            'kode_poin' => $kodePoin,
-                            'line_no' => $index + 1,
-                            'kd_material' => $kdMaterial,
-                            'material' => trim((string) ($item['material'] ?? '')),
-                            'qty' => $qty,
-                            'sisa_qtypr' => $sisaQtyPr,
-                            'sisa_qtydo' => $qty,
-                            'satuan' => trim((string) ($item['satuan'] ?? '')),
-                            'price_po_in' => $price,
-                            'total_price_po_in' => $totalDetail,
-                            'remark' => trim((string) ($item['remark'] ?? '')),
-                            'created_at' => $nowGmt8,
-                            'updated_at' => $nowGmt8,
-                        ]);
-                        $keptIds[] = $insertId;
-                    }
+                    $rowId = $resolvedId !== null ? $resolvedId : $nextId++;
+                    
+                    $detailData[] = [
+                        'id' => $rowId,
+                        'id_poin' => $headerId,
+                        'kode_poin' => $kodePoin,
+                        'line_no' => $index + 1,
+                        'kd_material' => $kdMaterial,
+                        'material' => trim((string) ($item['material'] ?? '')),
+                        'qty' => $qty,
+                        'sisa_qtypr' => $sisaQtyPr,
+                        'sisa_qtydo' => $qty,
+                        'satuan' => trim((string) ($item['satuan'] ?? '')),
+                        'price_po_in' => $price,
+                        'total_price_po_in' => $totalDetail,
+                        'remark' => trim((string) ($item['remark'] ?? '')),
+                        'created_at' => $resolvedId === null ? $nowGmt8 : ($existingDetails->get($resolvedId)->created_at ?? $nowGmt8),
+                        'updated_at' => $nowGmt8,
+                    ];
+                    $keptIds[] = $rowId;
+                }
+
+                if (!empty($detailData)) {
+                    DB::table('tb_detailpoin')->upsert($detailData, ['id'], [
+                        'line_no', 'kd_material', 'material', 'qty', 'sisa_qtypr', 'sisa_qtydo', 
+                        'satuan', 'price_po_in', 'total_price_po_in', 'remark', 'updated_at'
+                    ]);
                 }
 
                 DB::table('tb_detailpoin')
