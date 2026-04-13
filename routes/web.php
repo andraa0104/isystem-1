@@ -278,7 +278,8 @@ Route::put('marketing/purchase-requirement/{noPr}/detail/{detailNo}', [PurchaseR
 Route::delete('marketing/purchase-requirement/{noPr}/detail/{detailNo}', [PurchaseRequirementController::class, 'destroyDetail'])
     ->name('marketing.purchase-requirement.detail.destroy');
 Route::delete('marketing/purchase-requirement/{noPr}', [PurchaseRequirementController::class, 'destroy'])
-    ->name('marketing.purchase-requirement.destroy');
+    ->name('marketing.purchase-requirement.destroy')
+    ->where('noPr', '.*');
 Route::get('marketing/purchase-requirement/{noPr}/print', [PurchaseRequirementController::class, 'print'])
     ->name('marketing.purchase-requirement.print');
 

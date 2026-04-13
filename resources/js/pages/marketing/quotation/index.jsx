@@ -1,3 +1,4 @@
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -8,9 +9,8 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
-import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
-import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -27,7 +27,8 @@ const formatRupiah = (value) => {
     return `Rp. ${new Intl.NumberFormat('id-ID').format(number)}`;
 };
 
-const renderValue = (value) => (value === null || value === undefined || value === '' ? '-' : value);
+const renderValue = (value) =>
+    value === null || value === undefined || value === '' ? '-' : value;
 
 export default function QuotationIndex({
     penawaran = [],
@@ -59,11 +60,12 @@ export default function QuotationIndex({
                 item.Tgl_penawaran,
                 item.Customer,
                 item.Attend,
-                item.payment,
             ];
 
             return values.some((value) =>
-                String(value ?? '').toLowerCase().includes(term)
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
             );
         });
     }, [penawaran, searchTerm]);
@@ -106,7 +108,13 @@ export default function QuotationIndex({
         }
 
         return penawaranDetail;
-    }, [detailNo, detailRows, detailRowsNo, penawaranDetail, selectedPenawaran]);
+    }, [
+        detailNo,
+        detailRows,
+        detailRowsNo,
+        penawaranDetail,
+        selectedPenawaran,
+    ]);
 
     const filteredMaterialDetails = useMemo(() => {
         const term = materialSearchTerm.trim().toLowerCase();
@@ -126,7 +134,9 @@ export default function QuotationIndex({
             ];
 
             return values.some((value) =>
-                String(value ?? '').toLowerCase().includes(term)
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
             );
         });
     }, [materialSearchTerm, selectedDetails]);
@@ -148,7 +158,7 @@ export default function QuotationIndex({
         const startIndex = (materialCurrentPage - 1) * materialPageSize;
         return filteredMaterialDetails.slice(
             startIndex,
-            startIndex + materialPageSize
+            startIndex + materialPageSize,
         );
     }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
 
@@ -158,7 +168,10 @@ export default function QuotationIndex({
 
         const selectedNo = String(item.No_penawaran ?? '').trim();
         const currentDetailNo = detailNo ? String(detailNo).trim() : '';
-        if (selectedNo && (currentDetailNo !== selectedNo || penawaranDetail.length === 0)) {
+        if (
+            selectedNo &&
+            (currentDetailNo !== selectedNo || penawaranDetail.length === 0)
+        ) {
             router.get(
                 '/marketing/quotation',
                 { detail_no: selectedNo },
@@ -166,7 +179,7 @@ export default function QuotationIndex({
                     preserveState: true,
                     preserveScroll: true,
                     only: ['penawaranDetail', 'detailNo'],
-                }
+                },
             );
         }
 
@@ -174,12 +187,17 @@ export default function QuotationIndex({
             setDetailLoading(true);
             setDetailRows([]);
             setDetailRowsNo(selectedNo);
-            fetch(`/marketing/quotation/${encodeURIComponent(selectedNo)}/details`, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            })
+            fetch(
+                `/marketing/quotation/${encodeURIComponent(selectedNo)}/details`,
+                {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                },
+            )
                 .then((response) => (response.ok ? response.json() : null))
                 .then((data) => {
-                    const details = Array.isArray(data?.details) ? data.details : [];
+                    const details = Array.isArray(data?.details)
+                        ? data.details
+                        : [];
                     setDetailRows(details);
                 })
                 .catch(() => {
@@ -238,15 +256,18 @@ export default function QuotationIndex({
                 method: 'DELETE',
                 headers: {
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN': document
-                        .querySelector('meta[name="csrf-token"]')
-                        ?.getAttribute('content') ?? '',
+                    'X-CSRF-TOKEN':
+                        document
+                            .querySelector('meta[name="csrf-token"]')
+                            ?.getAttribute('content') ?? '',
                 },
             })
                 .then(async (response) => {
                     const data = await response.json().catch(() => ({}));
                     if (!response.ok) {
-                        throw new Error(data?.message || 'Gagal menghapus data.');
+                        throw new Error(
+                            data?.message || 'Gagal menghapus data.',
+                        );
                     }
                     return data;
                 })
@@ -283,7 +304,9 @@ export default function QuotationIndex({
                     </div>
                     <Button
                         type="button"
-                        onClick={() => router.visit('/marketing/quotation/create')}
+                        onClick={() =>
+                            router.visit('/marketing/quotation/create')
+                        }
                     >
                         Tambah Quotation
                     </Button>
@@ -313,7 +336,9 @@ export default function QuotationIndex({
                             className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm"
                             placeholder="Cari data..."
                             value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
+                            onChange={(event) =>
+                                setSearchTerm(event.target.value)
+                            }
                         />
                     </label>
                 </div>
@@ -322,11 +347,14 @@ export default function QuotationIndex({
                     <table className="w-full text-sm">
                         <thead className="bg-muted/50 text-muted-foreground">
                             <tr>
-                                <th className="px-4 py-3 text-left">No Penawaran</th>
+                                <th className="px-4 py-3 text-left">
+                                    No Penawaran
+                                </th>
                                 <th className="px-4 py-3 text-left">Tanggal</th>
-                                <th className="px-4 py-3 text-left">Customer</th>
+                                <th className="px-4 py-3 text-left">
+                                    Customer
+                                </th>
                                 <th className="px-4 py-3 text-left">Attend</th>
-                                <th className="px-4 py-3 text-left">Payment</th>
                                 <th className="px-4 py-3 text-left">Action</th>
                             </tr>
                         </thead>
@@ -335,7 +363,7 @@ export default function QuotationIndex({
                                 <tr>
                                     <td
                                         className="px-4 py-6 text-center text-muted-foreground"
-                                        colSpan={6}
+                                        colSpan={5}
                                     >
                                         Belum ada data penawaran.
                                     </td>
@@ -352,16 +380,17 @@ export default function QuotationIndex({
                                     <td className="px-4 py-3">
                                         {item.Tgl_penawaran}
                                     </td>
-                                    <td className="px-4 py-3">{item.Customer}</td>
-                                    <td className="px-4 py-3">{item.Attend}</td>
                                     <td className="px-4 py-3">
-                                        {item.Payment ?? item.payment}
+                                        {item.Customer}
                                     </td>
+                                    <td className="px-4 py-3">{item.Attend}</td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2">
                                             <button
                                                 type="button"
-                                                onClick={() => handleOpenModal(item)}
+                                                onClick={() =>
+                                                    handleOpenModal(item)
+                                                }
                                                 className="text-muted-foreground transition hover:text-foreground"
                                                 aria-label="Lihat"
                                                 title="Lihat"
@@ -386,14 +415,19 @@ export default function QuotationIndex({
                                             >
                                                 <Printer className="size-4" />
                                             </a>
-                                            {Number(item.can_delete ?? 0) === 1 && (
+                                            {Number(item.can_delete ?? 0) ===
+                                                1 && (
                                                 <button
                                                     type="button"
                                                     className="text-muted-foreground transition hover:text-destructive"
                                                     aria-label="Hapus"
                                                     title="Hapus"
                                                     disabled={isDeleting}
-                                                    onClick={() => handleDelete(item.No_penawaran)}
+                                                    onClick={() =>
+                                                        handleDelete(
+                                                            item.No_penawaran,
+                                                        )
+                                                    }
                                                 >
                                                     <Trash2 className="size-4" />
                                                 </button>
@@ -410,8 +444,11 @@ export default function QuotationIndex({
                     <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                         <span>
                             Menampilkan{' '}
-                            {Math.min((currentPage - 1) * pageSize + 1, totalItems)}-
-                            {Math.min(currentPage * pageSize, totalItems)} dari{' '}
+                            {Math.min(
+                                (currentPage - 1) * pageSize + 1,
+                                totalItems,
+                            )}
+                            -{Math.min(currentPage * pageSize, totalItems)} dari{' '}
                             {totalItems} data
                         </span>
                         <div className="flex items-center gap-2">
@@ -419,7 +456,9 @@ export default function QuotationIndex({
                                 variant="outline"
                                 size="sm"
                                 onClick={() =>
-                                    setCurrentPage((page) => Math.max(1, page - 1))
+                                    setCurrentPage((page) =>
+                                        Math.max(1, page - 1),
+                                    )
                                 }
                                 disabled={currentPage === 1}
                             >
@@ -433,7 +472,7 @@ export default function QuotationIndex({
                                 size="sm"
                                 onClick={() =>
                                     setCurrentPage((page) =>
-                                        Math.min(totalPages, page + 1)
+                                        Math.min(totalPages, page + 1),
                                     )
                                 }
                                 disabled={currentPage === totalPages}
@@ -453,7 +492,7 @@ export default function QuotationIndex({
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Detail Quotation</DialogTitle>
                         </DialogHeader>
@@ -478,7 +517,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.No_penawaran
+                                                        selectedPenawaran.No_penawaran,
                                                     )}
                                                 </span>
                                             </div>
@@ -488,7 +527,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Tgl_penawaran
+                                                        selectedPenawaran.Tgl_penawaran,
                                                     )}
                                                 </span>
                                             </div>
@@ -498,7 +537,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Tgl_Posting
+                                                        selectedPenawaran.Tgl_Posting,
                                                     )}
                                                 </span>
                                             </div>
@@ -508,7 +547,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Customer
+                                                        selectedPenawaran.Customer,
                                                     )}
                                                 </span>
                                             </div>
@@ -518,7 +557,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Alamat
+                                                        selectedPenawaran.Alamat,
                                                     )}
                                                 </span>
                                             </div>
@@ -528,7 +567,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Telp
+                                                        selectedPenawaran.Telp,
                                                     )}
                                                     {selectedPenawaran.Fax
                                                         ? ` / ${selectedPenawaran.Fax}`
@@ -541,7 +580,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Email
+                                                        selectedPenawaran.Email,
                                                     )}
                                                 </span>
                                             </div>
@@ -551,7 +590,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Attend
+                                                        selectedPenawaran.Attend,
                                                     )}
                                                 </span>
                                             </div>
@@ -565,22 +604,11 @@ export default function QuotationIndex({
                                         <div className="grid gap-2">
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
                                                 <span className="text-muted-foreground">
-                                                    Payment
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Payment ??
-                                                            selectedPenawaran.payment
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
                                                     Validity
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Validity
+                                                        selectedPenawaran.Validity,
                                                     )}
                                                 </span>
                                             </div>
@@ -590,7 +618,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Delivery
+                                                        selectedPenawaran.Delivery,
                                                     )}
                                                 </span>
                                             </div>
@@ -600,7 +628,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Franco
+                                                        selectedPenawaran.Franco,
                                                     )}
                                                 </span>
                                             </div>
@@ -610,7 +638,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Note1
+                                                        selectedPenawaran.Note1,
                                                     )}
                                                 </span>
                                             </div>
@@ -620,7 +648,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Note2
+                                                        selectedPenawaran.Note2,
                                                     )}
                                                 </span>
                                             </div>
@@ -630,7 +658,7 @@ export default function QuotationIndex({
                                                 </span>
                                                 <span>
                                                     {renderValue(
-                                                        selectedPenawaran.Note3
+                                                        selectedPenawaran.Note3,
                                                     )}
                                                 </span>
                                             </div>
@@ -648,16 +676,18 @@ export default function QuotationIndex({
                                             <select
                                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                                 value={
-                                                    materialPageSize === Infinity
+                                                    materialPageSize ===
+                                                    Infinity
                                                         ? 'all'
                                                         : materialPageSize
                                                 }
                                                 onChange={(event) => {
-                                                    const value = event.target.value;
+                                                    const value =
+                                                        event.target.value;
                                                     setMaterialPageSize(
                                                         value === 'all'
                                                             ? Infinity
-                                                            : Number(value)
+                                                            : Number(value),
                                                     );
                                                     setMaterialCurrentPage(1);
                                                 }}
@@ -666,7 +696,9 @@ export default function QuotationIndex({
                                                 <option value={10}>10</option>
                                                 <option value={25}>25</option>
                                                 <option value={50}>50</option>
-                                                <option value="all">Semua</option>
+                                                <option value="all">
+                                                    Semua
+                                                </option>
                                             </select>
                                         </label>
                                         <label className="text-sm text-muted-foreground">
@@ -678,7 +710,7 @@ export default function QuotationIndex({
                                                 value={materialSearchTerm}
                                                 onChange={(event) => {
                                                     setMaterialSearchTerm(
-                                                        event.target.value
+                                                        event.target.value,
                                                     );
                                                     setMaterialCurrentPage(1);
                                                 }}
@@ -722,122 +754,139 @@ export default function QuotationIndex({
                                                     rows={5}
                                                     isEmpty={
                                                         !detailLoading &&
-                                                        displayedMaterialDetails.length === 0
+                                                        displayedMaterialDetails.length ===
+                                                            0
                                                     }
                                                     emptyMessage="Belum ada data material."
                                                 />
                                                 {displayedMaterialDetails.map(
                                                     (detail, index) => (
-                                                    <tr
-                                                        key={`${detail.No_penawaran}-${index}`}
-                                                        className="border-t border-sidebar-border/70"
-                                                    >
-                                                        <td className="px-4 py-3">
-                                                            {(materialPageSize === Infinity
-                                                                ? index
-                                                                : (materialCurrentPage - 1) *
-                                                                      materialPageSize +
-                                                                  index) + 1}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                detail.Material
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(detail.Qty)}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {formatRupiah(detail.Harga)}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                detail.Satuan
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {formatRupiah(
-                                                                detail.Harga_modal
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                detail.Margin
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                detail.Remark
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                )
+                                                        <tr
+                                                            key={`${detail.No_penawaran}-${index}`}
+                                                            className="border-t border-sidebar-border/70"
+                                                        >
+                                                            <td className="px-4 py-3">
+                                                                {(materialPageSize ===
+                                                                Infinity
+                                                                    ? index
+                                                                    : (materialCurrentPage -
+                                                                          1) *
+                                                                          materialPageSize +
+                                                                      index) +
+                                                                    1}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {renderValue(
+                                                                    detail.Material,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {renderValue(
+                                                                    detail.Qty,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {formatRupiah(
+                                                                    detail.Harga,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {renderValue(
+                                                                    detail.Satuan,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {formatRupiah(
+                                                                    detail.Harga_modal,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {renderValue(
+                                                                    detail.Margin,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {renderValue(
+                                                                    detail.Remark,
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ),
                                                 )}
                                             </tbody>
                                         </table>
                                     </div>
                                     {materialPageSize !== Infinity &&
                                         materialTotalItems > 0 && (
-                                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                            <span>
-                                                Menampilkan{' '}
-                                                {Math.min(
-                                                    (materialCurrentPage - 1) *
-                                                        materialPageSize +
-                                                        1,
-                                                    materialTotalItems
-                                                )}
-                                                -
-                                                {Math.min(
-                                                    materialCurrentPage *
-                                                        materialPageSize,
-                                                    materialTotalItems
-                                                )}{' '}
-                                                dari {materialTotalItems} data
-                                            </span>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        setMaterialCurrentPage(
-                                                            (page) =>
-                                                                Math.max(
-                                                                    1,
-                                                                    page - 1
-                                                                )
-                                                        )
-                                                    }
-                                                    disabled={materialCurrentPage === 1}
-                                                >
-                                                    Sebelumnya
-                                                </Button>
-                                                <span className="text-sm text-muted-foreground">
-                                                    Halaman {materialCurrentPage} dari{' '}
-                                                    {materialTotalPages}
+                                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                                <span>
+                                                    Menampilkan{' '}
+                                                    {Math.min(
+                                                        (materialCurrentPage -
+                                                            1) *
+                                                            materialPageSize +
+                                                            1,
+                                                        materialTotalItems,
+                                                    )}
+                                                    -
+                                                    {Math.min(
+                                                        materialCurrentPage *
+                                                            materialPageSize,
+                                                        materialTotalItems,
+                                                    )}{' '}
+                                                    dari {materialTotalItems}{' '}
+                                                    data
                                                 </span>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        setMaterialCurrentPage(
-                                                            (page) =>
-                                                                Math.min(
-                                                                    materialTotalPages,
-                                                                    page + 1
-                                                                )
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        materialCurrentPage ===
-                                                        materialTotalPages
-                                                    }
-                                                >
-                                                    Berikutnya
-                                                </Button>
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setMaterialCurrentPage(
+                                                                (page) =>
+                                                                    Math.max(
+                                                                        1,
+                                                                        page -
+                                                                            1,
+                                                                    ),
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            materialCurrentPage ===
+                                                            1
+                                                        }
+                                                    >
+                                                        Sebelumnya
+                                                    </Button>
+                                                    <span className="text-sm text-muted-foreground">
+                                                        Halaman{' '}
+                                                        {materialCurrentPage}{' '}
+                                                        dari{' '}
+                                                        {materialTotalPages}
+                                                    </span>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setMaterialCurrentPage(
+                                                                (page) =>
+                                                                    Math.min(
+                                                                        materialTotalPages,
+                                                                        page +
+                                                                            1,
+                                                                    ),
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            materialCurrentPage ===
+                                                            materialTotalPages
+                                                        }
+                                                    >
+                                                        Berikutnya
+                                                    </Button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
                                 </div>
                             </div>
                         )}

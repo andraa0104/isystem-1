@@ -88,6 +88,16 @@ class PurchaseOrderController
             ->orderBy('pr.no_pr', 'desc')
             ->get();
 
+        $purchaseRequirements->transform(function ($item) {
+            if ($item->date) {
+                try {
+                    $item->date = \Carbon\Carbon::parse($item->date)->format('d.m.Y');
+                } catch (\Throwable $e) {
+                }
+            }
+            return $item;
+        });
+
         return response()->json([
             'purchaseRequirements' => $purchaseRequirements,
         ]);
@@ -322,14 +332,14 @@ class PurchaseOrderController
                         ];
                     }
 
-                    // Bulk update tb_detailpr
-                    foreach ($detailPrUpdates as $update) {
+                    // Group updates by KD Material for tb_detailpr
+                    foreach ($detailPrUpdates as $up) {
                         DB::table('tb_detailpr')
-                            ->where('no_pr', $update['no_pr'])
-                            ->where('kd_material', $update['kd_material'])
+                            ->where('no_pr', $noPrHeader) // use the common no_pr for store
+                            ->where('kd_material', $up['kd_material'])
                             ->update([
-                                'sisa_pr' => $update['sisa_pr'],
-                                'qty_po' => $update['qty_po'],
+                                'sisa_pr' => $up['sisa_pr'],
+                                'qty_po' => $up['qty_po'],
                             ]);
                     }
 
@@ -562,7 +572,7 @@ class PurchaseOrderController
                     }
                 }
 
-                // Apply tb_detailpr updates
+                // Consolidate tb_detailpr updates
                 foreach ($detailPrUpdates as $up) {
                     DB::table('tb_detailpr')
                         ->where('no_pr', $up['no_pr'])
@@ -827,9 +837,8 @@ class PurchaseOrderController
             ->select(
                 'po.no_po',
                 'po.tgl',
-                'po.for_cus',
                 'po.nm_vdr',
-                'po.g_total',
+                 'po.g_total',
                 'po.ref_pr',
                 'po.ref_quota',
                 'po.ref_poin',
@@ -893,6 +902,16 @@ class PurchaseOrderController
             ]);
         }
 
+        $purchaseOrders->transform(function ($item) {
+            if ($item->tgl) {
+                try {
+                    $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
+                } catch (\Throwable $e) {
+                }
+            }
+            return $item;
+        });
+
         return Inertia::render('pembelian/purchase-order/index', [
             'purchaseOrders' => $purchaseOrders,
             'outstandingCount' => $outstandingCount,
@@ -916,7 +935,6 @@ class PurchaseOrderController
             ->select(
                 'po.no_po',
                 'po.tgl',
-                'po.for_cus',
                 'po.nm_vdr',
                 'po.g_total',
                 'po.ref_pr',
@@ -953,6 +971,16 @@ class PurchaseOrderController
             return (float) ($item->g_total ?? 0);
         });
 
+        $purchaseOrders->transform(function ($item) {
+            if ($item->tgl) {
+                try {
+                    $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
+                } catch (\Throwable $e) {
+                }
+            }
+            return $item;
+        });
+
         return response()->json([
             'purchaseOrders' => $purchaseOrders,
             'realizedTotal' => (float) $realizedTotal,
@@ -961,6 +989,11 @@ class PurchaseOrderController
 
     public function data()
     {
+        $invinAgg = DB::table('tb_invin')
+            ->select('ref_po')
+            ->whereNotNull('ref_po')
+            ->groupBy('ref_po');
+
         $purchaseOrders = DB::table('tb_po as po')
             ->leftJoin(
                 DB::raw('(
@@ -974,23 +1007,34 @@ class PurchaseOrderController
                 '=',
                 'detail.no_po'
             )
+            ->leftJoinSub($invinAgg, 'invin', 'po.no_po', '=', 'invin.ref_po')
             ->select(
                 'po.no_po',
                 'po.tgl',
-                'po.for_cus',
                 'po.nm_vdr',
-                'po.g_total',
+                 'po.g_total',
                 'po.ref_pr',
                 'po.ref_quota',
                 'po.ref_poin',
                 'po.ppn',
                 'po.s_total',
                 'po.h_ppn',
-                DB::raw('coalesce(detail.has_outstanding, 0) as has_outstanding')
+                DB::raw('coalesce(detail.has_outstanding, 0) as has_outstanding'),
+                DB::raw('case when invin.ref_po is null then 1 else 0 end as can_delete')
             )
             ->orderBy('tgl', 'desc')
             ->orderBy('no_po', 'desc')
             ->get();
+
+        $purchaseOrders->transform(function ($item) {
+            if ($item->tgl) {
+                try {
+                    $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
+                } catch (\Throwable $e) {
+                }
+            }
+            return $item;
+        });
 
         return response()->json([
             'purchaseOrders' => $purchaseOrders,
@@ -1063,6 +1107,11 @@ class PurchaseOrderController
 
     public function outstanding()
     {
+        $invinAgg = DB::table('tb_invin')
+            ->select('ref_po')
+            ->whereNotNull('ref_po')
+            ->groupBy('ref_po');
+
         $purchaseOrders = DB::table('tb_po as po')
             ->leftJoin(
                 DB::raw('(
@@ -1076,10 +1125,10 @@ class PurchaseOrderController
                 '=',
                 'detail.no_po'
             )
+            ->leftJoinSub($invinAgg, 'invin', 'po.no_po', '=', 'invin.ref_po')
             ->select(
                 'po.no_po',
                 'po.tgl',
-                'po.for_cus',
                 'po.nm_vdr',
                 'po.g_total',
                 'po.ref_pr',
@@ -1089,12 +1138,22 @@ class PurchaseOrderController
                 'po.s_total',
                 'po.h_ppn',
                 DB::raw('coalesce(detail.has_outstanding, 0) as has_outstanding'),
-                DB::raw('case when exists (select 1 from tb_invin where lower(trim(tb_invin.ref_po)) = lower(trim(po.no_po))) then 0 else 1 end as can_delete')
+                DB::raw('case when invin.ref_po is null then 1 else 0 end as can_delete')
             )
             ->where(DB::raw('coalesce(detail.has_outstanding, 0)'), '>', 0)
             ->orderBy('tgl', 'desc')
             ->orderBy('no_po', 'desc')
             ->get();
+
+        $purchaseOrders->transform(function ($item) {
+            if ($item->tgl) {
+                try {
+                    $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
+                } catch (\Throwable $e) {
+                }
+            }
+            return $item;
+        });
 
         return response()->json([
             'purchaseOrders' => $purchaseOrders,

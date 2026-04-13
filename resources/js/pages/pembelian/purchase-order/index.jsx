@@ -1,6 +1,5 @@
 import { ActionIconButton } from '@/components/action-icon-button';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -836,9 +835,6 @@ export default function PurchaseOrderIndex({
                                 <th className="px-4 py-3 text-left">No PO</th>
                                 <th className="px-4 py-3 text-left">Date</th>
                                 <th className="px-4 py-3 text-left">
-                                    Customer
-                                </th>
-                                <th className="px-4 py-3 text-left">
                                     Nama Vendor
                                 </th>
                                 <th className="px-4 py-3 text-right">
@@ -849,7 +845,7 @@ export default function PurchaseOrderIndex({
                         </thead>
                         <tbody>
                             <PlainTableStateRows
-                                columns={6}
+                                columns={5}
                                 loading={poLoading && poData.length === 0}
                                 error={poError}
                                 onRetry={fetchPurchaseOrders}
@@ -879,17 +875,6 @@ export default function PurchaseOrderIndex({
                                                 'Date',
                                             ]),
                                         )}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {getValue(item, [
-                                            'for_cus',
-                                            'For_cus',
-                                            'FOR_CUS',
-                                            'for_cust',
-                                            'For_cust',
-                                            'FOR_CUST',
-                                            'for_customer',
-                                        ])}
                                     </td>
                                     <td className="px-4 py-3">
                                         {getValue(item, [
@@ -1560,9 +1545,6 @@ export default function PurchaseOrderIndex({
                                             Date
                                         </th>
                                         <th className="px-4 py-3 text-left">
-                                            Customer
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
                                             Nama Vendor
                                         </th>
                                         <th className="px-4 py-3 text-right">
@@ -1575,7 +1557,7 @@ export default function PurchaseOrderIndex({
                                 </thead>
                                 <tbody>
                                     <PlainTableStateRows
-                                        columns={6}
+                                        columns={5}
                                         loading={
                                             outstandingLoading &&
                                             displayedOutstandingPurchaseOrders.length ===
@@ -1614,13 +1596,6 @@ export default function PurchaseOrderIndex({
                                                             'Date',
                                                         ]),
                                                     )}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {getValue(item, [
-                                                        'for_cus',
-                                                        'for_cust',
-                                                        'for_customer',
-                                                    ])}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {getValue(item, [
@@ -1825,9 +1800,6 @@ export default function PurchaseOrderIndex({
                                             Date
                                         </th>
                                         <th className="px-4 py-3 text-left">
-                                            Customer
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
                                             Nama Vendor
                                         </th>
                                         <th className="px-4 py-3 text-right">
@@ -1840,7 +1812,7 @@ export default function PurchaseOrderIndex({
                                 </thead>
                                 <tbody>
                                     <PlainTableStateRows
-                                        columns={6}
+                                        columns={5}
                                         loading={
                                             realizedLoading &&
                                             displayedRealizedPurchaseOrders.length ===
@@ -1881,13 +1853,6 @@ export default function PurchaseOrderIndex({
                                                             'Date',
                                                         ]),
                                                     )}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {getValue(item, [
-                                                        'for_cus',
-                                                        'for_cust',
-                                                        'for_customer',
-                                                    ])}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {getValue(item, [

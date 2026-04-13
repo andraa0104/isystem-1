@@ -633,36 +633,27 @@ export default function PurchaseRequirementIndex({
             showLoaderOnConfirm: true,
             allowOutsideClick: () => !Swal.isLoading(),
             allowEscapeKey: () => !Swal.isLoading(),
-            preConfirm: async () => {
-                try {
-                    setIsDeleting(true);
-                    const response = await fetch(
+            preConfirm: () => {
+                return new Promise((resolve) => {
+                    router.delete(
                         `/marketing/purchase-requirement/${encodeURIComponent(noPr)}`,
                         {
-                            method: 'DELETE',
-                            headers: {
-                                Accept: 'application/json',
-                                'X-CSRF-TOKEN':
-                                    document
-                                        .querySelector(
-                                            'meta[name="csrf-token"]',
-                                        )
-                                        ?.getAttribute('content') ?? '',
+                            preserveScroll: true,
+                            onStart: () => setIsDeleting(true),
+                            onFinish: () => setIsDeleting(false),
+                            onSuccess: (page) => {
+                                resolve(page.props);
+                            },
+                            onError: (errors) => {
+                                const firstError = Object.values(errors)[0];
+                                Swal.showValidationMessage(
+                                    firstError || 'Gagal menghapus data PR.',
+                                );
+                                resolve(false);
                             },
                         },
                     );
-                    const data = await response.json().catch(() => ({}));
-                    if (!response.ok) {
-                        const msg = data?.message || 'Gagal menghapus data PR.';
-                        throw new Error(msg);
-                    }
-                    return data;
-                } catch (error) {
-                    Swal.showValidationMessage(error.message);
-                    throw error;
-                } finally {
-                    setIsDeleting(false);
-                }
+                });
             },
         }).then((result) => {
             if (!result.isConfirmed) return;
@@ -907,7 +898,6 @@ export default function PurchaseRequirementIndex({
                                     Customer
                                 </th>
                                 <th className="px-4 py-3 text-left">Ref PO</th>
-                                <th className="px-4 py-3 text-left">Payment</th>
                                 <th className="px-4 py-3 text-left">Action</th>
                             </tr>
                         </thead>
@@ -916,7 +906,7 @@ export default function PurchaseRequirementIndex({
                                 <tr>
                                     <td
                                         className="px-4 py-6 text-center text-muted-foreground"
-                                        colSpan={6}
+                                        colSpan={5}
                                     >
                                         Belum ada data PR.
                                     </td>
@@ -933,9 +923,6 @@ export default function PurchaseRequirementIndex({
                                         {item.for_customer}
                                     </td>
                                     <td className="px-4 py-3">{item.ref_po}</td>
-                                    <td className="px-4 py-3">
-                                        {renderValue(item.payment)}
-                                    </td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-2">
                                             <button
@@ -1064,14 +1051,6 @@ export default function PurchaseRequirementIndex({
                                     </div>
                                     <div className="grid grid-cols-[150px_1fr] gap-2">
                                         <span className="text-muted-foreground">
-                                            Payment
-                                        </span>
-                                        <span>
-                                            {renderValue(selectedPr.payment)}
-                                        </span>
-                                    </div>
-                                    <div className="grid grid-cols-[150px_1fr] gap-2">
-                                        <span className="text-muted-foreground">
                                             Customer
                                         </span>
                                         <span>
@@ -1086,6 +1065,31 @@ export default function PurchaseRequirementIndex({
                                         </span>
                                         <span>
                                             {renderValue(selectedPr.ref_po)}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-[150px_1fr] gap-2">
+                                        <span className="text-muted-foreground">
+                                            Payment Term
+                                        </span>
+                                        <span>
+                                            {getValue(selectedPr, [
+                                                'payment',
+                                                'Payment',
+                                                'payment_term',
+                                            ]) !== '-'
+                                                ? getValue(selectedPr, [
+                                                      'payment',
+                                                      'Payment',
+                                                      'payment_term',
+                                                  ])
+                                                : getValue(
+                                                      selectedDetails?.[0],
+                                                      [
+                                                          'payment',
+                                                          'Payment',
+                                                          'payment_term',
+                                                      ],
+                                                  )}
                                         </span>
                                     </div>
                                 </div>
@@ -1893,9 +1897,6 @@ export default function PurchaseRequirementIndex({
                                             Ref PO
                                         </th>
                                         <th className="px-4 py-3 text-left">
-                                            Payment
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
                                             Action
                                         </th>
                                     </tr>
@@ -1903,7 +1904,7 @@ export default function PurchaseRequirementIndex({
                                 <tbody>
                                     <PlainTableStateRows
                                         loading={realizedLoading}
-                                        columns={6}
+                                        columns={5}
                                         rows={5}
                                         isEmpty={
                                             !realizedLoading &&
@@ -1937,9 +1938,6 @@ export default function PurchaseRequirementIndex({
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {item.ref_po}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.payment}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <button

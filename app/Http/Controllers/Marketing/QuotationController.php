@@ -132,7 +132,6 @@ class QuotationController
                 'p.Fax',
                 'p.Email',
                 'p.Attend',
-                'p.Payment',
                 'p.Validity',
                 'p.Delivery',
                 'p.Franco',
@@ -440,13 +439,19 @@ class QuotationController
                     ->where($noPenawaranColumn, $noPenawaran)
                     ->delete();
 
+                $noPenawaranColumn = $this->resolveColumn(
+                    'tb_penawarandetail',
+                    ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
+                    'No_penawaran'
+                );
+                $hargaModalColumn = $this->resolveColumn(
+                    'tb_penawarandetail',
+                    ['Harga_Modal', 'Harga_modal', 'harga_modal'],
+                    'Harga_Modal'
+                );
+                $insertData = [];
                 foreach ($materials as $item) {
-                    $hargaModalColumn = $this->resolveColumn(
-                        'tb_penawarandetail',
-                        ['Harga_Modal', 'Harga_modal', 'harga_modal'],
-                        'Harga_Modal'
-                    );
-                    DB::table('tb_penawarandetail')->insert([
+                    $insertData[] = [
                         $noPenawaranColumn => $noPenawaran,
                         'Material' => $item['material'] ?? null,
                         'Qty' => $item['quantity'] ?? null,
@@ -455,7 +460,10 @@ class QuotationController
                         'Satuan' => $item['satuan'] ?? null,
                         'Margin' => $item['margin'] ?? null,
                         'Remark' => $this->valueOrSpace($item['remark'] ?? null),
-                    ]);
+                    ];
+                }
+                if (!empty($insertData)) {
+                    DB::table('tb_penawarandetail')->insert($insertData);
                 }
             });
         } catch (\Throwable $exception) {
@@ -589,7 +597,6 @@ class QuotationController
                     'Note3' => $this->valueOrSpace($request->input('note3')),
                 ]);
 
-                foreach ($materials as $item) {
                     $noPenawaranColumn = $this->resolveColumn(
                         'tb_penawarandetail',
                         ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
@@ -600,17 +607,22 @@ class QuotationController
                         ['Harga_Modal', 'Harga_modal', 'harga_modal'],
                         'Harga_Modal'
                     );
-                    DB::table('tb_penawarandetail')->insert([
-                        $noPenawaranColumn => $noPenawaran,
-                        'Material' => $item['material'] ?? null,
-                        'Qty' => $item['quantity'] ?? null,
-                        'Harga' => $item['harga_penawaran'] ?? null,
-                        $hargaModalColumn => $item['harga_modal'] ?? null,
-                        'Satuan' => $item['satuan'] ?? null,
-                        'Margin' => $item['margin'] ?? null,
-                        'Remark' => $this->valueOrSpace($item['remark'] ?? null),
-                    ]);
-                }
+                    $insertData = [];
+                    foreach ($materials as $item) {
+                        $insertData[] = [
+                            $noPenawaranColumn => $noPenawaran,
+                            'Material' => $item['material'] ?? null,
+                            'Qty' => $item['quantity'] ?? null,
+                            'Harga' => $item['harga_penawaran'] ?? null,
+                            $hargaModalColumn => $item['harga_modal'] ?? null,
+                            'Satuan' => $item['satuan'] ?? null,
+                            'Margin' => $item['margin'] ?? null,
+                            'Remark' => $this->valueOrSpace($item['remark'] ?? null),
+                        ];
+                    }
+                    if (!empty($insertData)) {
+                        DB::table('tb_penawarandetail')->insert($insertData);
+                    }
                 });
                 break;
             } catch (\Throwable $exception) {
