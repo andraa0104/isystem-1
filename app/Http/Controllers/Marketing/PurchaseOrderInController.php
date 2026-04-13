@@ -1025,10 +1025,16 @@ class PurchaseOrderInController
                 }
             }
 
-            // Also check if any qty has been received directly (MI)
-            if (isset($detail->sisa_qtydo) && isset($detail->qty)) {
+            // Also check if any qty has been committed to a PR or received (MI)
+            if (isset($detail->sisa_qtypr) && isset($detail->qty) && isset($detail->sisa_qtydo)) {
+                $sisaQtyPr = (float)($detail->sisa_qtypr ?? 0);
                 $sisaQtyDo = (float)($detail->sisa_qtydo ?? 0);
                 $qty = (float)($detail->qty ?? 0);
+                if ($sisaQtyPr < $qty) {
+                    return response()->json([
+                        'message' => 'Material tidak dapat diubah karena sudah dibuat PR.',
+                    ], 422);
+                }
                 if ($sisaQtyDo < $qty) {
                     return response()->json([
                         'message' => 'Material tidak dapat diubah karena sudah ada penerimaan material (MI).',
@@ -1131,10 +1137,16 @@ class PurchaseOrderInController
                 }
             }
 
-            // Also check if any qty has been received directly (MI)
-            if (isset($detail->sisa_qtydo) && isset($detail->qty)) {
+            // Also check if any qty has been committed to a PR or received (MI)
+            if (isset($detail->sisa_qtypr) && isset($detail->qty) && isset($detail->sisa_qtydo)) {
+                $sisaQtyPr = (float)($detail->sisa_qtypr ?? 0);
                 $sisaQtyDo = (float)($detail->sisa_qtydo ?? 0);
                 $qty = (float)($detail->qty ?? 0);
+                if ($sisaQtyPr < $qty) {
+                    return response()->json([
+                        'message' => 'Material tidak dapat dihapus karena sudah dibuat PR.',
+                    ], 422);
+                }
                 if ($sisaQtyDo < $qty) {
                     return response()->json([
                         'message' => 'Material tidak dapat dihapus karena sudah ada penerimaan material (MI).',

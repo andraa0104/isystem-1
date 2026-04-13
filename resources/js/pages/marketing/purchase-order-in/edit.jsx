@@ -1308,13 +1308,19 @@ export default function PurchaseOrderInEdit({
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
-                                                    {!item.hasPr &&
+                                                    {toNumber(
+                                                        item.sisaQtyPr ?? 0,
+                                                    ) >=
+                                                        toNumber(
+                                                            item.qty ?? 0,
+                                                        ) &&
                                                         toNumber(
                                                             item.sisaQtyDo ?? 0,
                                                         ) >=
                                                             toNumber(
                                                                 item.qty ?? 0,
-                                                            ) && (
+                                                            ) &&
+                                                        !item.hasPr && (
                                                             <>
                                                                 <Button
                                                                     type="button"
