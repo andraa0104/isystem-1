@@ -243,10 +243,10 @@ class PurchaseOrderInController
         $startYear = $now->copy()->startOfYear()->toDateString();
 
         $periodCounts = DB::table('tb_poin')
-            ->selectRaw("count(case when date_poin >= ? then 1 end) as today", [$startToday])
-            ->selectRaw("count(case when date_poin >= ? then 1 end) as week", [$startWeek])
-            ->selectRaw("count(case when date_poin >= ? then 1 end) as month", [$startMonth])
-            ->selectRaw("count(case when date_poin >= ? then 1 end) as year", [$startYear])
+            ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
+            ->selectRaw("count(case when created_at >= ? then 1 end) as week", [$startWeek])
+            ->selectRaw("count(case when created_at >= ? then 1 end) as month", [$startMonth])
+            ->selectRaw("count(case when created_at >= ? then 1 end) as year", [$startYear])
             ->first();
 
         // Optimized summary data only
@@ -269,7 +269,7 @@ class PurchaseOrderInController
             'realizedPurchaseOrderIns'  => $realizedRows,
             'allPurchaseOrderIns'       => Inertia::lazy(fn () => 
                 DB::table('tb_poin as p')
-                    ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.customer_name', 'p.grand_total')
+                    ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.created_at', 'p.customer_name', 'p.grand_total')
                     ->orderByDesc('p.id')
                     ->get()
             ),

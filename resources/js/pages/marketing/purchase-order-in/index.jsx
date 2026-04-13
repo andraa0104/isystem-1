@@ -283,7 +283,7 @@ export default function PurchaseOrderInIndex({
         () =>
             allPurchaseOrderIns.filter((item) =>
                 isInPeriod(
-                    item.date_poin,
+                    item.created_at || item.date_poin,
                     dataPoInPeriod,
                     dataPoInStart,
                     dataPoInEnd,
@@ -761,8 +761,7 @@ export default function PurchaseOrderInIndex({
                                         ? 'text-slate-400'
                                         : 'text-slate-500',
                                 )}
-                            >
-                            </p>
+                            ></p>
                         </div>
                         {/* Grand Total removed per user request for performance */}
                         <p
