@@ -295,7 +295,7 @@ export default function PurchaseOrderPrint({
                     </tbody>
                 </table>
 
-                <div className="mt-6 border-b border-black pb-2">
+                <div className="mt-6">
                     <table className="w-full table-fixed border-collapse border border-black text-[11px]">
                         <colgroup>
                             <col className="w-[6%]" />
@@ -514,14 +514,14 @@ export default function PurchaseOrderPrint({
                     </tbody>
                 </table>
 
-                <div className="mt-12 grid grid-cols-2 text-center text-[11px]">
-                    <div className="space-y-12">
+                <div className="mt-12 flex text-[11px]">
+                    <div className="w-1/2 space-y-12">
                         <div>Dibuat Oleh,</div>
-                        <div>Purchasing</div>
+                        <div className="font-semibold">Purchasing</div>
                     </div>
-                    <div className="space-y-12">
+                    <div className="w-1/2 space-y-12 pl-6">
                         <div>Disetujui Oleh,</div>
-                        <div>Head Office</div>
+                        <div className="font-semibold">Head Office</div>
                     </div>
                 </div>
             </div>

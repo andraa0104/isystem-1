@@ -278,16 +278,26 @@ class DashboardController
             && Schema::hasColumn('tb_kas', 'Tgl_Voucher')
             && Schema::hasColumn('tb_kas', 'Kode_Voucher')
             && Schema::hasColumn('tb_kas', 'Kode_Akun')) {
-            foreach (array_keys($accountMap) as $code) {
-                $lastRow = DB::table('tb_kas')
+
+            $codes = array_keys($accountMap);
+            $query = null;
+            foreach ($codes as $code) {
+                $q = DB::table('tb_kas')
                     ->where('Kode_Akun', $code)
                     ->orderByDesc('Tgl_Voucher')
                     ->orderByDesc('Kode_Voucher')
-                    ->select(['Saldo', 'Tgl_Voucher'])
-                    ->first();
+                    ->select(['Saldo', 'Tgl_Voucher', 'Kode_Akun'])
+                    ->limit(1);
 
-                $saldoByCode[$code] = (float) ($lastRow->Saldo ?? 0);
-                $lastVoucherByCode[$code] = $lastRow->Tgl_Voucher ?? null;
+                $query = $query ? $query->unionAll($q) : $q;
+            }
+
+            $rows = $query ? $query->get()->keyBy('Kode_Akun') : collect();
+
+            foreach ($codes as $code) {
+                $lastRow = $rows->get($code);
+                $saldoByCode[$code] = (float) ($lastRow?->Saldo ?? 0);
+                $lastVoucherByCode[$code] = $lastRow?->Tgl_Voucher ?? null;
             }
         } else {
             foreach (array_keys($accountMap) as $code) {
@@ -337,23 +347,14 @@ class DashboardController
             return $result;
         }
 
-        $calcTotalFromNabb = function (callable $accountMatch): float {
-            $rows = DB::table('tb_nabb')
-                ->select(['Kode_Akun', 'Saldo'])
-                ->whereNotNull('Kode_Akun')
-                ->get();
+        $stats = DB::table('tb_nabb')
+            ->whereIn('Kode_Akun', ['1109AD', '2101AK'])
+            ->selectRaw("SUM(CASE WHEN LOWER(TRIM(Kode_Akun)) = '1109ad' THEN COALESCE(Saldo, 0) ELSE 0 END) as piutang_total")
+            ->selectRaw("SUM(CASE WHEN LOWER(TRIM(Kode_Akun)) = '2101ak' THEN COALESCE(Saldo, 0) ELSE 0 END) as hutang_total")
+            ->first();
 
-            $total = 0.0;
-            foreach ($rows as $row) {
-                $code = trim((string) ($row->Kode_Akun ?? ''));
-                if ($code === '' || !(bool) $accountMatch($code)) {
-                    continue;
-                }
-                $total += (float) ($row->Saldo ?? 0);
-            }
-
-            return $total;
-        };
+        $piutangTotal = (float) ($stats->piutang_total ?? 0);
+        $hutangTotal = (float) ($stats->hutang_total ?? 0);
 
         $lastUpdateFromKas = function (array $accountCodes) use ($lastUpdateAccountColumns): ?string {
             if (count($accountCodes) === 0) {
@@ -376,23 +377,13 @@ class DashboardController
         };
 
         try {
-            $is1109ad = function (string $code): bool {
-                $normalized = strtolower(trim((string) $code));
-                return $normalized === '1109ad';
-            };
-
-            $is2101ak = function (string $code): bool {
-                $normalized = strtolower(trim((string) $code));
-                return $normalized === '2101ak';
-            };
-
             $result['piutang'] = [
-                'total' => $calcTotalFromNabb($is1109ad),
+                'total' => $piutangTotal,
                 'last_update' => $lastUpdateFromKas(['1109AD']),
             ];
 
             $result['hutang'] = [
-                'total' => $calcTotalFromNabb($is2101ak),
+                'total' => $hutangTotal,
                 'last_update' => $lastUpdateFromKas(['2101AK']),
             ];
             return $result;

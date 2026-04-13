@@ -1465,7 +1465,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 ? 'Memuat data material...'
                                                 : materialError ||
                                                   'Tidak ada data material.'}
-                                            {!materialLoading && (
+                                            {/* {!materialLoading && (
                                                 <div className="mt-3">
                                                     <Button
                                                         type="button"
@@ -1479,7 +1479,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                         Buat Material
                                                     </Button>
                                                 </div>
-                                            )}
+                                            )} */}
                                         </td>
                                     </tr>
                                 )}
@@ -1786,7 +1786,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 ? 'Memuat data customer...'
                                                 : customerError ||
                                                   'Tidak ada data customer.'}
-                                            {!customerLoading && (
+                                            {/* {!customerLoading && (
                                                 <div className="mt-3">
                                                     <Button
                                                         type="button"
@@ -1800,7 +1800,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                         Buat Data Customer
                                                     </Button>
                                                 </div>
-                                            )}
+                                            )} */}
                                         </td>
                                     </tr>
                                 )}

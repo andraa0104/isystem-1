@@ -136,24 +136,38 @@ export default function PurchaseOrderInPrint({
                                 <table className="w-full">
                                     <tbody>
                                         <tr>
-                                            <td className="w-[70px]">Customer</td>
+                                            <td className="w-[70px]">
+                                                Customer
+                                            </td>
                                             <td className="w-[12px]">:</td>
-                                            <td className="font-semibold">{renderValue(purchaseOrder?.customer_name)}</td>
+                                            <td className="font-semibold">
+                                                {renderValue(
+                                                    purchaseOrder?.customer_name,
+                                                )}
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td>Alamat</td>
                                             <td>:</td>
-                                            <td>{renderValue(customer?.alamat_cs)}</td>
+                                            <td>
+                                                {renderValue(
+                                                    customer?.alamat_cs,
+                                                )}
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td>Tlp</td>
                                             <td>:</td>
-                                            <td>{renderValue(customer?.telp_cs)}</td>
+                                            <td>
+                                                {renderValue(customer?.telp_cs)}
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td>Attnd.</td>
                                             <td>:</td>
-                                            <td>{renderValue(customer?.Attnd)}</td>
+                                            <td>
+                                                {renderValue(customer?.Attnd)}
+                                            </td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -162,19 +176,33 @@ export default function PurchaseOrderInPrint({
                                 <table className="w-full">
                                     <tbody>
                                         <tr>
-                                            <td className="w-[90px]">Kode PO In</td>
+                                            <td className="w-[90px]">
+                                                Kode PO In
+                                            </td>
                                             <td className="w-[12px]">:</td>
-                                            <td className="font-semibold">{renderValue(purchaseOrder?.kode_poin)}</td>
+                                            <td className="font-semibold">
+                                                {renderValue(
+                                                    purchaseOrder?.kode_poin,
+                                                )}
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td>Date</td>
                                             <td>:</td>
-                                            <td>{formatDate(purchaseOrder?.date_poin)}</td>
+                                            <td>
+                                                {formatDate(
+                                                    purchaseOrder?.date_poin,
+                                                )}
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td>No. PO In</td>
                                             <td>:</td>
-                                            <td>{renderValue(purchaseOrder?.no_poin)}</td>
+                                            <td>
+                                                {renderValue(
+                                                    purchaseOrder?.no_poin,
+                                                )}
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td>Print Date</td>
@@ -202,32 +230,70 @@ export default function PurchaseOrderInPrint({
                         </colgroup>
                         <thead>
                             <tr>
-                                <th className="border-r border-black px-2 py-2 text-left">No.</th>
-                                <th className="border-r border-black px-2 py-2 text-left">Code Mat.</th>
-                                <th className="border-r border-black px-2 py-2 text-left">Material</th>
-                                <th className="border-r border-black px-2 py-2 text-right">Qty</th>
-                                <th className="border-r border-black px-2 py-2 text-left">Unit</th>
-                                <th className="border-r border-black px-2 py-2 text-right">Unit Price</th>
-                                <th className="border-r border-black px-2 py-2 text-right">Total Price</th>
+                                <th className="border-r border-black px-2 py-2 text-left">
+                                    No.
+                                </th>
+                                <th className="border-r border-black px-2 py-2 text-left">
+                                    Code Mat.
+                                </th>
+                                <th className="border-r border-black px-2 py-2 text-left">
+                                    Material
+                                </th>
+                                <th className="border-r border-black px-2 py-2 text-right">
+                                    Qty
+                                </th>
+                                <th className="border-r border-black px-2 py-2 text-left">
+                                    Unit
+                                </th>
+                                <th className="border-r border-black px-2 py-2 text-right">
+                                    Unit Price
+                                </th>
+                                <th className="border-r border-black px-2 py-2 text-right">
+                                    Total Price
+                                </th>
                                 <th className="px-2 py-2 text-left">Remark</th>
                             </tr>
                         </thead>
                         <tbody>
                             {purchaseOrderDetails.map((item, index) => (
                                 <tr key={item.id ?? index}>
-                                    <td className="border-r border-t border-black px-2 py-2">{renderValue(item?.line_no ?? index + 1)}</td>
-                                    <td className="border-r border-t border-black px-2 py-2">{renderValue(item?.kd_material)}</td>
-                                    <td className="border-r border-t border-black px-2 py-2">{renderValue(item?.material)}</td>
-                                    <td className="border-r border-t border-black px-2 py-2 text-right">{formatNumber(item?.qty)}</td>
-                                    <td className="border-r border-t border-black px-2 py-2">{renderValue(item?.satuan)}</td>
-                                    <td className="border-r border-t border-black px-2 py-2 text-right">{formatNumber(item?.price_po_in)}</td>
-                                    <td className="border-r border-t border-black px-2 py-2 text-right">{formatNumber(item?.total_price_po_in)}</td>
-                                    <td className="border-t border-black px-2 py-2">{renderValue(item?.tb_detailpoin_remark ?? item?.remark)}</td>
+                                    <td className="border-t border-r border-black px-2 py-2">
+                                        {renderValue(
+                                            item?.line_no ?? index + 1,
+                                        )}
+                                    </td>
+                                    <td className="border-t border-r border-black px-2 py-2">
+                                        {renderValue(item?.kd_material)}
+                                    </td>
+                                    <td className="border-t border-r border-black px-2 py-2">
+                                        {renderValue(item?.material)}
+                                    </td>
+                                    <td className="border-t border-r border-black px-2 py-2 text-right">
+                                        {formatNumber(item?.qty)}
+                                    </td>
+                                    <td className="border-t border-r border-black px-2 py-2">
+                                        {renderValue(item?.satuan)}
+                                    </td>
+                                    <td className="border-t border-r border-black px-2 py-2 text-right">
+                                        {formatNumber(item?.price_po_in)}
+                                    </td>
+                                    <td className="border-t border-r border-black px-2 py-2 text-right">
+                                        {formatNumber(item?.total_price_po_in)}
+                                    </td>
+                                    <td className="border-t border-black px-2 py-2">
+                                        {renderValue(
+                                            item?.tb_detailpoin_remark ??
+                                                item?.remark,
+                                        )}
+                                    </td>
                                 </tr>
                             ))}
                             {purchaseOrderDetails.length === 0 && (
                                 <tr>
-                                    <td className="border-t border-black px-2 py-2 text-center" colSpan={8}>
+                                    <td
+                                        className="border-t border-black px-2 py-2 text-center"
+                                        colSpan={8}
+                                    >
                                         Tidak ada data material
                                     </td>
                                 </tr>
@@ -238,32 +304,44 @@ export default function PurchaseOrderInPrint({
 
                 <div className="mt-2 flex items-start justify-between gap-8">
                     <div className="flex-1 text-[11px]">
-                        <div className="mb-1 font-semibold underline">Terbilang :</div>
-                        <div className="capitalize">{formatTerbilang(grandTotal)}</div>
+                        <div className="mb-1 font-semibold underline">
+                            Terbilang :
+                        </div>
+                        <div className="capitalize">
+                            {formatTerbilang(grandTotal)}
+                        </div>
                     </div>
                     <table className="w-[320px] text-[11px]">
                         <tbody>
                             <tr>
                                 <td>Sub Total</td>
                                 <td className="w-[12px]">:</td>
-                                <td className="text-right">{formatNumber(subtotal)}</td>
+                                <td className="text-right">
+                                    {formatNumber(subtotal)}
+                                </td>
                             </tr>
                             {showDpp && (
                                 <tr>
                                     <td>DPP</td>
                                     <td>:</td>
-                                    <td className="text-right">{formatNumber(dpp)}</td>
+                                    <td className="text-right">
+                                        {formatNumber(dpp)}
+                                    </td>
                                 </tr>
                             )}
                             <tr>
                                 <td>PPN {ppnLabel}</td>
                                 <td>:</td>
-                                <td className="text-right">{formatNumber(ppnAmount)}</td>
+                                <td className="text-right">
+                                    {formatNumber(ppnAmount)}
+                                </td>
                             </tr>
                             <tr className="font-semibold">
                                 <td>Grand Total</td>
                                 <td>:</td>
-                                <td className="text-right">{formatNumber(grandTotal)}</td>
+                                <td className="text-right">
+                                    {formatNumber(grandTotal)}
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -273,27 +351,41 @@ export default function PurchaseOrderInPrint({
                     <table className="w-full">
                         <tbody>
                             <tr>
-                                <td className="w-1/2 align-top pr-4">
-                                    <div className="font-semibold underline">Note :</div>
-                                    <div>{renderValue(purchaseOrder?.note_doc)}</div>
+                                <td className="w-1/2 pr-4 align-top">
+                                    <div className="font-semibold underline">
+                                        Note :
+                                    </div>
+                                    <div>
+                                        {renderValue(purchaseOrder?.note_doc)}
+                                    </div>
                                 </td>
-                                <td className="w-1/2 align-top pl-4">
+                                <td className="w-1/2 pl-4 align-top">
                                     <table className="w-full">
                                         <tbody>
                                             <tr>
-                                                <td className="w-[100px]">Mata Uang</td>
+                                                <td className="w-[100px]">
+                                                    Mata Uang
+                                                </td>
                                                 <td className="w-[12px]">:</td>
                                                 <td>IDR</td>
                                             </tr>
                                             <tr>
                                                 <td>NPWP</td>
                                                 <td>:</td>
-                                                <td>{renderValue(customer?.npwp_cs)}</td>
+                                                <td>
+                                                    {renderValue(
+                                                        customer?.npwp_cs,
+                                                    )}
+                                                </td>
                                             </tr>
                                             <tr>
                                                 <td>Alamat NPWP</td>
                                                 <td>:</td>
-                                                <td>{renderValue(customer?.npwp1_cs)}</td>
+                                                <td>
+                                                    {renderValue(
+                                                        customer?.npwp1_cs,
+                                                    )}
+                                                </td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -309,30 +401,36 @@ export default function PurchaseOrderInPrint({
                             <tr>
                                 <td className="w-[100px]">Payment</td>
                                 <td className="w-[12px]">:</td>
-                                <td>{renderValue(purchaseOrder?.payment_term)}</td>
+                                <td>
+                                    {renderValue(purchaseOrder?.payment_term)}
+                                </td>
                             </tr>
                             <tr>
                                 <td>Delivery Time</td>
                                 <td>:</td>
-                                <td>{formatDate(purchaseOrder?.delivery_date)}</td>
+                                <td>
+                                    {formatDate(purchaseOrder?.delivery_date)}
+                                </td>
                             </tr>
                             <tr>
                                 <td>Franco Loco</td>
                                 <td>:</td>
-                                <td>{renderValue(purchaseOrder?.franco_loco)}</td>
+                                <td>
+                                    {renderValue(purchaseOrder?.franco_loco)}
+                                </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
-                <div className="mt-12 grid grid-cols-2 text-center text-[11px]">
-                    <div className="space-y-12">
+                <div className="mt-12 flex text-[11px]">
+                    <div className="w-1/2 space-y-12">
                         <div>Dibuat Oleh,</div>
-                        <div>Marketing </div>
+                        <div className="font-semibold">Marketing</div>
                     </div>
-                    <div className="space-y-12">
+                    <div className="w-1/2 space-y-12 pl-4">
                         <div>Disetujui Oleh,</div>
-                        <div>Head Office</div>
+                        <div className="font-semibold">Head Office</div>
                     </div>
                 </div>
             </div>
