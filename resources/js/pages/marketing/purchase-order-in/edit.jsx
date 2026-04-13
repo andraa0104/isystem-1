@@ -211,6 +211,8 @@ export default function PurchaseOrderInEdit({
                   totalPricePoIn: String(toNumber(item.total_price_po_in ?? 0)),
                   note: item.remark ?? '',
                   hasPr: !!(item.has_pr && toNumber(item.has_pr) > 0),
+                  sisaQtyPr: toNumber(item.sisa_qtypr ?? 0),
+                  sisaQtyDo: toNumber(item.sisa_qtydo ?? 0),
               }))
             : [],
     );
@@ -1306,36 +1308,42 @@ export default function PurchaseOrderInEdit({
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
-                                                    {!item.hasPr && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() =>
-                                                                handleEditItem(
-                                                                    item,
-                                                                )
-                                                            }
-                                                            title="Edit"
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                        </Button>
-                                                    )}
-                                                    {!item.hasPr && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() =>
-                                                                handleDeleteItem(
-                                                                    item.id,
-                                                                )
-                                                            }
-                                                            title="Hapus"
-                                                        >
-                                                            <Trash2 className="size-4" />
-                                                        </Button>
-                                                    )}
+                                                    {!item.hasPr &&
+                                                        toNumber(
+                                                            item.sisaQtyDo ?? 0,
+                                                        ) >=
+                                                            toNumber(
+                                                                item.qty ?? 0,
+                                                            ) && (
+                                                            <>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() =>
+                                                                        handleEditItem(
+                                                                            item,
+                                                                        )
+                                                                    }
+                                                                    title="Edit"
+                                                                >
+                                                                    <Pencil className="size-4" />
+                                                                </Button>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() =>
+                                                                        handleDeleteItem(
+                                                                            item.id,
+                                                                        )
+                                                                    }
+                                                                    title="Hapus"
+                                                                >
+                                                                    <Trash2 className="size-4" />
+                                                                </Button>
+                                                            </>
+                                                        )}
                                                 </div>
                                             </td>
                                         </tr>

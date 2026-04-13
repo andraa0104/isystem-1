@@ -10,3 +10,4 @@ storage/framework/views
 public/hot
 public/storage
 docker-compose.override.yml
+public/build

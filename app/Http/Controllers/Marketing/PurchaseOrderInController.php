@@ -295,9 +295,10 @@ class PurchaseOrderInController
             ->addSelect([
                 'd.*',
                 'has_pr' => DB::table('tb_detailpr as pr')
-                    ->whereColumn('pr.ref_po', DB::raw(DB::getPdo()->quote((string)$purchaseOrderIn->no_poin)))
-                    ->whereColumn('pr.for_customer', DB::raw(DB::getPdo()->quote((string)$purchaseOrderIn->customer_name)))
+                    ->whereRaw("lower(trim(pr.ref_po)) = lower(trim(?))", [(string)$purchaseOrderIn->no_poin])
+                    ->whereRaw("lower(trim(pr.for_customer)) = lower(trim(?))", [(string)$purchaseOrderIn->customer_name])
                     ->whereColumn('pr.kd_material', 'd.kd_material')
+                    ->whereRaw("coalesce(cast(replace(pr.sisa_pr, ',', '') as decimal(65,4)), 0) < coalesce(cast(replace(pr.qty, ',', '') as decimal(65,4)), 0)")
                     ->selectRaw('count(*)')
             ])
             ->orderBy('d.line_no')
@@ -1007,18 +1008,30 @@ class PurchaseOrderInController
                 ], 404);
             }
 
-            // Check if this material has been used in a PR
+            // Check if this material has been used in a PR AND that PR has been processed
             $poHeader = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
             if ($poHeader) {
-                $hasPr = DB::table('tb_detailpr')
-                    ->where('ref_po', $poHeader->no_poin)
-                    ->where('for_customer', $poHeader->customer_name)
+                $hasProcessedPr = DB::table('tb_detailpr')
+                    ->whereRaw("lower(trim(ref_po)) = lower(trim(?))", [(string)$poHeader->no_poin])
+                    ->whereRaw("lower(trim(for_customer)) = lower(trim(?))", [(string)$poHeader->customer_name])
                     ->where('kd_material', $detail->kd_material)
+                    ->whereRaw("coalesce(cast(replace(sisa_pr, ',', '') as decimal(65,4)), 0) < coalesce(cast(replace(qty, ',', '') as decimal(65,4)), 0)")
                     ->exists();
 
-                if ($hasPr) {
+                if ($hasProcessedPr) {
                     return response()->json([
-                        'message' => 'Material tidak dapat diubah karena sudah dibuat PR.',
+                        'message' => 'Material tidak dapat diubah karena PR sudah diproses menjadi PO.',
+                    ], 422);
+                }
+            }
+
+            // Also check if any qty has been received directly (MI)
+            if (isset($detail->sisa_qtydo) && isset($detail->qty)) {
+                $sisaQtyDo = (float)($detail->sisa_qtydo ?? 0);
+                $qty = (float)($detail->qty ?? 0);
+                if ($sisaQtyDo < $qty) {
+                    return response()->json([
+                        'message' => 'Material tidak dapat diubah karena sudah ada penerimaan material (MI).',
                     ], 422);
                 }
             }
@@ -1101,18 +1114,30 @@ class PurchaseOrderInController
                 ], 404);
             }
 
-            // Check if this material has been used in a PR
+            // Check if this material has been used in a PR AND that PR has been processed
             $poHeader = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
             if ($poHeader) {
-                $hasPr = DB::table('tb_detailpr')
-                    ->where('ref_po', $poHeader->no_poin)
-                    ->where('for_customer', $poHeader->customer_name)
+                $hasProcessedPr = DB::table('tb_detailpr')
+                    ->whereRaw("lower(trim(ref_po)) = lower(trim(?))", [(string)$poHeader->no_poin])
+                    ->whereRaw("lower(trim(for_customer)) = lower(trim(?))", [(string)$poHeader->customer_name])
                     ->where('kd_material', $detail->kd_material)
+                    ->whereRaw("coalesce(cast(replace(sisa_pr, ',', '') as decimal(65,4)), 0) < coalesce(cast(replace(qty, ',', '') as decimal(65,4)), 0)")
                     ->exists();
 
-                if ($hasPr) {
+                if ($hasProcessedPr) {
                     return response()->json([
-                        'message' => 'Material tidak dapat dihapus karena sudah dibuat PR.',
+                        'message' => 'Material tidak dapat dihapus karena PR sudah diproses menjadi PO.',
+                    ], 422);
+                }
+            }
+
+            // Also check if any qty has been received directly (MI)
+            if (isset($detail->sisa_qtydo) && isset($detail->qty)) {
+                $sisaQtyDo = (float)($detail->sisa_qtydo ?? 0);
+                $qty = (float)($detail->qty ?? 0);
+                if ($sisaQtyDo < $qty) {
+                    return response()->json([
+                        'message' => 'Material tidak dapat dihapus karena sudah ada penerimaan material (MI).',
                     ], 422);
                 }
             }
