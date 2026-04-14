@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Marketing\QuotationController;
 use App\Http\Controllers\Marketing\PurchaseRequirementController;
 use App\Http\Controllers\Marketing\PurchaseOrderController;
+use App\Http\Controllers\Marketing\AIPredictionController;
 use App\Http\Controllers\Marketing\PurchaseOrderInController;
 use App\Http\Controllers\Marketing\DeliveryOrderController;
 use App\Http\Controllers\Marketing\DeliveryOrderAddController;
@@ -242,6 +243,8 @@ Route::get('marketing/purchase-order-in/customers', [PurchaseOrderInController::
     ->name('marketing.purchase-order-in.customers');
 Route::post('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'storeCustomer'])
     ->name('marketing.purchase-order-in.customers.store');
+Route::post('marketing/purchase-order-in/predict', [AIPredictionController::class, 'predictPOIn'])
+    ->name('marketing.purchase-order-in.predict');
 Route::get('marketing/purchase-order-in/{kodePoin}/show', [PurchaseOrderInController::class, 'show'])
     ->name('marketing.purchase-order-in.show');
 Route::get('marketing/purchase-order-in/{kodePoin}/print', [PurchaseOrderInController::class, 'print'])

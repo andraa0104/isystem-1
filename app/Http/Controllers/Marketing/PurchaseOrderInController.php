@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 use Throwable;
 
@@ -77,7 +78,23 @@ class PurchaseOrderInController
             $statusFilter = 'outstanding';
         }
 
+        // 1. Optimized Subqueries for Status and Delete checks
+        $detailStats = DB::table('tb_detailpoin')
+            ->select('kode_poin')
+            ->selectRaw('count(*) as total_items')
+            ->selectRaw('sum(case when coalesce(cast(sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as changed_count')
+            ->selectRaw('sum(case when coalesce(cast(sisa_qtypr as decimal(18,4)), 0) > 0 then 1 else 0 end) as unrealized_items')
+            ->selectRaw('sum(case when coalesce(cast(sisa_qtypr as decimal(18,4)), 0) < coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as started_items')
+            ->groupBy('kode_poin');
+
+        $prCheck = DB::table('tb_pr')
+            ->select('ref_po')
+            ->selectRaw('count(*) as pr_count')
+            ->groupBy('ref_po');
+
         $query = DB::table('tb_poin as p')
+            ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
+            ->leftJoinSub($prCheck, 'pc', 'pc.ref_po', '=', 'p.no_poin')
             ->select(
                 'p.id',
                 'p.kode_poin',
@@ -86,27 +103,10 @@ class PurchaseOrderInController
                 'p.delivery_date',
                 'p.customer_name',
                 'p.grand_total',
-                DB::raw("case when exists (
-                    select 1 from tb_pr pr
-                    where lower(trim(pr.ref_po)) = lower(trim(p.no_poin))
-                ) then 0 else 1 end as can_delete"),
+                DB::raw("case when pc.pr_count is null then 1 else 0 end as can_delete"),
                 DB::raw("case 
-                    when not exists (
-                        select 1 from tb_detailpoin d
-                        where d.kode_poin = p.kode_poin
-                        and coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(d.qty as decimal(18,4)), 0)
-                    ) and exists (
-                        select 1 from tb_detailpoin d where d.kode_poin = p.kode_poin
-                    ) then 'outstanding'
-                    when exists (
-                        select 1 from tb_detailpoin d
-                        where d.kode_poin = p.kode_poin
-                        and coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) < coalesce(cast(d.qty as decimal(18,4)), 0)
-                    ) and exists (
-                        select 1 from tb_detailpoin d
-                        where d.kode_poin = p.kode_poin
-                        and coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0
-                    ) then 'sisa_pr'
+                    when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 'outstanding'
+                    when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 'sisa_pr'
                     else 'realized'
                 end as status_poin")
             );
@@ -121,33 +121,11 @@ class PurchaseOrderInController
         }
 
         if ($statusFilter === 'outstanding') {
-            // sisa_qtypr = qty untuk semua material (belum ada PR)
-            $query->whereNotExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(d.qty as decimal(18,4)), 0)');
-            })->whereExists(function ($q) {
-                $q->from('tb_detailpoin as d')->whereColumn('d.kode_poin', 'p.kode_poin');
-            });
+            $query->whereRaw('coalesce(ds.changed_count, 0) = 0')->whereRaw('coalesce(ds.total_items, 0) > 0');
         } elseif ($statusFilter === 'sisa_pr') {
-            // Sisa PR: PO yang minimal 1 material sisa < qty (sudah mulai PR)
-            // DAN minimal 1 material sisa > 0 (masih ada yang harus dibuat PR)
-            $query->whereExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) < coalesce(cast(d.qty as decimal(18,4)), 0)');
-            })->whereExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
-            });
+            $query->whereRaw('coalesce(ds.started_items, 0) > 0')->whereRaw('coalesce(ds.unrealized_items, 0) > 0');
         } elseif ($statusFilter === 'realized') {
-            // sisa_qtypr = 0 untuk semua material (semua selesai PR)
-            $query->whereNotExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
-            });
+            $query->whereRaw('coalesce(ds.unrealized_items, 0) = 0');
         }
 
         $total = (clone $query)->count();
@@ -161,86 +139,27 @@ class PurchaseOrderInController
                 ->get();
         }
 
-        $outstandingTotal = DB::table('tb_poin as p')
-            ->whereNotExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(d.qty as decimal(18,4)), 0)');
-            })
-            ->whereExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin');
-            })
-            ->count();
-
-        $belumPrTotal = DB::table('tb_poin as p')
-            ->whereExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) < coalesce(cast(d.qty as decimal(18,4)), 0)');
-            })
-            ->whereExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
-            })
-            ->count();
-
-        $realizedTotal = DB::table('tb_poin as p')
-            ->whereNotExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
-            })
-            ->count();
-
-        // Separate query for modals to fetch ONLY necessary columns and only if needed
-        // For now, to maintain compatibility with the frontend local filter/search, 
-        // we still fetch the collections but with selected columns.
-        $outstandingRows = DB::table('tb_poin as p')
-            ->whereNotExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(d.qty as decimal(18,4)), 0)');
-            })
-            ->whereExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin');
-            })
-            ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.customer_name', 'p.grand_total')
-            ->orderByDesc('p.id')
-            ->get();
-
-        $belumPrRows = DB::table('tb_poin as p')
-            ->whereExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) < coalesce(cast(d.qty as decimal(18,4)), 0)');
-            })
-            ->whereExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
-            })
-            ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.customer_name', 'p.grand_total')
-            ->orderByDesc('p.id')
-            ->get();
-
-        $realizedRows = DB::table('tb_poin as p')
-            ->whereNotExists(function ($q) {
-                $q->from('tb_detailpoin as d')
-                    ->whereColumn('d.kode_poin', 'p.kode_poin')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
-            })
-            ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.customer_name', 'p.grand_total')
-            ->orderByDesc('p.id')
-            ->get();
-
         $now = now();
-        $startToday = $now->copy()->startOfDay()->toDateString();
-        $startWeek = $now->copy()->startOfWeek()->toDateString();
-        $startMonth = $now->copy()->startOfMonth()->toDateString();
-        $startYear = $now->copy()->startOfYear()->toDateString();
+        $startToday = $now->copy()->startOfDay()->toDateTimeString();
+        $startWeek = $now->copy()->startOfWeek()->toDateTimeString();
+        $startMonth = $now->copy()->startOfMonth()->toDateTimeString();
+        $startYear = $now->copy()->startOfYear()->toDateTimeString();
+
+        $detailStatsCounts = DB::table('tb_detailpoin')
+            ->select('kode_poin')
+            ->selectRaw('count(*) as total_items')
+            ->selectRaw('sum(case when coalesce(cast(sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as changed_count')
+            ->selectRaw('sum(case when coalesce(cast(sisa_qtypr as decimal(18,4)), 0) > 0 then 1 else 0 end) as unrealized_items')
+            ->selectRaw('sum(case when coalesce(cast(sisa_qtypr as decimal(18,4)), 0) < coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as started_items')
+            ->groupBy('kode_poin');
+
+        $statusData = DB::table('tb_poin as p')
+            ->leftJoinSub($detailStatsCounts, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
+            ->selectRaw("count(*) as total")
+            ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding")
+            ->selectRaw("count(case when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 1 end) as belum_pr")
+            ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 then 1 end) as realized")
+            ->first();
 
         $periodCounts = DB::table('tb_poin')
             ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
@@ -249,20 +168,37 @@ class PurchaseOrderInController
             ->selectRaw("count(case when created_at >= ? then 1 end) as year", [$startYear])
             ->first();
 
-        // Optimized summary data only
+        $summary = [
+            'total'      => (int) $statusData->total,
+            'outstanding' => (int) $statusData->outstanding,
+            'belum_pr'   => (int) $statusData->belum_pr,
+            'realized'   => (int) $statusData->realized,
+            'data_counts' => [
+                'today' => (int) $periodCounts->today,
+                'week'  => (int) $periodCounts->week,
+                'month' => (int) $periodCounts->month,
+                'year'  => (int) $periodCounts->year,
+            ]
+        ];
+
+        // Restore modal data collections with optimized queries
+        $base = DB::table('tb_poin as p')
+            ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
+            ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.customer_name', 'p.grand_total')
+            ->orderByDesc('p.id');
+
+        $modalData = [
+            'outstanding' => (clone $base)->whereRaw('coalesce(ds.changed_count, 0) = 0')->whereRaw('ds.kode_poin is not null')->get(),
+            'belum_pr'    => (clone $base)->whereRaw('coalesce(ds.started_items, 0) > 0')->whereRaw('coalesce(ds.unrealized_items, 0) > 0')->get(),
+            'realized'    => (clone $base)->whereRaw('coalesce(ds.unrealized_items, 0) = 0')->get(),
+        ];
+
+        $outstandingRows = $modalData['outstanding'];
+        $belumPrRows = $modalData['belum_pr'];
+        $realizedRows = $modalData['realized'];
+
         return Inertia::render('marketing/purchase-order-in/index', [
-            'summary' => [
-                'total'      => DB::table('tb_poin')->count(),
-                'outstanding' => $outstandingTotal,
-                'belum_pr'   => $belumPrTotal,
-                'realized'   => $realizedTotal,
-                'data_counts' => [
-                    'today' => $periodCounts->today,
-                    'week'  => $periodCounts->week,
-                    'month' => $periodCounts->month,
-                    'year'  => $periodCounts->year,
-                ]
-            ],
+            'summary' => $summary,
             'purchaseOrderIns'          => $rows,
             'outstandingPurchaseOrderIns' => $outstandingRows,
             'belumPrPurchaseOrderIns'   => $belumPrRows,
@@ -498,7 +434,6 @@ class PurchaseOrderInController
                 'total' => $materials->count(),
             ]);
         }
-
         $page = max(1, (int) $request->query('page', 1));
         $total = (clone $query)->count();
         $materials = (clone $query)
@@ -596,7 +531,6 @@ class PurchaseOrderInController
                 'total' => $data->count(),
             ]);
         }
-
         $page = max(1, (int) $request->query('page', 1));
         $total = (clone $query)->count();
         $data = (clone $query)
@@ -773,6 +707,8 @@ class PurchaseOrderInController
                 if (!empty($detailData)) {
                     DB::table('tb_detailpoin')->insert($detailData);
                 }
+                
+                
             });
 
             if ($request->header('X-Inertia')) {

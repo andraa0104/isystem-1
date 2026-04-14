@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Request;
@@ -403,42 +404,38 @@ class DashboardController
     private function getPdbStats()
     {
         if (!Schema::hasTable('tb_kdpdb')) {
-            return ['items' => [], 'total' => 0, 'count' => 0, 'last_update' => null];
+            return ['total' => 0, 'count' => 0, 'last_update' => null];
         }
 
-        // Note: As per request, we are not displaying items now, but keeping data structure compatible
-        // just in case, or simplifying. Here we simplify to just stats.
-        $total = DB::table('tb_kdpdb')->where('Sisa', '>', 0)->sum('Sisa');
-        $count = DB::table('tb_kdpdb')->where('Sisa', '>', 0)->count();
-        $lastUpdate = DB::table('tb_kdpdb')
+        // Single query: sum, count, and max date in one pass
+        $row = DB::table('tb_kdpdb')
             ->where('Sisa', '>', 0)
-            ->orderByDesc('Tgl_Posting')
-            ->value('Tgl_Posting');
+            ->selectRaw('SUM(Sisa) as total, COUNT(*) as cnt, MAX(Tgl_Posting) as last_update')
+            ->first();
 
         return [
-            'total' => (float) $total,
-            'count' => (int) $count,
-            'last_update' => $lastUpdate,
+            'total'       => (float) ($row->total ?? 0),
+            'count'       => (int)   ($row->cnt ?? 0),
+            'last_update' => $row->last_update ?? null,
         ];
     }
 
     private function getPdoStats()
     {
         if (!Schema::hasTable('tb_kdpdo')) {
-            return ['items' => [], 'total' => 0, 'count' => 0, 'last_update' => null];
+            return ['total' => 0, 'count' => 0, 'last_update' => null];
         }
 
-        $total = DB::table('tb_kdpdo')->where('sisa_pdo', '>', 0)->sum('sisa_pdo');
-        $count = DB::table('tb_kdpdo')->where('sisa_pdo', '>', 0)->count();
-        $lastUpdate = DB::table('tb_kdpdo')
+        // Single query: sum, count, and max date in one pass
+        $row = DB::table('tb_kdpdo')
             ->where('sisa_pdo', '>', 0)
-            ->orderByDesc('posting_date')
-            ->value('posting_date');
+            ->selectRaw('SUM(sisa_pdo) as total, COUNT(*) as cnt, MAX(posting_date) as last_update')
+            ->first();
 
         return [
-            'total' => (float) $total,
-            'count' => (int) $count,
-            'last_update' => $lastUpdate,
+            'total'       => (float) ($row->total ?? 0),
+            'count'       => (int)   ($row->cnt ?? 0),
+            'last_update' => $row->last_update ?? null,
         ];
     }
 
@@ -453,8 +450,7 @@ class DashboardController
             $group = 'month';
         }
 
-        $data = $this->getSalesHppStatsData($period, $group);
-        return response()->json($data);
+        return response()->json($this->getSalesHppStatsData($period, $group));
     }
 
     private function getSalesHppStatsData(string $period, string $group = 'week')

@@ -110,6 +110,7 @@ class QuotationController
                     ->whereRaw('lower(trim(No_penawaran)) = ?', [strtolower($noPenawaran)])
                     ->delete();
             });
+
         } catch (\Throwable $e) {
             return response()->json([
                 'message' => $e->getMessage(),
@@ -470,6 +471,7 @@ class QuotationController
             return back()->with('error', $exception->getMessage());
         }
 
+
         return redirect()
             ->route('marketing.quotation.index')
             ->with('success', 'Data quotation berhasil diperbarui.');
@@ -640,6 +642,7 @@ class QuotationController
                 return back()->with('error', $exception->getMessage());
             }
         }
+
 
         return redirect()
             ->route('marketing.quotation.index')

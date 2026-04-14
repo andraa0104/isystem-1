@@ -18,7 +18,7 @@ import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { formatDateId } from '@/lib/formatters';
 import { Head, Link, router } from '@inertiajs/react';
-import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
+import { Eye, Loader2, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -107,7 +107,7 @@ export default function PurchaseOrderIndex({
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
     const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
     const [isRealizedLoading, setIsRealizedLoading] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
+    const [deletingId, setDeletingId] = useState(null);
     const [realizedList, setRealizedList] = useState([]);
     const [realizedSearchTerm, setRealizedSearchTerm] = useState('');
     const [realizedPageSize, setRealizedPageSize] = useState(5);
@@ -473,8 +473,8 @@ export default function PurchaseOrderIndex({
     };
 
     const handleDeletePo = (noPo) => {
-        if (!noPo || isDeleting) return;
-        // tutup modal outstanding supaya overlay tidak menghalangi swal
+        if (!noPo || deletingId) return;
+        // Tutup modal agar Swal overlay tidak terblokir Dialog
         setIsOutstandingModalOpen(false);
         Swal.fire({
             title: 'Hapus PO?',
@@ -485,15 +485,21 @@ export default function PurchaseOrderIndex({
             cancelButtonText: 'Batal',
             reverseButtons: true,
         }).then((result) => {
-            if (!result.isConfirmed) return;
-            setIsDeleting(true);
+            if (!result.isConfirmed) {
+                // Batal: buka kembali modal
+                setIsOutstandingModalOpen(true);
+                return;
+            }
+            // Konfirmasi: buka kembali modal agar spinner pada baris terlihat
+            setDeletingId(noPo);
+            setIsOutstandingModalOpen(true);
             fetch(`/pembelian/purchase-order/${encodeURIComponent(noPo)}`, {
                 method: 'DELETE',
                 headers: {
                     Accept: 'application/json',
                     'X-CSRF-TOKEN':
                         document
-                            .querySelector('meta[name=\"csrf-token\"]')
+                            .querySelector('meta[name="csrf-token"]')
                             ?.getAttribute('content') ?? '',
                 },
             })
@@ -549,7 +555,7 @@ export default function PurchaseOrderIndex({
                         width: 800,
                     });
                 })
-                .finally(() => setIsDeleting(false));
+                .finally(() => setDeletingId(null));
         });
     };
 
@@ -1642,10 +1648,16 @@ export default function PurchaseOrderIndex({
                                                                     )
                                                                 }
                                                                 disabled={
-                                                                    isDeleting
+                                                                    deletingId !==
+                                                                    null
                                                                 }
                                                             >
-                                                                <Trash2 className="size-4 text-destructive" />
+                                                                {deletingId ===
+                                                                item.no_po ? (
+                                                                    <Loader2 className="size-4 animate-spin" />
+                                                                ) : (
+                                                                    <Trash2 className="size-4 text-destructive" />
+                                                                )}
                                                             </ActionIconButton>
                                                         )}
                                                     </div>

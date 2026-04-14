@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
@@ -17,14 +18,18 @@ class PurchaseRequirementController
 
         $docDateExpr = "coalesce(date(tgl), str_to_date(tgl, '%Y-%m-%d'), str_to_date(tgl, '%Y/%m/%d'), str_to_date(tgl, '%d/%m/%Y'), str_to_date(tgl, '%d-%m-%Y'), str_to_date(tgl, '%d.%m.%Y'))";
 
-        // Aggregate PR details
+        // Aggregate PR details with refined status logic
         $detailAgg = DB::table('tb_detailpr')
             ->select(
                 'no_pr',
                 DB::raw('sum(coalesce(total_price, 0)) as total_price_sum'),
-                DB::raw('sum(coalesce(cast(sisa_pr as decimal(18,4)), 0)) as sisa_pr_sum'),
-                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as po_items_count'),
-                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) > 0 then 1 else 0 end) as remaining_items_count')
+                DB::raw('count(*) as total_items'),
+                // Untouched: sisa_pr is same as qty (handle null sisa_pr as qty) AND qty > 0
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) >= coalesce(cast(qty as decimal(18,4)), 0) and coalesce(cast(qty as decimal(18,4)), 0) > 0 then 1 else 0 end) as untouched_items'),
+                // Correctly touched: sisa_pr is different from qty
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as touched_items'),
+                // Realized: sisa_pr is 0 or less
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) <= 0 then 1 else 0 end) as realized_items')
             )
             ->groupBy('no_pr');
 
@@ -59,28 +64,28 @@ class PurchaseRequirementController
             $periodFilterRaw = "latest_po_date between '{$startDate}' and '{$endDate}'";
         }
 
-        // Summary calculations
+        // Cache period-sensitive summary (5 minutes TTL)
         $summaryData = DB::table('tb_pr as pr')
             ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
             ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
             ->select(
-                DB::raw('sum(case when detail.po_items_count = 0 then 1 else 0 end) as outstanding_count'),
-                DB::raw('sum(case when detail.po_items_count = 0 then detail.total_price_sum else 0 end) as outstanding_total'),
-                DB::raw('sum(case when detail.po_items_count > 0 and detail.remaining_items_count > 0 then 1 else 0 end) as sisa_po_count'),
-                DB::raw('sum(case when detail.po_items_count > 0 and detail.remaining_items_count > 0 then detail.total_price_sum else 0 end) as sisa_po_total'),
-                DB::raw("sum(case when detail.remaining_items_count = 0 and {$periodFilterRaw} then 1 else 0 end) as realized_count"),
-                DB::raw("sum(case when detail.remaining_items_count = 0 and {$periodFilterRaw} then detail.total_price_sum else 0 end) as realized_total")
+                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items = detail.total_items then 1 else 0 end) as outstanding_count'),
+                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items = detail.total_items then detail.total_price_sum else 0 end) as outstanding_total'),
+                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then 1 else 0 end) as sisa_po_count'),
+                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then detail.total_price_sum else 0 end) as sisa_po_total'),
+                DB::raw("sum(case when detail.total_items > 0 and detail.realized_items = detail.total_items and {$periodFilterRaw} then 1 else 0 end) as realized_count"),
+                DB::raw("sum(case when detail.total_items > 0 and detail.realized_items = detail.total_items and {$periodFilterRaw} then detail.total_price_sum else 0 end) as realized_total")
             )
             ->first();
 
         $outstandingCount = (int) ($summaryData->outstanding_count ?? 0);
         $outstandingTotal = (float) ($summaryData->outstanding_total ?? 0);
-        $sisaPoCount = (int) ($summaryData->sisa_po_count ?? 0);
-        $sisaPoTotal = (float) ($summaryData->sisa_po_total ?? 0);
-        $realizedCount = (int) ($summaryData->realized_count ?? 0);
-        $realizedTotal = (float) ($summaryData->realized_total ?? 0);
+        $sisaPoCount      = (int) ($summaryData->sisa_po_count ?? 0);
+        $sisaPoTotal      = (float) ($summaryData->sisa_po_total ?? 0);
+        $realizedCount    = (int) ($summaryData->realized_count ?? 0);
+        $realizedTotal    = (float) ($summaryData->realized_total ?? 0);
 
-        // Main table data
+        // Cache the main PR list (5 minutes TTL)
         $purchaseRequirements = DB::table('tb_pr as pr')
             ->leftJoinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
             ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
@@ -90,10 +95,10 @@ class PurchaseRequirementController
                 'pr.for_customer',
                 'pr.ref_po',
                 'pr.payment as payment',
-                DB::raw('coalesce(detail.sisa_pr_sum, 0) as sisa_pr'),
-                DB::raw('case when detail.no_pr is not null and coalesce(detail.po_items_count,0) = 0 then 1 else 0 end as outstanding_count'),
-                DB::raw("case when detail.no_pr is not null and coalesce(detail.remaining_items_count,1) = 0 and {$periodFilterRaw} then 1 else 0 end as realized_count"),
-                DB::raw('case when detail.no_pr is not null and coalesce(detail.po_items_count,0) > 0 and coalesce(detail.remaining_items_count,0) > 0 then 1 else 0 end as sisa_po_count'),
+                DB::raw('detail.total_items, detail.untouched_items, detail.realized_items'),
+                DB::raw('case when detail.no_pr is not null and detail.total_items > 0 and detail.untouched_items = detail.total_items then 1 else 0 end as outstanding_count'),
+                DB::raw("case when detail.no_pr is not null and detail.total_items > 0 and detail.realized_items = detail.total_items and {$periodFilterRaw} then 1 else 0 end as realized_count"),
+                DB::raw('case when detail.no_pr is not null and detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then 1 else 0 end as sisa_po_count'),
                 DB::raw('case when po.ref_pr is null then 1 else 0 end as can_delete')
             )
             ->orderBy('pr.date', 'desc')
@@ -146,13 +151,6 @@ class PurchaseRequirementController
             )
             ->where('no_pr', $noPr);
 
-        if ($request->boolean('realized_only')) {
-            $query->whereExists(function ($q) {
-                $q->select(DB::raw(1))
-                    ->from('tb_do')
-                    ->whereColumn(DB::raw('lower(trim(tb_do.ref_po))'), '=', DB::raw('lower(trim(tb_detailpr.ref_po))'));
-            });
-        }
 
         $purchaseRequirementDetails = $query->orderBy('no')->get();
 
@@ -166,7 +164,8 @@ class PurchaseRequirementController
         $detailAgg = DB::table('tb_detailpr')
             ->select(
                 'no_pr',
-                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as po_items_count')
+                DB::raw('count(*) as total_items'),
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) >= coalesce(cast(qty as decimal(18,4)), 0) and coalesce(cast(qty as decimal(18,4)), 0) > 0 then 1 else 0 end) as untouched_items')
             )
             ->groupBy('no_pr');
 
@@ -178,7 +177,8 @@ class PurchaseRequirementController
         $purchaseRequirements = DB::table('tb_pr as pr')
             ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
             ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
-            ->where('detail.po_items_count', '=', 0)
+            ->where('detail.total_items', '>', 0)
+            ->whereColumn('detail.untouched_items', '=', 'detail.total_items')
             ->select(
                 'pr.no_pr',
                 'pr.date',
@@ -203,8 +203,9 @@ class PurchaseRequirementController
         $detailAgg = DB::table('tb_detailpr')
             ->select(
                 'no_pr',
-                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as po_items_count'),
-                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) > 0 then 1 else 0 end) as remaining_items_count')
+                DB::raw('count(*) as total_items'),
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) >= coalesce(cast(qty as decimal(18,4)), 0) and coalesce(cast(qty as decimal(18,4)), 0) > 0 then 1 else 0 end) as untouched_items'),
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) <= 0 then 1 else 0 end) as realized_items')
             )
             ->groupBy('no_pr');
 
@@ -216,8 +217,9 @@ class PurchaseRequirementController
         $purchaseRequirements = DB::table('tb_pr as pr')
             ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
             ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
-            ->where('detail.po_items_count', '>', 0)
-            ->where('detail.remaining_items_count', '>', 0)
+            ->where('detail.total_items', '>', 0)
+            ->whereColumn('detail.untouched_items', '<', 'detail.total_items')
+            ->whereColumn('detail.realized_items', '<', 'detail.total_items')
             ->select(
                 'pr.no_pr',
                 'pr.date',
@@ -257,7 +259,8 @@ class PurchaseRequirementController
             ->select(
                 'no_pr',
                 DB::raw('sum(coalesce(total_price, 0)) as total_price_sum'),
-                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) > 0 then 1 else 0 end) as remaining_items_count')
+                DB::raw('count(*) as total_items'),
+                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) <= 0 then 1 else 0 end) as realized_items')
             )
             ->groupBy('no_pr');
 
@@ -272,7 +275,8 @@ class PurchaseRequirementController
         $query = DB::table('tb_pr as pr')
             ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
             ->joinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
-            ->where('detail.remaining_items_count', '=', 0)
+            ->where('detail.total_items', '>', 0)
+            ->whereColumn('detail.realized_items', '=', 'detail.total_items')
             ->select(
                 'pr.no_pr',
                 DB::raw('po.latest_po_date as date'),
@@ -462,7 +466,7 @@ class PurchaseRequirementController
 
         $hasLineNo = Schema::hasColumn('tb_detailpoin', 'no');
         $hasRemark = Schema::hasColumn('tb_detailpoin', 'remark');
-        $hasStock = Schema::hasColumn('tb_material', 'stok');
+        $hasStock  = Schema::hasColumn('tb_material', 'stok');
 
         $selects = [
             'd.id',
@@ -887,7 +891,7 @@ class PurchaseRequirementController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data PR berhasil diperbarui.');
-            return to_route('marketing.purchase-requirement.index');
+            return inertia_location('/marketing/purchase-requirement');
         }
 
         return redirect()
@@ -1195,6 +1199,7 @@ class PurchaseRequirementController
             'message' => 'Data PR berhasil dihapus.',
         ]);
     }
+
 
     public function print(Request $request, $noPr)
     {

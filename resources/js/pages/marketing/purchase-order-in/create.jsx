@@ -165,6 +165,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     });
     const [customerCreateErrors, setCustomerCreateErrors] = useState({});
     const [isCustomerCreating, setIsCustomerCreating] = useState(false);
+    const [isPredicting, setIsPredicting] = useState(false);
     const [validationErrors, setValidationErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -507,6 +508,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 customerCode: customer.kd_cs ?? '',
                 customerName: customer.nm_cs ?? '',
             }));
+            predictFields(customer.nm_cs);
             setValidationErrors((prev) => ({ ...prev, customerName: '' }));
             setIsCustomerCreateModalOpen(false);
             setIsCustomerModalOpen(false);
@@ -529,6 +531,55 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             toast('error', error?.message || 'Gagal menyimpan customer.');
         } finally {
             setIsCustomerCreating(false);
+        }
+    };
+
+    const predictFields = async (customerName) => {
+        if (!customerName) return;
+        setIsPredicting(true);
+        try {
+            const token = document
+                .querySelector('meta[name="csrf-token"]')
+                ?.getAttribute('content');
+
+            const response = await fetch(
+                '/marketing/purchase-order-in/predict',
+                {
+                    method: 'POST',
+                    headers: {
+                        Accept: 'application/json',
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': token ?? '',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    body: JSON.stringify({ customer_name: customerName }),
+                },
+            );
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.confidence > 50) {
+                    setForm((prev) => ({
+                        ...prev,
+                        ppnPercent:
+                            data.ppn !== null
+                                ? String(data.ppn)
+                                : prev.ppnPercent,
+                        francoLoco: data.franco || prev.francoLoco,
+                        paymentTerm: data.payment_term || prev.paymentTerm,
+                    }));
+                    if (data.confidence > 70) {
+                        toast(
+                            'success',
+                            `AI: Mengisi PPN, Franco & Term (${data.confidence}% yakin)`,
+                        );
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('AI Prediction error:', error);
+        } finally {
+            setIsPredicting(false);
         }
     };
 
@@ -944,9 +995,14 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     </div>
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="payment_term">
-                                        Payment Term
-                                    </Label>
+                                    <div className="flex items-center gap-2">
+                                        <Label htmlFor="payment_term">
+                                            Payment Term
+                                        </Label>
+                                        {isPredicting && (
+                                            <Spinner className="size-3" />
+                                        )}
+                                    </div>
                                     <Input
                                         id="payment_term"
                                         value={form.paymentTerm}
@@ -962,7 +1018,14 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="ppn_percent">PPN (%)</Label>
+                                    <div className="flex items-center gap-2">
+                                        <Label htmlFor="ppn_percent">
+                                            PPN (%)
+                                        </Label>
+                                        {isPredicting && (
+                                            <Spinner className="size-3" />
+                                        )}
+                                    </div>
                                     <Input
                                         id="ppn_percent"
                                         className={
@@ -994,9 +1057,14 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     )}
                                 </div>
                                 <div className="grid gap-2 md:col-span-2">
-                                    <Label htmlFor="franco_loco">
-                                        Franco/Loco
-                                    </Label>
+                                    <div className="flex items-center gap-2">
+                                        <Label htmlFor="franco_loco">
+                                            Franco/Loco
+                                        </Label>
+                                        {isPredicting && (
+                                            <Spinner className="size-3" />
+                                        )}
+                                    </div>
                                     <Input
                                         id="franco_loco"
                                         className={
@@ -1830,6 +1898,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                         customerName:
                                                             item.nm_cs ?? '',
                                                     }));
+                                                    predictFields(item.nm_cs);
                                                     setValidationErrors(
                                                         (prev) => ({
                                                             ...prev,

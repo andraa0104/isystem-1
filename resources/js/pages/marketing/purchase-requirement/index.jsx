@@ -406,7 +406,7 @@ export default function PurchaseRequirementIndex({
             startIndex + materialPageSize,
         );
     }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
-    const handleOpenModal = (item, realizedOnly = false) => {
+    const handleOpenModal = (item) => {
         setSelectedPr(item);
         setIsModalOpen(true);
         setSelectedDetails([]);
@@ -416,9 +416,6 @@ export default function PurchaseRequirementIndex({
         setMaterialPageSize(10);
         setMaterialCurrentPage(1);
         const params = new URLSearchParams({ no_pr: item.no_pr });
-        if (realizedOnly) {
-            params.append('realized_only', '1');
-        }
         fetch(`/marketing/purchase-requirement/details?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         })
@@ -1951,7 +1948,6 @@ export default function PurchaseRequirementIndex({
                                                             );
                                                             handleOpenModal(
                                                                 item,
-                                                                true,
                                                             );
                                                         }}
                                                     >

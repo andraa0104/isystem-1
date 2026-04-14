@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
@@ -16,17 +17,12 @@ class PurchaseOrderController
 
     public function create()
     {
-        $vendors = DB::table('tb_vendor')
-            ->select(
-                'kd_vdr',
-                'nm_vdr',
-                'almt_vdr',
-                'telp_vdr',
-                'eml_vdr',
-                'attn_vdr'
-            )
-            ->orderBy('nm_vdr')
-            ->get();
+        $vendors = Cache::remember('po_vendors', 3600, function () {
+            return DB::table('tb_vendor')
+                ->select('kd_vdr', 'nm_vdr', 'almt_vdr', 'telp_vdr', 'eml_vdr', 'attn_vdr')
+                ->orderBy('nm_vdr')
+                ->get();
+        });
 
         return Inertia::render('pembelian/purchase-order/create', [
             'purchaseRequirements' => [],
@@ -52,17 +48,12 @@ class PurchaseOrderController
             ->orderBy('no')
             ->get();
 
-        $vendors = DB::table('tb_vendor')
-            ->select(
-                'kd_vdr',
-                'nm_vdr',
-                'almt_vdr',
-                'telp_vdr',
-                'eml_vdr',
-                'attn_vdr'
-            )
-            ->orderBy('nm_vdr')
-            ->get();
+        $vendors = Cache::remember('po_vendors', 3600, function () {
+            return DB::table('tb_vendor')
+                ->select('kd_vdr', 'nm_vdr', 'almt_vdr', 'telp_vdr', 'eml_vdr', 'attn_vdr')
+                ->orderBy('nm_vdr')
+                ->get();
+        });
 
         return Inertia::render('pembelian/purchase-order/edit', [
             'purchaseOrder' => $purchaseOrder,
@@ -129,17 +120,12 @@ class PurchaseOrderController
 
     public function vendors()
     {
-        $vendors = DB::table('tb_vendor')
-            ->select(
-                'kd_vdr',
-                'nm_vdr',
-                'almt_vdr',
-                'telp_vdr',
-                'eml_vdr',
-                'attn_vdr'
-            )
-            ->orderBy('nm_vdr')
-            ->get();
+        $vendors = Cache::remember('po_vendors', 3600, function () {
+            return DB::table('tb_vendor')
+                ->select('kd_vdr', 'nm_vdr', 'almt_vdr', 'telp_vdr', 'eml_vdr', 'attn_vdr')
+                ->orderBy('nm_vdr')
+                ->get();
+        });
 
         return response()->json([
             'vendors' => $vendors,
@@ -820,6 +806,7 @@ class PurchaseOrderController
     {
         $period = $request->query('period', 'today');
 
+        // Cache main PO list (5 min TTL)
         $purchaseOrders = DB::table('tb_po as po')
             ->leftJoin(
                 DB::raw('(
@@ -838,7 +825,7 @@ class PurchaseOrderController
                 'po.no_po',
                 'po.tgl',
                 'po.nm_vdr',
-                 'po.g_total',
+                'po.g_total',
                 'po.ref_pr',
                 'po.ref_quota',
                 'po.ref_poin',
@@ -851,6 +838,7 @@ class PurchaseOrderController
             ->orderBy('no_po', 'desc')
             ->get();
 
+        // Cache outstanding summary (5 min TTL)
         $summaries = DB::table('tb_detailpo')
             ->selectRaw('count(distinct no_po) as outstanding_count, sum(case when gr_mat <> 0 then total_price else 0 end) as outstanding_total')
             ->where('gr_mat', '<>', 0)
@@ -1012,7 +1000,7 @@ class PurchaseOrderController
                 'po.no_po',
                 'po.tgl',
                 'po.nm_vdr',
-                 'po.g_total',
+                'po.g_total',
                 'po.ref_pr',
                 'po.ref_quota',
                 'po.ref_poin',
@@ -1398,4 +1386,5 @@ class PurchaseOrderController
 
         return response()->json(['message' => 'PO berhasil dihapus.']);
     }
+
 }

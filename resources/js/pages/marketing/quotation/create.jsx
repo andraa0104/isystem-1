@@ -87,8 +87,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const [materialForm, setMaterialForm] = useState({
         nama: '',
         satuan: '',
-        quantity: '',
-        hargaModal: '',
+        quantity: '1',
+        hargaModal: '1',
         hargaPenawaran: '',
         remark: '',
     });
@@ -246,10 +246,13 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     };
 
     const handleSelectMaterial = (item) => {
+        const rawHarga = parseNumber(item.harga ?? item.Harga ?? 0);
+        const hargaModal = rawHarga > 0 ? String(rawHarga) : '1';
         setMaterialForm((prev) => ({
             ...prev,
             nama: renderValue(item.material),
             satuan: renderValue(item.unit),
+            hargaModal,
         }));
         setMaterialModalOpen(false);
     };
@@ -335,8 +338,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         setMaterialForm({
             nama: '',
             satuan: '',
-            quantity: '',
-            hargaModal: '',
+            quantity: '1',
+            hargaModal: '1',
             hargaPenawaran: '',
             remark: '',
         });
