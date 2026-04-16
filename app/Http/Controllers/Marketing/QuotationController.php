@@ -122,28 +122,8 @@ class QuotationController
 
     public function index(Request $request)
     {
-        $penawaran = DB::table('tb_penawaran as p')
-            ->select(
-                'p.No_penawaran',
-                'p.Tgl_penawaran',
-                'p.Tgl_Posting',
-                'p.Customer',
-                'p.Alamat',
-                'p.Telp',
-                'p.Fax',
-                'p.Email',
-                'p.Attend',
-                'p.Validity',
-                'p.Delivery',
-                'p.Franco',
-                'p.Note1',
-                'p.Note2',
-                'p.Note3',
-                DB::raw('1 as can_delete')
-            )
-            ->orderBy('p.Tgl_Posting', 'desc')
-            ->orderBy('p.No_penawaran', 'desc')
-            ->get();
+        $period = $request->query('period', 'today');
+        $penawaran = $this->getPenawaranQuery($period)->get();
 
         $detailNo = trim((string) $request->query('detail_no', ''));
         $detailNo = $detailNo !== '' ? $detailNo : null;
@@ -190,7 +170,58 @@ class QuotationController
             'penawaran' => $penawaran,
             'penawaranDetail' => $penawaranDetail,
             'detailNo' => $detailNo,
+            'period' => $period,
         ]);
+    }
+
+    public function data(Request $request)
+    {
+        $period = $request->query('period', 'today');
+        $penawaran = $this->getPenawaranQuery($period)->get();
+
+        return response()->json([
+            'penawaran' => $penawaran,
+        ]);
+    }
+
+    private function getPenawaranQuery($period)
+    {
+        $query = DB::table('tb_penawaran as p')
+            ->select(
+                'p.No_penawaran',
+                'p.Tgl_penawaran',
+                'p.Tgl_Posting',
+                'p.Customer',
+                'p.Alamat',
+                'p.Telp',
+                'p.Fax',
+                'p.Email',
+                'p.Attend',
+                'p.Validity',
+                'p.Delivery',
+                'p.Franco',
+                'p.Note1',
+                'p.Note2',
+                'p.Note3',
+                DB::raw('1 as can_delete')
+            );
+
+        if ($period === 'today') {
+            $query->whereDate('p.Tgl_Posting', Carbon::today()->toDateString());
+        } elseif ($period === 'week') {
+            $query->whereBetween('p.Tgl_Posting', [
+                Carbon::now()->startOfWeek()->toDateString(),
+                Carbon::now()->endOfWeek()->toDateString()
+            ]);
+        } elseif ($period === 'month') {
+            $query->whereMonth('p.Tgl_Posting', Carbon::now()->month)
+                  ->whereYear('p.Tgl_Posting', Carbon::now()->year);
+        } elseif ($period === 'year') {
+            $query->whereYear('p.Tgl_Posting', Carbon::now()->year);
+        }
+
+        return $query->orderBy('p.Tgl_Posting', 'desc')
+            ->orderBy('p.No_penawaran', 'desc');
     }
 
     public function create()

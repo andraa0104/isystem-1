@@ -807,61 +807,89 @@ class PurchaseOrderController
         $period = $request->query('period', 'today');
 
         // 1. Fetch main PO list with current status flags
-        $purchaseOrders = DB::table('tb_po as po')
-            ->leftJoin(
-                DB::raw('(
-                    select
-                        no_po,
-                        -- Outstanding: Every item has gr_mat >= qty (considering only items with qty > 0)
-                        case when sum(case when round(coalesce(qty, 0), 4) > 0 then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) < round(coalesce(qty, 0), 4) then 1 else 0 end) = 0 
-                        then 1 else 0 end as is_outstanding,
-                        
-                        -- Realized: Every item has gr_mat <= 0 (considering only items with qty > 0)
-                        case when sum(case when round(coalesce(qty, 0), 4) > 0 then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) > 0 then 1 else 0 end) = 0 
-                        then 1 else 0 end as is_fully_realized,
-                        
-                        -- Partial: Something started (gr_mat < qty) AND something remains (gr_mat > 0)
-                        case when sum(case when round(coalesce(qty, 0), 4) > 0 then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) < round(coalesce(qty, 0), 4) then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) > 0 then 1 else 0 end) > 0 
-                        then 1 else 0 end as is_partial
-                    from tb_detailpo
-                    group by no_po
-                ) as detail'),
-                DB::raw('lower(trim(po.no_po))'),
-                '=',
-                DB::raw('lower(trim(detail.no_po))')
-            )
-            ->select(
-                'po.no_po',
-                'po.tgl',
-                'po.nm_vdr',
-                'po.g_total',
-                'po.ref_pr',
-                'po.ref_quota',
-                'po.ref_poin',
-                'po.ppn',
-                'po.s_total',
-                'po.h_ppn',
-                DB::raw('coalesce(detail.is_outstanding, 0) as is_outstanding'),
-                DB::raw('coalesce(detail.is_partial, 0) as is_partial'),
-                DB::raw('coalesce(detail.is_fully_realized, 0) as is_fully_realized')
-            )
+        // 1. Efficient Summary Counts (Direct DB queries are faster than collection filtering for large datasets)
+        // 1. Efficient Summary Stats (Consolidated into single-pass grouped aggregation)
+        $outstandingIds = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->groupBy('no_po')
+            ->havingRaw('sum(case when coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) = 0')
+            ->havingRaw('count(*) > 0')
+            ->pluck('no_po');
+
+        $outstandingStats = DB::table('tb_po')
+            ->whereIn('no_po', $outstandingIds)
+            ->selectRaw('count(*) as count, sum(g_total) as total')
+            ->first();
+
+        $outstandingCount = (int) ($outstandingStats->count ?? 0);
+        $outstandingTotal = (float) ($outstandingStats->total ?? 0);
+
+        $partialIds = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->groupBy('no_po')
+            ->havingRaw('sum(case when coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
+            ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0')
+            ->pluck('no_po');
+
+        $partialStats = DB::table('tb_po')
+            ->whereIn('no_po', $partialIds)
+            ->selectRaw('count(*) as count, sum(g_total) as total')
+            ->first();
+
+        $partialCount = (int) ($partialStats->count ?? 0);
+        $partialTotal = (float) ($partialStats->total ?? 0);
+
+        // 2. Fetch main PO headers
+        // We fetch the latest 1500 POs PLUS any PO that is Outstanding or Partial 
+        // to ensure the dashboard cards and table filter are synchronized.
+        $recentPurchaseOrders = DB::table('tb_po as po')
+            ->select('po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn')
             ->orderBy('tgl', 'desc')
             ->orderBy('no_po', 'desc')
+            ->limit(1500)
             ->get();
 
-        // 2. Calculate summary counts for cards
-        // Outstanding and Partial are current totals
-        $outstandingFiltered = $purchaseOrders->where('is_outstanding', 1);
-        $outstandingCount = $outstandingFiltered->count();
-        $outstandingTotal = $outstandingFiltered->sum('g_total');
+        $specialStatusPurchaseOrders = collect();
+        $specialStatusIds = $outstandingIds->merge($partialIds)->unique();
+        
+        // Only fetch if there are special status POs not in the recent list
+        $recentIds = $recentPurchaseOrders->pluck('no_po')->all();
+        $missingSpecialIds = $specialStatusIds->diff($recentIds);
+        
+        if ($missingSpecialIds->isNotEmpty()) {
+            $specialStatusPurchaseOrders = DB::table('tb_po as po')
+                ->select('po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn')
+                ->whereIn('po.no_po', $missingSpecialIds)
+                ->get();
+        }
 
-        $partialFiltered = $purchaseOrders->where('is_partial', 1);
-        $partialCount = $partialFiltered->count();
-        $partialTotal = $partialFiltered->sum('g_total');
+        $purchaseOrders = $recentPurchaseOrders->merge($specialStatusPurchaseOrders);
+        $poNumbers = $purchaseOrders->pluck('no_po')->unique()->all();
+
+        // 3. Single-query status aggregation for the fetched POs
+        $poStatuses = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->selectRaw("
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 
+                     and sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized
+            ")
+            ->whereIn('no_po', $poNumbers)
+            ->groupBy('no_po')
+            ->get()
+            ->keyBy('no_po');
+
+        // Merge statuses into PO collection
+        $purchaseOrders->transform(function($item) use ($poStatuses) {
+            $status = $poStatuses->get($item->no_po);
+            $item->is_outstanding = $status->is_outstanding ?? 0;
+            $item->is_partial = $status->is_partial ?? 0;
+            $item->is_fully_realized = $status->is_fully_realized ?? 0;
+            return $item;
+        });
+
+        // 4. Realized stats in specific period (Activity-based)
 
         // 3. Realized in specific period (Activity-based)
         $docDateExpr = "coalesce(date(k.doc_tgl), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%d.%m.%Y'))";
@@ -881,50 +909,40 @@ class PurchaseOrderController
             $endDate = $now->copy()->endOfYear()->toDateString();
         }
 
-        $realizedStats = DB::table('tb_po as po')
-            ->join('tb_kdmi as k', 'k.ref_pr', '=', 'po.no_po')
-            ->leftJoin(
-                DB::raw('(
-                    select 
-                        no_po, 
-                        case when round(coalesce(sum(gr_mat), 0), 4) <= 0 then 1 else 0 end as is_done 
-                    from tb_detailpo 
-                    group by no_po
-                ) as d'),
-                DB::raw('trim(po.no_po)'),
-                '=',
-                DB::raw('trim(d.no_po)')
-            )
-            ->where(DB::raw('coalesce(d.is_done, 0)'), '=', 1)
+        // 5. Optimized Realized Counts (Period-based)
+        $poNumbersInPeriod = DB::table('tb_kdmi as k')
             ->whereRaw("{$docDateExpr} >= ?", [$startDate])
             ->whereRaw("{$docDateExpr} <= ?", [$endDate])
-            ->selectRaw('count(distinct po.no_po) as r_count')
-            ->first();
+            ->pluck('ref_pr')
+            ->unique()
+            ->filter()
+            ->all();
 
-        // More accurate total calculation for realized
-        $realizedPOsInPeriod = DB::table('tb_po as po')
-            ->join('tb_kdmi as k', 'k.ref_pr', '=', 'po.no_po')
-            ->leftJoin(
-                DB::raw('(
-                    select 
-                        no_po, 
-                        case when round(coalesce(sum(gr_mat), 0), 4) <= 0 then 1 else 0 end as is_done 
-                    from tb_detailpo 
-                    group by no_po
-                ) as d'),
-                DB::raw('trim(po.no_po)'),
-                '=',
-                DB::raw('trim(d.no_po)')
-            )
-            ->where(DB::raw('coalesce(d.is_done, 0)'), '=', 1)
-            ->whereRaw("{$docDateExpr} >= ?", [$startDate])
-            ->whereRaw("{$docDateExpr} <= ?", [$endDate])
-            ->select('po.no_po', 'po.g_total')
-            ->groupBy('po.no_po', 'po.g_total')
-            ->get();
+        if (empty($poNumbersInPeriod)) {
+            $realizedCount = 0;
+            $realizedTotal = 0;
+        } else {
+            // Find which of these POs are actually finished (no items with gr_mat > 0)
+            $finishedPoNumbers = DB::table('tb_detailpo')
+                ->whereIn('no_po', $poNumbersInPeriod)
+                ->groupBy('no_po')
+                ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 then 1 else 0 end) = 0')
+                ->pluck('no_po')
+                ->all();
 
-        $realizedCount = $realizedPOsInPeriod->count();
-        $realizedTotal = $realizedPOsInPeriod->sum('g_total');
+            if (empty($finishedPoNumbers)) {
+                $realizedCount = 0;
+                $realizedTotal = 0;
+            } else {
+                $realizedQuery = DB::table('tb_po')
+                    ->whereIn('no_po', $finishedPoNumbers)
+                    ->selectRaw('count(*) as count, sum(g_total) as total')
+                    ->first();
+                    
+                $realizedCount = (int) ($realizedQuery->count ?? 0);
+                $realizedTotal = (float) ($realizedQuery->total ?? 0);
+            }
+        }
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -967,21 +985,11 @@ class PurchaseOrderController
         $docDateExpr = "coalesce(date(k.doc_tgl), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%d.%m.%Y'))";
 
         $query = DB::table('tb_po as po')
-            ->join('tb_kdmi as k', function ($join) {
-                $join->on(DB::raw('lower(trim(po.no_po))'), '=', DB::raw('lower(trim(k.ref_pr))'));
+            ->join('tb_kdmi as k', 'po.no_po', '=', 'k.ref_pr')
+            ->whereNotExists(function($q) {
+                $q->select(DB::raw(1))->from('tb_detailpo as d')->whereColumn('d.no_po', 'po.no_po')
+                  ->whereRaw('coalesce(d.gr_mat, 0) > 0');
             })
-            ->leftJoin(
-                DB::raw('(
-                    select 
-                        no_po, 
-                        case when round(coalesce(sum(gr_mat), 0), 4) <= 0 then 1 else 0 end as is_done 
-                    from tb_detailpo 
-                    group by no_po
-                ) as d'),
-                DB::raw('trim(po.no_po)'),
-                '=',
-                DB::raw('trim(d.no_po)')
-            )
             ->select(
                 'po.no_po',
                 'po.tgl',
@@ -992,10 +1000,9 @@ class PurchaseOrderController
                 'po.ref_poin',
                 'po.ppn',
                 'po.s_total',
-                'po.h_ppn',
-                DB::raw('0 as is_outstanding')
+                'po.h_ppn'
             )
-            ->where(DB::raw('coalesce(d.is_done, 0)'), '=', 1)
+            ->selectRaw('0 as is_outstanding')
             ->distinct();
 
         $now = now();
@@ -1013,14 +1020,12 @@ class PurchaseOrderController
             $query->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
         }
 
+        $realizedTotal = (clone $query)->sum('g_total');
+
         $purchaseOrders = $query
             ->orderBy('po.tgl', 'desc')
             ->orderBy('po.no_po', 'desc')
             ->get();
-
-        $realizedTotal = $purchaseOrders->sum(function ($item) {
-            return (float) ($item->g_total ?? 0);
-        });
 
         $purchaseOrders->transform(function ($item) {
             if ($item->tgl) {
@@ -1040,54 +1045,78 @@ class PurchaseOrderController
 
     public function data()
     {
+        // Outstanding IDs for sync
+        $outstandingIds = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->groupBy('no_po')
+            ->havingRaw('sum(case when coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) = 0')
+            ->havingRaw('count(*) > 0')
+            ->pluck('no_po');
+
+        // Partial IDs for sync
+        $partialIds = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->groupBy('no_po')
+            ->havingRaw('sum(case when coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
+            ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0')
+            ->pluck('no_po');
+
+        $recentPurchaseOrders = DB::table('tb_po as po')
+            ->select('po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn')
+            ->orderBy('tgl', 'desc')
+            ->orderBy('no_po', 'desc')
+            ->limit(1500)
+            ->get();
+
+        $specialStatusPurchaseOrders = collect();
+        $specialStatusIds = $outstandingIds->merge($partialIds)->unique();
+        $recentIds = $recentPurchaseOrders->pluck('no_po')->all();
+        $missingSpecialIds = $specialStatusIds->diff($recentIds);
+        
+        if ($missingSpecialIds->isNotEmpty()) {
+            $specialStatusPurchaseOrders = DB::table('tb_po as po')
+                ->select('po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn')
+                ->whereIn('po.no_po', $missingSpecialIds)
+                ->get();
+        }
+
+        $purchaseOrders = $recentPurchaseOrders->merge($specialStatusPurchaseOrders);
+        $poNumbers = $purchaseOrders->pluck('no_po')->unique()->all();
+
+        // Single-query status aggregation for the merged list
+        $poStatuses = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->selectRaw("
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 
+                     and sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized
+            ")
+            ->whereIn('no_po', $poNumbers)
+            ->groupBy('no_po')
+            ->get()
+            ->keyBy('no_po');
+
+        $purchaseOrders->transform(function($item) use ($poStatuses) {
+            $status = $poStatuses->get($item->no_po);
+            $item->is_outstanding = $status->is_outstanding ?? 0;
+            $item->is_partial = $status->is_partial ?? 0;
+            $item->is_fully_realized = $status->is_fully_realized ?? 0;
+            return $item;
+        });
+
         $invinAgg = DB::table('tb_invin')
             ->select('ref_po')
             ->whereNotNull('ref_po')
-            ->groupBy('ref_po');
+            ->whereIn('ref_po', $poNumbers)
+            ->groupBy('ref_po')
+            ->pluck('ref_po')
+            ->all();
 
-        $purchaseOrders = DB::table('tb_po as po')
-            ->leftJoin(
-                DB::raw('(
-                    select
-                        no_po,
-                        case when sum(case when round(coalesce(qty, 0), 4) > 0 then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) < round(coalesce(qty, 0), 4) then 1 else 0 end) = 0 
-                        then 1 else 0 end as is_outstanding,
-                        
-                        case when sum(case when round(coalesce(qty, 0), 4) > 0 then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) > 0 then 1 else 0 end) = 0 
-                        then 1 else 0 end as is_fully_realized,
-                        
-                        case when sum(case when round(coalesce(qty, 0), 4) > 0 then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) < round(coalesce(qty, 0), 4) then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) > 0 then 1 else 0 end) > 0 
-                        then 1 else 0 end as is_partial
-                    from tb_detailpo
-                    group by no_po
-                ) as detail'),
-                DB::raw('lower(trim(po.no_po))'),
-                '=',
-                DB::raw('lower(trim(detail.no_po))')
-            )
-            ->leftJoinSub($invinAgg, 'invin', 'po.no_po', '=', 'invin.ref_po')
-            ->select(
-                'po.no_po',
-                'po.tgl',
-                'po.nm_vdr',
-                'po.g_total',
-                'po.ref_pr',
-                'po.ref_quota',
-                'po.ref_poin',
-                'po.ppn',
-                'po.s_total',
-                'po.h_ppn',
-                DB::raw('coalesce(detail.is_outstanding, 0) as is_outstanding'),
-                DB::raw('coalesce(detail.is_partial, 0) as is_partial'),
-                DB::raw('case when invin.ref_po is null then 1 else 0 end as can_delete')
-            )
-            ->orderBy('tgl', 'desc')
-            ->orderBy('no_po', 'desc')
-            ->get();
+        $purchaseOrders->transform(function ($item) use ($invinAgg) {
+            $item->can_delete = !in_array($item->no_po, $invinAgg);
+            return $item;
+        });
 
         $purchaseOrders->transform(function ($item) {
             if ($item->tgl) {
@@ -1177,36 +1206,19 @@ class PurchaseOrderController
             ->groupBy('ref_po');
 
         $purchaseOrders = DB::table('tb_po as po')
-            ->leftJoin(
-                DB::raw('(
-                    select
-                        no_po,
-                        case when sum(case when round(coalesce(qty, 0), 4) > 0 then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) < round(coalesce(qty, 0), 4) then 1 else 0 end) = 0 
-                        then 1 else 0 end as is_outstanding
-                    from tb_detailpo
-                    group by no_po
-                ) as detail'),
-                DB::raw('lower(trim(po.no_po))'),
-                '=',
-                DB::raw('lower(trim(detail.no_po))')
-            )
-            ->leftJoinSub($invinAgg, 'invin', 'po.no_po', '=', 'invin.ref_po')
             ->select(
-                'po.no_po',
-                'po.tgl',
-                'po.nm_vdr',
-                'po.g_total',
-                'po.ref_pr',
-                'po.ref_quota',
-                'po.ref_poin',
-                'po.ppn',
-                'po.s_total',
-                'po.h_ppn',
-                DB::raw('coalesce(detail.is_outstanding, 0) as is_outstanding'),
-                DB::raw('case when invin.ref_po is null then 1 else 0 end as can_delete')
+                'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn'
             )
-            ->where(DB::raw('coalesce(detail.is_outstanding, 0)'), '=', 1)
+            ->whereNotExists(function($q) {
+                $q->select(DB::raw(1))->from('tb_detailpo as d')->whereColumn('d.no_po', 'po.no_po')
+                  ->whereRaw('coalesce(d.gr_mat, 0) < coalesce(d.qty, 0)');
+            })
+            ->whereExists(function($q) {
+                $q->select(DB::raw(1))->from('tb_detailpo as d')->whereColumn('d.no_po', 'po.no_po');
+            })
+            ->leftJoinSub($invinAgg, 'invin', 'po.no_po', '=', 'invin.ref_po')
+            ->selectRaw('case when invin.ref_po is null then 1 else 0 end as can_delete')
+            ->selectRaw('1 as is_outstanding')
             ->orderBy('tgl', 'desc')
             ->orderBy('no_po', 'desc')
             ->get();
@@ -1234,41 +1246,20 @@ class PurchaseOrderController
             ->groupBy('ref_po');
 
         $purchaseOrders = DB::table('tb_po as po')
-            ->leftJoin(
-                DB::raw('(
-                    select
-                        no_po,
-                        case when sum(case when round(coalesce(qty, 0), 4) > 0 then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) > 0 then 1 else 0 end) = 0 
-                        then 1 else 0 end as is_fully_realized,
-                        
-                        case when sum(case when round(coalesce(qty, 0), 4) > 0 then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) < round(coalesce(qty, 0), 4) then 1 else 0 end) > 0 
-                             and sum(case when round(coalesce(qty, 0), 4) > 0 and round(coalesce(gr_mat, 0), 4) > 0 then 1 else 0 end) > 0 
-                        then 1 else 0 end as is_partial
-                    from tb_detailpo
-                    group by no_po
-                ) as detail'),
-                DB::raw('lower(trim(po.no_po))'),
-                '=',
-                DB::raw('lower(trim(detail.no_po))')
-            )
-            ->leftJoinSub($invinAgg, 'invin', 'po.no_po', '=', 'invin.ref_po')
             ->select(
-                'po.no_po',
-                'po.tgl',
-                'po.nm_vdr',
-                'po.g_total',
-                'po.ref_pr',
-                'po.ref_quota',
-                'po.ref_poin',
-                'po.ppn',
-                'po.s_total',
-                'po.h_ppn',
-                DB::raw('coalesce(detail.is_partial, 0) as is_partial'),
-                DB::raw('case when invin.ref_po is null then 1 else 0 end as can_delete')
+                'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn'
             )
-            ->where(DB::raw('coalesce(detail.is_partial, 0)'), '=', 1)
+            ->whereExists(function($q) {
+                $q->select(DB::raw(1))->from('tb_detailpo as d')->whereColumn('d.no_po', 'po.no_po')
+                  ->whereRaw('coalesce(d.gr_mat, 0) < coalesce(d.qty, 0)');
+            })
+            ->whereExists(function($q) {
+                $q->select(DB::raw(1))->from('tb_detailpo as d')->whereColumn('d.no_po', 'po.no_po')
+                  ->whereRaw('coalesce(d.gr_mat, 0) > 0');
+            })
+            ->leftJoinSub($invinAgg, 'invin', 'po.no_po', '=', 'invin.ref_po')
+            ->selectRaw('case when invin.ref_po is null then 1 else 0 end as can_delete')
+            ->selectRaw('1 as is_partial')
             ->orderBy('tgl', 'desc')
             ->orderBy('no_po', 'desc')
             ->get();

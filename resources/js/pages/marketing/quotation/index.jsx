@@ -6,10 +6,17 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 
 const breadcrumbs = [
@@ -34,10 +41,14 @@ export default function QuotationIndex({
     penawaran = [],
     penawaranDetail = [],
     detailNo = null,
+    period = 'today',
 }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
+    const [statusFilter, setStatusFilter] = useState(period);
+    const [remotePenawaran, setRemotePenawaran] = useState(penawaran);
+    const [loading, setLoading] = useState(false);
     const [selectedPenawaran, setSelectedPenawaran] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [detailRows, setDetailRows] = useState([]);
@@ -48,13 +59,49 @@ export default function QuotationIndex({
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
     const [isDeleting, setIsDeleting] = useState(false);
 
+    const fetchQuotationData = useCallback(async (newPeriod) => {
+        setLoading(true);
+        try {
+            const response = await fetch(
+                `/marketing/quotation/data?period=${newPeriod}`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                },
+            );
+            const data = await response.json();
+            setRemotePenawaran(data.penawaran || []);
+        } catch (error) {
+            console.error('Error fetching quotation data:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const isFirstRender = useRef(true);
+
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+        fetchQuotationData(statusFilter);
+    }, [statusFilter, fetchQuotationData]);
+
+    const handlePeriodChange = (newPeriod) => {
+        setStatusFilter(newPeriod);
+        setCurrentPage(1);
+    };
+
     const filteredPenawaran = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
+        const dataToFilter = remotePenawaran || [];
         if (!term) {
-            return penawaran;
+            return dataToFilter;
         }
 
-        return penawaran.filter((item) => {
+        return dataToFilter.filter((item) => {
             const values = [
                 item.No_penawaran,
                 item.Tgl_penawaran,
@@ -314,7 +361,23 @@ export default function QuotationIndex({
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex flex-wrap items-center gap-3">
-                        <label className="text-sm text-muted-foreground">
+                        <Select
+                            value={statusFilter}
+                            onValueChange={handlePeriodChange}
+                        >
+                            <SelectTrigger className="w-[160px] bg-background">
+                                <SelectValue placeholder="Pilih Periode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="today">Hari Ini</SelectItem>
+                                <SelectItem value="week">Minggu Ini</SelectItem>
+                                <SelectItem value="month">Bulan Ini</SelectItem>
+                                <SelectItem value="year">Tahun Ini</SelectItem>
+                                <SelectItem value="all">Semua Data</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <label className="ml-2 text-sm text-muted-foreground">
                             Tampilkan
                             <select
                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
@@ -359,83 +422,84 @@ export default function QuotationIndex({
                             </tr>
                         </thead>
                         <tbody>
-                            {displayedPenawaran.length === 0 && (
-                                <tr>
-                                    <td
-                                        className="px-4 py-6 text-center text-muted-foreground"
-                                        colSpan={5}
+                            <PlainTableStateRows
+                                columns={5}
+                                loading={loading}
+                                isEmpty={
+                                    !loading && displayedPenawaran.length === 0
+                                }
+                            />
+                            {!loading &&
+                                displayedPenawaran.map((item) => (
+                                    <tr
+                                        key={item.No_penawaran}
+                                        className="border-t border-sidebar-border/70"
                                     >
-                                        Belum ada data penawaran.
-                                    </td>
-                                </tr>
-                            )}
-                            {displayedPenawaran.map((item) => (
-                                <tr
-                                    key={item.No_penawaran}
-                                    className="border-t border-sidebar-border/70"
-                                >
-                                    <td className="px-4 py-3">
-                                        {item.No_penawaran}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {item.Tgl_penawaran}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {item.Customer}
-                                    </td>
-                                    <td className="px-4 py-3">{item.Attend}</td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    handleOpenModal(item)
-                                                }
-                                                className="text-muted-foreground transition hover:text-foreground"
-                                                aria-label="Lihat"
-                                                title="Lihat"
-                                            >
-                                                <Eye className="size-4" />
-                                            </button>
-                                            <Link
-                                                href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/edit`}
-                                                className="text-muted-foreground transition hover:text-foreground"
-                                                aria-label="Edit"
-                                                title="Edit"
-                                            >
-                                                <Pencil className="size-4" />
-                                            </Link>
-                                            <a
-                                                href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/print`}
-                                                className="text-muted-foreground transition hover:text-foreground"
-                                                aria-label="Cetak"
-                                                title="Cetak"
-                                                target="_blank"
-                                                rel="noreferrer"
-                                            >
-                                                <Printer className="size-4" />
-                                            </a>
-                                            {Number(item.can_delete ?? 0) ===
-                                                1 && (
+                                        <td className="px-4 py-3">
+                                            {item.No_penawaran}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.Tgl_penawaran}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.Customer}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.Attend}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-2">
                                                 <button
                                                     type="button"
-                                                    className="text-muted-foreground transition hover:text-destructive"
-                                                    aria-label="Hapus"
-                                                    title="Hapus"
-                                                    disabled={isDeleting}
                                                     onClick={() =>
-                                                        handleDelete(
-                                                            item.No_penawaran,
-                                                        )
+                                                        handleOpenModal(item)
                                                     }
+                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                    aria-label="Lihat"
+                                                    title="Lihat"
                                                 >
-                                                    <Trash2 className="size-4" />
+                                                    <Eye className="size-4" />
                                                 </button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                                                <Link
+                                                    href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/edit`}
+                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                    aria-label="Edit"
+                                                    title="Edit"
+                                                >
+                                                    <Pencil className="size-4" />
+                                                </Link>
+                                                <a
+                                                    href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/print`}
+                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                    aria-label="Cetak"
+                                                    title="Cetak"
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    <Printer className="size-4" />
+                                                </a>
+                                                {Number(
+                                                    item.can_delete ?? 0,
+                                                ) === 1 && (
+                                                    <button
+                                                        type="button"
+                                                        className="text-muted-foreground transition hover:text-destructive"
+                                                        aria-label="Hapus"
+                                                        title="Hapus"
+                                                        disabled={isDeleting}
+                                                        onClick={() =>
+                                                            handleDelete(
+                                                                item.No_penawaran,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash2 className="size-4" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                         </tbody>
                     </table>
                 </div>

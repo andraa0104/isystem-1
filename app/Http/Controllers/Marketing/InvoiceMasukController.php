@@ -11,15 +11,19 @@ class InvoiceMasukController
 {
     public function index(Request $request)
     {
+        $unbilledQuery = DB::table('tb_kdinvin')->where('pembayaran', 0);
+        $unbilledCount = (int) $unbilledQuery->count();
+        $unbilledTotal = (float) $unbilledQuery->sum('sisa_bayar');
+
         return Inertia::render('pembelian/invoice-masuk/index', [
             'invoices' => [],
             'summary' => [
-                'unbilled_count' => 0,
-                'unbilled_total' => 0,
+                'unbilled_count' => $unbilledCount,
+                'unbilled_total' => $unbilledTotal,
             ],
             'filters' => [
                 'search' => null,
-                'status' => 'all',
+                'status' => 'belum_dibayar',
                 'pageSize' => 5,
             ],
         ]);
@@ -51,7 +55,7 @@ class InvoiceMasukController
     public function data(Request $request)
     {
         $search = $request->query('search');
-        $status = $request->query('status', 'all');
+        $status = $request->query('status', 'belum_dibayar');
         // pageSize tetap dikirim dari frontend tapi pagination dilakukan di sisi klien
         // agar bisa menampilkan total data untuk kontrol pagination.
         $pageSize = $request->query('pageSize', 5);

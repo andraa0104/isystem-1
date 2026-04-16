@@ -53,7 +53,6 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
 use App\Http\Controllers\SimpleAuthController;
 
-Route::get('/debug-url', [SimpleAuthController::class, 'debugUrl']);
 
 Route::get('/', [SimpleAuthController::class, 'home'])->name('home');
 
@@ -198,6 +197,8 @@ Route::get('marketing/quotation/suggest-franco', [QuotationController::class, 's
     ->name('marketing.quotation.suggest-franco');
 Route::get('marketing/quotation/customers', [QuotationController::class, 'customers'])
     ->name('marketing.quotation.customers');
+Route::get('marketing/quotation/data', [QuotationController::class, 'data'])
+    ->name('marketing.quotation.data');
 Route::get('marketing/quotation/materials', [QuotationController::class, 'materials'])
     ->name('marketing.quotation.materials');
 Route::get('marketing/quotation/create', [QuotationController::class, 'create'])
