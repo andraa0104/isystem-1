@@ -835,7 +835,7 @@ export default function PurchaseOrderInIndex({
                                         No PO In
                                     </th>
                                     <th className="px-4 py-3 text-left">
-                                        Tanggal
+                                        Date Input
                                     </th>
                                     <th className="px-4 py-3 text-left">
                                         Customer
@@ -922,7 +922,8 @@ export default function PurchaseOrderInIndex({
                                             </td>
                                             <td className="px-4 py-3">
                                                 {formatDateDisplay(
-                                                    item.date_poin,
+                                                    item.created_at ||
+                                                        item.date_poin,
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -1107,30 +1108,70 @@ export default function PurchaseOrderInIndex({
                                             </p>
                                         </div>
                                         <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                            <p className="text-xs text-muted-foreground">
+                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                                                Tgl Buat
+                                            </p>
+                                            <input
+                                                type="date"
+                                                className="h-6 w-full border-none bg-transparent p-0 text-sm font-semibold focus:ring-0"
+                                                value={
+                                                    detailHeader.created_at
+                                                        ? detailHeader.created_at.split(
+                                                              /[\sT]/,
+                                                          )[0]
+                                                        : detailHeader.date_poin &&
+                                                            detailHeader.date_poin.includes(
+                                                                '-',
+                                                            )
+                                                          ? detailHeader.date_poin
+                                                          : ''
+                                                }
+                                                readOnly
+                                            />
+                                        </div>
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                                                Term of Payment
+                                            </p>
+                                            <p className="text-sm font-semibold">
+                                                {detailHeader.payment_term ??
+                                                    '-'}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                                                Franco / Loco
+                                            </p>
+                                            <p className="text-sm font-semibold">
+                                                {detailHeader.franco_loco ??
+                                                    '-'}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                                 Date PO In
                                             </p>
-                                            <p className="font-semibold">
+                                            <p className="text-sm font-semibold">
                                                 {formatDateDisplay(
                                                     detailHeader.date_poin,
                                                 )}
                                             </p>
                                         </div>
                                         <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                            <p className="text-xs text-muted-foreground">
+                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                                 Delivery Date
                                             </p>
-                                            <p className="font-semibold">
+                                            <p className="text-sm font-semibold">
                                                 {formatDateDisplay(
                                                     detailHeader.delivery_date,
                                                 )}
                                             </p>
                                         </div>
                                         <div className="rounded-lg border border-sidebar-border/70 p-3">
-                                            <p className="text-xs text-muted-foreground">
+                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                                 PPN
                                             </p>
-                                            <p className="font-semibold">
+                                            <p className="text-sm font-semibold">
                                                 {detailHeader.ppn_input_percent ??
                                                     0}
                                                 %
@@ -1193,16 +1234,10 @@ export default function PurchaseOrderInIndex({
                                                         No
                                                     </th>
                                                     <th className="px-4 py-3 text-left">
-                                                        Kode Material
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
                                                         Material
                                                     </th>
                                                     <th className="px-4 py-3 text-left">
                                                         Qty
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Satuan
                                                     </th>
                                                     <th className="px-4 py-3 text-left">
                                                         Price PO In
@@ -1274,20 +1309,11 @@ export default function PurchaseOrderInIndex({
                                                                           1}
                                                                 </td>
                                                                 <td className="px-4 py-3 break-words">
-                                                                    {row.kd_material ??
-                                                                        '-'}
-                                                                </td>
-                                                                <td className="px-4 py-3 break-words">
                                                                     {row.material ??
                                                                         '-'}
                                                                 </td>
                                                                 <td className="px-4 py-3">
-                                                                    {row.qty ??
-                                                                        0}
-                                                                </td>
-                                                                <td className="px-4 py-3">
-                                                                    {row.satuan ??
-                                                                        '-'}
+                                                                    {`${row.qty ?? 0} ${row.satuan ?? ''}`}
                                                                 </td>
                                                                 <td className="px-4 py-3">
                                                                     {formatRupiah(
@@ -1513,7 +1539,7 @@ export default function PurchaseOrderInIndex({
                                             No PO In
                                         </th>
                                         <th className="px-4 py-3 text-left">
-                                            Tanggal
+                                            Date Input
                                         </th>
                                         <th className="px-4 py-3 text-left">
                                             Customer
@@ -1558,7 +1584,8 @@ export default function PurchaseOrderInIndex({
                                             </td>
                                             <td className="px-4 py-3">
                                                 {formatDateDisplay(
-                                                    item.date_poin,
+                                                    item.created_at ||
+                                                        item.date_poin,
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">

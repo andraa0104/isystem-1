@@ -568,12 +568,6 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                         francoLoco: data.franco || prev.francoLoco,
                         paymentTerm: data.payment_term || prev.paymentTerm,
                     }));
-                    if (data.confidence > 70) {
-                        toast(
-                            'success',
-                            `AI: Mengisi PPN, Franco & Term (${data.confidence}% yakin)`,
-                        );
-                    }
                 }
             }
         } catch (error) {

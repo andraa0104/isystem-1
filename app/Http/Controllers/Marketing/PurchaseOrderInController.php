@@ -100,6 +100,7 @@ class PurchaseOrderInController
                 'p.kode_poin',
                 'p.no_poin',
                 'p.date_poin',
+                'p.created_at',
                 'p.delivery_date',
                 'p.customer_name',
                 'p.grand_total',
