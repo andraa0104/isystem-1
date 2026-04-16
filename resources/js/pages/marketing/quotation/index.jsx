@@ -79,6 +79,10 @@ export default function QuotationIndex({
         }
     }, []);
 
+    useEffect(() => {
+        setRemotePenawaran(penawaran);
+    }, [penawaran]);
+
     const isFirstRender = useRef(true);
 
     useEffect(() => {
@@ -115,9 +119,12 @@ export default function QuotationIndex({
                     .includes(term),
             );
         });
-    }, [penawaran, searchTerm]);
+    }, [remotePenawaran, searchTerm]);
 
-    const totalItems = filteredPenawaran.length;
+    const totalItems = useMemo(
+        () => filteredPenawaran.length,
+        [filteredPenawaran],
+    );
     const totalPages = useMemo(() => {
         if (pageSize === Infinity) {
             return 1;
