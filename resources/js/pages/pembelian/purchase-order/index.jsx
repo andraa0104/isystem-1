@@ -72,20 +72,18 @@ const formatRupiah = (value) => {
     return `Rp. ${new Intl.NumberFormat('id-ID').format(number)}`;
 };
 
-const isOutstanding = (item) => {
-    const hasOutstanding = getRawValue(item, [
-        'has_outstanding',
-        'hasOutstanding',
-        'has_outstanding',
-    ]);
-    return Number(hasOutstanding) === 1;
-};
+const isOutstanding = (item) => Number(item.is_outstanding ?? 0) === 1;
 
-const isRealized = (item) => !isOutstanding(item);
+const isPartialStatus = (item) => Number(item.is_partial ?? 0) === 1;
+
+const isRealized = (item) => !isOutstanding(item) && !isPartialStatus(item);
 
 const getPoStatus = (item) => {
     if (isOutstanding(item)) {
         return { label: 'Outstanding', variant: 'secondary' };
+    }
+    if (isPartialStatus(item)) {
+        return { label: 'Sisa GR', variant: 'outline' };
     }
     return { label: 'Terealisasi', variant: 'default' };
 };
@@ -94,6 +92,8 @@ export default function PurchaseOrderIndex({
     purchaseOrders = [],
     outstandingCount = 0,
     outstandingTotal = 0,
+    partialCount = 0,
+    partialTotal = 0,
     realizedCount = 0,
     realizedTotal = 0,
     period = 'today',
@@ -118,16 +118,25 @@ export default function PurchaseOrderIndex({
         useState(outstandingCount);
     const [outstandingTotalState, setOutstandingTotalState] =
         useState(outstandingTotal);
+    const [partialCountState, setPartialCountState] = useState(partialCount);
+    const [partialTotalState, setPartialTotalState] = useState(partialTotal);
     const [realizedListPeriod, setRealizedListPeriod] = useState(periodFilter);
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedPo, setSelectedPo] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isOutstandingModalOpen, setIsOutstandingModalOpen] = useState(false);
+    const [isPartialModalOpen, setIsPartialModalOpen] = useState(false);
     const [isRealizedModalOpen, setIsRealizedModalOpen] = useState(false);
     const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
     const [outstandingPageSize, setOutstandingPageSize] = useState(5);
     const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
+    const [partialList, setPartialList] = useState([]);
+    const [partialLoading, setPartialLoading] = useState(false);
+    const [partialError, setPartialError] = useState(null);
+    const [partialSearchTerm, setPartialSearchTerm] = useState('');
+    const [partialPageSize, setPartialPageSize] = useState(5);
+    const [partialCurrentPage, setPartialCurrentPage] = useState(1);
     const [selectedDetails, setSelectedDetails] = useState([]);
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState(null);
@@ -143,6 +152,9 @@ export default function PurchaseOrderIndex({
         const term = searchTerm.trim().toLowerCase();
         const filtered = poData.filter((item) => {
             if (statusFilter === 'outstanding' && !isOutstanding(item)) {
+                return false;
+            }
+            if (statusFilter === 'partial' && !isPartialStatus(item)) {
                 return false;
             }
             if (statusFilter === 'realized' && !isRealized(item)) {
@@ -290,6 +302,52 @@ export default function PurchaseOrderIndex({
                 String(b.no_po ?? '').localeCompare(String(a.no_po ?? '')),
             );
     }, [realizedList, realizedSearchTerm]);
+
+    const partialPurchaseOrders = useMemo(() => {
+        const term = partialSearchTerm.trim().toLowerCase();
+        return partialList
+            .filter((item) => {
+                if (!isPartialStatus(item)) {
+                    return false;
+                }
+
+                if (!term) {
+                    return true;
+                }
+
+                const values = [
+                    item.no_po,
+                    item.tgl,
+                    item.nm_vdr,
+                    item.ref_pr,
+                    item.for_cus,
+                ];
+
+                return values.some((value) =>
+                    String(value ?? '')
+                        .toLowerCase()
+                        .includes(term),
+                );
+            })
+            .sort((a, b) =>
+                String(b.no_po ?? '').localeCompare(String(a.no_po ?? '')),
+            );
+    }, [partialList, partialSearchTerm]);
+
+    const partialTotalItems = partialPurchaseOrders.length;
+    const partialTotalPages = useMemo(() => {
+        if (partialPageSize === Infinity) return 1;
+        return Math.max(1, Math.ceil(partialTotalItems / partialPageSize));
+    }, [partialPageSize, partialTotalItems]);
+
+    const displayedPartialPurchaseOrders = useMemo(() => {
+        if (partialPageSize === Infinity) return partialPurchaseOrders;
+        const startIndex = (partialCurrentPage - 1) * partialPageSize;
+        return partialPurchaseOrders.slice(
+            startIndex,
+            startIndex + partialPageSize,
+        );
+    }, [partialCurrentPage, partialPageSize, partialPurchaseOrders]);
 
     const realizedTotalItems = realizedPurchaseOrders.length;
     const realizedTotalPages = useMemo(() => {
@@ -472,6 +530,43 @@ export default function PurchaseOrderIndex({
             });
     };
 
+    const loadPartial = () => {
+        if (partialLoading || partialList.length > 0) {
+            return;
+        }
+        setPartialLoading(true);
+        setPartialError(null);
+        fetch('/pembelian/purchase-order/partial', {
+            headers: { Accept: 'application/json' },
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw await readApiError(response);
+                }
+                return response.json();
+            })
+            .then((data) => {
+                setPartialList(
+                    Array.isArray(data?.purchaseOrders)
+                        ? data.purchaseOrders
+                        : [],
+                );
+                const list = Array.isArray(data?.purchaseOrders)
+                    ? data.purchaseOrders
+                    : [];
+                setPartialCountState(list.length);
+                setPartialTotalState(sumOutstandingTotal(list));
+            })
+            .catch((error) => {
+                setPartialError(
+                    normalizeApiError(error, 'Gagal memuat data PO sisa GR.'),
+                );
+            })
+            .finally(() => {
+                setPartialLoading(false);
+            });
+    };
+
     const handleDeletePo = (noPo) => {
         if (!noPo || deletingId) return;
         // Tutup modal agar Swal overlay tidak terblokir Dialog
@@ -613,6 +708,10 @@ export default function PurchaseOrderIndex({
     }, [outstandingPageSize, outstandingSearchTerm]);
 
     useEffect(() => {
+        setPartialCurrentPage(1);
+    }, [partialPageSize, partialSearchTerm]);
+
+    useEffect(() => {
         if (currentPage > totalPages) {
             setCurrentPage(totalPages);
         }
@@ -629,6 +728,12 @@ export default function PurchaseOrderIndex({
             setOutstandingCurrentPage(outstandingTotalPages);
         }
     }, [outstandingCurrentPage, outstandingTotalPages]);
+
+    useEffect(() => {
+        if (partialCurrentPage > partialTotalPages) {
+            setPartialCurrentPage(partialTotalPages);
+        }
+    }, [partialCurrentPage, partialTotalPages]);
 
     const handlePeriodChange = (event) => {
         const value = event.target.value;
@@ -650,6 +755,10 @@ export default function PurchaseOrderIndex({
             .then((data) => {
                 setRealizedCountState(data?.realizedCount ?? 0);
                 setRealizedTotalState(data?.realizedTotal ?? 0);
+                setOutstandingCountState(data?.outstandingCount ?? 0);
+                setOutstandingTotalState(data?.outstandingTotal ?? 0);
+                setPartialCountState(data?.partialCount ?? 0);
+                setPartialTotalState(data?.partialTotal ?? 0);
                 if (isRealizedModalOpen) {
                     loadRealized(value, true);
                 }
@@ -669,7 +778,16 @@ export default function PurchaseOrderIndex({
         setRealizedTotalState(realizedTotal);
         setOutstandingCountState(outstandingCount);
         setOutstandingTotalState(outstandingTotal);
-    }, [realizedCount, realizedTotal, outstandingCount, outstandingTotal]);
+        setPartialCountState(partialCount);
+        setPartialTotalState(partialTotal);
+    }, [
+        realizedCount,
+        realizedTotal,
+        outstandingCount,
+        outstandingTotal,
+        partialCount,
+        partialTotal,
+    ]);
 
     const sumOutstandingTotal = (list) =>
         list.reduce((sum, item) => {
@@ -710,7 +828,7 @@ export default function PurchaseOrderIndex({
                     </Button>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-3">
                     <button
                         type="button"
                         onClick={() => {
@@ -729,6 +847,26 @@ export default function PurchaseOrderIndex({
                                 </CardTitle>
                                 <div className="text-sm text-muted-foreground">
                                     {formatRupiah(outstandingTotalState)}
+                                </div>
+                            </CardHeader>
+                        </Card>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setIsPartialModalOpen(true);
+                            loadPartial();
+                        }}
+                        className="text-left"
+                    >
+                        <Card className="border-orange-200/50 transition hover:border-primary/60 hover:shadow-md">
+                            <CardHeader className="pb-2">
+                                <CardDescription>PO sisa GR</CardDescription>
+                                <CardTitle className="text-2xl">
+                                    {partialCountState}
+                                </CardTitle>
+                                <div className="text-sm text-muted-foreground">
+                                    {formatRupiah(partialTotalState)}
                                 </div>
                             </CardHeader>
                         </Card>
@@ -815,6 +953,7 @@ export default function PurchaseOrderIndex({
                                 <option value="outstanding">
                                     PO Outstanding
                                 </option>
+                                <option value="partial">PO Sisa GR</option>
                                 <option value="realized">PO Terealisasi</option>
                                 <option value="all">Semua Data</option>
                             </select>
@@ -1304,13 +1443,13 @@ export default function PurchaseOrderIndex({
                                                         Qty
                                                     </th>
                                                     <th className="px-4 py-3 text-left">
-                                                        Satuan
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
                                                         Price
                                                     </th>
                                                     <th className="px-4 py-3 text-left">
                                                         Total Price
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Sisa GR
                                                     </th>
                                                 </tr>
                                             </thead>
@@ -1351,21 +1490,11 @@ export default function PurchaseOrderIndex({
                                                                     )}
                                                                 </td>
                                                                 <td className="px-4 py-3">
-                                                                    {getValue(
-                                                                        detail,
-                                                                        [
-                                                                            'qty',
-                                                                            'Qty',
-                                                                        ],
-                                                                    )}
-                                                                </td>
-                                                                <td className="px-4 py-3">
-                                                                    {getValue(
-                                                                        detail,
-                                                                        [
-                                                                            'unit',
-                                                                            'Unit',
-                                                                        ],
+                                                                    {renderValue(
+                                                                        detail.qty,
+                                                                    )}{' '}
+                                                                    {renderValue(
+                                                                        detail.unit,
                                                                     )}
                                                                 </td>
                                                                 <td className="px-4 py-3">
@@ -1388,6 +1517,11 @@ export default function PurchaseOrderIndex({
                                                                                 'Total_price',
                                                                             ],
                                                                         ),
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {renderValue(
+                                                                        detail.gr_mat,
                                                                     )}
                                                                 </td>
                                                             </tr>
@@ -1957,6 +2091,237 @@ export default function PurchaseOrderIndex({
                                             disabled={
                                                 realizedCurrentPage ===
                                                 realizedTotalPages
+                                            }
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={isPartialModalOpen}
+                    onOpenChange={(open) => {
+                        setIsPartialModalOpen(open);
+                        if (open) {
+                            loadPartial();
+                        } else {
+                            setPartialSearchTerm('');
+                            setPartialPageSize(5);
+                            setPartialCurrentPage(1);
+                        }
+                    }}
+                >
+                    <DialogContent
+                        className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none"
+                        aria-describedby="po-partial-desc"
+                    >
+                        <DialogHeader>
+                            <DialogTitle>PO Sisa GR</DialogTitle>
+                            <DialogDescription id="po-partial-desc">
+                                Daftar PO yang baru terealisasi sebagian (sisa
+                                GR).
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <label>
+                                Tampilkan
+                                <select
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                    value={
+                                        partialPageSize === Infinity
+                                            ? 'all'
+                                            : partialPageSize
+                                    }
+                                    onChange={(event) => {
+                                        const value = event.target.value;
+                                        setPartialPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value),
+                                        );
+                                        setPartialCurrentPage(1);
+                                    }}
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </label>
+                            <label>
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                    placeholder="Cari no PO, no PR, customer, vendor..."
+                                    value={partialSearchTerm}
+                                    onChange={(event) =>
+                                        setPartialSearchTerm(event.target.value)
+                                    }
+                                />
+                            </label>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr className="sticky top-0 z-10 bg-muted/50">
+                                        <th className="px-4 py-3 text-left">
+                                            No PO
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Date
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Nama Vendor
+                                        </th>
+                                        <th className="px-4 py-3 text-right">
+                                            Total Price
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Action
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        columns={5}
+                                        loading={
+                                            partialLoading &&
+                                            displayedPartialPurchaseOrders.length ===
+                                                0
+                                        }
+                                        error={
+                                            displayedPartialPurchaseOrders.length ===
+                                            0
+                                                ? partialError
+                                                : null
+                                        }
+                                        onRetry={loadPartial}
+                                        isEmpty={
+                                            !partialLoading &&
+                                            !partialError &&
+                                            displayedPartialPurchaseOrders.length ===
+                                                0
+                                        }
+                                        emptyTitle="Tidak ada PO sisa GR."
+                                    />
+                                    {displayedPartialPurchaseOrders.map(
+                                        (item) => (
+                                            <tr
+                                                key={`partial-${item.no_po}`}
+                                                className="border-t border-sidebar-border/70"
+                                            >
+                                                <td className="px-4 py-3">
+                                                    {item.no_po}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {formatDateId(
+                                                        getRawValue(item, [
+                                                            'tgl',
+                                                            'Tgl',
+                                                            'date',
+                                                            'Date',
+                                                        ]),
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {getValue(item, [
+                                                        'nm_vdr',
+                                                        'Nm_vdr',
+                                                        'vendor',
+                                                        'Vendor',
+                                                    ])}
+                                                </td>
+                                                <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                    {formatRupiah(
+                                                        getValue(item, [
+                                                            'g_total',
+                                                            'G_total',
+                                                            'total',
+                                                            'Total',
+                                                        ]),
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <ActionIconButton
+                                                            label="Detail"
+                                                            onClick={() => {
+                                                                setIsPartialModalOpen(
+                                                                    false,
+                                                                );
+                                                                handleOpenModal(
+                                                                    item,
+                                                                );
+                                                            }}
+                                                        >
+                                                            <Eye className="size-4" />
+                                                        </ActionIconButton>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ),
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {partialPageSize !== Infinity &&
+                            partialTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                    <span>
+                                        Menampilkan{' '}
+                                        {Math.min(
+                                            (partialCurrentPage - 1) *
+                                                partialPageSize +
+                                                1,
+                                            partialTotalItems,
+                                        )}
+                                        -
+                                        {Math.min(
+                                            partialCurrentPage *
+                                                partialPageSize,
+                                            partialTotalItems,
+                                        )}{' '}
+                                        dari {partialTotalItems} data
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setPartialCurrentPage((page) =>
+                                                    Math.max(1, page - 1),
+                                                )
+                                            }
+                                            disabled={partialCurrentPage === 1}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground">
+                                            Halaman {partialCurrentPage} dari{' '}
+                                            {partialTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setPartialCurrentPage((page) =>
+                                                    Math.min(
+                                                        partialTotalPages,
+                                                        page + 1,
+                                                    ),
+                                                )
+                                            }
+                                            disabled={
+                                                partialCurrentPage ===
+                                                partialTotalPages
                                             }
                                         >
                                             Berikutnya

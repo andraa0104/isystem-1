@@ -302,8 +302,8 @@ Route::get('pembelian/purchase-order/details', [PurchaseOrderController::class, 
     ->name('pembelian.purchase-order.details');
 Route::get('pembelian/purchase-order/outstanding', [PurchaseOrderController::class, 'outstanding'])
     ->name('pembelian.purchase-order.outstanding');
-Route::get('pembelian/purchase-order/realized', [PurchaseOrderController::class, 'realized'])
-    ->name('pembelian.purchase-order.realized');
+Route::get('pembelian/purchase-order/partial', [PurchaseOrderController::class, 'partial'])
+    ->name('pembelian.purchase-order.partial');
 Route::get('pembelian/purchase-order/realized', [PurchaseOrderController::class, 'realized'])
     ->name('pembelian.purchase-order.realized');
 Route::get('pembelian/purchase-order/create', [PurchaseOrderController::class, 'create'])
