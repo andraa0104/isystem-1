@@ -16,7 +16,7 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
 const breadcrumbs = [
@@ -83,13 +83,7 @@ export default function QuotationIndex({
         setRemotePenawaran(penawaran);
     }, [penawaran]);
 
-    const isFirstRender = useRef(true);
-
     useEffect(() => {
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
-            return;
-        }
         fetchQuotationData(statusFilter);
     }, [statusFilter, fetchQuotationData]);
 

@@ -14,6 +14,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import {
@@ -25,7 +26,7 @@ import {
     ShieldCheck,
     Trash2,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 
 const breadcrumbs = [
@@ -80,6 +81,7 @@ export default function PurchaseRequirementIndex({
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
     const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
     const [isRealizedLoading, setIsRealizedLoading] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedPr, setSelectedPr] = useState(null);
@@ -114,8 +116,47 @@ export default function PurchaseRequirementIndex({
     const [isDeleting, setIsDeleting] = useState(false);
     const toastTimer = useRef(null);
 
+    const fetchPurchaseRequirementData = useCallback(async (newPeriod) => {
+        setLoading(true);
+        try {
+            const response = await fetch(
+                `/marketing/purchase-requirement/data?period=${newPeriod}`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                },
+            );
+            const data = await response.json();
+            setPurchaseRequirementsList(data.purchaseRequirements || []);
+            setOutstandingCountState(data.outstandingCount || 0);
+            setOutstandingTotalState(data.outstandingTotal || 0);
+            setSisaPoCountState(data.sisaPoCount || 0);
+            setSisaPoTotalState(data.sisaPoTotal || 0);
+            setRealizedCountState(data.realizedCount || 0);
+            setRealizedTotalState(data.realizedTotal || 0);
+        } catch (error) {
+            console.error('Error fetching PR data:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    const isFirstRender = useRef(true);
+
     useEffect(() => {
-        setPurchaseRequirementsList(purchaseRequirements);
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            fetchPurchaseRequirementData(periodFilter); // Trigger initial load since we sent empty data
+            return;
+        }
+        fetchPurchaseRequirementData(periodFilter);
+    }, [periodFilter, fetchPurchaseRequirementData]);
+
+    useEffect(() => {
+        if (purchaseRequirements?.length > 0) {
+            setPurchaseRequirementsList(purchaseRequirements);
+        }
     }, [purchaseRequirements]);
 
     useEffect(() => {
@@ -727,16 +768,24 @@ export default function PurchaseRequirementIndex({
                                     PR Outstanding
                                 </CardDescription>
                                 <CardTitle className="text-2xl font-semibold">
-                                    {outstandingCountState}
+                                    {loading ? (
+                                        <Skeleton className="h-8 w-16" />
+                                    ) : (
+                                        outstandingCountState
+                                    )}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-xs text-muted-foreground">
                                     Belum ada material dibuat PO
                                 </p>
-                                <p className="mt-1 text-sm font-semibold">
-                                    {formatRupiah(outstandingTotalState || 0)}
-                                </p>
+                                <div className="mt-1 text-sm font-semibold">
+                                    {loading ? (
+                                        <Skeleton className="h-5 w-24" />
+                                    ) : (
+                                        formatRupiah(outstandingTotalState || 0)
+                                    )}
+                                </div>
                             </CardContent>
                         </Card>
                     </button>
@@ -758,16 +807,24 @@ export default function PurchaseRequirementIndex({
                                     PR Sisa PO
                                 </CardDescription>
                                 <CardTitle className="text-2xl font-semibold">
-                                    {sisaPoCountState}
+                                    {loading ? (
+                                        <Skeleton className="h-8 w-16" />
+                                    ) : (
+                                        sisaPoCountState
+                                    )}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-xs text-muted-foreground">
                                     Masih ada sisa material belum dibuat PO
                                 </p>
-                                <p className="mt-1 text-sm font-semibold">
-                                    {formatRupiah(sisaPoTotalState || 0)}
-                                </p>
+                                <div className="mt-1 text-sm font-semibold">
+                                    {loading ? (
+                                        <Skeleton className="h-5 w-24" />
+                                    ) : (
+                                        formatRupiah(sisaPoTotalState || 0)
+                                    )}
+                                </div>
                             </CardContent>
                         </Card>
                     </button>
@@ -783,14 +840,18 @@ export default function PurchaseRequirementIndex({
                                         PR Terealisasi
                                     </CardDescription>
                                     <CardTitle className="text-2xl font-semibold">
-                                        {isRealizedLoading
-                                            ? '...'
-                                            : realizedCountState}
+                                        {loading || isRealizedLoading ? (
+                                            <Skeleton className="h-8 w-16" />
+                                        ) : (
+                                            realizedCountState
+                                        )}
                                     </CardTitle>
                                     <div className="mt-1 text-sm font-semibold">
-                                        {isRealizedLoading
-                                            ? '...'
-                                            : formatRupiah(realizedTotalState)}
+                                        {loading || isRealizedLoading ? (
+                                            <Skeleton className="h-5 w-24" />
+                                        ) : (
+                                            formatRupiah(realizedTotalState)
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
@@ -899,56 +960,62 @@ export default function PurchaseRequirementIndex({
                             </tr>
                         </thead>
                         <tbody>
-                            {displayedPurchaseRequirements.length === 0 && (
-                                <tr>
-                                    <td
-                                        className="px-4 py-6 text-center text-muted-foreground"
-                                        colSpan={5}
+                            <PlainTableStateRows
+                                columns={5}
+                                loading={loading}
+                                isEmpty={
+                                    !loading &&
+                                    displayedPurchaseRequirements.length === 0
+                                }
+                                emptyMessage="Belum ada data PR."
+                            />
+                            {!loading &&
+                                displayedPurchaseRequirements.map((item) => (
+                                    <tr
+                                        key={item.no_pr}
+                                        className="border-t border-sidebar-border/70"
                                     >
-                                        Belum ada data PR.
-                                    </td>
-                                </tr>
-                            )}
-                            {displayedPurchaseRequirements.map((item) => (
-                                <tr
-                                    key={item.no_pr}
-                                    className="border-t border-sidebar-border/70"
-                                >
-                                    <td className="px-4 py-3">{item.no_pr}</td>
-                                    <td className="px-4 py-3">{item.date}</td>
-                                    <td className="px-4 py-3">
-                                        {item.for_customer}
-                                    </td>
-                                    <td className="px-4 py-3">{item.ref_po}</td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    handleOpenModal(item)
-                                                }
-                                                className="text-muted-foreground transition hover:text-foreground"
-                                                aria-label="Lihat"
-                                                title="Lihat"
-                                            >
-                                                <Eye className="size-4" />
-                                            </button>
-                                            <a
-                                                href={`/marketing/purchase-requirement/${encodeURIComponent(
-                                                    item.no_pr,
-                                                )}/print`}
-                                                className="text-muted-foreground transition hover:text-foreground"
-                                                aria-label="Cetak"
-                                                title="Cetak"
-                                                target="_blank"
-                                                rel="noreferrer"
-                                            >
-                                                <Printer className="size-4" />
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                                        <td className="px-4 py-3">
+                                            {item.no_pr}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.date}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.for_customer}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.ref_po}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleOpenModal(item)
+                                                    }
+                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                    aria-label="Lihat"
+                                                    title="Lihat"
+                                                >
+                                                    <Eye className="size-4" />
+                                                </button>
+                                                <a
+                                                    href={`/marketing/purchase-requirement/${encodeURIComponent(
+                                                        item.no_pr,
+                                                    )}/print`}
+                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                    aria-label="Cetak"
+                                                    title="Cetak"
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    <Printer className="size-4" />
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                         </tbody>
                     </table>
                 </div>

@@ -16,24 +16,53 @@ class PurchaseRequirementController
     {
         $period = $request->query('period', 'today');
 
+        // Initially we send empty data or zeros for fast page load
+        return Inertia::render('marketing/purchase-requirement/index', [
+            'purchaseRequirements' => [],
+            'outstandingCount' => 0,
+            'sisaPoCount' => 0,
+            'realizedCount' => 0,
+            'outstandingTotal' => 0,
+            'sisaPoTotal' => 0,
+            'realizedTotal' => 0,
+            'period' => $period,
+            'realizedDeferred' => false,
+        ]);
+    }
+
+    public function data(Request $request)
+    {
+        $period = $request->query('period', 'today');
+        
+        $summary = $this->getPurchaseRequirementSummary($period);
+        $purchaseRequirements = $this->getPurchaseRequirementList($period);
+
+        return response()->json([
+            'purchaseRequirements' => $purchaseRequirements,
+            'outstandingCount' => $summary['outstandingCount'],
+            'outstandingTotal' => $summary['outstandingTotal'],
+            'sisaPoCount' => $summary['sisaPoCount'],
+            'sisaPoTotal' => $summary['sisaPoTotal'],
+            'realizedCount' => $summary['realizedCount'],
+            'realizedTotal' => $summary['realizedTotal'],
+        ]);
+    }
+
+    private function getCommonQueries($period)
+    {
         $docDateExpr = "coalesce(date(tgl), str_to_date(tgl, '%Y-%m-%d'), str_to_date(tgl, '%Y/%m/%d'), str_to_date(tgl, '%d/%m/%Y'), str_to_date(tgl, '%d-%m-%Y'), str_to_date(tgl, '%d.%m.%Y'))";
 
-        // Aggregate PR details with refined status logic
         $detailAgg = DB::table('tb_detailpr')
             ->select(
                 'no_pr',
                 DB::raw('sum(coalesce(total_price, 0)) as total_price_sum'),
                 DB::raw('count(*) as total_items'),
-                // Untouched: sisa_pr is same as qty (handle null sisa_pr as qty) AND qty > 0
                 DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) >= coalesce(cast(qty as decimal(18,4)), 0) and coalesce(cast(qty as decimal(18,4)), 0) > 0 then 1 else 0 end) as untouched_items'),
-                // Correctly touched: sisa_pr is different from qty
                 DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as touched_items'),
-                // Realized: sisa_pr is 0 or less
                 DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) <= 0 then 1 else 0 end) as realized_items')
             )
             ->groupBy('no_pr');
 
-        // Aggregate PO dates for realized PRs
         $poAgg = DB::table('tb_detailpo')
             ->select(
                 'ref_pr',
@@ -64,7 +93,16 @@ class PurchaseRequirementController
             $periodFilterRaw = "latest_po_date between '{$startDate}' and '{$endDate}'";
         }
 
-        // Cache period-sensitive summary (5 minutes TTL)
+        return compact('detailAgg', 'poAgg', 'periodFilterRaw');
+    }
+
+    private function getPurchaseRequirementSummary($period)
+    {
+        $common = $this->getCommonQueries($period);
+        $detailAgg = $common['detailAgg'];
+        $poAgg = $common['poAgg'];
+        $periodFilterRaw = $common['periodFilterRaw'];
+
         $summaryData = DB::table('tb_pr as pr')
             ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
             ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
@@ -78,14 +116,23 @@ class PurchaseRequirementController
             )
             ->first();
 
-        $outstandingCount = (int) ($summaryData->outstanding_count ?? 0);
-        $outstandingTotal = (float) ($summaryData->outstanding_total ?? 0);
-        $sisaPoCount      = (int) ($summaryData->sisa_po_count ?? 0);
-        $sisaPoTotal      = (float) ($summaryData->sisa_po_total ?? 0);
-        $realizedCount    = (int) ($summaryData->realized_count ?? 0);
-        $realizedTotal    = (float) ($summaryData->realized_total ?? 0);
+        return [
+            'outstandingCount' => (int) ($summaryData->outstanding_count ?? 0),
+            'outstandingTotal' => (float) ($summaryData->outstanding_total ?? 0),
+            'sisaPoCount'      => (int) ($summaryData->sisa_po_count ?? 0),
+            'sisaPoTotal'      => (float) ($summaryData->sisa_po_total ?? 0),
+            'realizedCount'    => (int) ($summaryData->realized_count ?? 0),
+            'realizedTotal'    => (float) ($summaryData->realized_total ?? 0),
+        ];
+    }
 
-        // Cache the main PR list (5 minutes TTL)
+    private function getPurchaseRequirementList($period)
+    {
+        $common = $this->getCommonQueries($period);
+        $detailAgg = $common['detailAgg'];
+        $poAgg = $common['poAgg'];
+        $periodFilterRaw = $common['periodFilterRaw'];
+
         $purchaseRequirements = DB::table('tb_pr as pr')
             ->leftJoinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
             ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
@@ -115,17 +162,7 @@ class PurchaseRequirementController
             return $item;
         });
 
-        return Inertia::render('marketing/purchase-requirement/index', [
-            'purchaseRequirements' => $purchaseRequirements,
-            'outstandingCount' => $outstandingCount,
-            'sisaPoCount' => $sisaPoCount,
-            'realizedCount' => $realizedCount,
-            'outstandingTotal' => $outstandingTotal,
-            'sisaPoTotal' => $sisaPoTotal,
-            'realizedTotal' => $realizedTotal,
-            'period' => $period,
-            'realizedDeferred' => false, // No longer deferred as we calculate it correctly now
-        ]);
+        return $purchaseRequirements;
     }
 
     public function details(Request $request)

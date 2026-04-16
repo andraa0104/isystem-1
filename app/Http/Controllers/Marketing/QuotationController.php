@@ -123,53 +123,12 @@ class QuotationController
     public function index(Request $request)
     {
         $period = $request->query('period', 'today');
-        $penawaran = $this->getPenawaranQuery($period)->get();
 
-        $detailNo = trim((string) $request->query('detail_no', ''));
-        $detailNo = $detailNo !== '' ? $detailNo : null;
-        $penawaranDetail = collect();
-        if ($detailNo) {
-            $noPenawaranColumn = $this->resolveColumn(
-                'tb_penawarandetail',
-                ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
-                'No_penawaran'
-            );
-            $hargaColumn = $this->resolveColumn(
-                'tb_penawarandetail',
-                ['Harga', 'harga'],
-                'Harga'
-            );
-            $hargaModalColumn = $this->resolveColumn(
-                'tb_penawarandetail',
-                ['Harga_Modal', 'Harga_modal', 'harga_modal'],
-                'Harga_Modal'
-            );
-
-            $penawaranDetail = DB::table('tb_penawarandetail')
-                ->selectRaw(
-                    'ID, '.
-                    $this->wrapColumn($noPenawaranColumn).' as No_penawaran, '.
-                    'Material, '.
-                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
-                    .' THEN '.$this->wrapColumn($hargaModalColumn)
-                    .' ELSE '.$this->wrapColumn($hargaColumn).' END as Harga, '.
-                    'Qty, '.
-                    'Satuan, '.
-                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
-                    .' THEN '.$this->wrapColumn($hargaColumn)
-                    .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as Harga_modal, '.
-                    'Margin, '.
-                    'Remark'
-                )
-                ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [$detailNo])
-                ->orderBy('ID')
-                ->get();
-        }
-
+        // Initially we send empty data for fast page load
         return Inertia::render('marketing/quotation/index', [
-            'penawaran' => $penawaran,
-            'penawaranDetail' => $penawaranDetail,
-            'detailNo' => $detailNo,
+            'penawaran' => [],
+            'penawaranDetail' => collect(),
+            'detailNo' => null,
             'period' => $period,
         ]);
     }

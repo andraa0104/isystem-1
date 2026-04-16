@@ -222,6 +222,8 @@ Route::post('marketing/quotation', [QuotationController::class, 'store'])
 
 Route::get('marketing/purchase-order-in', [PurchaseOrderInController::class, 'index'])
     ->name('marketing.purchase-order-in.index');
+Route::get('marketing/purchase-order-in/data', [PurchaseOrderInController::class, 'data'])
+    ->name('marketing.purchase-order-in.data');
 Route::get('marketing/purchase-order-in/create', [PurchaseOrderInController::class, 'create'])
     ->name('marketing.purchase-order-in.create');
 Route::post('marketing/purchase-order-in', [PurchaseOrderInController::class, 'store'])
@@ -261,6 +263,8 @@ Route::get('marketing/purchase-requirement/customers', [PurchaseRequirementContr
     ->name('marketing.purchase-requirement.customers');
 Route::get('marketing/purchase-requirement/poin-details', [PurchaseRequirementController::class, 'poinDetails'])
     ->name('marketing.purchase-requirement.poin-details');
+Route::get('marketing/purchase-requirement/data', [PurchaseRequirementController::class, 'data'])
+    ->name('marketing.purchase-requirement.data');
 Route::get('marketing/purchase-requirement/details', [PurchaseRequirementController::class, 'details'])
     ->name('marketing.purchase-requirement.details');
 Route::get('marketing/purchase-requirement/outstanding', [PurchaseRequirementController::class, 'outstanding'])

@@ -1,3 +1,4 @@
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -145,14 +146,14 @@ const isInPeriod = (value, period, startCustom, endCustom) => {
 };
 
 export default function PurchaseOrderInIndex({
-    purchaseOrderIns = [],
-    outstandingPurchaseOrderIns = [],
-    belumPrPurchaseOrderIns = [],
-    realizedPurchaseOrderIns = [],
-    allPurchaseOrderIns = [],
-    summary = {},
+    purchaseOrderIns: initialPurchaseOrderIns = [],
+    outstandingPurchaseOrderIns: initialOutstandingPoIns = [],
+    belumPrPurchaseOrderIns: initialBelumPrPoIns = [],
+    realizedPurchaseOrderIns: initialRealizedPoIns = [],
+    allPurchaseOrderIns: initialAllPoIns = [],
+    summary: initialSummary = {},
     filters = {},
-    pagination = {},
+    pagination: initialPagination = {},
 }) {
     const { resolvedAppearance } = useAppearance();
     const isDark = resolvedAppearance === 'dark';
@@ -166,10 +167,27 @@ export default function PurchaseOrderInIndex({
     const [dataPoInEnd, setDataPoInEnd] = useState('');
     const [activeModal, setActiveModal] = useState(null);
 
+    const [purchaseOrderIns, setPurchaseOrderIns] = useState(
+        initialPurchaseOrderIns,
+    );
+    const [summary, setSummary] = useState(initialSummary);
+    const [outstandingPurchaseOrderIns, setOutstandingPurchaseOrderIns] =
+        useState(initialOutstandingPoIns);
+    const [belumPrPurchaseOrderIns, setBelumPrPurchaseOrderIns] =
+        useState(initialBelumPrPoIns);
+    const [realizedPurchaseOrderIns, setRealizedPurchaseOrderIns] =
+        useState(initialRealizedPoIns);
+    const [allPurchaseOrderIns, setAllPurchaseOrderIns] =
+        useState(initialAllPoIns);
+    const [pagination, setPagination] = useState(initialPagination);
+    const [loading, setLoading] = useState(false);
+
     // Trigger lazy load for allPurchaseOrderIns when modal is opened
     useEffect(() => {
         if (activeModal === 'all_data' && allPurchaseOrderIns.length === 0) {
-            router.reload({ only: ['allPurchaseOrderIns'] });
+            // If we have an AJAX endpoint, we could use that instead of router.reload
+            // For now, let's stick to the reload or fetch it via AJAX if available
+            fetchPoInData({ status: 'all' });
         }
     }, [activeModal]);
     const [modalSearch, setModalSearch] = useState('');
@@ -215,44 +233,50 @@ export default function PurchaseOrderInIndex({
         };
     }, []);
 
-    const fetchTable = (next = {}) => {
-        router.get(
-            '/marketing/purchase-order-in',
-            {
-                search,
-                per_page: perPage,
-                status: statusFilter,
-                page: 1,
-                ...next,
-            },
-            {
-                preserveScroll: true,
-                preserveState: true,
-                replace: true,
-                headers: {
-                    'X-Skip-Loading-Overlay': '1',
+    const fetchPoInData = async (params = {}) => {
+        setLoading(true);
+        try {
+            const queryParams = new URLSearchParams({
+                search: params.search ?? search,
+                per_page: params.per_page ?? perPage,
+                status: params.status ?? statusFilter,
+                page: params.page ?? pagination.page ?? 1,
+            });
+
+            const response = await fetch(
+                `/marketing/purchase-order-in/data?${queryParams.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
                 },
-            },
-        );
+            );
+            const data = await response.json();
+
+            setPurchaseOrderIns(data.purchaseOrderIns || []);
+            setSummary(data.summary || {});
+            setOutstandingPurchaseOrderIns(
+                data.outstandingPurchaseOrderIns || [],
+            );
+            setBelumPrPurchaseOrderIns(data.belumPrPurchaseOrderIns || []);
+            setRealizedPurchaseOrderIns(data.realizedPurchaseOrderIns || []);
+            setAllPurchaseOrderIns(data.allPurchaseOrderIns || []);
+            setPagination(data.pagination || {});
+        } catch (error) {
+            console.error('Error fetching PO In data:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            if (search === (filters.search ?? '')) {
-                return;
-            }
-            fetchTable({ search, status: statusFilter, page: 1 });
-        }, 350);
-
-        return () => clearTimeout(timer);
-    }, [search]);
+        fetchPoInData();
+    }, [perPage, statusFilter]);
 
     useEffect(() => {
-        if (statusFilter === (filters.status ?? 'all')) {
-            return;
-        }
-        fetchTable({ status: statusFilter, search, page: 1 });
-    }, [statusFilter]);
+        const timer = setTimeout(() => {
+            fetchPoInData({ search, page: 1 });
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [search]);
 
     const periodLabelMap = {
         today: 'Hari Ini',
@@ -515,7 +539,11 @@ export default function PurchaseOrderInIndex({
                             PO IN Outstanding
                         </p>
                         <p className="mt-1 text-2xl font-bold">
-                            {summary.outstanding ?? 0}
+                            {loading ? (
+                                <Skeleton className="h-8 w-12" />
+                            ) : (
+                                (summary.outstanding ?? 0)
+                            )}
                         </p>
                         <p
                             className={cn(
@@ -562,7 +590,11 @@ export default function PurchaseOrderInIndex({
                             PO IN Sisa PR
                         </p>
                         <p className="mt-1 text-2xl font-bold">
-                            {summary.belum_pr ?? 0}
+                            {loading ? (
+                                <Skeleton className="h-8 w-12" />
+                            ) : (
+                                (summary.belum_pr ?? 0)
+                            )}
                         </p>
                         <p
                             className={cn(
@@ -629,7 +661,11 @@ export default function PurchaseOrderInIndex({
                             PO IN Terealisasi
                         </p>
                         <p className="mt-1 text-2xl font-bold">
-                            {realizedItemsByPeriod.length}
+                            {loading ? (
+                                <Skeleton className="h-8 w-12" />
+                            ) : (
+                                realizedItemsByPeriod.length
+                            )}
                         </p>
                         <p
                             className={cn(
@@ -742,17 +778,21 @@ export default function PurchaseOrderInIndex({
                         </p>
                         <div className="mt-1 flex items-baseline gap-2">
                             <p className="text-2xl font-bold">
-                                {dataPoInPeriod === 'range'
-                                    ? dataItemsByPeriod.length
-                                    : (summary.data_counts?.[
-                                          dataPoInPeriod === 'this_week'
-                                              ? 'week'
-                                              : dataPoInPeriod === 'this_month'
-                                                ? 'month'
-                                                : dataPoInPeriod === 'this_year'
-                                                  ? 'year'
-                                                  : dataPoInPeriod
-                                      ] ?? 0)}
+                                {loading ? (
+                                    <Skeleton className="h-8 w-12" />
+                                ) : dataPoInPeriod === 'range' ? (
+                                    dataItemsByPeriod.length
+                                ) : (
+                                    (summary.data_counts?.[
+                                        dataPoInPeriod === 'this_week'
+                                            ? 'week'
+                                            : dataPoInPeriod === 'this_month'
+                                              ? 'month'
+                                              : dataPoInPeriod === 'this_year'
+                                                ? 'year'
+                                                : dataPoInPeriod
+                                    ] ?? 0)
+                                )}
                             </p>
                             <p
                                 className={cn(
@@ -849,52 +889,19 @@ export default function PurchaseOrderInIndex({
                                 </tr>
                             </thead>
                             <tbody>
-                                {isTableLoading ? (
-                                    Array.from({
-                                        length: Number(
-                                            perPage === 'all' ? 5 : perPage,
-                                        ),
-                                    }).map((_, i) => (
-                                        <tr
-                                            key={`skeleton-${i}`}
-                                            className="border-t border-sidebar-border/70"
-                                        >
-                                            <td className="px-4 py-3">
-                                                <Skeleton className="h-4 w-4" />
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <Skeleton className="h-4 w-32" />
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <Skeleton className="h-4 w-32" />
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <Skeleton className="h-4 w-20" />
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <Skeleton className="h-4 w-40" />
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <Skeleton className="h-4 w-24" />
-                                            </td>
-                                            <td className="px-4 py-3 text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <Skeleton className="h-8 w-8 rounded-md" />
-                                                    <Skeleton className="h-8 w-8 rounded-md" />
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : purchaseOrderIns.length === 0 ? (
-                                    <tr>
-                                        <td
-                                            className="px-4 py-10 text-center text-muted-foreground"
-                                            colSpan={7}
-                                        >
-                                            Belum ada data PO In.
-                                        </td>
-                                    </tr>
-                                ) : (
+                                <PlainTableStateRows
+                                    loading={loading}
+                                    columns={7}
+                                    skeletonRows={
+                                        perPage === 'all' ? 5 : Number(perPage)
+                                    }
+                                    isEmpty={
+                                        !loading &&
+                                        purchaseOrderIns.length === 0
+                                    }
+                                    emptyTitle="Belum ada data PO In."
+                                />
+                                {!loading &&
                                     purchaseOrderIns.map((item, index) => (
                                         <tr
                                             key={item.id ?? item.no_poin}
@@ -960,8 +967,7 @@ export default function PurchaseOrderInIndex({
                                                 </div>
                                             </td>
                                         </tr>
-                                    ))
-                                )}
+                                    ))}
                             </tbody>
                         </table>
                     </div>
@@ -1257,30 +1263,20 @@ export default function PurchaseOrderInIndex({
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {detailTableLoading && (
-                                                    <tr>
-                                                        <td
-                                                            className="px-4 py-8 text-center text-muted-foreground"
-                                                            colSpan={10}
-                                                        >
-                                                            Memuat data
-                                                            material...
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                                {!detailTableLoading &&
-                                                    detailItems.length ===
-                                                        0 && (
-                                                        <tr>
-                                                            <td
-                                                                className="px-4 py-8 text-center text-muted-foreground"
-                                                                colSpan={10}
-                                                            >
-                                                                Tidak ada detail
-                                                                material.
-                                                            </td>
-                                                        </tr>
-                                                    )}
+                                                <PlainTableStateRows
+                                                    columns={10}
+                                                    loading={detailTableLoading}
+                                                    error={detailError}
+                                                    isEmpty={
+                                                        !detailTableLoading &&
+                                                        !detailError &&
+                                                        detailItems.length === 0
+                                                    }
+                                                    emptyTitle="Tidak ada detail material."
+                                                    skeletonRows={
+                                                        detailPageSize
+                                                    }
+                                                />
                                                 {!detailTableLoading &&
                                                     detailItems.map(
                                                         (row, index) => (
@@ -1553,16 +1549,14 @@ export default function PurchaseOrderInIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {modalDisplayedItems.length === 0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-10 text-center text-muted-foreground"
-                                                colSpan={7}
-                                            >
-                                                Tidak ada data.
-                                            </td>
-                                        </tr>
-                                    )}
+                                    <PlainTableStateRows
+                                        columns={7}
+                                        isEmpty={
+                                            modalDisplayedItems.length === 0
+                                        }
+                                        emptyTitle="Tidak ada data."
+                                        skeletonRows={modalPageSize}
+                                    />
                                     {modalDisplayedItems.map((item, index) => (
                                         <tr
                                             key={`${item.no_poin}-${index}`}

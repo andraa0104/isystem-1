@@ -62,23 +62,59 @@ class PurchaseOrderInController
         return $prefix.'.POIN-'.str_pad((string) $nextNumber, 8, '0', STR_PAD_LEFT);
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $search = trim((string) request()->query('search', ''));
-        $perPageInput = request()->query('per_page', 5);
-        $perPage = $perPageInput === 'all'
-            ? null
-            : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
-        if ($perPage !== null && $perPage < 1) {
-            $perPage = 5;
-        }
+        $search = trim((string) $request->query('search', ''));
+        $perPageInput = $request->query('per_page', 5);
+        $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
+        $statusFilter = $request->query('status', 'outstanding');
+        $page = max(1, (int) $request->query('page', 1));
 
-        $statusFilter = request()->query('status', 'outstanding');
-        if (!in_array($statusFilter, ['all', 'outstanding', 'sisa_pr', 'realized'])) {
-            $statusFilter = 'outstanding';
-        }
+        // Initially return minimal data for fast page load
+        return Inertia::render('marketing/purchase-order-in/index', [
+            'purchaseOrderIns' => [],
+            'summary' => [
+                'total' => 0,
+                'outstanding' => 0,
+                'belum_pr' => 0,
+                'realized' => 0,
+                'data_counts' => [
+                    'today' => 0, 'week' => 0, 'month' => 0, 'year' => 0,
+                ]
+            ],
+            'outstandingPurchaseOrderIns' => [],
+            'belumPrPurchaseOrderIns' => [],
+            'realizedPurchaseOrderIns' => [],
+            'filters' => [
+                'search' => $search,
+                'per_page' => $perPage === null ? 'all' : (string) $perPage,
+                'page' => $page,
+                'status' => $statusFilter,
+            ],
+            'pagination' => [
+                'total' => 0,
+                'page' => $page,
+                'per_page' => $perPage === null ? 'all' : $perPage,
+                'total_pages' => 1,
+            ],
+        ]);
+    }
 
-        // 1. Optimized Subqueries for Status and Delete checks
+    public function data(Request $request)
+    {
+        $search = trim((string) $request->query('search', ''));
+        $perPageInput = $request->query('per_page', 5);
+        $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
+        $statusFilter = $request->query('status', 'outstanding');
+        $page = max(1, (int) $request->query('page', 1));
+
+        $data = $this->getPurchaseOrderInData($search, $perPage, $statusFilter, $page);
+
+        return response()->json($data);
+    }
+
+    private function getPurchaseOrderInData($search, $perPage, $statusFilter, $page)
+    {
         $detailStats = DB::table('tb_detailpoin')
             ->select('kode_poin')
             ->selectRaw('count(*) as total_items')
@@ -130,7 +166,6 @@ class PurchaseOrderInController
         }
 
         $total = (clone $query)->count();
-        $page = max(1, (int) request()->query('page', 1));
         if ($perPage === null) {
             $rows = (clone $query)->orderByDesc('p.id')->get();
         } else {
@@ -146,16 +181,8 @@ class PurchaseOrderInController
         $startMonth = $now->copy()->startOfMonth()->toDateTimeString();
         $startYear = $now->copy()->startOfYear()->toDateTimeString();
 
-        $detailStatsCounts = DB::table('tb_detailpoin')
-            ->select('kode_poin')
-            ->selectRaw('count(*) as total_items')
-            ->selectRaw('sum(case when coalesce(cast(sisa_qtypr as decimal(18,4)), 0) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as changed_count')
-            ->selectRaw('sum(case when coalesce(cast(sisa_qtypr as decimal(18,4)), 0) > 0 then 1 else 0 end) as unrealized_items')
-            ->selectRaw('sum(case when coalesce(cast(sisa_qtypr as decimal(18,4)), 0) < coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as started_items')
-            ->groupBy('kode_poin');
-
         $statusData = DB::table('tb_poin as p')
-            ->leftJoinSub($detailStatsCounts, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
+            ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
             ->selectRaw("count(*) as total")
             ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding")
             ->selectRaw("count(case when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 1 end) as belum_pr")
@@ -182,47 +209,25 @@ class PurchaseOrderInController
             ]
         ];
 
-        // Restore modal data collections with optimized queries
         $base = DB::table('tb_poin as p')
             ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
             ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.customer_name', 'p.grand_total')
             ->orderByDesc('p.id');
 
-        $modalData = [
-            'outstanding' => (clone $base)->whereRaw('coalesce(ds.changed_count, 0) = 0')->whereRaw('ds.kode_poin is not null')->get(),
-            'belum_pr'    => (clone $base)->whereRaw('coalesce(ds.started_items, 0) > 0')->whereRaw('coalesce(ds.unrealized_items, 0) > 0')->get(),
-            'realized'    => (clone $base)->whereRaw('coalesce(ds.unrealized_items, 0) = 0')->get(),
-        ];
-
-        $outstandingRows = $modalData['outstanding'];
-        $belumPrRows = $modalData['belum_pr'];
-        $realizedRows = $modalData['realized'];
-
-        return Inertia::render('marketing/purchase-order-in/index', [
+        return [
             'summary' => $summary,
-            'purchaseOrderIns'          => $rows,
-            'outstandingPurchaseOrderIns' => $outstandingRows,
-            'belumPrPurchaseOrderIns'   => $belumPrRows,
-            'realizedPurchaseOrderIns'  => $realizedRows,
-            'allPurchaseOrderIns'       => Inertia::lazy(fn () => 
-                DB::table('tb_poin as p')
-                    ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.created_at', 'p.customer_name', 'p.grand_total')
-                    ->orderByDesc('p.id')
-                    ->get()
-            ),
-            'filters' => [
-                'search'   => $search,
-                'per_page' => $perPage === null ? 'all' : (string) $perPage,
-                'page'     => $page,
-                'status'   => $statusFilter,
-            ],
+            'purchaseOrderIns' => $rows,
+            'outstandingPurchaseOrderIns' => (clone $base)->whereRaw('coalesce(ds.changed_count, 0) = 0')->whereRaw('ds.kode_poin is not null')->get(),
+            'belumPrPurchaseOrderIns' => (clone $base)->whereRaw('coalesce(ds.started_items, 0) > 0')->whereRaw('coalesce(ds.unrealized_items, 0) > 0')->get(),
+            'realizedPurchaseOrderIns' => (clone $base)->whereRaw('coalesce(ds.unrealized_items, 0) = 0')->get(),
+            'allPurchaseOrderIns' => (clone $base)->get(),
             'pagination' => [
-                'total'       => $total,
-                'page'        => $page,
-                'per_page'    => $perPage === null ? 'all' : $perPage,
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage === null ? 'all' : $perPage,
                 'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
             ],
-        ]);
+        ];
     }
 
     public function create()

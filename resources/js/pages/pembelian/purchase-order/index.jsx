@@ -14,6 +14,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { formatDateId } from '@/lib/formatters';
@@ -406,10 +407,12 @@ export default function PurchaseOrderIndex({
         return () => clearTimeout(handler);
     }, [detailSearch]);
 
-    const fetchPurchaseOrders = () => {
+    const fetchPurchaseOrders = (p = periodFilter) => {
         setPoLoading(true);
+        setIsRealizedLoading(true);
         setPoError(null);
-        fetch('/pembelian/purchase-order/data', {
+        const params = new URLSearchParams({ period: p });
+        fetch(`/pembelian/purchase-order/data?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         })
             .then(async (response) => {
@@ -424,6 +427,12 @@ export default function PurchaseOrderIndex({
                         ? data.purchaseOrders
                         : [],
                 );
+                setOutstandingCountState(data?.outstandingCount ?? 0);
+                setOutstandingTotalState(data?.outstandingTotal ?? 0);
+                setPartialCountState(data?.partialCount ?? 0);
+                setPartialTotalState(data?.partialTotal ?? 0);
+                setRealizedCountState(data?.realizedCount ?? 0);
+                setRealizedTotalState(data?.realizedTotal ?? 0);
             })
             .catch((error) => {
                 setPoError(
@@ -435,6 +444,7 @@ export default function PurchaseOrderIndex({
             })
             .finally(() => {
                 setPoLoading(false);
+                setIsRealizedLoading(false);
             });
     };
 
@@ -738,56 +748,14 @@ export default function PurchaseOrderIndex({
     const handlePeriodChange = (event) => {
         const value = event.target.value;
         setPeriodFilter(value);
-        setRealizedList([]);
-        setRealizedCurrentPage(1);
-        setRealizedListPeriod(value);
-        setIsRealizedLoading(true);
-        const params = new URLSearchParams({ period: value });
-        fetch(`/pembelian/purchase-order?${params.toString()}`, {
-            headers: { Accept: 'application/json' },
-        })
-            .then(async (response) => {
-                if (!response.ok) {
-                    throw await readApiError(response);
-                }
-                return response.json();
-            })
-            .then((data) => {
-                setRealizedCountState(data?.realizedCount ?? 0);
-                setRealizedTotalState(data?.realizedTotal ?? 0);
-                setOutstandingCountState(data?.outstandingCount ?? 0);
-                setOutstandingTotalState(data?.outstandingTotal ?? 0);
-                setPartialCountState(data?.partialCount ?? 0);
-                setPartialTotalState(data?.partialTotal ?? 0);
-                if (isRealizedModalOpen) {
-                    loadRealized(value, true);
-                }
-            })
-            .catch((error) => {
-                setRealizedCountState(0);
-                setRealizedTotalState(0);
-                setRealizedError(
-                    normalizeApiError(error, 'Gagal memuat ringkasan PO.'),
-                );
-            })
-            .finally(() => setIsRealizedLoading(false));
+        fetchPurchaseOrders(value);
     };
 
     useEffect(() => {
-        setRealizedCountState(realizedCount);
-        setRealizedTotalState(realizedTotal);
-        setOutstandingCountState(outstandingCount);
-        setOutstandingTotalState(outstandingTotal);
-        setPartialCountState(partialCount);
-        setPartialTotalState(partialTotal);
-    }, [
-        realizedCount,
-        realizedTotal,
-        outstandingCount,
-        outstandingTotal,
-        partialCount,
-        partialTotal,
-    ]);
+        // Initial load
+        fetchPurchaseOrders();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const sumOutstandingTotal = (list) =>
         list.reduce((sum, item) => {
@@ -843,10 +811,18 @@ export default function PurchaseOrderIndex({
                                     PO Outstanding
                                 </CardDescription>
                                 <CardTitle className="text-2xl">
-                                    {outstandingCountState}
+                                    {poLoading ? (
+                                        <Skeleton className="h-8 w-16" />
+                                    ) : (
+                                        outstandingCountState
+                                    )}
                                 </CardTitle>
-                                <div className="text-sm text-muted-foreground">
-                                    {formatRupiah(outstandingTotalState)}
+                                <div className="mt-1 text-sm text-muted-foreground">
+                                    {poLoading ? (
+                                        <Skeleton className="h-4 w-24" />
+                                    ) : (
+                                        formatRupiah(outstandingTotalState)
+                                    )}
                                 </div>
                             </CardHeader>
                         </Card>
@@ -863,10 +839,18 @@ export default function PurchaseOrderIndex({
                             <CardHeader className="pb-2">
                                 <CardDescription>PO sisa GR</CardDescription>
                                 <CardTitle className="text-2xl">
-                                    {partialCountState}
+                                    {poLoading ? (
+                                        <Skeleton className="h-8 w-16" />
+                                    ) : (
+                                        partialCountState
+                                    )}
                                 </CardTitle>
-                                <div className="text-sm text-muted-foreground">
-                                    {formatRupiah(partialTotalState)}
+                                <div className="mt-1 text-sm text-muted-foreground">
+                                    {poLoading ? (
+                                        <Skeleton className="h-4 w-24" />
+                                    ) : (
+                                        formatRupiah(partialTotalState)
+                                    )}
                                 </div>
                             </CardHeader>
                         </Card>
@@ -879,14 +863,18 @@ export default function PurchaseOrderIndex({
                                         PO Terealisasi
                                     </CardDescription>
                                     <CardTitle className="text-2xl">
-                                        {isRealizedLoading
-                                            ? '...'
-                                            : realizedCountState}
+                                        {poLoading ? (
+                                            <Skeleton className="h-8 w-16" />
+                                        ) : (
+                                            realizedCountState
+                                        )}
                                     </CardTitle>
-                                    <div className="text-sm text-muted-foreground">
-                                        {isRealizedLoading
-                                            ? '...'
-                                            : formatRupiah(realizedTotalState)}
+                                    <div className="mt-1 text-sm text-muted-foreground">
+                                        {poLoading ? (
+                                            <Skeleton className="h-4 w-24" />
+                                        ) : (
+                                            formatRupiah(realizedTotalState)
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -991,7 +979,7 @@ export default function PurchaseOrderIndex({
                         <tbody>
                             <PlainTableStateRows
                                 columns={5}
-                                loading={poLoading && poData.length === 0}
+                                loading={poLoading}
                                 error={poError}
                                 onRetry={fetchPurchaseOrders}
                                 isEmpty={
