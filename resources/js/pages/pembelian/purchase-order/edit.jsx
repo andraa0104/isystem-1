@@ -79,7 +79,7 @@ export default function PurchaseOrderEdit({
     const [prCurrentPage, setPrCurrentPage] = useState(1);
 
     const [vendorSearchTerm, setVendorSearchTerm] = useState('');
-    const [vendorPageSize, setVendorPageSize] = useState(10);
+    const [vendorPageSize, setVendorPageSize] = useState(5);
     const [vendorCurrentPage, setVendorCurrentPage] = useState(1);
 
     const [formData, setFormData] = useState({
@@ -1154,6 +1154,7 @@ export default function PurchaseOrderEdit({
                                         setVendorCurrentPage(1);
                                     }}
                                 >
+                                    <option value={5}>5</option>
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
                                     <option value={50}>50</option>
@@ -1188,12 +1189,6 @@ export default function PurchaseOrderEdit({
                                             Alamat
                                         </th>
                                         <th className="px-4 py-3 text-left">
-                                            Kontak
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Email
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
                                             Attended
                                         </th>
                                         <th className="px-4 py-3 text-left">
@@ -1206,7 +1201,7 @@ export default function PurchaseOrderEdit({
                                         <tr>
                                             <td
                                                 className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={7}
+                                                colSpan={5}
                                             >
                                                 Tidak ada data vendor.
                                             </td>
@@ -1225,12 +1220,6 @@ export default function PurchaseOrderEdit({
                                             </td>
                                             <td className="px-4 py-3">
                                                 {renderValue(item.almt_vdr)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.telp_vdr)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.eml_vdr)}
                                             </td>
                                             <td className="px-4 py-3">
                                                 {renderValue(item.attn_vdr)}

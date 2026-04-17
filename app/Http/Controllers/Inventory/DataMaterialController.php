@@ -30,6 +30,9 @@ class DataMaterialController
 
         $page = max(1, (int) $pageRaw);
         $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
+        $period = $request->query('period', 'today');
+        $startDateParam = $request->query('startDate');
+        $endDateParam = $request->query('endDate');
 
         $map = [
             'mi' => 'tb_mi',
@@ -68,6 +71,39 @@ class DataMaterialController
             });
         }
 
+        // Period Filtering (MI and MIS use tb_mi which has posting_tgl)
+        if (($key === 'mi' || $key === 'mis') && Schema::hasColumn($table, 'posting_tgl')) {
+            $dateExpr = "str_to_date(trim(posting_tgl), '%d.%m.%Y')";
+            
+            $now = now();
+            $startDate = null;
+            $endDate = null;
+
+            if ($period === 'today') {
+                $startDate = $now->copy()->startOfDay();
+                $endDate = $now->copy()->endOfDay();
+            } elseif ($period === 'this_week') {
+                $startDate = $now->copy()->startOfWeek();
+                $endDate = $now->copy()->endOfWeek();
+            } elseif ($period === 'this_month') {
+                $startDate = $now->copy()->startOfMonth();
+                $endDate = $now->copy()->endOfMonth();
+            } elseif ($period === 'this_year') {
+                $startDate = $now->copy()->startOfYear();
+                $endDate = $now->copy()->endOfYear();
+            } elseif ($period === 'range' && $startDateParam && $endDateParam) {
+                try {
+                    $startDate = \Carbon\Carbon::parse($startDateParam)->startOfDay();
+                    $endDate = \Carbon\Carbon::parse($endDateParam)->endOfDay();
+                } catch (\Exception $e) {}
+            }
+
+            if ($startDate && $endDate) {
+                $base->whereRaw("{$dateExpr} >= ?", [$startDate->toDateString()])
+                     ->whereRaw("{$dateExpr} <= ?", [$endDate->toDateString()]);
+            }
+        }
+
         $total = (clone $base)->count();
 
         if ($key === 'mi') {
@@ -78,31 +114,41 @@ class DataMaterialController
             if (Schema::hasColumn($table, 'id')) {
                 array_unshift($select, 'id');
             }
-            $base->select($select)
-                ->orderByDesc('no_doc');
+            $base->select($select)->orderByDesc('no_doc');
         } elseif ($key === 'mis') {
             $select = ['no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price', DB::raw('harga_mis as total_price'), 'mis'];
             if (Schema::hasColumn($table, 'id')) {
                 array_unshift($select, 'id');
             }
-            $base->select($select)
-                ->orderByDesc('no_doc');
+            $base->select($select)->orderByDesc('no_doc');
         } else { // mib
             $select = ['no_doc', 'material', 'qty', 'unit', 'price', DB::raw('(price * qty) as total_price'), DB::raw('rest_mat as mib')];
             if (Schema::hasColumn($table, 'id')) {
                 array_unshift($select, 'id');
             }
-            $base->select($select)
-                ->orderByDesc('no_doc');
+            $base->select($select)->orderByDesc('no_doc');
         }
+
+        $total = $base->count();
 
         if ($pageSize !== 'all') {
             $base->forPage($page, $pageSize);
         }
 
+        \Illuminate\Support\Facades\Log::info('Inventory Filter Debug', [
+            'key' => $key,
+            'period' => $period,
+            'sql' => $base->toSql(),
+            'bindings' => $base->getBindings(),
+            'total' => $total
+        ]);
+
         $rows = $base->get();
 
-        return response()->json(['rows' => $rows, 'total' => $total]);
+        return response()->json([
+            'rows' => $rows,
+            'total' => (int) $total,
+        ]);
     }
 
     public function destroy(Request $request)

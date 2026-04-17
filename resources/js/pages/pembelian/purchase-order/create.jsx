@@ -76,7 +76,7 @@ export default function PurchaseOrderCreate({
     const [prCurrentPage, setPrCurrentPage] = useState(1);
 
     const [vendorSearchTerm, setVendorSearchTerm] = useState('');
-    const [vendorPageSize, setVendorPageSize] = useState(10);
+    const [vendorPageSize, setVendorPageSize] = useState(5);
     const [vendorCurrentPage, setVendorCurrentPage] = useState(1);
 
     const [formData, setFormData] = useState({
@@ -1394,6 +1394,7 @@ export default function PurchaseOrderCreate({
                                         setVendorCurrentPage(1);
                                     }}
                                 >
+                                    <option value={5}>5</option>
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
                                     <option value={50}>50</option>
@@ -1428,12 +1429,6 @@ export default function PurchaseOrderCreate({
                                             Alamat
                                         </th>
                                         <th className="px-4 py-3 text-left">
-                                            Kontak
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Email
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
                                             Attended
                                         </th>
                                         <th className="px-4 py-3 text-left">
@@ -1443,7 +1438,7 @@ export default function PurchaseOrderCreate({
                                 </thead>
                                 <tbody>
                                     <PlainTableStateRows
-                                        columns={7}
+                                        columns={5}
                                         loading={
                                             vendorLoading &&
                                             displayedVendors.length === 0
@@ -1474,12 +1469,6 @@ export default function PurchaseOrderCreate({
                                             </td>
                                             <td className="px-4 py-3">
                                                 {renderValue(item.almt_vdr)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.telp_vdr)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.eml_vdr)}
                                             </td>
                                             <td className="px-4 py-3">
                                                 {renderValue(item.attn_vdr)}

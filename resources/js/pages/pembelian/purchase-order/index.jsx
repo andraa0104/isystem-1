@@ -148,6 +148,25 @@ export default function PurchaseOrderIndex({
     const [detailCurrentPage, setDetailCurrentPage] = useState(1);
     const [detailSearch, setDetailSearch] = useState('');
     const [debouncedDetailSearch, setDebouncedDetailSearch] = useState('');
+    const [outstandingTotalRows, setOutstandingTotalRows] = useState(0);
+    const [debouncedOutstandingSearch, setDebouncedOutstandingSearch] =
+        useState('');
+    const [partialTotalRows, setPartialTotalRows] = useState(0);
+    const [debouncedPartialSearch, setDebouncedPartialSearch] = useState('');
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedOutstandingSearch(outstandingSearchTerm);
+        }, 400);
+        return () => clearTimeout(handler);
+    }, [outstandingSearchTerm]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedPartialSearch(partialSearchTerm);
+        }, 400);
+        return () => clearTimeout(handler);
+    }, [partialSearchTerm]);
 
     const filteredPurchaseOrders = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -212,72 +231,15 @@ export default function PurchaseOrderIndex({
         return filteredPurchaseOrders.slice(startIndex, startIndex + pageSize);
     }, [currentPage, filteredPurchaseOrders, pageSize]);
 
-    const outstandingPurchaseOrders = useMemo(() => {
-        const term = outstandingSearchTerm.trim().toLowerCase();
-        return outstandingList
-            .filter((item) => {
-                if (!isOutstanding(item)) {
-                    return false;
-                }
-
-                if (!term) {
-                    return true;
-                }
-
-                const values = [
-                    item.no_po,
-                    item.tgl,
-                    item.Tgl,
-                    item.ref_pr,
-                    item.refPR,
-                    item.no_pr,
-                    item.noPR,
-                    item.for_cus,
-                    item.for_cust,
-                    item.For_cus,
-                    item.For_cust,
-                    item.nm_vdr,
-                    item.Nm_vdr,
-                ];
-
-                return values.some((value) =>
-                    String(value ?? '')
-                        .toLowerCase()
-                        .includes(term),
-                );
-            })
-            .sort((a, b) =>
-                String(b.no_po ?? '').localeCompare(String(a.no_po ?? '')),
-            );
-    }, [outstandingList, outstandingSearchTerm]);
-
-    const outstandingTotalItems = outstandingPurchaseOrders.length;
     const outstandingTotalPages = useMemo(() => {
-        if (outstandingPageSize === Infinity) {
-            return 1;
-        }
-
+        if (outstandingPageSize === Infinity) return 1;
         return Math.max(
             1,
-            Math.ceil(outstandingTotalItems / outstandingPageSize),
+            Math.ceil(outstandingTotalRows / outstandingPageSize),
         );
-    }, [outstandingPageSize, outstandingTotalItems]);
+    }, [outstandingPageSize, outstandingTotalRows]);
 
-    const displayedOutstandingPurchaseOrders = useMemo(() => {
-        if (outstandingPageSize === Infinity) {
-            return outstandingPurchaseOrders;
-        }
-
-        const startIndex = (outstandingCurrentPage - 1) * outstandingPageSize;
-        return outstandingPurchaseOrders.slice(
-            startIndex,
-            startIndex + outstandingPageSize,
-        );
-    }, [
-        outstandingCurrentPage,
-        outstandingPageSize,
-        outstandingPurchaseOrders,
-    ]);
+    const displayedOutstandingPurchaseOrders = outstandingList;
 
     const selectedDetail = selectedDetails[0] ?? null;
 
@@ -304,51 +266,12 @@ export default function PurchaseOrderIndex({
             );
     }, [realizedList, realizedSearchTerm]);
 
-    const partialPurchaseOrders = useMemo(() => {
-        const term = partialSearchTerm.trim().toLowerCase();
-        return partialList
-            .filter((item) => {
-                if (!isPartialStatus(item)) {
-                    return false;
-                }
-
-                if (!term) {
-                    return true;
-                }
-
-                const values = [
-                    item.no_po,
-                    item.tgl,
-                    item.nm_vdr,
-                    item.ref_pr,
-                    item.for_cus,
-                ];
-
-                return values.some((value) =>
-                    String(value ?? '')
-                        .toLowerCase()
-                        .includes(term),
-                );
-            })
-            .sort((a, b) =>
-                String(b.no_po ?? '').localeCompare(String(a.no_po ?? '')),
-            );
-    }, [partialList, partialSearchTerm]);
-
-    const partialTotalItems = partialPurchaseOrders.length;
     const partialTotalPages = useMemo(() => {
         if (partialPageSize === Infinity) return 1;
-        return Math.max(1, Math.ceil(partialTotalItems / partialPageSize));
-    }, [partialPageSize, partialTotalItems]);
+        return Math.max(1, Math.ceil(partialTotalRows / partialPageSize));
+    }, [partialPageSize, partialTotalRows]);
 
-    const displayedPartialPurchaseOrders = useMemo(() => {
-        if (partialPageSize === Infinity) return partialPurchaseOrders;
-        const startIndex = (partialCurrentPage - 1) * partialPageSize;
-        return partialPurchaseOrders.slice(
-            startIndex,
-            startIndex + partialPageSize,
-        );
-    }, [partialCurrentPage, partialPageSize, partialPurchaseOrders]);
+    const displayedPartialPurchaseOrders = partialList;
 
     const realizedTotalItems = realizedPurchaseOrders.length;
     const realizedTotalPages = useMemo(() => {
@@ -501,12 +424,20 @@ export default function PurchaseOrderIndex({
     }, [debouncedDetailSearch, isModalOpen, selectedPo, isRealizedDetail]);
 
     const loadOutstanding = () => {
-        if (outstandingLoading || outstandingList.length > 0) {
-            return;
-        }
         setOutstandingLoading(true);
         setOutstandingError(null);
-        fetch('/pembelian/purchase-order/outstanding', {
+
+        const params = new URLSearchParams();
+        params.set('search', debouncedOutstandingSearch);
+        params.set('page', String(outstandingCurrentPage));
+        params.set(
+            'pageSize',
+            outstandingPageSize === Infinity
+                ? 'all'
+                : String(outstandingPageSize),
+        );
+
+        fetch(`/pembelian/purchase-order/outstanding?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         })
             .then(async (response) => {
@@ -516,16 +447,16 @@ export default function PurchaseOrderIndex({
                 return response.json();
             })
             .then((data) => {
-                setOutstandingList(
-                    Array.isArray(data?.purchaseOrders)
-                        ? data.purchaseOrders
-                        : [],
-                );
                 const list = Array.isArray(data?.purchaseOrders)
                     ? data.purchaseOrders
                     : [];
-                setOutstandingCountState(list.length);
-                setOutstandingTotalState(sumOutstandingTotal(list));
+                setOutstandingList(list);
+                setOutstandingTotalRows(Number(data?.total ?? 0));
+
+                // If this was a "fresh" load (no search), sync the count state
+                if (!debouncedOutstandingSearch) {
+                    setOutstandingCountState(Number(data?.total ?? 0));
+                }
             })
             .catch((error) => {
                 setOutstandingError(
@@ -540,13 +471,30 @@ export default function PurchaseOrderIndex({
             });
     };
 
-    const loadPartial = () => {
-        if (partialLoading || partialList.length > 0) {
-            return;
+    useEffect(() => {
+        if (isOutstandingModalOpen) {
+            loadOutstanding();
         }
+    }, [
+        isOutstandingModalOpen,
+        debouncedOutstandingSearch,
+        outstandingCurrentPage,
+        outstandingPageSize,
+    ]);
+
+    const loadPartial = () => {
         setPartialLoading(true);
         setPartialError(null);
-        fetch('/pembelian/purchase-order/partial', {
+
+        const params = new URLSearchParams();
+        params.set('search', debouncedPartialSearch);
+        params.set('page', String(partialCurrentPage));
+        params.set(
+            'pageSize',
+            partialPageSize === Infinity ? 'all' : String(partialPageSize),
+        );
+
+        fetch(`/pembelian/purchase-order/partial?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         })
             .then(async (response) => {
@@ -556,16 +504,15 @@ export default function PurchaseOrderIndex({
                 return response.json();
             })
             .then((data) => {
-                setPartialList(
-                    Array.isArray(data?.purchaseOrders)
-                        ? data.purchaseOrders
-                        : [],
-                );
                 const list = Array.isArray(data?.purchaseOrders)
                     ? data.purchaseOrders
                     : [];
-                setPartialCountState(list.length);
-                setPartialTotalState(sumOutstandingTotal(list));
+                setPartialList(list);
+                setPartialTotalRows(Number(data?.total ?? 0));
+
+                if (!debouncedPartialSearch) {
+                    setPartialCountState(Number(data?.total ?? 0));
+                }
             })
             .catch((error) => {
                 setPartialError(
@@ -576,6 +523,17 @@ export default function PurchaseOrderIndex({
                 setPartialLoading(false);
             });
     };
+
+    useEffect(() => {
+        if (isPartialModalOpen) {
+            loadPartial();
+        }
+    }, [
+        isPartialModalOpen,
+        debouncedPartialSearch,
+        partialCurrentPage,
+        partialPageSize,
+    ]);
 
     const handleDeletePo = (noPo) => {
         if (!noPo || deletingId) return;
@@ -1792,7 +1750,7 @@ export default function PurchaseOrderIndex({
                         </div>
 
                         {outstandingPageSize !== Infinity &&
-                            outstandingTotalItems > 0 && (
+                            outstandingTotalRows > 0 && (
                                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                     <span>
                                         Menampilkan{' '}
@@ -1800,15 +1758,15 @@ export default function PurchaseOrderIndex({
                                             (outstandingCurrentPage - 1) *
                                                 outstandingPageSize +
                                                 1,
-                                            outstandingTotalItems,
+                                            outstandingTotalRows,
                                         )}
                                         -
                                         {Math.min(
                                             outstandingCurrentPage *
                                                 outstandingPageSize,
-                                            outstandingTotalItems,
+                                            outstandingTotalRows,
                                         )}{' '}
-                                        dari {outstandingTotalItems} data
+                                        dari {outstandingTotalRows} data
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <Button
@@ -2261,7 +2219,7 @@ export default function PurchaseOrderIndex({
                         </div>
 
                         {partialPageSize !== Infinity &&
-                            partialTotalItems > 0 && (
+                            partialTotalRows > 0 && (
                                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                     <span>
                                         Menampilkan{' '}
@@ -2269,15 +2227,15 @@ export default function PurchaseOrderIndex({
                                             (partialCurrentPage - 1) *
                                                 partialPageSize +
                                                 1,
-                                            partialTotalItems,
+                                            partialTotalRows,
                                         )}
                                         -
                                         {Math.min(
                                             partialCurrentPage *
                                                 partialPageSize,
-                                            partialTotalItems,
+                                            partialTotalRows,
                                         )}{' '}
-                                        dari {partialTotalItems} data
+                                        dari {partialTotalRows} data
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <Button

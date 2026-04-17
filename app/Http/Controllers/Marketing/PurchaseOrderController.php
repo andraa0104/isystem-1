@@ -1125,84 +1125,130 @@ class PurchaseOrderController
         ]);
     }
 
-    public function outstanding()
+    public function outstanding(Request $request)
     {
-        $invinAgg = DB::table('tb_invin')
-            ->select('ref_po')
-            ->whereNotNull('ref_po')
-            ->groupBy('ref_po');
+        $search = trim((string) $request->query('search', ''));
+        $pageSizeRaw = $request->query('pageSize', 'all');
+        $page = max(1, (int) $request->query('page', 1));
 
-        $purchaseOrders = DB::table('tb_po as po')
+        $sub = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->groupBy('no_po')
+            ->havingRaw('sum(case when coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) = 0');
+
+        $query = DB::table('tb_po as po')
+            ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
             ->select(
                 'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn'
-            )
-            ->whereNotExists(function($q) {
-                $q->select(DB::raw(1))->from('tb_detailpo as d')->whereColumn('d.no_po', 'po.no_po')
-                  ->whereRaw('coalesce(d.gr_mat, 0) < coalesce(d.qty, 0)');
-            })
-            ->whereExists(function($q) {
-                $q->select(DB::raw(1))->from('tb_detailpo as d')->whereColumn('d.no_po', 'po.no_po');
-            })
-            ->leftJoinSub($invinAgg, 'invin', 'po.no_po', '=', 'invin.ref_po')
-            ->selectRaw('case when invin.ref_po is null then 1 else 0 end as can_delete')
-            ->selectRaw('1 as is_outstanding')
-            ->orderBy('tgl', 'desc')
-            ->orderBy('no_po', 'desc')
+            );
+
+        if ($search !== '') {
+            $query->where(function($q) use ($search) {
+                $q->where('po.no_po', 'like', "%{$search}%")
+                  ->orWhere('po.nm_vdr', 'like', "%{$search}%")
+                  ->orWhere('po.ref_pr', 'like', "%{$search}%");
+            });
+        }
+
+        $total = (clone $query)->count();
+
+        if ($pageSizeRaw !== 'all') {
+            $pageSize = max(1, (int) $pageSizeRaw);
+            $query->forPage($page, $pageSize);
+        }
+
+        $purchaseOrders = $query->orderBy('po.tgl', 'desc')
+            ->orderBy('po.no_po', 'desc')
             ->get();
 
-        $purchaseOrders->transform(function ($item) {
+        $poNumbers = $purchaseOrders->pluck('no_po')->all();
+        $invinAgg = [];
+        if (!empty($poNumbers)) {
+            $invinAgg = DB::table('tb_invin')
+                ->whereIn('ref_po', $poNumbers)
+                ->pluck('ref_po')
+                ->unique()
+                ->all();
+        }
+
+        $purchaseOrders->transform(function ($item) use ($invinAgg) {
+            $item->can_delete = !in_array($item->no_po, $invinAgg);
+            $item->is_outstanding = 1;
             if ($item->tgl) {
                 try {
                     $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
-                } catch (\Throwable $e) {
-                }
+                } catch (\Throwable $e) {}
             }
             return $item;
         });
 
         return response()->json([
             'purchaseOrders' => $purchaseOrders,
+            'total' => $total,
         ]);
     }
 
-    public function partial()
+    public function partial(Request $request)
     {
-        $invinAgg = DB::table('tb_invin')
-            ->select('ref_po')
-            ->whereNotNull('ref_po')
-            ->groupBy('ref_po');
+        $search = trim((string) $request->query('search', ''));
+        $pageSizeRaw = $request->query('pageSize', 'all');
+        $page = max(1, (int) $request->query('page', 1));
 
-        $purchaseOrders = DB::table('tb_po as po')
+        $sub = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->groupBy('no_po')
+            ->havingRaw('sum(case when coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
+            ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0');
+
+        $query = DB::table('tb_po as po')
+            ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
             ->select(
                 'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn'
-            )
-            ->whereExists(function($q) {
-                $q->select(DB::raw(1))->from('tb_detailpo as d')->whereColumn('d.no_po', 'po.no_po')
-                  ->whereRaw('coalesce(d.gr_mat, 0) < coalesce(d.qty, 0)');
-            })
-            ->whereExists(function($q) {
-                $q->select(DB::raw(1))->from('tb_detailpo as d')->whereColumn('d.no_po', 'po.no_po')
-                  ->whereRaw('coalesce(d.gr_mat, 0) > 0');
-            })
-            ->leftJoinSub($invinAgg, 'invin', 'po.no_po', '=', 'invin.ref_po')
-            ->selectRaw('case when invin.ref_po is null then 1 else 0 end as can_delete')
-            ->selectRaw('1 as is_partial')
-            ->orderBy('tgl', 'desc')
-            ->orderBy('no_po', 'desc')
+            );
+
+        if ($search !== '') {
+            $query->where(function($q) use ($search) {
+                $q->where('po.no_po', 'like', "%{$search}%")
+                  ->orWhere('po.nm_vdr', 'like', "%{$search}%")
+                  ->orWhere('po.ref_pr', 'like', "%{$search}%");
+            });
+        }
+
+        $total = (clone $query)->count();
+
+        if ($pageSizeRaw !== 'all') {
+            $pageSize = max(1, (int) $pageSizeRaw);
+            $query->forPage($page, $pageSize);
+        }
+
+        $purchaseOrders = $query->orderBy('po.tgl', 'desc')
+            ->orderBy('po.no_po', 'desc')
             ->get();
 
-        $purchaseOrders->transform(function ($item) {
+        $poNumbers = $purchaseOrders->pluck('no_po')->all();
+        $invinAgg = [];
+        if (!empty($poNumbers)) {
+            $invinAgg = DB::table('tb_invin')
+                ->whereIn('ref_po', $poNumbers)
+                ->pluck('ref_po')
+                ->unique()
+                ->all();
+        }
+
+        $purchaseOrders->transform(function ($item) use ($invinAgg) {
+            $item->can_delete = !in_array($item->no_po, $invinAgg);
+            $item->is_partial = 1;
             if ($item->tgl) {
                 try {
                     $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
-                } catch (\Throwable $e) {
-                }
+                } catch (\Throwable $e) {}
             }
             return $item;
         });
 
         return response()->json([
             'purchaseOrders' => $purchaseOrders,
+            'total' => $total,
         ]);
     }
 
