@@ -222,7 +222,10 @@ class PaymentCostController
             return response()->json(['rows' => [], 'total' => 0]);
         }
 
-        $filter = (string) $request->query('filter', 'belum'); // belum | sudah | all
+        $filter = (string) $request->query('filter', 'belum');
+        $period = (string) $request->query('period', 'today');
+        $startDate = (string) $request->query('startDate');
+        $endDate = (string) $request->query('endDate');
         $search = trim((string) $request->query('search', ''));
         $pageSizeRaw = $request->query('pageSize', 5);
         $pageRaw = $request->query('page', 1);
@@ -232,47 +235,90 @@ class PaymentCostController
 
         $query = DB::table('tb_bayar');
 
-        // Filter pembukuan:
-        // - "belum pembukuan": beban_akun has content (TRIM <> '')
-        // - "sudah pembukuan": beban_akun is effectively empty (stored as space), so TRIM = ''
         if ($filter === 'belum') {
             $query->whereRaw("TRIM(COALESCE(beban_akun,'')) <> ''");
         } elseif ($filter === 'sudah') {
             $query->whereRaw("TRIM(COALESCE(beban_akun,'')) = ''");
         }
 
-        if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('Kode_Bayar', 'like', '%' . $search . '%')
-                    ->orWhere('Keterangan', 'like', '%' . $search . '%')
-                    ->orWhere('beban_akun', 'like', '%' . $search . '%');
-            });
+        if ($period === 'today') {
+            $query->whereDate('Tgl_Posting', now()->toDateString());
+        } elseif ($period === 'week') {
+            $query->whereBetween('Tgl_Posting', [now()->startOfWeek()->toDateString(), now()->endOfWeek()->toDateString()]);
+        } elseif ($period === 'month') {
+            $query->whereBetween('Tgl_Posting', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()]);
+        } elseif ($period === 'year') {
+            $query->whereYear('Tgl_Posting', now()->year);
+        } elseif ($period === 'range' && $startDate && $endDate) {
+            $query->whereBetween('Tgl_Posting', [$startDate, $endDate]);
         }
 
-        $total = (clone $query)->count();
+        if ($search !== '') {
+            $query->where('Kode_Bayar', 'like', '%' . $search . '%');
+        }
 
-        $select = [
+        // Count distinct Kode_Bayar
+        $total = DB::table(DB::raw("({$query->select('Kode_Bayar')->groupBy('Kode_Bayar')->toSql()}) as sub"))
+            ->mergeBindings($query)
+            ->count();
+
+        $query->select([
             'Kode_Bayar',
-            'Tgl_Bayar',
-            'Tgl_Posting',
-            'Keterangan',
-            'Penanggung',
-            'Total',
-            'Bayar',
-            'Sisa',
-            'beban_akun',
-            'noduk_beban',
-        ];
-
-        // Sort desc by kode bayar
-        $query->select($select)->orderByDesc('Kode_Bayar');
+            DB::raw('MIN(Tgl_Posting) as Tgl_Posting'),
+            DB::raw('SUM(Total) as Total'),
+            DB::raw('SUM(Bayar) as Bayar'),
+            DB::raw('SUM(Sisa) as Sisa'),
+        ])->groupBy('Kode_Bayar')->orderByDesc('Kode_Bayar');
 
         if ($pageSize !== 'all') {
             $query->forPage($page, $pageSize);
         }
 
-        $rows = $query->get();
+        return response()->json(['rows' => $query->get(), 'total' => $total]);
+    }
 
-        return response()->json(['rows' => $rows, 'total' => $total]);
+    public function details(Request $request)
+    {
+        $kodeBayar = (string) $request->query('kode_bayar');
+        if ($kodeBayar === '') {
+            return response()->json(['rows' => [], 'total' => 0, 'summary' => null]);
+        }
+
+        $search = trim((string) $request->query('search', ''));
+        $pageSizeRaw = $request->query('pageSize', 5);
+        $pageRaw = $request->query('page', 1);
+
+        $page = max(1, (int) $pageRaw);
+        $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
+
+        $query = DB::table('tb_bayar')->where('Kode_Bayar', $kodeBayar);
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('Keterangan', 'like', '%' . $search . '%')
+                    ->orWhere('Penanggung', 'like', '%' . $search . '%');
+            });
+        }
+
+        // Summary should be based on filtered set
+        $summary = [
+            'total' => (clone $query)->sum('Total'),
+            'bayar' => (clone $query)->sum('Bayar'),
+            'sisa' => (clone $query)->sum('Sisa'),
+        ];
+
+        $total = (clone $query)->count();
+
+        $query->orderBy('No');
+
+        if ($pageSize !== 'all') {
+            $query->forPage($page, $pageSize);
+        }
+
+        return response()->json([
+            'rows' => $query->get(),
+            'total' => $total,
+            'summary' => $summary,
+        ]);
     }
 }

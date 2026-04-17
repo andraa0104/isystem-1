@@ -783,15 +783,7 @@ export default function PurchaseOrderInIndex({
                                 ) : dataPoInPeriod === 'range' ? (
                                     dataItemsByPeriod.length
                                 ) : (
-                                    (summary.data_counts?.[
-                                        dataPoInPeriod === 'this_week'
-                                            ? 'week'
-                                            : dataPoInPeriod === 'this_month'
-                                              ? 'month'
-                                              : dataPoInPeriod === 'this_year'
-                                                ? 'year'
-                                                : dataPoInPeriod
-                                    ] ?? 0)
+                                    dataItemsByPeriod.length
                                 )}
                             </p>
                             <p

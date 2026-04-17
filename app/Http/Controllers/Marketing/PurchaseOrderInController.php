@@ -211,7 +211,7 @@ class PurchaseOrderInController
 
         $base = DB::table('tb_poin as p')
             ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-            ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.customer_name', 'p.grand_total')
+            ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.created_at', 'p.customer_name', 'p.grand_total')
             ->orderByDesc('p.id');
 
         return [

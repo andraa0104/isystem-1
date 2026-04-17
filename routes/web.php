@@ -456,6 +456,8 @@ Route::get('pembayaran/payment-cost/bkj-rows', [PaymentCostController::class, 'b
     ->name('pembayaran.payment-cost.bkj-rows');
 Route::get('pembayaran/payment-cost/rows', [PaymentCostController::class, 'rows'])
     ->name('pembayaran.payment-cost.rows');
+Route::get('pembayaran/payment-cost/details', [PaymentCostController::class, 'details'])
+    ->name('pembayaran.payment-cost.details');
 
 Route::get('penjualan/faktur-penjualan', [FakturPenjualanController::class, 'index'])
     ->name('penjualan.faktur-penjualan.index');
