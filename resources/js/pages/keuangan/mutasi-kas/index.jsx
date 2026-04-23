@@ -1,14 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { Head, router } from '@inertiajs/react';
+import { useEffect, useMemo, useState } from 'react';
 
 const PAGE_SIZE_OPTIONS = [
     { value: '10', label: '10' },
@@ -36,11 +49,17 @@ const formatDate = (value) => {
     if (!value) return '-';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
+    return new Intl.DateTimeFormat('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    }).format(date);
 };
 
 const formatNumber = (value) =>
-    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value ?? 0);
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        value ?? 0,
+    );
 
 const directionBadge = (mutasi) => {
     const v = Number(mutasi ?? 0);
@@ -57,25 +76,42 @@ const formatPeriodLabel = (yyyymm) => {
     const mm = Number(yyyymm.slice(4, 6));
     const d = new Date(yyyy, Math.max(0, mm - 1), 1);
     if (Number.isNaN(d.getTime())) return yyyymm;
-    return new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('id-ID', {
+        month: 'long',
+        year: 'numeric',
+    }).format(d);
 };
 
-export default function MutasiKasIndex({ filters = {}, accountOptions = [], defaultAccount = null }) {
+export default function MutasiKasIndex({
+    filters = {},
+    accountOptions = [],
+    defaultAccount = null,
+}) {
     const [search, setSearch] = useState(filters?.search ?? '');
-    const [account, setAccount] = useState(filters?.account ?? (defaultAccount ?? 'all'));
-    const [period, setPeriod] = useState(filters?.period ?? new Date().toISOString().slice(0, 7).replace('-', ''));
+    const [account, setAccount] = useState(
+        filters?.account ?? defaultAccount ?? 'all',
+    );
+    const [period, setPeriod] = useState(
+        filters?.period ??
+            new Date().toISOString().slice(0, 7).replace('-', ''),
+    );
     const [pageSize, setPageSize] = useState(filters?.pageSize ?? 10);
     const [page, setPage] = useState(1);
 
-    const periodYear = period && (/^\d{6}$/.test(period) || /^\d{4}$/.test(period)) ? period.slice(0, 4) : '';
-    const periodMonth = period && /^\d{6}$/.test(period) ? period.slice(4, 6) : 'all';
+    const periodYear =
+        period && (/^\d{6}$/.test(period) || /^\d{4}$/.test(period))
+            ? period.slice(0, 4)
+            : '';
+    const periodMonth =
+        period && /^\d{6}$/.test(period) ? period.slice(4, 6) : 'all';
     const periodLabel = useMemo(() => formatPeriodLabel(period), [period]);
 
     const yearOptions = useMemo(() => {
         const now = new Date();
         const currentYear = now.getFullYear();
         const years = [];
-        for (let y = currentYear + 1; y >= currentYear - 8; y -= 1) years.push(String(y));
+        for (let y = currentYear + 1; y >= currentYear - 8; y -= 1)
+            years.push(String(y));
         return years;
     }, []);
 
@@ -100,7 +136,8 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
         if (period) bits.push('periode');
         if (account && account !== 'all') bits.push('akun');
         if (search) bits.push('pencarian');
-        if (bits.length === 0) return 'Klik Mutasi Baru untuk mencatat kas masuk/keluar atau transfer.';
+        if (bits.length === 0)
+            return 'Klik Mutasi Baru untuk mencatat kas masuk/keluar atau transfer.';
         return `Coba ubah ${bits.join(', ')} atau pilih "Semua akun / Semua".`;
     }, [account, period, search]);
 
@@ -114,9 +151,12 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
             if (period) params.set('period', period);
             params.set('pageSize', 'all');
 
-            const res = await fetch(`/keuangan/mutasi-kas/rows?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/keuangan/mutasi-kas/rows?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!res.ok) throw await normalizeApiError(res);
             const json = await res.json();
             setRows(Array.isArray(json?.rows) ? json.rows : []);
@@ -151,7 +191,7 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
     }, [search]);
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Mutasi Kas', href: '/keuangan/mutasi-kas' }]}>
+        <>
             <Head title="Mutasi Kas" />
             <div className="flex flex-col gap-4 p-4">
                 <Card>
@@ -160,10 +200,17 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                             <div>
                                 <CardTitle>Mutasi Kas (Buku Kas)</CardTitle>
                                 <div className="text-xs text-muted-foreground">
-                                    Menampilkan data dari <span className="font-mono">tb_kas</span> untuk monitoring kas/bank (mutasi & saldo).
+                                    Menampilkan data dari{' '}
+                                    <span className="font-mono">tb_kas</span>{' '}
+                                    untuk monitoring kas/bank (mutasi & saldo).
                                 </div>
                             </div>
-                            <Button type="button" onClick={() => router.visit('/keuangan/mutasi-kas/create')}>
+                            <Button
+                                type="button"
+                                onClick={() =>
+                                    router.visit('/keuangan/mutasi-kas/create')
+                                }
+                            >
                                 Mutasi Baru
                             </Button>
                         </div>
@@ -183,14 +230,22 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                                 />
                             </div>
                             <div className="lg:col-span-4">
-                                <Select value={account} onValueChange={setAccount}>
+                                <Select
+                                    value={account}
+                                    onValueChange={setAccount}
+                                >
                                     <SelectTrigger className="w-full">
                                         <SelectValue placeholder="Akun kas/bank" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">Semua akun</SelectItem>
+                                        <SelectItem value="all">
+                                            Semua akun
+                                        </SelectItem>
                                         {accountOptions?.map((opt) => (
-                                            <SelectItem key={opt.value} value={opt.value}>
+                                            <SelectItem
+                                                key={opt.value}
+                                                value={opt.value}
+                                            >
                                                 {opt.label}
                                             </SelectItem>
                                         ))}
@@ -202,7 +257,12 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                                     <Select
                                         value={periodMonth}
                                         onValueChange={(v) => {
-                                            const y = periodYear || yearOptions[0] || String(new Date().getFullYear());
+                                            const y =
+                                                periodYear ||
+                                                yearOptions[0] ||
+                                                String(
+                                                    new Date().getFullYear(),
+                                                );
                                             if (v === 'all') setPeriod(y);
                                             else setPeriod(`${y}${v}`);
                                         }}
@@ -211,9 +271,14 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                                             <SelectValue placeholder="Bulan" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Semua bulan</SelectItem>
+                                            <SelectItem value="all">
+                                                Semua bulan
+                                            </SelectItem>
                                             {MONTH_OPTIONS.map((m) => (
-                                                <SelectItem key={m.value} value={m.value}>
+                                                <SelectItem
+                                                    key={m.value}
+                                                    value={m.value}
+                                                >
                                                     {m.label}
                                                 </SelectItem>
                                             ))}
@@ -226,15 +291,19 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                                                 setPeriod('');
                                                 return;
                                             }
-                                            if (periodMonth === 'all') setPeriod(v);
-                                            else setPeriod(`${v}${periodMonth}`);
+                                            if (periodMonth === 'all')
+                                                setPeriod(v);
+                                            else
+                                                setPeriod(`${v}${periodMonth}`);
                                         }}
                                     >
                                         <SelectTrigger className="w-full">
                                             <SelectValue placeholder="Tahun" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Semua tahun</SelectItem>
+                                            <SelectItem value="all">
+                                                Semua tahun
+                                            </SelectItem>
                                             {yearOptions.map((y) => (
                                                 <SelectItem key={y} value={y}>
                                                     {y}
@@ -243,7 +312,9 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="mt-1 text-[11px] text-muted-foreground">Periode aktif: {periodLabel}</div>
+                                <div className="mt-1 text-[11px] text-muted-foreground">
+                                    Periode aktif: {periodLabel}
+                                </div>
                             </div>
                             <div className="lg:col-span-1">
                                 <Button
@@ -268,9 +339,15 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                                     <TableHead>Kode Voucher</TableHead>
                                     <TableHead>Tgl Voucher</TableHead>
                                     <TableHead>Akun</TableHead>
-                                    <TableHead className="min-w-[420px]">Keterangan</TableHead>
-                                    <TableHead className="text-right">Mutasi</TableHead>
-                                    <TableHead className="text-right">Saldo</TableHead>
+                                    <TableHead className="min-w-[420px]">
+                                        Keterangan
+                                    </TableHead>
+                                    <TableHead className="text-right">
+                                        Mutasi
+                                    </TableHead>
+                                    <TableHead className="text-right">
+                                        Saldo
+                                    </TableHead>
                                     <TableHead>Status</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -280,31 +357,66 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                                     loading={loading}
                                     error={error}
                                     onRetry={fetchRows}
-                                    isEmpty={!loading && !error && displayed.length === 0}
+                                    isEmpty={
+                                        !loading &&
+                                        !error &&
+                                        displayed.length === 0
+                                    }
                                     emptyTitle="Belum ada data mutasi kas."
                                     emptyDescription={emptyDescription}
                                 />
                                 {!loading &&
                                     !error &&
                                     displayed.map((row) => {
-                                        const badge = directionBadge(row?.Mutasi_Kas);
-                                        const mut = Number(row?.Mutasi_Kas ?? 0);
+                                        const badge = directionBadge(
+                                            row?.Mutasi_Kas,
+                                        );
+                                        const mut = Number(
+                                            row?.Mutasi_Kas ?? 0,
+                                        );
                                         return (
-                                            <TableRow key={row?.Kode_Voucher ?? Math.random()}>
-                                                <TableCell className="whitespace-pre-wrap font-mono text-xs">
-                                                    {String(row?.Kode_Voucher ?? '-')}
+                                            <TableRow
+                                                key={
+                                                    row?.Kode_Voucher ??
+                                                    Math.random()
+                                                }
+                                            >
+                                                <TableCell className="font-mono text-xs whitespace-pre-wrap">
+                                                    {String(
+                                                        row?.Kode_Voucher ??
+                                                            '-',
+                                                    )}
                                                 </TableCell>
-                                                <TableCell className="whitespace-nowrap">{formatDate(row?.Tgl_Voucher)}</TableCell>
-                                                <TableCell className="whitespace-nowrap font-medium">{String(row?.Kode_Akun ?? '-')}</TableCell>
-                                                <TableCell className="whitespace-normal break-words text-sm">
-                                                    {String(row?.Keterangan ?? '') || '-'}
+                                                <TableCell className="whitespace-nowrap">
+                                                    {formatDate(
+                                                        row?.Tgl_Voucher,
+                                                    )}
                                                 </TableCell>
-                                                <TableCell className={`whitespace-nowrap text-right ${mut < 0 ? 'text-destructive' : mut > 0 ? 'text-emerald-500' : ''}`}>
+                                                <TableCell className="font-medium whitespace-nowrap">
+                                                    {String(
+                                                        row?.Kode_Akun ?? '-',
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-sm break-words whitespace-normal">
+                                                    {String(
+                                                        row?.Keterangan ?? '',
+                                                    ) || '-'}
+                                                </TableCell>
+                                                <TableCell
+                                                    className={`text-right whitespace-nowrap ${mut < 0 ? 'text-destructive' : mut > 0 ? 'text-emerald-500' : ''}`}
+                                                >
                                                     Rp {formatNumber(mut)}
                                                 </TableCell>
-                                                <TableCell className="whitespace-nowrap text-right">Rp {formatNumber(row?.Saldo)}</TableCell>
+                                                <TableCell className="text-right whitespace-nowrap">
+                                                    Rp{' '}
+                                                    {formatNumber(row?.Saldo)}
+                                                </TableCell>
                                                 <TableCell>
-                                                    <Badge variant={badge.variant}>{badge.label}</Badge>
+                                                    <Badge
+                                                        variant={badge.variant}
+                                                    >
+                                                        {badge.label}
+                                                    </Badge>
                                                 </TableCell>
                                             </TableRow>
                                         );
@@ -313,12 +425,19 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                         </Table>
 
                         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="text-sm text-muted-foreground">Total data: {total}</div>
+                            <div className="text-sm text-muted-foreground">
+                                Total data: {total}
+                            </div>
                             <div className="flex items-center gap-3">
                                 <Select
-                                    value={pageSize === Infinity ? 'all' : String(pageSize)}
+                                    value={
+                                        pageSize === Infinity
+                                            ? 'all'
+                                            : String(pageSize)
+                                    }
                                     onValueChange={(v) => {
-                                        const num = v === 'all' ? Infinity : Number(v);
+                                        const num =
+                                            v === 'all' ? Infinity : Number(v);
                                         setPageSize(num);
                                         setPage(1);
                                     }}
@@ -328,7 +447,10 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                                     </SelectTrigger>
                                     <SelectContent>
                                         {PAGE_SIZE_OPTIONS.map((opt) => (
-                                            <SelectItem key={opt.value} value={opt.value}>
+                                            <SelectItem
+                                                key={opt.value}
+                                                value={opt.value}
+                                            >
                                                 {opt.label}
                                             </SelectItem>
                                         ))}
@@ -337,8 +459,12 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    disabled={page <= 1 || pageSize === Infinity}
-                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    disabled={
+                                        page <= 1 || pageSize === Infinity
+                                    }
+                                    onClick={() =>
+                                        setPage((p) => Math.max(1, p - 1))
+                                    }
                                 >
                                     Prev
                                 </Button>
@@ -348,8 +474,15 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    disabled={page >= totalPages || pageSize === Infinity}
-                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                    disabled={
+                                        page >= totalPages ||
+                                        pageSize === Infinity
+                                    }
+                                    onClick={() =>
+                                        setPage((p) =>
+                                            Math.min(totalPages, p + 1),
+                                        )
+                                    }
                                 >
                                     Next
                                 </Button>
@@ -358,7 +491,14 @@ export default function MutasiKasIndex({ filters = {}, accountOptions = [], defa
                     </CardContent>
                 </Card>
             </div>
-        </AppLayout>
+        </>
     );
 }
 
+MutasiKasIndex.layout = (page) => {
+    const breadcrumbs = [
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Mutasi Kas', href: '/keuangan/mutasi-kas' },
+    ];
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

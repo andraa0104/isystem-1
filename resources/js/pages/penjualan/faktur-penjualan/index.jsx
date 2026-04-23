@@ -1,3 +1,6 @@
+import { ActionIconButton } from '@/components/action-icon-button';
+import { ErrorState } from '@/components/data-states/ErrorState';
+import { Button } from '@/components/ui/button';
 import {
     Card,
     CardContent,
@@ -5,7 +8,6 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
@@ -22,17 +24,15 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { ActionIconButton } from '@/components/action-icon-button';
 import AppLayout from '@/layouts/app-layout';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { canDeleteRow } from '@/lib/can-delete';
+import { confirmDelete } from '@/lib/confirm-delete';
+import { formatDateId } from '@/lib/formatters';
 import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, ReceiptText, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
-import { ErrorState } from '@/components/data-states/ErrorState';
-import { canDeleteRow } from '@/lib/can-delete';
-import { confirmDelete } from '@/lib/confirm-delete';
-import { normalizeApiError, readApiError } from '@/lib/api-error';
-import { formatDateId } from '@/lib/formatters';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -96,11 +96,7 @@ const parseInvoiceDate = (value) => {
         const parts = raw.split('.');
         if (parts.length === 3) {
             const [dd, mm, yyyy] = parts;
-            return new Date(
-                Number(yyyy),
-                Number(mm) - 1,
-                Number(dd),
-            );
+            return new Date(Number(yyyy), Number(mm) - 1, Number(dd));
         }
     }
     const parsed = new Date(raw);
@@ -156,14 +152,19 @@ export default function FakturPenjualanIndex({
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
-                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
+                if (!response.ok)
+                    return readApiError(response).then((err) =>
+                        Promise.reject(err),
+                    );
                 return response.json();
             })
             .then((data) => {
                 setInvoicesData(Array.isArray(data?.data) ? data.data : []);
             })
             .catch((err) => {
-                setInvoicesError(normalizeApiError(err, 'Gagal memuat data faktur.'));
+                setInvoicesError(
+                    normalizeApiError(err, 'Gagal memuat data faktur.'),
+                );
             })
             .finally(() => setInvoicesLoading(false));
     };
@@ -188,7 +189,8 @@ export default function FakturPenjualanIndex({
                     setInvoicesData((prev) =>
                         prev.filter(
                             (row) =>
-                                row.no_fakturpenjualan !== invoice.no_fakturpenjualan,
+                                row.no_fakturpenjualan !==
+                                invoice.no_fakturpenjualan,
                         ),
                     );
                 },
@@ -364,7 +366,10 @@ export default function FakturPenjualanIndex({
     const displayedDetailItems = useMemo(() => {
         if (detailPageSize === Infinity) return filteredDetailItems;
         const startIndex = (detailCurrentPage - 1) * detailPageSize;
-        return filteredDetailItems.slice(startIndex, startIndex + detailPageSize);
+        return filteredDetailItems.slice(
+            startIndex,
+            startIndex + detailPageSize,
+        );
     }, [filteredDetailItems, detailCurrentPage, detailPageSize]);
 
     useEffect(() => {
@@ -401,7 +406,6 @@ export default function FakturPenjualanIndex({
         if (!detailInvoice) return 0;
         return toNumber(detailInvoice.total_bayaran);
     }, [detailInvoice]);
-
 
     const parseCsvLine = (line, delimiter) => {
         const result = [];
@@ -688,7 +692,7 @@ export default function FakturPenjualanIndex({
     }, [noReceiptCurrentPage, noReceiptTotalPages]);
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Faktur Penjualan" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -740,7 +744,9 @@ export default function FakturPenjualanIndex({
                     >
                         <CardHeader className="space-y-1 pb-2">
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                                <CardTitle>Invoice Belum Bikin Kwitansi</CardTitle>
+                                <CardTitle>
+                                    Invoice Belum Bikin Kwitansi
+                                </CardTitle>
                                 <select
                                     className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs text-muted-foreground"
                                     value={noReceiptRange}
@@ -765,7 +771,8 @@ export default function FakturPenjualanIndex({
                                 {formatNumber(noReceiptSummary.count)} Invoice
                             </p>
                             <p className="text-sm text-muted-foreground">
-                                Grand Total: {formatRupiah(noReceiptSummary.total)}
+                                Grand Total:{' '}
+                                {formatRupiah(noReceiptSummary.total)}
                             </p>
                         </CardContent>
                     </Card>
@@ -784,13 +791,13 @@ export default function FakturPenjualanIndex({
                         <div className="flex flex-wrap items-center gap-3">
                             <select
                                 className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
-                                value={
-                                    pageSize === Infinity ? 'all' : pageSize
-                                }
+                                value={pageSize === Infinity ? 'all' : pageSize}
                                 onChange={(event) => {
                                     const value = event.target.value;
                                     setPageSize(
-                                        value === 'all' ? Infinity : Number(value),
+                                        value === 'all'
+                                            ? Infinity
+                                            : Number(value),
                                     );
                                 }}
                             >
@@ -827,7 +834,9 @@ export default function FakturPenjualanIndex({
                             <Input
                                 placeholder="Cari no invoice, ref po, customer..."
                                 value={searchTerm}
-                                onChange={(event) => setSearchTerm(event.target.value)}
+                                onChange={(event) =>
+                                    setSearchTerm(event.target.value)
+                                }
                                 className="min-w-[220px]"
                             />
                         </div>
@@ -835,122 +844,206 @@ export default function FakturPenjualanIndex({
                     <CardContent className="space-y-4">
                         <div className="overflow-hidden rounded-md border">
                             <div className="max-h-[65vh] overflow-auto overscroll-contain">
-                            <Table>
-                                <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                                    <TableRow>
-                                        <TableHead className="sticky left-0 z-[2] w-[180px] bg-background/95">
-                                            No Invoice
-                                        </TableHead>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead className="sticky left-[180px] z-[2] bg-background/95">
-                                            Customer
-                                        </TableHead>
-                                        <TableHead>Ref PO</TableHead>
-                                        <TableHead className="text-right">Total</TableHead>
-                                        <TableHead className="text-right">Dibayar</TableHead>
-                                        <TableHead className="text-right">Sisa</TableHead>
-                                        <TableHead>Jatuh Tempo</TableHead>
-                                        <TableHead className="sticky right-0 z-[2] bg-background/95 text-right">
-                                            Aksi
-                                        </TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {invoicesLoading && (
+                                <Table>
+                                    <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                         <TableRow>
-                                            <TableCell colSpan={9}>
-                                                Memuat data invoice...
-                                            </TableCell>
+                                            <TableHead className="sticky left-0 z-[2] w-[180px] bg-background/95">
+                                                No Invoice
+                                            </TableHead>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead className="sticky left-[180px] z-[2] bg-background/95">
+                                                Customer
+                                            </TableHead>
+                                            <TableHead>Ref PO</TableHead>
+                                            <TableHead className="text-right">
+                                                Total
+                                            </TableHead>
+                                            <TableHead className="text-right">
+                                                Dibayar
+                                            </TableHead>
+                                            <TableHead className="text-right">
+                                                Sisa
+                                            </TableHead>
+                                            <TableHead>Jatuh Tempo</TableHead>
+                                            <TableHead className="sticky right-0 z-[2] bg-background/95 text-right">
+                                                Aksi
+                                            </TableHead>
                                         </TableRow>
-                                    )}
-                                    {!invoicesLoading && invoicesError && (
-                                        <TableRow>
-                                            <TableCell colSpan={9}>
-                                                <ErrorState error={invoicesError} onRetry={fetchInvoices} />
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                    {!invoicesLoading &&
-                                        !invoicesError &&
-                                        displayedInvoices.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
-                                                <div>Tidak ada data invoice.</div>
-                                                <div className="mt-3">
-                                                    <Button asChild size="sm">
-                                                        <Link href="/penjualan/faktur-penjualan/create">
-                                                            Buat Faktur
-                                                        </Link>
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                    {!invoicesLoading &&
-                                        !invoicesError &&
-                                        displayedInvoices.map((item) => (
-                                        <TableRow
-                                            key={`inv-${item.no_fakturpenjualan}`}
-                                        >
-                                            <TableCell className="sticky left-0 z-[1] w-[180px] bg-background/95 font-medium">
-                                                {item.no_fakturpenjualan}
-                                            </TableCell>
-                                            <TableCell>{formatDateId(item.tgl_doc)}</TableCell>
-                                            <TableCell className="sticky left-[180px] z-[1] bg-background/95">
-                                                {item.nm_cs}
-                                            </TableCell>
-                                            <TableCell>{item.ref_po}</TableCell>
-                                            <TableCell className="text-right">
-                                                {formatRupiah(item.g_total)}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                {formatRupiah(item.total_bayaran)}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                {(() => {
-                                                    const total = parseCurrency(item.g_total);
-                                                    const paid = parseCurrency(item.total_bayaran);
-                                                    const sisa = Math.max(0, total - paid);
-                                                    const dueDate = item.jth_tempo ? new Date(item.jth_tempo) : null;
-                                                    const today = new Date();
-                                                    today.setHours(0, 0, 0, 0);
-                                                    if (dueDate) dueDate.setHours(0, 0, 0, 0);
-                                                    const overdue = Boolean(dueDate && sisa > 0 && dueDate <= today);
-                                                    return (
-                                                        <span className={overdue ? 'font-semibold text-destructive' : ''}>
-                                                            {formatRupiah(sisa)}
-                                                        </span>
-                                                    );
-                                                })()}
-                                            </TableCell>
-                                            <TableCell>
-                                                {item.jth_tempo ? formatDateId(item.jth_tempo) : '-'}
-                                            </TableCell>
-                                            <TableCell className="sticky right-0 z-[1] bg-background/95 text-right">
-                                                <div className="inline-flex items-center justify-end gap-2">
-                                                    <ActionIconButton
-                                                        label="Detail"
-                                                        onClick={() => handleOpenDetail(item)}
+                                    </TableHeader>
+                                    <TableBody>
+                                        {invoicesLoading && (
+                                            <TableRow>
+                                                <TableCell colSpan={9}>
+                                                    Memuat data invoice...
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {!invoicesLoading && invoicesError && (
+                                            <TableRow>
+                                                <TableCell colSpan={9}>
+                                                    <ErrorState
+                                                        error={invoicesError}
+                                                        onRetry={fetchInvoices}
+                                                    />
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {!invoicesLoading &&
+                                            !invoicesError &&
+                                            displayedInvoices.length === 0 && (
+                                                <TableRow>
+                                                    <TableCell
+                                                        colSpan={9}
+                                                        className="py-10 text-center text-muted-foreground"
                                                     >
-                                                        <Eye className="h-4 w-4" />
-                                                    </ActionIconButton>
-                                                    <ActionIconButton label="Cetak" asChild>
-                                                        <a
-                                                            href={`/penjualan/faktur-penjualan/${encodeURIComponent(
-                                                                item.no_fakturpenjualan ?? '',
-                                                            )}/print`}
-                                                            target="_blank"
-                                                            rel="noreferrer"
-                                                        >
-                                                            <Printer className="h-4 w-4" />
-                                                        </a>
-                                                    </ActionIconButton>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                                                        <div>
+                                                            Tidak ada data
+                                                            invoice.
+                                                        </div>
+                                                        <div className="mt-3">
+                                                            <Button
+                                                                asChild
+                                                                size="sm"
+                                                            >
+                                                                <Link href="/penjualan/faktur-penjualan/create">
+                                                                    Buat Faktur
+                                                                </Link>
+                                                            </Button>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        {!invoicesLoading &&
+                                            !invoicesError &&
+                                            displayedInvoices.map((item) => (
+                                                <TableRow
+                                                    key={`inv-${item.no_fakturpenjualan}`}
+                                                >
+                                                    <TableCell className="sticky left-0 z-[1] w-[180px] bg-background/95 font-medium">
+                                                        {
+                                                            item.no_fakturpenjualan
+                                                        }
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatDateId(
+                                                            item.tgl_doc,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="sticky left-[180px] z-[1] bg-background/95">
+                                                        {item.nm_cs}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {item.ref_po}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        {formatRupiah(
+                                                            item.g_total,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        {formatRupiah(
+                                                            item.total_bayaran,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        {(() => {
+                                                            const total =
+                                                                parseCurrency(
+                                                                    item.g_total,
+                                                                );
+                                                            const paid =
+                                                                parseCurrency(
+                                                                    item.total_bayaran,
+                                                                );
+                                                            const sisa =
+                                                                Math.max(
+                                                                    0,
+                                                                    total -
+                                                                        paid,
+                                                                );
+                                                            const dueDate =
+                                                                item.jth_tempo
+                                                                    ? new Date(
+                                                                          item.jth_tempo,
+                                                                      )
+                                                                    : null;
+                                                            const today =
+                                                                new Date();
+                                                            today.setHours(
+                                                                0,
+                                                                0,
+                                                                0,
+                                                                0,
+                                                            );
+                                                            if (dueDate)
+                                                                dueDate.setHours(
+                                                                    0,
+                                                                    0,
+                                                                    0,
+                                                                    0,
+                                                                );
+                                                            const overdue =
+                                                                Boolean(
+                                                                    dueDate &&
+                                                                    sisa > 0 &&
+                                                                    dueDate <=
+                                                                        today,
+                                                                );
+                                                            return (
+                                                                <span
+                                                                    className={
+                                                                        overdue
+                                                                            ? 'font-semibold text-destructive'
+                                                                            : ''
+                                                                    }
+                                                                >
+                                                                    {formatRupiah(
+                                                                        sisa,
+                                                                    )}
+                                                                </span>
+                                                            );
+                                                        })()}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {item.jth_tempo
+                                                            ? formatDateId(
+                                                                  item.jth_tempo,
+                                                              )
+                                                            : '-'}
+                                                    </TableCell>
+                                                    <TableCell className="sticky right-0 z-[1] bg-background/95 text-right">
+                                                        <div className="inline-flex items-center justify-end gap-2">
+                                                            <ActionIconButton
+                                                                label="Detail"
+                                                                onClick={() =>
+                                                                    handleOpenDetail(
+                                                                        item,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Eye className="h-4 w-4" />
+                                                            </ActionIconButton>
+                                                            <ActionIconButton
+                                                                label="Cetak"
+                                                                asChild
+                                                            >
+                                                                <a
+                                                                    href={`/penjualan/faktur-penjualan/${encodeURIComponent(
+                                                                        item.no_fakturpenjualan ??
+                                                                            '',
+                                                                    )}/print`}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                >
+                                                                    <Printer className="h-4 w-4" />
+                                                                </a>
+                                                            </ActionIconButton>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                    </TableBody>
+                                </Table>
                             </div>
                         </div>
 
@@ -959,7 +1052,10 @@ export default function FakturPenjualanIndex({
                                 <span>
                                     Menampilkan{' '}
                                     {(currentPage - 1) * pageSize + 1} -{' '}
-                                    {Math.min(currentPage * pageSize, totalItems)}{' '}
+                                    {Math.min(
+                                        currentPage * pageSize,
+                                        totalItems,
+                                    )}{' '}
                                     dari {totalItems} data
                                 </span>
                                 <div className="flex items-center gap-2">
@@ -1000,7 +1096,7 @@ export default function FakturPenjualanIndex({
             </div>
 
             <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                     <DialogHeader className="px-6 pt-6">
                         <DialogTitle>Detail Invoice</DialogTitle>
                         <DialogDescription className="sr-only">
@@ -1051,10 +1147,15 @@ export default function FakturPenjualanIndex({
                                         <span className="text-muted-foreground">
                                             No Faktur Pajak
                                         </span>
-                                        <span>{detailInvoice.no_fakturpajak ?? '-'}</span>
+                                        <span>
+                                            {detailInvoice.no_fakturpajak ??
+                                                '-'}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between gap-4">
-                                        <span className="text-muted-foreground">PPN</span>
+                                        <span className="text-muted-foreground">
+                                            PPN
+                                        </span>
                                         <span>{detailInvoice.ppn}</span>
                                     </div>
                                     <div className="flex justify-between gap-4">
@@ -1080,7 +1181,9 @@ export default function FakturPenjualanIndex({
                                             Total Price
                                         </span>
                                         <span>
-                                            {formatRupiah(detailInvoice.g_total)}
+                                            {formatRupiah(
+                                                detailInvoice.g_total,
+                                            )}
                                         </span>
                                     </div>
                                     <div className="flex justify-between gap-4">
@@ -1117,19 +1220,25 @@ export default function FakturPenjualanIndex({
                                         <span className="text-muted-foreground">
                                             Total Bayar
                                         </span>
-                                        <span>{formatRupiah(detailTotalBayar)}</span>
+                                        <span>
+                                            {formatRupiah(detailTotalBayar)}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between gap-4">
                                         <span className="text-muted-foreground">
                                             Harga Pembelian Pokok
                                         </span>
-                                        <span>{formatRupiah(detailHargaPokok)}</span>
+                                        <span>
+                                            {formatRupiah(detailHargaPokok)}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between gap-4">
                                         <span className="text-muted-foreground">
                                             Margin
                                         </span>
-                                        <span>{formatNumber(detailMargin)}%</span>
+                                        <span>
+                                            {formatNumber(detailMargin)}%
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -1186,19 +1295,31 @@ export default function FakturPenjualanIndex({
                                                 </TableCell>
                                             </TableRow>
                                         )}
-                                        {displayedDetailItems.map((item, index) => (
-                                            <TableRow
-                                                key={`detail-${item.no_do}-${index}`}
-                                            >
-                                                <TableCell>{item.no_do}</TableCell>
-                                                <TableCell>{item.material}</TableCell>
-                                                <TableCell>{item.qty}</TableCell>
-                                                <TableCell>{item.unit}</TableCell>
-                                                <TableCell>
-                                                    {formatRupiah(item.ttl_price)}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
+                                        {displayedDetailItems.map(
+                                            (item, index) => (
+                                                <TableRow
+                                                    key={`detail-${item.no_do}-${index}`}
+                                                >
+                                                    <TableCell>
+                                                        {item.no_do}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {item.material}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {item.qty}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {item.unit}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatRupiah(
+                                                            item.ttl_price,
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ),
+                                        )}
                                     </TableBody>
                                 </Table>
                             </div>
@@ -1212,7 +1333,8 @@ export default function FakturPenjualanIndex({
                                                 1}{' '}
                                             -{' '}
                                             {Math.min(
-                                                detailCurrentPage * detailPageSize,
+                                                detailCurrentPage *
+                                                    detailPageSize,
                                                 detailTotalItems,
                                             )}{' '}
                                             dari {detailTotalItems} data
@@ -1224,10 +1346,16 @@ export default function FakturPenjualanIndex({
                                                 size="sm"
                                                 onClick={() =>
                                                     setDetailCurrentPage(
-                                                        (page) => Math.max(1, page - 1),
+                                                        (page) =>
+                                                            Math.max(
+                                                                1,
+                                                                page - 1,
+                                                            ),
                                                     )
                                                 }
-                                                disabled={detailCurrentPage === 1}
+                                                disabled={
+                                                    detailCurrentPage === 1
+                                                }
                                             >
                                                 Sebelumnya
                                             </Button>
@@ -1240,15 +1368,17 @@ export default function FakturPenjualanIndex({
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() =>
-                                                    setDetailCurrentPage((page) =>
-                                                        Math.min(
-                                                            detailTotalPages,
-                                                            page + 1,
-                                                        ),
+                                                    setDetailCurrentPage(
+                                                        (page) =>
+                                                            Math.min(
+                                                                detailTotalPages,
+                                                                page + 1,
+                                                            ),
                                                     )
                                                 }
                                                 disabled={
-                                                    detailCurrentPage === detailTotalPages
+                                                    detailCurrentPage ===
+                                                    detailTotalPages
                                                 }
                                             >
                                                 Berikutnya
@@ -1262,7 +1392,7 @@ export default function FakturPenjualanIndex({
             </Dialog>
 
             <Dialog open={isNoReceiptOpen} onOpenChange={setIsNoReceiptOpen}>
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                     <DialogHeader className="px-6 pt-6">
                         <DialogTitle>Invoice Belum Bikin Kwitansi</DialogTitle>
                         <DialogDescription className="sr-only">
@@ -1281,7 +1411,9 @@ export default function FakturPenjualanIndex({
                                 onChange={(event) => {
                                     const value = event.target.value;
                                     setNoReceiptPageSize(
-                                        value === 'all' ? Infinity : Number(value),
+                                        value === 'all'
+                                            ? Infinity
+                                            : Number(value),
                                     );
                                 }}
                             >
@@ -1328,7 +1460,9 @@ export default function FakturPenjualanIndex({
                                             <TableCell>
                                                 {item.no_fakturpenjualan}
                                             </TableCell>
-                                            <TableCell>{item.tgl_doc}</TableCell>
+                                            <TableCell>
+                                                {item.tgl_doc}
+                                            </TableCell>
                                             <TableCell>{item.nm_cs}</TableCell>
                                             <TableCell>{item.ref_po}</TableCell>
                                             <TableCell>
@@ -1336,14 +1470,22 @@ export default function FakturPenjualanIndex({
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="inline-flex items-center justify-end gap-2">
-                                                    <ActionIconButton label="Edit" asChild>
+                                                    <ActionIconButton
+                                                        label="Edit"
+                                                        asChild
+                                                    >
                                                         <Link
                                                             href={`/penjualan/faktur-penjualan/${encodeURIComponent(
-                                                                item.no_fakturpenjualan ?? '',
+                                                                item.no_fakturpenjualan ??
+                                                                    '',
                                                             )}/edit`}
                                                             onClick={() => {
-                                                                setIsNoReceiptOpen(false);
-                                                                setIsKwitansiOpen(false);
+                                                                setIsNoReceiptOpen(
+                                                                    false,
+                                                                );
+                                                                setIsKwitansiOpen(
+                                                                    false,
+                                                                );
                                                             }}
                                                         >
                                                             <Pencil className="h-4 w-4" />
@@ -1351,16 +1493,28 @@ export default function FakturPenjualanIndex({
                                                     </ActionIconButton>
                                                     <ActionIconButton
                                                         label="Buat Kwitansi"
-                                                        onClick={() => openKwitansiModal(item)}
+                                                        onClick={() =>
+                                                            openKwitansiModal(
+                                                                item,
+                                                            )
+                                                        }
                                                     >
                                                         <ReceiptText className="h-4 w-4" />
                                                     </ActionIconButton>
                                                     {canDeleteRow(item, {
-                                                        journalKeys: ['trx_jurnal', 'no_jurnal', 'jurnal'],
+                                                        journalKeys: [
+                                                            'trx_jurnal',
+                                                            'no_jurnal',
+                                                            'jurnal',
+                                                        ],
                                                     }) ? (
                                                         <ActionIconButton
                                                             label="Hapus"
-                                                            onClick={() => handleDeleteInvoice(item)}
+                                                            onClick={() =>
+                                                                handleDeleteInvoice(
+                                                                    item,
+                                                                )
+                                                            }
                                                         >
                                                             <Trash2 className="h-4 w-4 text-destructive" />
                                                         </ActionIconButton>
@@ -1382,7 +1536,8 @@ export default function FakturPenjualanIndex({
                                             1}{' '}
                                         -{' '}
                                         {Math.min(
-                                            noReceiptCurrentPage * noReceiptPageSize,
+                                            noReceiptCurrentPage *
+                                                noReceiptPageSize,
                                             noReceiptTotalItems,
                                         )}{' '}
                                         dari {noReceiptTotalItems} data
@@ -1393,11 +1548,14 @@ export default function FakturPenjualanIndex({
                                             variant="outline"
                                             size="sm"
                                             onClick={() =>
-                                                setNoReceiptCurrentPage((page) =>
-                                                    Math.max(1, page - 1),
+                                                setNoReceiptCurrentPage(
+                                                    (page) =>
+                                                        Math.max(1, page - 1),
                                                 )
                                             }
-                                            disabled={noReceiptCurrentPage === 1}
+                                            disabled={
+                                                noReceiptCurrentPage === 1
+                                            }
                                         >
                                             Sebelumnya
                                         </Button>
@@ -1410,11 +1568,12 @@ export default function FakturPenjualanIndex({
                                             variant="outline"
                                             size="sm"
                                             onClick={() =>
-                                                setNoReceiptCurrentPage((page) =>
-                                                    Math.min(
-                                                        noReceiptTotalPages,
-                                                        page + 1,
-                                                    ),
+                                                setNoReceiptCurrentPage(
+                                                    (page) =>
+                                                        Math.min(
+                                                            noReceiptTotalPages,
+                                                            page + 1,
+                                                        ),
                                                 )
                                             }
                                             disabled={
@@ -1432,7 +1591,7 @@ export default function FakturPenjualanIndex({
             </Dialog>
 
             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                     <DialogHeader className="px-6 pt-6">
                         <DialogTitle>Upload Faktur Pajak</DialogTitle>
                         <DialogDescription className="sr-only">
@@ -1461,8 +1620,12 @@ export default function FakturPenjualanIndex({
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>No Invoice</TableHead>
-                                                <TableHead>Nomor Faktur Pajak</TableHead>
+                                                <TableHead>
+                                                    No Invoice
+                                                </TableHead>
+                                                <TableHead>
+                                                    Nomor Faktur Pajak
+                                                </TableHead>
                                                 <TableHead>Referensi</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -1472,7 +1635,9 @@ export default function FakturPenjualanIndex({
                                                     key={`upload-${item.no_fakturpenjualan}-${index}`}
                                                 >
                                                     <TableCell>
-                                                        {item.no_fakturpenjualan}
+                                                        {
+                                                            item.no_fakturpenjualan
+                                                        }
                                                     </TableCell>
                                                     <TableCell>
                                                         {item.no_fakturpajak}
@@ -1531,7 +1696,9 @@ export default function FakturPenjualanIndex({
                             <Input value={kwitansiForm.ref_faktur} readOnly />
                         </label>
                         <label className="space-y-2 text-sm">
-                            <span className="text-muted-foreground">Customer</span>
+                            <span className="text-muted-foreground">
+                                Customer
+                            </span>
                             <Input value={kwitansiForm.customer} readOnly />
                         </label>
                         <label className="space-y-2 text-sm">
@@ -1555,6 +1722,10 @@ export default function FakturPenjualanIndex({
                     </div>
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+FakturPenjualanIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

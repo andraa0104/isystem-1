@@ -1,3 +1,4 @@
+import { ActionIconButton } from '@/components/action-icon-button';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -15,11 +16,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import { confirmDelete } from '@/lib/confirm-delete';
 import { Head, router, useForm } from '@inertiajs/react';
-import { ActionIconButton } from '@/components/action-icon-button';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { confirmDelete } from '@/lib/confirm-delete';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -71,22 +71,18 @@ export default function MaterialIndex({ materials = [] }) {
         let items = [...materials];
 
         if (stockFilter === 'top') {
-            items.sort(
-                (a, b) => Number(b.stok ?? 0) - Number(a.stok ?? 0)
-            );
+            items.sort((a, b) => Number(b.stok ?? 0) - Number(a.stok ?? 0));
         } else if (stockFilter === 'low') {
             items = items
                 .filter((item) => Number(item.stok ?? 0) > 0)
-                .sort(
-                    (a, b) => Number(a.stok ?? 0) - Number(b.stok ?? 0)
-                );
+                .sort((a, b) => Number(a.stok ?? 0) - Number(b.stok ?? 0));
         } else if (stockFilter === 'empty') {
             items = items.filter((item) => Number(item.stok ?? 0) <= 0);
         } else {
             items.sort((a, b) =>
                 codeOrder === 'desc'
                     ? compareCode(b.kd_material, a.kd_material)
-                    : compareCode(a.kd_material, b.kd_material)
+                    : compareCode(a.kd_material, b.kd_material),
             );
         }
 
@@ -95,7 +91,9 @@ export default function MaterialIndex({ materials = [] }) {
         }
 
         return items.filter((item) =>
-            String(item.material ?? '').toLowerCase().includes(term)
+            String(item.material ?? '')
+                .toLowerCase()
+                .includes(term),
         );
     }, [materials, searchTerm, stockFilter, codeOrder]);
 
@@ -148,14 +146,17 @@ export default function MaterialIndex({ materials = [] }) {
         if (!editingMaterial?.kd_material) {
             return;
         }
-        put(`/master-data/material/${encodeURIComponent(editingMaterial.kd_material)}`, {
-            preserveScroll: true,
-            onSuccess: () => {
-                resetEdit();
-                setEditingMaterial(null);
-                setIsEditModalOpen(false);
+        put(
+            `/master-data/material/${encodeURIComponent(editingMaterial.kd_material)}`,
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    resetEdit();
+                    setEditingMaterial(null);
+                    setIsEditModalOpen(false);
+                },
             },
-        });
+        );
     };
 
     const handleDelete = async (material) => {
@@ -167,13 +168,16 @@ export default function MaterialIndex({ materials = [] }) {
             text: `Kode material: ${material.kd_material}`,
         });
         if (!ok) return;
-        router.delete(`/master-data/material/${encodeURIComponent(material.kd_material)}`, {
-            preserveScroll: true,
-        });
+        router.delete(
+            `/master-data/material/${encodeURIComponent(material.kd_material)}`,
+            {
+                preserveScroll: true,
+            },
+        );
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Data Material" />
             <div className="flex flex-col gap-6 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -226,7 +230,7 @@ export default function MaterialIndex({ materials = [] }) {
                                             setPageSize(
                                                 value === 'all'
                                                     ? Infinity
-                                                    : Number(value)
+                                                    : Number(value),
                                             );
                                             setCurrentPage(1);
                                         }}
@@ -255,7 +259,9 @@ export default function MaterialIndex({ materials = [] }) {
                                         <option value="low">
                                             Stok sedikit (&gt; 0)
                                         </option>
-                                        <option value="empty">Stok kosong</option>
+                                        <option value="empty">
+                                            Stok kosong
+                                        </option>
                                     </select>
                                 </label>
                                 <label>
@@ -295,99 +301,131 @@ export default function MaterialIndex({ materials = [] }) {
 
                         <div className="overflow-hidden rounded-xl border border-sidebar-border/70">
                             <div className="max-h-[65vh] overflow-auto overscroll-contain">
-                            <table className="w-full text-sm">
-                                <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left">
-                                            No
-                                        </th>
-                                        <th className="sticky left-0 z-[2] w-[160px] bg-background/95 px-4 py-3 text-left">
-                                            Kode Material
-                                        </th>
-                                        <th className="sticky left-[160px] z-[2] min-w-[240px] bg-background/95 px-4 py-3 text-left">
-                                            Nama Material
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Satuan
-                                        </th>
-                                        <th className="px-4 py-3 text-right">
-                                            Stok
-                                        </th>
-                                        <th className="px-4 py-3 text-right">
-                                            Harga
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Remark
-                                        </th>
-                                        <th className="sticky right-0 z-[2] bg-background/95 px-4 py-3 text-center">
-                                            Aksi
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-									{displayedMaterials.length === 0 && (
-										<tr>
-											<td
-												className="px-4 py-6 text-center text-muted-foreground"
-												colSpan={7}
-											>
-												<div>Data material belum tersedia.</div>
-												<div className="mt-3">
-													<Button
-														type="button"
-														size="sm"
-														onClick={() => setIsModalOpen(true)}
-													>
-														Tambah Material
-													</Button>
-												</div>
-											</td>
-										</tr>
-									)}
-                                    {displayedMaterials.map((item, index) => (
-                                        <tr
-                                            key={`${item.kd_material}-${index}`}
-                                            className="border-t border-sidebar-border/70"
-                                        >
-                                            <td className="px-4 py-3">
-                                                {(pageSize === Infinity
-                                                    ? index
-                                                    : (currentPage - 1) *
-                                                          pageSize +
-                                                      index) + 1}
-                                            </td>
-                                            <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
-                                                {renderValue(item.kd_material)}
-                                            </td>
-                                            <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
-                                                {renderValue(item.material)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.unit)}
-                                            </td>
-                                            <td className="px-4 py-3 text-right tabular-nums">
-                                                {renderValue(item.stok)}
-                                            </td>
-                                            <td className="px-4 py-3 text-right tabular-nums">
-                                                {renderValue(item.harga)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.remark)}
-                                            </td>
-                                            <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <ActionIconButton label="Edit" onClick={() => handleEdit(item)}>
-                                                        <Pencil className="h-4 w-4" />
-                                                    </ActionIconButton>
-                                                    <ActionIconButton label="Hapus" onClick={() => handleDelete(item)}>
-                                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                                    </ActionIconButton>
-                                                </div>
-                                            </td>
+                                <table className="w-full text-sm">
+                                    <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                                        <tr>
+                                            <th className="px-4 py-3 text-left">
+                                                No
+                                            </th>
+                                            <th className="sticky left-0 z-[2] w-[160px] bg-background/95 px-4 py-3 text-left">
+                                                Kode Material
+                                            </th>
+                                            <th className="sticky left-[160px] z-[2] min-w-[240px] bg-background/95 px-4 py-3 text-left">
+                                                Nama Material
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Satuan
+                                            </th>
+                                            <th className="px-4 py-3 text-right">
+                                                Stok
+                                            </th>
+                                            <th className="px-4 py-3 text-right">
+                                                Harga
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Remark
+                                            </th>
+                                            <th className="sticky right-0 z-[2] bg-background/95 px-4 py-3 text-center">
+                                                Aksi
+                                            </th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {displayedMaterials.length === 0 && (
+                                            <tr>
+                                                <td
+                                                    className="px-4 py-6 text-center text-muted-foreground"
+                                                    colSpan={7}
+                                                >
+                                                    <div>
+                                                        Data material belum
+                                                        tersedia.
+                                                    </div>
+                                                    <div className="mt-3">
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                setIsModalOpen(
+                                                                    true,
+                                                                )
+                                                            }
+                                                        >
+                                                            Tambah Material
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {displayedMaterials.map(
+                                            (item, index) => (
+                                                <tr
+                                                    key={`${item.kd_material}-${index}`}
+                                                    className="border-t border-sidebar-border/70"
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        {(pageSize === Infinity
+                                                            ? index
+                                                            : (currentPage -
+                                                                  1) *
+                                                                  pageSize +
+                                                              index) + 1}
+                                                    </td>
+                                                    <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
+                                                        {renderValue(
+                                                            item.kd_material,
+                                                        )}
+                                                    </td>
+                                                    <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
+                                                        {renderValue(
+                                                            item.material,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(item.unit)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right tabular-nums">
+                                                        {renderValue(item.stok)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right tabular-nums">
+                                                        {renderValue(
+                                                            item.harga,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(
+                                                            item.remark,
+                                                        )}
+                                                    </td>
+                                                    <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <ActionIconButton
+                                                                label="Edit"
+                                                                onClick={() =>
+                                                                    handleEdit(
+                                                                        item,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Pencil className="h-4 w-4" />
+                                                            </ActionIconButton>
+                                                            <ActionIconButton
+                                                                label="Hapus"
+                                                                onClick={() =>
+                                                                    handleDelete(
+                                                                        item,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                            </ActionIconButton>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ),
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
@@ -397,12 +435,12 @@ export default function MaterialIndex({ materials = [] }) {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (currentPage - 1) * pageSize + 1,
-                                        totalItems
+                                        totalItems,
                                     )}
                                     -
                                     {Math.min(
                                         currentPage * pageSize,
-                                        totalItems
+                                        totalItems,
                                     )}{' '}
                                     dari {totalItems} data
                                 </span>
@@ -412,7 +450,7 @@ export default function MaterialIndex({ materials = [] }) {
                                         size="sm"
                                         onClick={() =>
                                             setCurrentPage((page) =>
-                                                Math.max(1, page - 1)
+                                                Math.max(1, page - 1),
                                             )
                                         }
                                         disabled={currentPage === 1}
@@ -427,7 +465,7 @@ export default function MaterialIndex({ materials = [] }) {
                                         size="sm"
                                         onClick={() =>
                                             setCurrentPage((page) =>
-                                                Math.min(totalPages, page + 1)
+                                                Math.min(totalPages, page + 1),
                                             )
                                         }
                                         disabled={currentPage === totalPages}
@@ -566,7 +604,7 @@ export default function MaterialIndex({ materials = [] }) {
                                     onChange={(event) =>
                                         setEditData(
                                             'material',
-                                            event.target.value
+                                            event.target.value,
                                         )
                                     }
                                     placeholder="Masukkan nama material"
@@ -616,7 +654,7 @@ export default function MaterialIndex({ materials = [] }) {
                                     onChange={(event) =>
                                         setEditData(
                                             'remark',
-                                            event.target.value
+                                            event.target.value,
                                         )
                                     }
                                     placeholder="Catatan tambahan"
@@ -645,6 +683,10 @@ export default function MaterialIndex({ materials = [] }) {
                     </DialogContent>
                 </Dialog>
             )}
-        </AppLayout>
+        </>
     );
 }
+
+MaterialIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

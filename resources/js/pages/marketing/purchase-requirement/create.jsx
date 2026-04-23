@@ -480,7 +480,7 @@ export default function PurchaseRequirementCreate() {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Tambah PR" />
             <form
                 className="flex h-full flex-1 flex-col gap-4 p-4"
@@ -1662,6 +1662,10 @@ export default function PurchaseRequirementCreate() {
                     </DialogContent>
                 </Dialog>
             </form>
-        </AppLayout>
+        </>
     );
 }
+
+PurchaseRequirementCreate.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

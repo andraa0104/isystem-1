@@ -1,3 +1,5 @@
+import { ActionIconButton } from '@/components/action-icon-button';
+import { ErrorState } from '@/components/data-states/ErrorState';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -15,15 +17,13 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { ActionIconButton } from '@/components/action-icon-button';
 import AppLayout from '@/layouts/app-layout';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { formatDateId } from '@/lib/formatters';
 import { Head, Link } from '@inertiajs/react';
 import { Eye, Printer } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
-import { ErrorState } from '@/components/data-states/ErrorState';
-import { normalizeApiError, readApiError } from '@/lib/api-error';
-import { formatDateId } from '@/lib/formatters';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -100,14 +100,19 @@ export default function TandaTerimaInvoiceIndex() {
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
-                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
+                if (!response.ok)
+                    return readApiError(response).then((err) =>
+                        Promise.reject(err),
+                    );
                 return response.json();
             })
             .then((data) => {
                 setRows(Array.isArray(data?.data) ? data.data : []);
             })
             .catch((err) => {
-                setError(normalizeApiError(err, 'Gagal memuat data tanda terima.'));
+                setError(
+                    normalizeApiError(err, 'Gagal memuat data tanda terima.'),
+                );
             })
             .finally(() => setLoading(false));
     };
@@ -139,7 +144,10 @@ export default function TandaTerimaInvoiceIndex() {
     const displayedDetailItems = useMemo(() => {
         if (detailPageSize === Infinity) return filteredDetailItems;
         const startIndex = (detailCurrentPage - 1) * detailPageSize;
-        return filteredDetailItems.slice(startIndex, startIndex + detailPageSize);
+        return filteredDetailItems.slice(
+            startIndex,
+            startIndex + detailPageSize,
+        );
     }, [filteredDetailItems, detailCurrentPage, detailPageSize]);
 
     useEffect(() => {
@@ -160,7 +168,9 @@ export default function TandaTerimaInvoiceIndex() {
         const term = pendingSearch.trim().toLowerCase();
         if (!term) return pendingRows;
         return pendingRows.filter((row) =>
-            String(row.no_ttinv || '').toLowerCase().includes(term),
+            String(row.no_ttinv || '')
+                .toLowerCase()
+                .includes(term),
         );
     }, [pendingRows, pendingSearch]);
 
@@ -173,7 +183,10 @@ export default function TandaTerimaInvoiceIndex() {
     const displayedPendingRows = useMemo(() => {
         if (pendingPageSize === Infinity) return filteredPendingRows;
         const startIndex = (pendingCurrentPage - 1) * pendingPageSize;
-        return filteredPendingRows.slice(startIndex, startIndex + pendingPageSize);
+        return filteredPendingRows.slice(
+            startIndex,
+            startIndex + pendingPageSize,
+        );
     }, [filteredPendingRows, pendingCurrentPage, pendingPageSize]);
 
     useEffect(() => {
@@ -198,8 +211,12 @@ export default function TandaTerimaInvoiceIndex() {
         if (term) {
             filtered = filtered.filter((row) => {
                 return (
-                    String(row.no_ttinv ?? '').toLowerCase().includes(term) ||
-                    String(row.nm_cs ?? '').toLowerCase().includes(term)
+                    String(row.no_ttinv ?? '')
+                        .toLowerCase()
+                        .includes(term) ||
+                    String(row.nm_cs ?? '')
+                        .toLowerCase()
+                        .includes(term)
                 );
             });
         }
@@ -240,11 +257,14 @@ export default function TandaTerimaInvoiceIndex() {
                 noTtInv,
             )}`,
             {
-            headers: { Accept: 'application/json' },
-        },
+                headers: { Accept: 'application/json' },
+            },
         )
             .then((response) => {
-                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
+                if (!response.ok)
+                    return readApiError(response).then((err) =>
+                        Promise.reject(err),
+                    );
                 return response.json();
             })
             .then((data) => {
@@ -252,7 +272,11 @@ export default function TandaTerimaInvoiceIndex() {
                 setDetailItems(Array.isArray(data?.items) ? data.items : []);
                 setDetailGrandTotal(toNumber(data?.grand_total));
             })
-            .catch((err) => setDetailError(normalizeApiError(err, 'Gagal memuat detail tanda terima.')))
+            .catch((err) =>
+                setDetailError(
+                    normalizeApiError(err, 'Gagal memuat detail tanda terima.'),
+                ),
+            )
             .finally(() => setDetailLoading(false));
     };
 
@@ -265,11 +289,14 @@ export default function TandaTerimaInvoiceIndex() {
                 noTtInv,
             )}`,
             {
-            headers: { Accept: 'application/json' },
-        },
+                headers: { Accept: 'application/json' },
+            },
         )
             .then((response) => {
-                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
+                if (!response.ok)
+                    return readApiError(response).then((err) =>
+                        Promise.reject(err),
+                    );
                 return response.json();
             })
             .then((data) => {
@@ -283,10 +310,14 @@ export default function TandaTerimaInvoiceIndex() {
                 });
             })
             .catch((err) => {
-                const normalized = normalizeApiError(err, 'Gagal memuat data penerimaan.');
+                const normalized = normalizeApiError(
+                    err,
+                    'Gagal memuat data penerimaan.',
+                );
                 Swal.fire({
                     icon: 'error',
-                    title: normalized.summary || 'Gagal memuat data penerimaan.',
+                    title:
+                        normalized.summary || 'Gagal memuat data penerimaan.',
                     html: normalized.detail
                         ? `<pre style="text-align:left;white-space:pre-wrap;max-height:240px;overflow:auto;margin:0;">${String(
                               normalized.detail,
@@ -315,7 +346,9 @@ export default function TandaTerimaInvoiceIndex() {
             .then(async (response) => {
                 const payload = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    throw new Error(payload?.message || 'Gagal menyimpan data.');
+                    throw new Error(
+                        payload?.message || 'Gagal menyimpan data.',
+                    );
                 }
                 setIsReceiveOpen(false);
                 fetchRows();
@@ -336,12 +369,14 @@ export default function TandaTerimaInvoiceIndex() {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Tanda Terima Invoice" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-xl font-semibold">Tanda Terima Invoice</h1>
+                        <h1 className="text-xl font-semibold">
+                            Tanda Terima Invoice
+                        </h1>
                         <p className="text-sm text-muted-foreground">
                             Ringkasan tanda terima invoice.
                         </p>
@@ -370,7 +405,9 @@ export default function TandaTerimaInvoiceIndex() {
                 <div className="rounded-xl border border-border/60 bg-card">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
                         <div>
-                            <div className="text-base font-semibold">Daftar Tanda Terima</div>
+                            <div className="text-base font-semibold">
+                                Daftar Tanda Terima
+                            </div>
                             <div className="text-sm text-muted-foreground">
                                 Data tanda terima invoice.
                             </div>
@@ -382,7 +419,9 @@ export default function TandaTerimaInvoiceIndex() {
                             value={pageSize === Infinity ? 'all' : pageSize}
                             onChange={(event) => {
                                 const value = event.target.value;
-                                setPageSize(value === 'all' ? Infinity : Number(value));
+                                setPageSize(
+                                    value === 'all' ? Infinity : Number(value),
+                                );
                             }}
                         >
                             <option value={5}>5</option>
@@ -394,7 +433,9 @@ export default function TandaTerimaInvoiceIndex() {
                         <select
                             className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
                             value={statusFilter}
-                            onChange={(event) => setStatusFilter(event.target.value)}
+                            onChange={(event) =>
+                                setStatusFilter(event.target.value)
+                            }
                         >
                             <option value="pending">Belum diterima</option>
                             <option value="received">Sudah diterima</option>
@@ -403,101 +444,134 @@ export default function TandaTerimaInvoiceIndex() {
                         <Input
                             placeholder="Cari nomor tanda terima atau customer..."
                             value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
+                            onChange={(event) =>
+                                setSearchTerm(event.target.value)
+                            }
                             className="min-w-[220px]"
                         />
                     </div>
                     <div className="px-4 pb-4">
                         <div className="overflow-hidden rounded-md border">
                             <div className="max-h-[65vh] overflow-auto overscroll-contain">
-                            <Table>
-                                <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                                    <TableRow>
-                                        <TableHead className="sticky left-0 z-[2] w-[220px] bg-background/95">
-                                            Nomor Tanda Terima
-                                        </TableHead>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead className="text-right">Qty Invoice</TableHead>
-                                        <TableHead className="sticky right-0 z-[2] bg-background/95 text-right">
-                                            Aksi
-                                        </TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {loading && (
+                                <Table>
+                                    <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                         <TableRow>
-                                            <TableCell colSpan={4}>
-                                                Memuat data...
-                                            </TableCell>
+                                            <TableHead className="sticky left-0 z-[2] w-[220px] bg-background/95">
+                                                Nomor Tanda Terima
+                                            </TableHead>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead className="text-right">
+                                                Qty Invoice
+                                            </TableHead>
+                                            <TableHead className="sticky right-0 z-[2] bg-background/95 text-right">
+                                                Aksi
+                                            </TableHead>
                                         </TableRow>
-                                    )}
-                                    {!loading && error && (
-                                        <TableRow>
-                                            <TableCell colSpan={4}>
-                                                <ErrorState error={error} onRetry={fetchRows} />
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                    {!loading && !error && displayedRows.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
-                                                Tidak ada data.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                    {!loading &&
-                                        !error &&
-                                        displayedRows.map((row, index) => (
-                                            <TableRow
-                                                key={`${row.no_ttinv}-${row.tgl}-${row.nm_cs}-${index}`}
-                                            >
-                                                <TableCell className="sticky left-0 z-[1] w-[220px] bg-background/95 font-medium">
-                                                    {row.no_ttinv}
-                                                </TableCell>
-                                                <TableCell>{formatDateId(row.tgl_doc)}</TableCell>
-                                                <TableCell className="text-right tabular-nums">
-                                                    {formatNumber(row.qty_invoice)}
-                                                </TableCell>
-                                                <TableCell className="sticky right-0 z-[1] bg-background/95 text-right">
-                                                    <div className="inline-flex items-center justify-end gap-2">
-                                                        <ActionIconButton
-                                                            label="Detail"
-                                                            onClick={() => openDetail(row.no_ttinv)}
-                                                        >
-                                                            <Eye className="h-4 w-4" />
-                                                        </ActionIconButton>
-                                                        <ActionIconButton label="Cetak" asChild>
-                                                            <a
-                                                                href={`/penjualan/tanda-terima-invoice/print?no_ttinv=${encodeURIComponent(
-                                                                    row.no_ttinv ?? '',
-                                                                )}`}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                            >
-                                                                <Printer className="h-4 w-4" />
-                                                            </a>
-                                                        </ActionIconButton>
-                                                    </div>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {loading && (
+                                            <TableRow>
+                                                <TableCell colSpan={4}>
+                                                    Memuat data...
                                                 </TableCell>
                                             </TableRow>
-                                        ))}
-                                </TableBody>
-                            </Table>
+                                        )}
+                                        {!loading && error && (
+                                            <TableRow>
+                                                <TableCell colSpan={4}>
+                                                    <ErrorState
+                                                        error={error}
+                                                        onRetry={fetchRows}
+                                                    />
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {!loading &&
+                                            !error &&
+                                            displayedRows.length === 0 && (
+                                                <TableRow>
+                                                    <TableCell
+                                                        colSpan={4}
+                                                        className="py-10 text-center text-muted-foreground"
+                                                    >
+                                                        Tidak ada data.
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        {!loading &&
+                                            !error &&
+                                            displayedRows.map((row, index) => (
+                                                <TableRow
+                                                    key={`${row.no_ttinv}-${row.tgl}-${row.nm_cs}-${index}`}
+                                                >
+                                                    <TableCell className="sticky left-0 z-[1] w-[220px] bg-background/95 font-medium">
+                                                        {row.no_ttinv}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatDateId(
+                                                            row.tgl_doc,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right tabular-nums">
+                                                        {formatNumber(
+                                                            row.qty_invoice,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="sticky right-0 z-[1] bg-background/95 text-right">
+                                                        <div className="inline-flex items-center justify-end gap-2">
+                                                            <ActionIconButton
+                                                                label="Detail"
+                                                                onClick={() =>
+                                                                    openDetail(
+                                                                        row.no_ttinv,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Eye className="h-4 w-4" />
+                                                            </ActionIconButton>
+                                                            <ActionIconButton
+                                                                label="Cetak"
+                                                                asChild
+                                                            >
+                                                                <a
+                                                                    href={`/penjualan/tanda-terima-invoice/print?no_ttinv=${encodeURIComponent(
+                                                                        row.no_ttinv ??
+                                                                            '',
+                                                                    )}`}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                >
+                                                                    <Printer className="h-4 w-4" />
+                                                                </a>
+                                                            </ActionIconButton>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                    </TableBody>
+                                </Table>
                             </div>
                         </div>
 
                         {pageSize !== Infinity && totalItems > 0 && (
                             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                 <span>
-                                    Menampilkan {(currentPage - 1) * pageSize + 1} -{' '}
-                                    {Math.min(currentPage * pageSize, totalItems)} dari {totalItems} data
+                                    Menampilkan{' '}
+                                    {(currentPage - 1) * pageSize + 1} -{' '}
+                                    {Math.min(
+                                        currentPage * pageSize,
+                                        totalItems,
+                                    )}{' '}
+                                    dari {totalItems} data
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         onClick={() =>
-                                            setCurrentPage((page) => Math.max(1, page - 1))
+                                            setCurrentPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
                                         }
                                         disabled={currentPage === 1}
                                     >
@@ -510,7 +584,9 @@ export default function TandaTerimaInvoiceIndex() {
                                         variant="outline"
                                         size="sm"
                                         onClick={() =>
-                                            setCurrentPage((page) => Math.min(totalPages, page + 1))
+                                            setCurrentPage((page) =>
+                                                Math.min(totalPages, page + 1),
+                                            )
                                         }
                                         disabled={currentPage === totalPages}
                                     >
@@ -527,39 +603,53 @@ export default function TandaTerimaInvoiceIndex() {
                 <DialogContent className="h-[90vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:h-[92vh] sm:w-[92vw] sm:max-w-[92vw]">
                     <DialogHeader>
                         <DialogTitle>Detail Tanda Terima</DialogTitle>
-                        <DialogDescription>Informasi tanda terima invoice.</DialogDescription>
+                        <DialogDescription>
+                            Informasi tanda terima invoice.
+                        </DialogDescription>
                     </DialogHeader>
                     {detailLoading ? (
-                        <div className="py-6 text-sm text-muted-foreground">Memuat detail...</div>
+                        <div className="py-6 text-sm text-muted-foreground">
+                            Memuat detail...
+                        </div>
                     ) : detailError ? (
                         <div className="py-4">
                             <ErrorState error={detailError} />
                         </div>
                     ) : detailHeader ? (
                         <div className="space-y-6">
-                            <div className="grid gap-4 md:grid-cols-2 text-sm">
+                            <div className="grid gap-4 text-sm md:grid-cols-2">
                                 <div className="space-y-2">
                                     <div className="flex justify-between gap-3">
                                         <span>No. Tanda Terima Invoice</span>
-                                        <span className="font-medium">{detailHeader.no_ttinv}</span>
+                                        <span className="font-medium">
+                                            {detailHeader.no_ttinv}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between gap-3">
                                         <span>Date</span>
-                                        <span className="font-medium">{detailHeader.tgl}</span>
+                                        <span className="font-medium">
+                                            {detailHeader.tgl}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between gap-3">
                                         <span>Document Date</span>
-                                        <span className="font-medium">{detailHeader.tgl_doc}</span>
+                                        <span className="font-medium">
+                                            {detailHeader.tgl_doc}
+                                        </span>
                                     </div>
                                 </div>
                                 <div className="space-y-2">
                                     <div className="flex justify-between gap-3">
                                         <span>Post Date</span>
-                                        <span className="font-medium">{detailHeader.tgl_pos}</span>
+                                        <span className="font-medium">
+                                            {detailHeader.tgl_pos}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between gap-3">
                                         <span>Customer</span>
-                                        <span className="font-medium">{detailHeader.nm_cs}</span>
+                                        <span className="font-medium">
+                                            {detailHeader.nm_cs}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between gap-3">
                                         <span>Nama Penerima</span>
@@ -575,21 +665,31 @@ export default function TandaTerimaInvoiceIndex() {
                                     </div>
                                     <div className="flex justify-between gap-3">
                                         <span>Grand Total</span>
-                                        <span className="font-medium">{formatRupiah(detailGrandTotal)}</span>
+                                        <span className="font-medium">
+                                            {formatRupiah(detailGrandTotal)}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="space-y-2">
-                                <div className="text-sm font-medium">Data Invoice</div>
+                                <div className="text-sm font-medium">
+                                    Data Invoice
+                                </div>
                                 <div className="flex flex-wrap items-center gap-3">
                                     <select
                                         className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
-                                        value={detailPageSize === Infinity ? 'all' : detailPageSize}
+                                        value={
+                                            detailPageSize === Infinity
+                                                ? 'all'
+                                                : detailPageSize
+                                        }
                                         onChange={(event) => {
                                             const value = event.target.value;
                                             setDetailPageSize(
-                                                value === 'all' ? Infinity : Number(value),
+                                                value === 'all'
+                                                    ? Infinity
+                                                    : Number(value),
                                             );
                                         }}
                                     >
@@ -602,7 +702,9 @@ export default function TandaTerimaInvoiceIndex() {
                                     <Input
                                         placeholder="Cari no invoice atau ref po..."
                                         value={detailSearch}
-                                        onChange={(event) => setDetailSearch(event.target.value)}
+                                        onChange={(event) =>
+                                            setDetailSearch(event.target.value)
+                                        }
                                         className="min-w-[220px]"
                                     />
                                 </div>
@@ -610,10 +712,14 @@ export default function TandaTerimaInvoiceIndex() {
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>No Invoice</TableHead>
+                                                <TableHead>
+                                                    No Invoice
+                                                </TableHead>
                                                 <TableHead>No Faktur</TableHead>
                                                 <TableHead>Ref PO</TableHead>
-                                                <TableHead>Total Price</TableHead>
+                                                <TableHead>
+                                                    Total Price
+                                                </TableHead>
                                                 <TableHead>Remark</TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -625,62 +731,101 @@ export default function TandaTerimaInvoiceIndex() {
                                                     </TableCell>
                                                 </TableRow>
                                             )}
-                                            {displayedDetailItems.map((item) => (
-                                                <TableRow key={`${item.no_inv}-${item.ref_po}`}>
-                                                    <TableCell>{item.no_inv}</TableCell>
-                                                    <TableCell>{item.no_faktur}</TableCell>
-                                                    <TableCell>{item.ref_po}</TableCell>
-                                                    <TableCell>{formatRupiah(item.total)}</TableCell>
-                                                    <TableCell>{item.remark}</TableCell>
-                                                </TableRow>
-                                            ))}
+                                            {displayedDetailItems.map(
+                                                (item) => (
+                                                    <TableRow
+                                                        key={`${item.no_inv}-${item.ref_po}`}
+                                                    >
+                                                        <TableCell>
+                                                            {item.no_inv}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {item.no_faktur}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {item.ref_po}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {formatRupiah(
+                                                                item.total,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {item.remark}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ),
+                                            )}
                                         </TableBody>
                                     </Table>
                                 </div>
-                                {detailPageSize !== Infinity && detailTotalItems > 0 && (
-                                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                        <span>
-                                            Menampilkan{' '}
-                                            {(detailCurrentPage - 1) * detailPageSize + 1} -{' '}
-                                            {Math.min(
-                                                detailCurrentPage * detailPageSize,
-                                                detailTotalItems,
-                                            )}{' '}
-                                            dari {detailTotalItems} data
-                                        </span>
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() =>
-                                                    setDetailCurrentPage((page) => Math.max(1, page - 1))
-                                                }
-                                                disabled={detailCurrentPage === 1}
-                                            >
-                                                Sebelumnya
-                                            </Button>
+                                {detailPageSize !== Infinity &&
+                                    detailTotalItems > 0 && (
+                                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                             <span>
-                                                Halaman {detailCurrentPage} dari {detailTotalPages}
+                                                Menampilkan{' '}
+                                                {(detailCurrentPage - 1) *
+                                                    detailPageSize +
+                                                    1}{' '}
+                                                -{' '}
+                                                {Math.min(
+                                                    detailCurrentPage *
+                                                        detailPageSize,
+                                                    detailTotalItems,
+                                                )}{' '}
+                                                dari {detailTotalItems} data
                                             </span>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() =>
-                                                    setDetailCurrentPage((page) =>
-                                                        Math.min(detailTotalPages, page + 1),
-                                                    )
-                                                }
-                                                disabled={detailCurrentPage === detailTotalPages}
-                                            >
-                                                Berikutnya
-                                            </Button>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setDetailCurrentPage(
+                                                            (page) =>
+                                                                Math.max(
+                                                                    1,
+                                                                    page - 1,
+                                                                ),
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        detailCurrentPage === 1
+                                                    }
+                                                >
+                                                    Sebelumnya
+                                                </Button>
+                                                <span>
+                                                    Halaman {detailCurrentPage}{' '}
+                                                    dari {detailTotalPages}
+                                                </span>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setDetailCurrentPage(
+                                                            (page) =>
+                                                                Math.min(
+                                                                    detailTotalPages,
+                                                                    page + 1,
+                                                                ),
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        detailCurrentPage ===
+                                                        detailTotalPages
+                                                    }
+                                                >
+                                                    Berikutnya
+                                                </Button>
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
                             </div>
                         </div>
                     ) : (
-                        <div className="py-6 text-sm text-muted-foreground">Tidak ada data.</div>
+                        <div className="py-6 text-sm text-muted-foreground">
+                            Tidak ada data.
+                        </div>
                     )}
                 </DialogContent>
             </Dialog>
@@ -689,15 +834,23 @@ export default function TandaTerimaInvoiceIndex() {
                 <DialogContent className="h-[90vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:h-[92vh] sm:w-[92vw] sm:max-w-[92vw]">
                     <DialogHeader>
                         <DialogTitle>Invoice Belum Diterima</DialogTitle>
-                        <DialogDescription>Daftar invoice yang belum diterima.</DialogDescription>
+                        <DialogDescription>
+                            Daftar invoice yang belum diterima.
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="flex flex-wrap items-center gap-3">
                         <select
                             className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
-                            value={pendingPageSize === Infinity ? 'all' : pendingPageSize}
+                            value={
+                                pendingPageSize === Infinity
+                                    ? 'all'
+                                    : pendingPageSize
+                            }
                             onChange={(event) => {
                                 const value = event.target.value;
-                                setPendingPageSize(value === 'all' ? Infinity : Number(value));
+                                setPendingPageSize(
+                                    value === 'all' ? Infinity : Number(value),
+                                );
                             }}
                         >
                             <option value={5}>5</option>
@@ -709,7 +862,9 @@ export default function TandaTerimaInvoiceIndex() {
                         <Input
                             placeholder="Cari nomor tanda terima..."
                             value={pendingSearch}
-                            onChange={(event) => setPendingSearch(event.target.value)}
+                            onChange={(event) =>
+                                setPendingSearch(event.target.value)
+                            }
                             className="min-w-[220px]"
                         />
                     </div>
@@ -720,52 +875,69 @@ export default function TandaTerimaInvoiceIndex() {
                                     <TableHead>Nomor Tanda Terima</TableHead>
                                     <TableHead>Date</TableHead>
                                     <TableHead>Qty Invoice</TableHead>
-                                    <TableHead className="text-right">Aksi</TableHead>
+                                    <TableHead className="text-right">
+                                        Aksi
+                                    </TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {pendingTotalItems === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={5}>Tidak ada data.</TableCell>
+                                        <TableCell colSpan={5}>
+                                            Tidak ada data.
+                                        </TableCell>
                                     </TableRow>
                                 )}
                                 {displayedPendingRows.map((row, index) => (
-                                        <TableRow
-                                            key={`pending-${row.no_ttinv}-${row.tgl}-${row.nm_cs}-${index}`}
-                                        >
-                                            <TableCell>{row.no_ttinv}</TableCell>
-                                            <TableCell>{row.tgl_doc}</TableCell>
-                                            <TableCell>{formatNumber(row.qty_invoice)}</TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="inline-flex items-center justify-end gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => openReceive(row.no_ttinv)}
+                                    <TableRow
+                                        key={`pending-${row.no_ttinv}-${row.tgl}-${row.nm_cs}-${index}`}
+                                    >
+                                        <TableCell>{row.no_ttinv}</TableCell>
+                                        <TableCell>{row.tgl_doc}</TableCell>
+                                        <TableCell>
+                                            {formatNumber(row.qty_invoice)}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="inline-flex items-center justify-end gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        openReceive(
+                                                            row.no_ttinv,
+                                                        )
+                                                    }
+                                                >
+                                                    Terima Invoice
+                                                </Button>
+                                                <Button
+                                                    asChild
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                >
+                                                    <Link
+                                                        href={`/penjualan/tanda-terima-invoice/edit?no_ttinv=${encodeURIComponent(
+                                                            row.no_ttinv ?? '',
+                                                        )}`}
                                                     >
-                                                        Terima Invoice
-                                                    </Button>
-                                                    <Button asChild type="button" variant="ghost" size="sm">
-                                                        <Link
-                                                            href={`/penjualan/tanda-terima-invoice/edit?no_ttinv=${encodeURIComponent(
-                                                                row.no_ttinv ?? '',
-                                                            )}`}
-                                                        >
-                                                            Edit
-                                                        </Link>
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                                        Edit
+                                                    </Link>
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
                             </TableBody>
                         </Table>
                     </div>
                     {pendingPageSize !== Infinity && pendingTotalItems > 0 && (
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                             <span>
-                                Menampilkan {(pendingCurrentPage - 1) * pendingPageSize + 1} -{' '}
+                                Menampilkan{' '}
+                                {(pendingCurrentPage - 1) * pendingPageSize + 1}{' '}
+                                -{' '}
                                 {Math.min(
                                     pendingCurrentPage * pendingPageSize,
                                     pendingTotalItems,
@@ -777,24 +949,32 @@ export default function TandaTerimaInvoiceIndex() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() =>
-                                        setPendingCurrentPage((page) => Math.max(1, page - 1))
+                                        setPendingCurrentPage((page) =>
+                                            Math.max(1, page - 1),
+                                        )
                                     }
                                     disabled={pendingCurrentPage === 1}
                                 >
                                     Sebelumnya
                                 </Button>
                                 <span>
-                                    Halaman {pendingCurrentPage} dari {pendingTotalPages}
+                                    Halaman {pendingCurrentPage} dari{' '}
+                                    {pendingTotalPages}
                                 </span>
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() =>
                                         setPendingCurrentPage((page) =>
-                                            Math.min(pendingTotalPages, page + 1),
+                                            Math.min(
+                                                pendingTotalPages,
+                                                page + 1,
+                                            ),
                                         )
                                     }
-                                    disabled={pendingCurrentPage === pendingTotalPages}
+                                    disabled={
+                                        pendingCurrentPage === pendingTotalPages
+                                    }
                                 >
                                     Berikutnya
                                 </Button>
@@ -813,23 +993,36 @@ export default function TandaTerimaInvoiceIndex() {
                         </DialogDescription>
                     </DialogHeader>
                     {receiveLoading ? (
-                        <div className="py-6 text-sm text-muted-foreground">Memuat data...</div>
+                        <div className="py-6 text-sm text-muted-foreground">
+                            Memuat data...
+                        </div>
                     ) : (
                         <div className="grid gap-4">
                             <div className="grid gap-2">
-                                <label className="text-sm font-medium">Tanda Terima</label>
+                                <label className="text-sm font-medium">
+                                    Tanda Terima
+                                </label>
                                 <Input value={receiveForm.no_ttinv} readOnly />
                             </div>
                             <div className="grid gap-2">
-                                <label className="text-sm font-medium">Document Date</label>
+                                <label className="text-sm font-medium">
+                                    Document Date
+                                </label>
                                 <Input value={receiveForm.tgl_doc} readOnly />
                             </div>
                             <div className="grid gap-2">
-                                <label className="text-sm font-medium">Total Price</label>
-                                <Input value={formatRupiah(receiveForm.g_total)} readOnly />
+                                <label className="text-sm font-medium">
+                                    Total Price
+                                </label>
+                                <Input
+                                    value={formatRupiah(receiveForm.g_total)}
+                                    readOnly
+                                />
                             </div>
                             <div className="grid gap-2">
-                                <label className="text-sm font-medium">Nama Penerima</label>
+                                <label className="text-sm font-medium">
+                                    Nama Penerima
+                                </label>
                                 <Input
                                     value={receiveForm.nm_penerima}
                                     onChange={(event) =>
@@ -841,7 +1034,9 @@ export default function TandaTerimaInvoiceIndex() {
                                 />
                             </div>
                             <div className="grid gap-2">
-                                <label className="text-sm font-medium">Tanggal Terima</label>
+                                <label className="text-sm font-medium">
+                                    Tanggal Terima
+                                </label>
                                 <Input
                                     type="date"
                                     value={receiveForm.tgl_terima}
@@ -866,6 +1061,10 @@ export default function TandaTerimaInvoiceIndex() {
                     )}
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+TandaTerimaInvoiceIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

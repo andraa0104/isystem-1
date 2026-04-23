@@ -350,7 +350,8 @@ export default function RugiLabaIndex() {
     const drivers = useMemo(() => summary?.drivers ?? {}, [summary]);
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+    return (
+        <>
             <Head title="Rugi Laba" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1080,6 +1081,10 @@ export default function RugiLabaIndex() {
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+RugiLabaIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

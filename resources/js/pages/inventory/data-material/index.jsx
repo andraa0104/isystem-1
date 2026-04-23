@@ -604,7 +604,7 @@ function SectionCollapse({ id, label }) {
 
 export default function DataMaterialPage() {
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Data Material" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div>
@@ -620,6 +620,9 @@ export default function DataMaterialPage() {
                     <SectionCollapse id="mib" label="Data MIB" />
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
+DataMaterialPage.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

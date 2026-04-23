@@ -1,3 +1,5 @@
+import { ActionIconButton } from '@/components/action-icon-button';
+import { ErrorState } from '@/components/data-states/ErrorState';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -15,15 +17,13 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { ActionIconButton } from '@/components/action-icon-button';
 import AppLayout from '@/layouts/app-layout';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { formatDateId } from '@/lib/formatters';
 import { Head } from '@inertiajs/react';
 import { Printer, ReceiptText } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
-import { ErrorState } from '@/components/data-states/ErrorState';
-import { normalizeApiError, readApiError } from '@/lib/api-error';
-import { formatDateId } from '@/lib/formatters';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -94,7 +94,10 @@ export default function KwitansiIndex() {
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
-                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
+                if (!response.ok)
+                    return readApiError(response).then((err) =>
+                        Promise.reject(err),
+                    );
                 return response.json();
             })
             .then((data) => {
@@ -103,7 +106,9 @@ export default function KwitansiIndex() {
             })
             .catch((err) => {
                 if (!isMounted) return;
-                setKwitansiError(normalizeApiError(err, 'Gagal memuat data kwitansi.'));
+                setKwitansiError(
+                    normalizeApiError(err, 'Gagal memuat data kwitansi.'),
+                );
             })
             .finally(() => {
                 if (!isMounted) return;
@@ -174,7 +179,10 @@ export default function KwitansiIndex() {
             },
         )
             .then((response) => {
-                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
+                if (!response.ok)
+                    return readApiError(response).then((err) =>
+                        Promise.reject(err),
+                    );
                 return response.json();
             })
             .then((data) => {
@@ -182,7 +190,9 @@ export default function KwitansiIndex() {
                 setDetailItems(Array.isArray(data?.items) ? data.items : []);
             })
             .catch((err) => {
-                setDetailError(normalizeApiError(err, 'Gagal memuat detail invoice.'));
+                setDetailError(
+                    normalizeApiError(err, 'Gagal memuat detail invoice.'),
+                );
             })
             .finally(() => setDetailLoading(false));
     };
@@ -211,7 +221,10 @@ export default function KwitansiIndex() {
     const displayedDetailItems = useMemo(() => {
         if (detailPageSize === Infinity) return filteredDetailItems;
         const startIndex = (detailCurrentPage - 1) * detailPageSize;
-        return filteredDetailItems.slice(startIndex, startIndex + detailPageSize);
+        return filteredDetailItems.slice(
+            startIndex,
+            startIndex + detailPageSize,
+        );
     }, [filteredDetailItems, detailCurrentPage, detailPageSize]);
 
     useEffect(() => {
@@ -249,7 +262,6 @@ export default function KwitansiIndex() {
         return toNumber(detailInvoice.total_bayaran);
     }, [detailInvoice]);
 
-
     const openKwitansiModal = () => {
         setKwitansiForm({
             date: new Date().toISOString().slice(0, 10),
@@ -269,7 +281,10 @@ export default function KwitansiIndex() {
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
-                if (!response.ok) return readApiError(response).then((err) => Promise.reject(err));
+                if (!response.ok)
+                    return readApiError(response).then((err) =>
+                        Promise.reject(err),
+                    );
                 return response.json();
             })
             .then((data) => {
@@ -278,7 +293,12 @@ export default function KwitansiIndex() {
                 );
             })
             .catch((err) => {
-                setNoReceiptError(normalizeApiError(err, 'Gagal memuat invoice tanpa kwitansi.'));
+                setNoReceiptError(
+                    normalizeApiError(
+                        err,
+                        'Gagal memuat invoice tanpa kwitansi.',
+                    ),
+                );
             })
             .finally(() => setNoReceiptLoading(false));
     }, [isNoReceiptOpen, noReceiptInvoices.length]);
@@ -297,7 +317,9 @@ export default function KwitansiIndex() {
             .then(async (response) => {
                 const payload = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    throw new Error(payload?.message || 'Gagal menyimpan kwitansi.');
+                    throw new Error(
+                        payload?.message || 'Gagal menyimpan kwitansi.',
+                    );
                 }
                 setIsKwitansiOpen(false);
                 Swal.fire({
@@ -372,7 +394,7 @@ export default function KwitansiIndex() {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Kwitansi" />
             <div className="flex flex-col gap-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -394,7 +416,9 @@ export default function KwitansiIndex() {
                         value={pageSize === Infinity ? 'all' : pageSize}
                         onChange={(event) => {
                             const value = event.target.value;
-                            setPageSize(value === 'all' ? Infinity : Number(value));
+                            setPageSize(
+                                value === 'all' ? Infinity : Number(value),
+                            );
                         }}
                     >
                         <option value={5}>5</option>
@@ -414,90 +438,115 @@ export default function KwitansiIndex() {
 
                 <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
                     <div className="max-h-[65vh] overflow-auto overscroll-contain">
-                    <Table>
-                        <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                            <TableRow>
-                                <TableHead className="sticky left-0 z-[2] w-[180px] bg-background/95">No Kwitansi</TableHead>
-                                <TableHead>Ref Invoice</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Customer</TableHead>
-                                <TableHead className="text-right">Total Price</TableHead>
-                                <TableHead className="sticky right-0 z-[2] bg-background/95 text-right">
-                                    Aksi
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {kwitansiLoading && (
+                        <Table>
+                            <TableHeader className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                 <TableRow>
-                                    <TableCell colSpan={6}>
-                                        Memuat data kwitansi...
-                                    </TableCell>
+                                    <TableHead className="sticky left-0 z-[2] w-[180px] bg-background/95">
+                                        No Kwitansi
+                                    </TableHead>
+                                    <TableHead>Ref Invoice</TableHead>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Customer</TableHead>
+                                    <TableHead className="text-right">
+                                        Total Price
+                                    </TableHead>
+                                    <TableHead className="sticky right-0 z-[2] bg-background/95 text-right">
+                                        Aksi
+                                    </TableHead>
                                 </TableRow>
-                            )}
-                            {!kwitansiLoading && kwitansiError && (
-                                <TableRow>
-                                    <TableCell colSpan={6}>
-                                        <ErrorState error={kwitansiError} />
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                            {!kwitansiLoading &&
-                                !kwitansiError &&
-                                displayedKwitansi.length === 0 && (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                                        <div>Tidak ada data kwitansi.</div>
-                                        <div className="mt-3">
-                                            <Button type="button" size="sm" onClick={openKwitansiModal}>
-                                                Buat Kwitansi
-                                            </Button>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                            {!kwitansiLoading &&
-                                !kwitansiError &&
-                                displayedKwitansi.map((item) => (
-                                <TableRow
-                                    key={`kwitansi-${item.no_kwitansi}`}
-                                >
-                                    <TableCell className="sticky left-0 z-[1] w-[180px] bg-background/95 font-medium">{item.no_kwitansi}</TableCell>
-                                    <TableCell>
-                                        <button
-                                            type="button"
-                                            className="text-primary hover:underline"
-                                            onClick={() =>
-                                                handleOpenDetail(item.ref_faktur)
-                                            }
+                            </TableHeader>
+                            <TableBody>
+                                {kwitansiLoading && (
+                                    <TableRow>
+                                        <TableCell colSpan={6}>
+                                            Memuat data kwitansi...
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                {!kwitansiLoading && kwitansiError && (
+                                    <TableRow>
+                                        <TableCell colSpan={6}>
+                                            <ErrorState error={kwitansiError} />
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                {!kwitansiLoading &&
+                                    !kwitansiError &&
+                                    displayedKwitansi.length === 0 && (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={6}
+                                                className="py-10 text-center text-muted-foreground"
+                                            >
+                                                <div>
+                                                    Tidak ada data kwitansi.
+                                                </div>
+                                                <div className="mt-3">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        onClick={
+                                                            openKwitansiModal
+                                                        }
+                                                    >
+                                                        Buat Kwitansi
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                {!kwitansiLoading &&
+                                    !kwitansiError &&
+                                    displayedKwitansi.map((item) => (
+                                        <TableRow
+                                            key={`kwitansi-${item.no_kwitansi}`}
                                         >
-                                            {item.ref_faktur}
-                                        </button>
-                                    </TableCell>
-                                    <TableCell>{formatDateId(item.tgl)}</TableCell>
-                                    <TableCell>{item.cs}</TableCell>
-                                    <TableCell className="text-right tabular-nums">
-                                        {formatRupiah(item.ttl_faktur)}
-                                    </TableCell>
-                                    <TableCell className="sticky right-0 z-[1] bg-background/95 text-right">
-                                        <div className="inline-flex items-center justify-end gap-2">
-                                            <ActionIconButton label="Cetak" asChild>
-                                                <a
-                                                    href={`/penjualan/faktur-penjualan/kwitansi/${encodeURIComponent(
-                                                        item.no_kwitansi ?? '',
-                                                    )}/print`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
+                                            <TableCell className="sticky left-0 z-[1] w-[180px] bg-background/95 font-medium">
+                                                {item.no_kwitansi}
+                                            </TableCell>
+                                            <TableCell>
+                                                <button
+                                                    type="button"
+                                                    className="text-primary hover:underline"
+                                                    onClick={() =>
+                                                        handleOpenDetail(
+                                                            item.ref_faktur,
+                                                        )
+                                                    }
                                                 >
-                                                    <Printer className="h-4 w-4" />
-                                                </a>
-                                            </ActionIconButton>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                                                    {item.ref_faktur}
+                                                </button>
+                                            </TableCell>
+                                            <TableCell>
+                                                {formatDateId(item.tgl)}
+                                            </TableCell>
+                                            <TableCell>{item.cs}</TableCell>
+                                            <TableCell className="text-right tabular-nums">
+                                                {formatRupiah(item.ttl_faktur)}
+                                            </TableCell>
+                                            <TableCell className="sticky right-0 z-[1] bg-background/95 text-right">
+                                                <div className="inline-flex items-center justify-end gap-2">
+                                                    <ActionIconButton
+                                                        label="Cetak"
+                                                        asChild
+                                                    >
+                                                        <a
+                                                            href={`/penjualan/faktur-penjualan/kwitansi/${encodeURIComponent(
+                                                                item.no_kwitansi ??
+                                                                    '',
+                                                            )}/print`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                        >
+                                                            <Printer className="h-4 w-4" />
+                                                        </a>
+                                                    </ActionIconButton>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                            </TableBody>
+                        </Table>
                     </div>
                 </div>
 
@@ -513,7 +562,9 @@ export default function KwitansiIndex() {
                                 variant="outline"
                                 size="sm"
                                 onClick={() =>
-                                    setCurrentPage((page) => Math.max(1, page - 1))
+                                    setCurrentPage((page) =>
+                                        Math.max(1, page - 1),
+                                    )
                                 }
                                 disabled={currentPage === 1}
                             >
@@ -606,7 +657,9 @@ export default function KwitansiIndex() {
                                     <div className="flex justify-between gap-3">
                                         <span>Total Price</span>
                                         <span className="font-medium">
-                                            {formatRupiah(detailInvoice.g_total)}
+                                            {formatRupiah(
+                                                detailInvoice.g_total,
+                                            )}
                                         </span>
                                     </div>
                                     <div className="flex justify-between gap-3">
@@ -700,34 +753,41 @@ export default function KwitansiIndex() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {displayedDetailItems.length === 0 && (
+                                            {displayedDetailItems.length ===
+                                                0 && (
                                                 <TableRow>
                                                     <TableCell colSpan={5}>
                                                         Tidak ada data material.
                                                     </TableCell>
                                                 </TableRow>
                                             )}
-                                            {displayedDetailItems.map((item) => (
-                                                <TableRow
-                                                    key={`detail-${item.no_do}-${item.material}`}
-                                                >
-                                                    <TableCell>
-                                                        {item.no_do}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {item.material}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {formatNumber(item.qty)}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {item.unit}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {formatRupiah(item.ttl_price)}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
+                                            {displayedDetailItems.map(
+                                                (item) => (
+                                                    <TableRow
+                                                        key={`detail-${item.no_do}-${item.material}`}
+                                                    >
+                                                        <TableCell>
+                                                            {item.no_do}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {item.material}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {formatNumber(
+                                                                item.qty,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {item.unit}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {formatRupiah(
+                                                                item.ttl_price,
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ),
+                                            )}
                                         </TableBody>
                                     </Table>
                                 </div>
@@ -742,7 +802,8 @@ export default function KwitansiIndex() {
                                                     1}{' '}
                                                 -{' '}
                                                 {Math.min(
-                                                    detailCurrentPage * detailPageSize,
+                                                    detailCurrentPage *
+                                                        detailPageSize,
                                                     detailTotalItems,
                                                 )}{' '}
                                                 dari {detailTotalItems} data
@@ -752,27 +813,34 @@ export default function KwitansiIndex() {
                                                     variant="outline"
                                                     size="sm"
                                                     onClick={() =>
-                                                        setDetailCurrentPage((page) =>
-                                                            Math.max(1, page - 1),
+                                                        setDetailCurrentPage(
+                                                            (page) =>
+                                                                Math.max(
+                                                                    1,
+                                                                    page - 1,
+                                                                ),
                                                         )
                                                     }
-                                                    disabled={detailCurrentPage === 1}
+                                                    disabled={
+                                                        detailCurrentPage === 1
+                                                    }
                                                 >
                                                     Sebelumnya
                                                 </Button>
                                                 <span>
-                                                    Halaman {detailCurrentPage} dari{' '}
-                                                    {detailTotalPages}
+                                                    Halaman {detailCurrentPage}{' '}
+                                                    dari {detailTotalPages}
                                                 </span>
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
                                                     onClick={() =>
-                                                        setDetailCurrentPage((page) =>
-                                                            Math.min(
-                                                                detailTotalPages,
-                                                                page + 1,
-                                                            ),
+                                                        setDetailCurrentPage(
+                                                            (page) =>
+                                                                Math.min(
+                                                                    detailTotalPages,
+                                                                    page + 1,
+                                                                ),
                                                         )
                                                     }
                                                     disabled={
@@ -850,8 +918,7 @@ export default function KwitansiIndex() {
                                 type="button"
                                 onClick={handleSaveKwitansi}
                                 disabled={
-                                    kwitansiSaving ||
-                                    !kwitansiForm.ref_faktur
+                                    kwitansiSaving || !kwitansiForm.ref_faktur
                                 }
                             >
                                 {kwitansiSaving ? 'Menyimpan...' : 'Simpan'}
@@ -925,40 +992,49 @@ export default function KwitansiIndex() {
                                     {!noReceiptLoading && noReceiptError && (
                                         <TableRow>
                                             <TableCell colSpan={5}>
-                                                <ErrorState error={noReceiptError} />
+                                                <ErrorState
+                                                    error={noReceiptError}
+                                                />
                                             </TableCell>
                                         </TableRow>
                                     )}
                                     {!noReceiptLoading &&
                                         !noReceiptError &&
-                                        displayedNoReceiptItems.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={5}>
-                                                Tidak ada data invoice.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
+                                        displayedNoReceiptItems.length ===
+                                            0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={5}>
+                                                    Tidak ada data invoice.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
                                     {!noReceiptLoading &&
                                         !noReceiptError &&
                                         displayedNoReceiptItems.map((item) => (
-                                        <TableRow
-                                            key={`select-no-receipt-${item.no_fakturpenjualan}`}
-                                            className="cursor-pointer"
-                                            onClick={() =>
-                                                handleSelectInvoice(item)
-                                            }
-                                        >
-                                            <TableCell>
-                                                {item.no_fakturpenjualan}
-                                            </TableCell>
-                                            <TableCell>{item.tgl_doc}</TableCell>
-                                            <TableCell>{item.nm_cs}</TableCell>
-                                            <TableCell>{item.ref_po}</TableCell>
-                                            <TableCell>
-                                                {formatRupiah(item.g_total)}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                            <TableRow
+                                                key={`select-no-receipt-${item.no_fakturpenjualan}`}
+                                                className="cursor-pointer"
+                                                onClick={() =>
+                                                    handleSelectInvoice(item)
+                                                }
+                                            >
+                                                <TableCell>
+                                                    {item.no_fakturpenjualan}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.tgl_doc}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.nm_cs}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.ref_po}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {formatRupiah(item.g_total)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
                                 </TableBody>
                             </Table>
                         </div>
@@ -973,7 +1049,8 @@ export default function KwitansiIndex() {
                                             1}{' '}
                                         -{' '}
                                         {Math.min(
-                                            noReceiptCurrentPage * noReceiptPageSize,
+                                            noReceiptCurrentPage *
+                                                noReceiptPageSize,
                                             noReceiptTotalItems,
                                         )}{' '}
                                         dari {noReceiptTotalItems} data
@@ -983,11 +1060,14 @@ export default function KwitansiIndex() {
                                             variant="outline"
                                             size="sm"
                                             onClick={() =>
-                                                setNoReceiptCurrentPage((page) =>
-                                                    Math.max(1, page - 1),
+                                                setNoReceiptCurrentPage(
+                                                    (page) =>
+                                                        Math.max(1, page - 1),
                                                 )
                                             }
-                                            disabled={noReceiptCurrentPage === 1}
+                                            disabled={
+                                                noReceiptCurrentPage === 1
+                                            }
                                         >
                                             Sebelumnya
                                         </Button>
@@ -999,11 +1079,12 @@ export default function KwitansiIndex() {
                                             variant="outline"
                                             size="sm"
                                             onClick={() =>
-                                                setNoReceiptCurrentPage((page) =>
-                                                    Math.min(
-                                                        noReceiptTotalPages,
-                                                        page + 1,
-                                                    ),
+                                                setNoReceiptCurrentPage(
+                                                    (page) =>
+                                                        Math.min(
+                                                            noReceiptTotalPages,
+                                                            page + 1,
+                                                        ),
                                                 )
                                             }
                                             disabled={
@@ -1019,6 +1100,10 @@ export default function KwitansiIndex() {
                     </div>
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+KwitansiIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

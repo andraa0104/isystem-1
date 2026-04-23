@@ -1,3 +1,4 @@
+import { ActionIconButton } from '@/components/action-icon-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -18,12 +19,11 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
+import { canDeleteRow } from '@/lib/can-delete';
+import { confirmDelete } from '@/lib/confirm-delete';
 import { Head, router } from '@inertiajs/react';
-import { ActionIconButton } from '@/components/action-icon-button';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { confirmDelete } from '@/lib/confirm-delete';
-import { canDeleteRow } from '@/lib/can-delete';
 
 const STATUS_OPTIONS = [
     { value: 'all', label: 'Semua data' },
@@ -433,15 +433,7 @@ export default function BiayaKirimPenjualanIndex({
     };
 
     return (
-        <AppLayout
-            breadcrumbs={[
-                { title: 'Dashboard', href: '/dashboard' },
-                {
-                    title: 'Biaya Kirim Penjualan',
-                    href: '/pembayaran/biaya-kirim-penjualan',
-                },
-            ]}
-        >
+        <>
             <Head title="Biaya Kirim Penjualan" />
             <div className="relative flex flex-col gap-4 p-4">
                 {isNavigating && (
@@ -635,7 +627,10 @@ export default function BiayaKirimPenjualanIndex({
                                                         >
                                                             <Eye className="h-4 w-4" />
                                                         </ActionIconButton>
-                                                        <ActionIconButton label="Cetak" asChild>
+                                                        <ActionIconButton
+                                                            label="Cetak"
+                                                            asChild
+                                                        >
                                                             <a
                                                                 href={`/pembayaran/biaya-kirim-penjualan/${encodeURIComponent(
                                                                     row.no_bkj,
@@ -782,7 +777,7 @@ export default function BiayaKirimPenjualanIndex({
                                                     </TableHead>
                                                 </TableRow>
                                             </TableHeader>
-                            <TableBody>
+                                            <TableBody>
                                                 {unpaidLoading ? (
                                                     <TableRow>
                                                         <TableCell
@@ -853,21 +848,32 @@ export default function BiayaKirimPenjualanIndex({
                                                                         <ActionIconButton
                                                                             label="Edit"
                                                                             onClick={() => {
-                                                                                setIsNavigating(true);
+                                                                                setIsNavigating(
+                                                                                    true,
+                                                                                );
                                                                                 router.visit(
                                                                                     `/pembayaran/biaya-kirim-penjualan/${row.no_bkj}/edit`,
                                                                                     {
-                                                                                        onFinish: () =>
-                                                                                            setIsNavigating(
-                                                                                                false,
-                                                                                            ),
+                                                                                        onFinish:
+                                                                                            () =>
+                                                                                                setIsNavigating(
+                                                                                                    false,
+                                                                                                ),
                                                                                     },
                                                                                 );
                                                                             }}
                                                                         >
                                                                             <Pencil className="h-4 w-4" />
                                                                         </ActionIconButton>
-                                                                        {canDeleteRow(row, { journalKeys: ['jurnal'] }) ? (
+                                                                        {canDeleteRow(
+                                                                            row,
+                                                                            {
+                                                                                journalKeys:
+                                                                                    [
+                                                                                        'jurnal',
+                                                                                    ],
+                                                                            },
+                                                                        ) ? (
                                                                             <ActionIconButton
                                                                                 label="Hapus"
                                                                                 onClick={() =>
@@ -1912,6 +1918,10 @@ export default function BiayaKirimPenjualanIndex({
                     </div>
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+BiayaKirimPenjualanIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

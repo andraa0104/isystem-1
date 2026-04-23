@@ -258,7 +258,7 @@ export default function TransferMaterialIndex() {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Transfer Material" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -468,6 +468,9 @@ export default function TransferMaterialIndex() {
                     </>
                 )}
             </div>
-        </AppLayout>
+        </>
     );
 }
+TransferMaterialIndex.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

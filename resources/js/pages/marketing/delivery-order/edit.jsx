@@ -300,18 +300,7 @@ export default function DeliveryOrderEdit({
     };
 
     return (
-        <AppLayout
-            breadcrumbs={[
-                { title: 'Dashboard', href: '/dashboard' },
-                { title: 'Marketing', href: '/marketing/delivery-order' },
-                {
-                    title: 'Edit Delivery Order',
-                    href: `/marketing/delivery-order/${encodeURIComponent(
-                        deliveryOrder.no_do,
-                    )}/edit`,
-                },
-            ]}
-        >
+        <>
             <Head title="Edit Delivery Order" />
             <div className="flex-1 p-4">
                 <div className="mb-6 flex items-center justify-between">
@@ -580,6 +569,21 @@ export default function DeliveryOrderEdit({
                     </div>
                 )}
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+DeliveryOrderEdit.layout = (page) => {
+    const { deliveryOrder } = page.props;
+    const breadcrumbs = [
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Marketing', href: '/marketing/delivery-order' },
+        {
+            title: 'Edit Delivery Order',
+            href: `/marketing/delivery-order/${encodeURIComponent(
+                deliveryOrder?.no_do ?? '',
+            )}/edit`,
+        },
+    ];
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

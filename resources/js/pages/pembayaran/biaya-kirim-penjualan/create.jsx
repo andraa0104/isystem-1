@@ -1,13 +1,26 @@
-import { useEffect, useMemo, useState } from 'react';
-import AppLayout from '@/layouts/app-layout';
-import { Head, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import AppLayout from '@/layouts/app-layout';
+import { Head, router } from '@inertiajs/react';
 import { Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
 const PAGE_SIZE_OPTIONS = [
@@ -19,16 +32,18 @@ const PAGE_SIZE_OPTIONS = [
 ];
 
 const formatNumber = (value) =>
-    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value ?? 0);
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        value ?? 0,
+    );
 const formatRupiah = (value) => `Rp ${formatNumber(value)}`;
 const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 const formatRaw = (value) =>
     value === null || value === undefined || value === '' ? '-' : String(value);
-    const formatRawPlain = (value) => {
-        if (value === null || value === undefined || value === '') return '-';
-        return String(value);
-    };
+const formatRawPlain = (value) => {
+    if (value === null || value === undefined || value === '') return '-';
+    return String(value);
+};
 const toNumber = (value) => {
     const num = Number(value);
     return Number.isNaN(num) ? 0 : num;
@@ -44,7 +59,7 @@ const formatDate = (value) => {
     }).format(date);
 };
 
-export default function BiayaKirimPembelianCreate() {
+export default function BiayaKirimPenjualanCreate() {
     const today = new Date().toISOString().slice(0, 10);
     const [currentStep, setCurrentStep] = useState(1);
     const [poModalOpen, setPoModalOpen] = useState(false);
@@ -114,12 +129,21 @@ export default function BiayaKirimPembelianCreate() {
                 pageSize: poPageSize === Infinity ? 'all' : String(poPageSize),
                 page: String(poCurrentPage),
             });
-            const res = await fetch(`/pembayaran/biaya-kirim-penjualan/do-list?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/pembayaran/biaya-kirim-penjualan/do-list?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             const data = await res.json();
             setPoRows(Array.isArray(data?.rows) ? data.rows : []);
-            setPoTotal(typeof data?.total === 'number' ? data.total : (Array.isArray(data?.rows) ? data.rows.length : 0));
+            setPoTotal(
+                typeof data?.total === 'number'
+                    ? data.total
+                    : Array.isArray(data?.rows)
+                      ? data.rows.length
+                      : 0,
+            );
         } finally {
             setPoLoading(false);
         }
@@ -145,7 +169,9 @@ export default function BiayaKirimPembelianCreate() {
         const term = materialSearch.trim().toLowerCase();
         if (!term) return materialRows;
         return materialRows.filter((row) =>
-            String(row.material ?? row.mat ?? '').toLowerCase().includes(term)
+            String(row.material ?? row.mat ?? '')
+                .toLowerCase()
+                .includes(term),
         );
     }, [materialRows, materialSearch]);
 
@@ -153,7 +179,9 @@ export default function BiayaKirimPembelianCreate() {
         const term = doAddSearch.trim().toLowerCase();
         if (!term) return doAddRows;
         return doAddRows.filter((row) =>
-            String(row.mat ?? row.material ?? '').toLowerCase().includes(term)
+            String(row.mat ?? row.material ?? '')
+                .toLowerCase()
+                .includes(term),
         );
     }, [doAddRows, doAddSearch]);
 
@@ -184,18 +212,33 @@ export default function BiayaKirimPembelianCreate() {
     }, [filteredDoAddMaterials, doAddPageSize, doAddCurrentPage]);
 
     const totalModal = useMemo(() => {
-        const baseTotal = bkpRows.reduce((sum, row) => sum + toNumber(row.total_price), 0);
-        const addTotal = doAddRowsTable.reduce((sum, row) => sum + toNumber(row.total_price), 0);
+        const baseTotal = bkpRows.reduce(
+            (sum, row) => sum + toNumber(row.total_price),
+            0,
+        );
+        const addTotal = doAddRowsTable.reduce(
+            (sum, row) => sum + toNumber(row.total_price),
+            0,
+        );
         return baseTotal + addTotal;
     }, [bkpRows, doAddRowsTable]);
 
     const totalDot = useMemo(() => {
-        return doAddRowsTable.reduce((sum, row) => sum + toNumber(row.total_price), 0);
+        return doAddRowsTable.reduce(
+            (sum, row) => sum + toNumber(row.total_price),
+            0,
+        );
     }, [doAddRowsTable]);
 
     const totalSales = useMemo(() => {
-        const baseTotal = bkpRows.reduce((sum, row) => sum + toNumber(row.total_price_sell), 0);
-        const addTotal = doAddRowsTable.reduce((sum, row) => sum + toNumber(row.total_price_sell), 0);
+        const baseTotal = bkpRows.reduce(
+            (sum, row) => sum + toNumber(row.total_price_sell),
+            0,
+        );
+        const addTotal = doAddRowsTable.reduce(
+            (sum, row) => sum + toNumber(row.total_price_sell),
+            0,
+        );
         return baseTotal + addTotal;
     }, [bkpRows, doAddRowsTable]);
 
@@ -228,18 +271,24 @@ export default function BiayaKirimPembelianCreate() {
         setFieldNmVdr(row.nm_vdr ?? '');
         setFieldFranco(row.franco_loco ?? '');
 
-        const res = await fetch(`/pembayaran/biaya-kirim-penjualan/do-materials?no_do=${encodeURIComponent(row.no_do)}`, {
-            headers: { Accept: 'application/json' },
-        });
+        const res = await fetch(
+            `/pembayaran/biaya-kirim-penjualan/do-materials?no_do=${encodeURIComponent(row.no_do)}`,
+            {
+                headers: { Accept: 'application/json' },
+            },
+        );
         const data = await res.json();
         setMaterialRows(Array.isArray(data?.rows) ? data.rows : []);
         setMaterialSearch('');
         setMaterialPageSize(5);
         setMaterialCurrentPage(1);
 
-        const dotRes = await fetch(`/pembayaran/biaya-kirim-penjualan/dot-materials?no_do=${encodeURIComponent(row.no_do)}`, {
-            headers: { Accept: 'application/json' },
-        });
+        const dotRes = await fetch(
+            `/pembayaran/biaya-kirim-penjualan/dot-materials?no_do=${encodeURIComponent(row.no_do)}`,
+            {
+                headers: { Accept: 'application/json' },
+            },
+        );
         const dotData = await dotRes.json();
         setDotNo(dotData?.rows?.[0]?.no_dob ?? '');
         setDoAddRows(Array.isArray(dotData?.rows) ? dotData.rows : []);
@@ -264,7 +313,7 @@ export default function BiayaKirimPembelianCreate() {
         if (refPo) {
             const res = await fetch(
                 `/pembayaran/biaya-kirim-pembelian/pr-price?ref_po=${encodeURIComponent(refPo)}&kd_material=${encodeURIComponent(row.kd_mat ?? '')}`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             );
             const data = await res.json();
             const sellPrice = toNumber(data?.price_po);
@@ -274,11 +323,15 @@ export default function BiayaKirimPembelianCreate() {
             const materialValue = row.material ?? row.mat ?? '';
             const biayaRes = await fetch(
                 `/pembayaran/biaya-kirim-penjualan/biaya-kirim?ref_po=${encodeURIComponent(refPo)}&material=${encodeURIComponent(materialValue)}`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             );
             const biayaData = await biayaRes.json();
             const biayaKirimValue = toNumber(biayaData?.biaya_kirim);
-            const margin = totalBuy === 0 ? 0 : ((totalSell - totalBuy - biayaKirimValue) / totalBuy) * 100;
+            const margin =
+                totalBuy === 0
+                    ? 0
+                    : ((totalSell - totalBuy - biayaKirimValue) / totalBuy) *
+                      100;
             setFieldPriceSell(data?.price_po ?? 0);
             setFieldTotalPriceSell(totalSell);
             setFieldMargin(margin.toFixed(2));
@@ -307,7 +360,7 @@ export default function BiayaKirimPembelianCreate() {
         if (refPo) {
             fetch(
                 `/pembayaran/biaya-kirim-penjualan/biaya-kirim?ref_po=${encodeURIComponent(refPo)}&material=${encodeURIComponent(row.mat ?? row.material ?? '')}`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             )
                 .then((res) => res.json())
                 .then((data) => {
@@ -327,7 +380,10 @@ export default function BiayaKirimPembelianCreate() {
         setFieldTotalPriceSell(totalSell);
         const totalBuy = toNumber(fieldTotalPrice);
         const biayaKirimValue = toNumber(fieldBiayaKirim);
-        const margin = totalBuy === 0 ? 0 : ((totalSell - totalBuy - biayaKirimValue) / totalBuy) * 100;
+        const margin =
+            totalBuy === 0
+                ? 0
+                : ((totalSell - totalBuy - biayaKirimValue) / totalBuy) * 100;
         setFieldMargin(margin.toFixed(2));
     }, [fieldQty, fieldPriceSell, fieldTotalPrice, fieldBiayaKirim]);
 
@@ -339,14 +395,24 @@ export default function BiayaKirimPembelianCreate() {
         setFieldAddTotalPriceSell(totalSell);
         const totalBuy = toNumber(fieldAddTotalPrice);
         const biayaKirimValue = toNumber(fieldAddBiayaKirim);
-        const margin = totalBuy === 0 ? 0 : ((totalSell - totalBuy - biayaKirimValue) / totalBuy) * 100;
+        const margin =
+            totalBuy === 0
+                ? 0
+                : ((totalSell - totalBuy - biayaKirimValue) / totalBuy) * 100;
         setFieldAddMargin(margin.toFixed(2));
-    }, [fieldAddQty, fieldAddPriceSell, fieldAddTotalPrice, fieldAddBiayaKirim]);
+    }, [
+        fieldAddQty,
+        fieldAddPriceSell,
+        fieldAddTotalPrice,
+        fieldAddBiayaKirim,
+    ]);
 
     const handleAddBkpRow = () => {
         if (!fieldNoPo || !fieldKdMat) return;
         const exists = bkpRows.some(
-            (row) => String(row.no_po) === String(fieldNoPo) && String(row.kd_mat) === String(fieldKdMat)
+            (row) =>
+                String(row.no_po) === String(fieldNoPo) &&
+                String(row.kd_mat) === String(fieldKdMat),
         );
         if (exists) {
             Swal.fire({
@@ -407,7 +473,9 @@ export default function BiayaKirimPembelianCreate() {
             return;
         }
         const exists = doAddRowsTable.some(
-            (row) => String(row.no_dot) === String(fieldAddNoDo) && String(row.kd_mat) === String(fieldAddKdMat)
+            (row) =>
+                String(row.no_dot) === String(fieldAddNoDo) &&
+                String(row.kd_mat) === String(fieldAddKdMat),
         );
         if (exists) {
             Swal.fire({
@@ -487,13 +555,13 @@ export default function BiayaKirimPembelianCreate() {
                         timerProgressBar: true,
                     });
                 },
-            }
+            },
         );
     };
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Biaya Kirim Penjualan', href: '/pembayaran/biaya-kirim-penjualan' }, { title: 'Create', href: '/pembayaran/biaya-kirim-penjualan/create' }]}>
-            <Head title="Create Biaya Kirim Penjualan" />
+        <>
+            <Head title="Tambah Biaya Kirim Penjualan" />
             <div className="flex flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                     <Button
@@ -515,423 +583,772 @@ export default function BiayaKirimPembelianCreate() {
                 {currentStep === 1 && (
                     <>
                         <div className="flex flex-wrap items-center gap-3">
-                            <Button variant="default" onClick={() => setPoModalOpen(true)}>
+                            <Button
+                                variant="default"
+                                onClick={() => setPoModalOpen(true)}
+                            >
                                 Cari DO
                             </Button>
                         </div>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Data DO</CardTitle>
-                    </CardHeader>
-                    <CardContent className="w-full overflow-x-auto">
-                        <Table className="min-w-[900px]">
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[60px]">No</TableHead>
-                                    <TableHead>No DO</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Ref PO In</TableHead>
-                                    <TableHead>Customer</TableHead>
-                                    <TableHead className="text-center">Aksi</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {selectedPos.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={6} className="text-center text-sm text-muted-foreground">
-                                            Belum ada data DO.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    selectedPos.map((row, idx) => (
-                                        <TableRow
-                                            key={`${row.no_do}-${idx}`}
-                                            className={`cursor-pointer ${selectedPo?.no_do === row.no_do ? 'bg-muted/30' : ''}`}
-                                            onClick={() => handleSelectPo(row)}
-                                        >
-                                            <TableCell>{idx + 1}</TableCell>
-                                            <TableCell>{renderValue(row.no_do)}</TableCell>
-                                            <TableCell>{formatDate(row.tgl)}</TableCell>
-                                            <TableCell>{renderValue(row.po_cust)}</TableCell>
-                                            <TableCell>{renderValue(row.customer)}</TableCell>
-                                            <TableCell className="text-center">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={(event) => {
-                                                        event.stopPropagation();
-                                                        setSelectedPos((prev) =>
-                                                            prev.filter((item) => item.no_do !== row.no_do)
-                                                        );
-                                                        if (selectedPo?.no_do === row.no_do) {
-                                                            setSelectedPo(null);
-                                                            setFieldNoPo('');
-                                                            setFieldDate('');
-                                                            setFieldRefPoIn('');
-                                                            setFieldCustomer('');
-                                                        }
-                                                    }}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Data DO</CardTitle>
+                            </CardHeader>
+                            <CardContent className="w-full overflow-x-auto">
+                                <Table className="min-w-[900px]">
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[60px]">
+                                                No
+                                            </TableHead>
+                                            <TableHead>No DO</TableHead>
+                                            <TableHead>Date</TableHead>
+                                            <TableHead>Ref PO In</TableHead>
+                                            <TableHead>Customer</TableHead>
+                                            <TableHead className="text-center">
+                                                Aksi
+                                            </TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {selectedPos.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell
+                                                    colSpan={6}
+                                                    className="text-center text-sm text-muted-foreground"
                                                 >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </TableCell>
+                                                    Belum ada data DO.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            selectedPos.map((row, idx) => (
+                                                <TableRow
+                                                    key={`${row.no_do}-${idx}`}
+                                                    className={`cursor-pointer ${selectedPo?.no_do === row.no_do ? 'bg-muted/30' : ''}`}
+                                                    onClick={() =>
+                                                        handleSelectPo(row)
+                                                    }
+                                                >
+                                                    <TableCell>
+                                                        {idx + 1}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(row.no_do)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatDate(row.tgl)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(
+                                                            row.po_cust,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(
+                                                            row.customer,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={(
+                                                                event,
+                                                            ) => {
+                                                                event.stopPropagation();
+                                                                setSelectedPos(
+                                                                    (prev) =>
+                                                                        prev.filter(
+                                                                            (
+                                                                                item,
+                                                                            ) =>
+                                                                                item.no_do !==
+                                                                                row.no_do,
+                                                                        ),
+                                                                );
+                                                                if (
+                                                                    selectedPo?.no_do ===
+                                                                    row.no_do
+                                                                ) {
+                                                                    setSelectedPo(
+                                                                        null,
+                                                                    );
+                                                                    setFieldNoPo(
+                                                                        '',
+                                                                    );
+                                                                    setFieldDate(
+                                                                        '',
+                                                                    );
+                                                                    setFieldRefPoIn(
+                                                                        '',
+                                                                    );
+                                                                    setFieldCustomer(
+                                                                        '',
+                                                                    );
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Material In DO</CardTitle>
+                            </CardHeader>
+                            <CardContent className="w-full overflow-x-auto">
+                                <div className="flex flex-wrap items-center gap-2 pb-3">
+                                    <Input
+                                        placeholder="Cari material..."
+                                        value={materialSearch}
+                                        onChange={(e) =>
+                                            setMaterialSearch(e.target.value)
+                                        }
+                                        className="w-full sm:w-64"
+                                    />
+                                    <Select
+                                        value={
+                                            materialPageSize === Infinity
+                                                ? 'all'
+                                                : String(materialPageSize)
+                                        }
+                                        onValueChange={(value) => {
+                                            if (value === 'all') {
+                                                setMaterialPageSize(Infinity);
+                                            } else {
+                                                const parsed = Number(value);
+                                                setMaterialPageSize(
+                                                    Number.isNaN(parsed)
+                                                        ? 5
+                                                        : parsed,
+                                                );
+                                            }
+                                            setMaterialCurrentPage(1);
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-full sm:w-[160px]">
+                                            <SelectValue placeholder="Tampil" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {PAGE_SIZE_OPTIONS.map((opt) => (
+                                                <SelectItem
+                                                    key={opt.value}
+                                                    value={opt.value}
+                                                >
+                                                    {opt.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <Table className="min-w-[900px]">
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[60px]">
+                                                No
+                                            </TableHead>
+                                            <TableHead>Kode Material</TableHead>
+                                            <TableHead>Material</TableHead>
+                                            <TableHead>Qty</TableHead>
+                                            <TableHead>Satuan</TableHead>
+                                            <TableHead>Price</TableHead>
+                                            <TableHead>Total Price</TableHead>
                                         </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Material In DO</CardTitle>
-                    </CardHeader>
-                    <CardContent className="w-full overflow-x-auto">
-                        <div className="flex flex-wrap items-center gap-2 pb-3">
-                            <Input
-                                placeholder="Cari material..."
-                                value={materialSearch}
-                                onChange={(e) => setMaterialSearch(e.target.value)}
-                                className="w-full sm:w-64"
-                            />
-                            <Select
-                                value={materialPageSize === Infinity ? 'all' : String(materialPageSize)}
-                                onValueChange={(value) => {
-                                    if (value === 'all') {
-                                        setMaterialPageSize(Infinity);
-                                    } else {
-                                        const parsed = Number(value);
-                                        setMaterialPageSize(Number.isNaN(parsed) ? 5 : parsed);
-                                    }
-                                    setMaterialCurrentPage(1);
-                                }}
-                            >
-                                <SelectTrigger className="w-full sm:w-[160px]">
-                                    <SelectValue placeholder="Tampil" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {PAGE_SIZE_OPTIONS.map((opt) => (
-                                        <SelectItem key={opt.value} value={opt.value}>
-                                            {opt.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <Table className="min-w-[900px]">
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[60px]">No</TableHead>
-                                    <TableHead>Kode Material</TableHead>
-                                    <TableHead>Material</TableHead>
-                                    <TableHead>Qty</TableHead>
-                                    <TableHead>Satuan</TableHead>
-                                    <TableHead>Price</TableHead>
-                                    <TableHead>Total Price</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {displayedMaterials.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={7} className="text-center text-sm text-muted-foreground">
-                                            Tidak ada data.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    displayedMaterials.map((row, idx) => (
-                                        <TableRow
-                                            key={`${row.kd_mat}-${idx}`}
-                                            className="cursor-pointer"
-                                            onClick={() => handleSelectMaterial(row)}
+                                    </TableHeader>
+                                    <TableBody>
+                                        {displayedMaterials.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell
+                                                    colSpan={7}
+                                                    className="text-center text-sm text-muted-foreground"
+                                                >
+                                                    Tidak ada data.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            displayedMaterials.map(
+                                                (row, idx) => (
+                                                    <TableRow
+                                                        key={`${row.kd_mat}-${idx}`}
+                                                        className="cursor-pointer"
+                                                        onClick={() =>
+                                                            handleSelectMaterial(
+                                                                row,
+                                                            )
+                                                        }
+                                                    >
+                                                        <TableCell>
+                                                            {idx +
+                                                                1 +
+                                                                (materialPageSize ===
+                                                                Infinity
+                                                                    ? 0
+                                                                    : (materialCurrentPage -
+                                                                          1) *
+                                                                      materialPageSize)}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {renderValue(
+                                                                row.kd_mat,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {renderValue(
+                                                                row.material ??
+                                                                    row.mat,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {renderValue(
+                                                                row.qty,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {renderValue(
+                                                                row.unit,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {formatRupiah(
+                                                                row.harga,
+                                                            )}{' '}
+                                                            (
+                                                            {formatRaw(
+                                                                row.harga,
+                                                            )}
+                                                            )
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {formatRupiah(
+                                                                row.total,
+                                                            )}{' '}
+                                                            (
+                                                            {formatRaw(
+                                                                row.total,
+                                                            )}
+                                                            )
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ),
+                                            )
+                                        )}
+                                    </TableBody>
+                                </Table>
+                                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 text-sm">
+                                    <div className="text-muted-foreground">
+                                        Total data: {filteredMaterials.length}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setMaterialCurrentPage((prev) =>
+                                                    Math.max(1, prev - 1),
+                                                )
+                                            }
+                                            disabled={
+                                                materialCurrentPage === 1 ||
+                                                materialPageSize === Infinity
+                                            }
                                         >
-                                            <TableCell>{idx + 1 + (materialPageSize === Infinity ? 0 : (materialCurrentPage - 1) * materialPageSize)}</TableCell>
-                                            <TableCell>{renderValue(row.kd_mat)}</TableCell>
-                                            <TableCell>{renderValue(row.material ?? row.mat)}</TableCell>
-                                            <TableCell>{renderValue(row.qty)}</TableCell>
-                                            <TableCell>{renderValue(row.unit)}</TableCell>
-                                    <TableCell>{formatRupiah(row.harga)} ({formatRaw(row.harga)})</TableCell>
-                                    <TableCell>{formatRupiah(row.total)} ({formatRaw(row.total)})</TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 text-sm">
-                            <div className="text-muted-foreground">Total data: {filteredMaterials.length}</div>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setMaterialCurrentPage((prev) => Math.max(1, prev - 1))}
-                                    disabled={materialCurrentPage === 1 || materialPageSize === Infinity}
-                                >
-                                    Sebelumnya
-                                </Button>
-                                <span>
-                                    Halaman {materialCurrentPage} / {materialTotalPages}
-                                </span>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setMaterialCurrentPage((prev) => Math.min(materialTotalPages, prev + 1))}
-                                    disabled={materialCurrentPage === materialTotalPages || materialPageSize === Infinity}
-                                >
-                                    Berikutnya
-                                </Button>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Material In DO Add</CardTitle>
-                    </CardHeader>
-                    <CardContent className="w-full overflow-x-auto">
-                        <div className="flex flex-wrap items-end gap-3 pb-3">
-                            <div className="w-full sm:w-64">
-                                <div className="text-xs text-muted-foreground">No DO Add</div>
-                                <Input value={dotNo} readOnly />
-                            </div>
-                            <div className="w-full sm:flex-1">
-                                <Input
-                                    placeholder="Cari material..."
-                                    value={doAddSearch}
-                                    onChange={(e) => setDoAddSearch(e.target.value)}
-                                    className="w-full"
-                                />
-                            </div>
-                            <Select
-                                value={doAddPageSize === Infinity ? 'all' : String(doAddPageSize)}
-                                onValueChange={(value) => {
-                                    if (value === 'all') {
-                                        setDoAddPageSize(Infinity);
-                                    } else {
-                                        const parsed = Number(value);
-                                        setDoAddPageSize(Number.isNaN(parsed) ? 5 : parsed);
-                                    }
-                                    setDoAddCurrentPage(1);
-                                }}
-                            >
-                                <SelectTrigger className="w-full sm:w-[160px]">
-                                    <SelectValue placeholder="Tampil" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {PAGE_SIZE_OPTIONS.map((opt) => (
-                                        <SelectItem key={opt.value} value={opt.value}>
-                                            {opt.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <Table className="min-w-[900px]">
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[60px]">No</TableHead>
-                                    <TableHead>Kode Material</TableHead>
-                                    <TableHead>Material</TableHead>
-                                    <TableHead>Qty</TableHead>
-                                    <TableHead>Satuan</TableHead>
-                                    <TableHead>Price</TableHead>
-                                    <TableHead>Total Price</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {displayedDoAddMaterials.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={8} className="text-center text-sm text-muted-foreground">
-                                            Tidak ada data.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    displayedDoAddMaterials.map((row, idx) => (
-                                        <TableRow
-                                            key={`${row.no_dob}-${row.mat}-${idx}`}
-                                            className="cursor-pointer"
-                                            onClick={() => handleSelectMaterialAdd(row)}
+                                            Sebelumnya
+                                        </Button>
+                                        <span>
+                                            Halaman {materialCurrentPage} /{' '}
+                                            {materialTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setMaterialCurrentPage((prev) =>
+                                                    Math.min(
+                                                        materialTotalPages,
+                                                        prev + 1,
+                                                    ),
+                                                )
+                                            }
+                                            disabled={
+                                                materialCurrentPage ===
+                                                    materialTotalPages ||
+                                                materialPageSize === Infinity
+                                            }
                                         >
-                                            <TableCell>{idx + 1 + (doAddPageSize === Infinity ? 0 : (doAddCurrentPage - 1) * doAddPageSize)}</TableCell>
-                                            <TableCell>{renderValue(row.kd_mat)}</TableCell>
-                                            <TableCell>{renderValue(row.mat)}</TableCell>
-                                            <TableCell>{renderValue(row.qty)}</TableCell>
-                                            <TableCell>{renderValue(row.unit)}</TableCell>
-                                            <TableCell>{formatRupiah(row.harga)} ({formatRaw(row.harga)})</TableCell>
-                                            <TableCell>{formatRupiah(row.total)} ({formatRaw(row.total)})</TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 text-sm">
-                            <div className="text-muted-foreground">Total data: {filteredDoAddMaterials.length}</div>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setDoAddCurrentPage((prev) => Math.max(1, prev - 1))}
-                                    disabled={doAddCurrentPage === 1 || doAddPageSize === Infinity}
-                                >
-                                    Sebelumnya
-                                </Button>
-                                <span>
-                                    Halaman {doAddCurrentPage} / {doAddTotalPages}
-                                </span>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setDoAddCurrentPage((prev) => Math.min(doAddTotalPages, prev + 1))}
-                                    disabled={doAddCurrentPage === doAddTotalPages || doAddPageSize === Infinity}
-                                >
-                                    Berikutnya
-                                </Button>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+                                            Berikutnya
+                                        </Button>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Field DO</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid gap-4 md:grid-cols-3">
-                        <div>
-                            <div className="text-xs text-muted-foreground">No DO</div>
-                            <Input value={fieldNoPo} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Date</div>
-                            <Input value={fieldDate} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Ref PO In</div>
-                            <Input value={fieldRefPoIn} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Customer</div>
-                            <Input value={fieldCustomer} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Kode Material</div>
-                            <Input value={fieldKdMat} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Material</div>
-                            <Input value={fieldMat} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Qty</div>
-                            <Input value={fieldQty} onChange={(e) => setFieldQty(e.target.value)} />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Satuan</div>
-                            <Input value={fieldUnit} readOnly />
-                        </div>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Material In DO Add</CardTitle>
+                            </CardHeader>
+                            <CardContent className="w-full overflow-x-auto">
+                                <div className="flex flex-wrap items-end gap-3 pb-3">
+                                    <div className="w-full sm:w-64">
+                                        <div className="text-xs text-muted-foreground">
+                                            No DO Add
+                                        </div>
+                                        <Input value={dotNo} readOnly />
+                                    </div>
+                                    <div className="w-full sm:flex-1">
+                                        <Input
+                                            placeholder="Cari material..."
+                                            value={doAddSearch}
+                                            onChange={(e) =>
+                                                setDoAddSearch(e.target.value)
+                                            }
+                                            className="w-full"
+                                        />
+                                    </div>
+                                    <Select
+                                        value={
+                                            doAddPageSize === Infinity
+                                                ? 'all'
+                                                : String(doAddPageSize)
+                                        }
+                                        onValueChange={(value) => {
+                                            if (value === 'all') {
+                                                setDoAddPageSize(Infinity);
+                                            } else {
+                                                const parsed = Number(value);
+                                                setDoAddPageSize(
+                                                    Number.isNaN(parsed)
+                                                        ? 5
+                                                        : parsed,
+                                                );
+                                            }
+                                            setDoAddCurrentPage(1);
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-full sm:w-[160px]">
+                                            <SelectValue placeholder="Tampil" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {PAGE_SIZE_OPTIONS.map((opt) => (
+                                                <SelectItem
+                                                    key={opt.value}
+                                                    value={opt.value}
+                                                >
+                                                    {opt.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <Table className="min-w-[900px]">
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[60px]">
+                                                No
+                                            </TableHead>
+                                            <TableHead>Kode Material</TableHead>
+                                            <TableHead>Material</TableHead>
+                                            <TableHead>Qty</TableHead>
+                                            <TableHead>Satuan</TableHead>
+                                            <TableHead>Price</TableHead>
+                                            <TableHead>Total Price</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {displayedDoAddMaterials.length ===
+                                        0 ? (
+                                            <TableRow>
+                                                <TableCell
+                                                    colSpan={8}
+                                                    className="text-center text-sm text-muted-foreground"
+                                                >
+                                                    Tidak ada data.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            displayedDoAddMaterials.map(
+                                                (row, idx) => (
+                                                    <TableRow
+                                                        key={`${row.no_dob}-${row.mat}-${idx}`}
+                                                        className="cursor-pointer"
+                                                        onClick={() =>
+                                                            handleSelectMaterialAdd(
+                                                                row,
+                                                            )
+                                                        }
+                                                    >
+                                                        <TableCell>
+                                                            {idx +
+                                                                1 +
+                                                                (doAddPageSize ===
+                                                                Infinity
+                                                                    ? 0
+                                                                    : (doAddCurrentPage -
+                                                                          1) *
+                                                                      doAddPageSize)}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {renderValue(
+                                                                row.kd_mat,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {renderValue(
+                                                                row.mat,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {renderValue(
+                                                                row.qty,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {renderValue(
+                                                                row.unit,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {formatRupiah(
+                                                                row.harga,
+                                                            )}{' '}
+                                                            (
+                                                            {formatRaw(
+                                                                row.harga,
+                                                            )}
+                                                            )
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {formatRupiah(
+                                                                row.total,
+                                                            )}{' '}
+                                                            (
+                                                            {formatRaw(
+                                                                row.total,
+                                                            )}
+                                                            )
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ),
+                                            )
+                                        )}
+                                    </TableBody>
+                                </Table>
+                                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 text-sm">
+                                    <div className="text-muted-foreground">
+                                        Total data:{' '}
+                                        {filteredDoAddMaterials.length}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setDoAddCurrentPage((prev) =>
+                                                    Math.max(1, prev - 1),
+                                                )
+                                            }
+                                            disabled={
+                                                doAddCurrentPage === 1 ||
+                                                doAddPageSize === Infinity
+                                            }
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span>
+                                            Halaman {doAddCurrentPage} /{' '}
+                                            {doAddTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setDoAddCurrentPage((prev) =>
+                                                    Math.min(
+                                                        doAddTotalPages,
+                                                        prev + 1,
+                                                    ),
+                                                )
+                                            }
+                                            disabled={
+                                                doAddCurrentPage ===
+                                                    doAddTotalPages ||
+                                                doAddPageSize === Infinity
+                                            }
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Field DO</CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid gap-4 md:grid-cols-3">
                                 <div>
-                                    <div className="text-xs text-muted-foreground">Price</div>
+                                    <div className="text-xs text-muted-foreground">
+                                        No DO
+                                    </div>
+                                    <Input value={fieldNoPo} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Date
+                                    </div>
+                                    <Input value={fieldDate} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Ref PO In
+                                    </div>
+                                    <Input value={fieldRefPoIn} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Customer
+                                    </div>
+                                    <Input value={fieldCustomer} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Kode Material
+                                    </div>
+                                    <Input value={fieldKdMat} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Material
+                                    </div>
+                                    <Input value={fieldMat} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Qty
+                                    </div>
+                                    <Input
+                                        value={fieldQty}
+                                        onChange={(e) =>
+                                            setFieldQty(e.target.value)
+                                        }
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Satuan
+                                    </div>
+                                    <Input value={fieldUnit} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Price
+                                    </div>
                                     <Input value={fieldPrice} readOnly />
                                 </div>
                                 <div>
-                                    <div className="text-xs text-muted-foreground">Total Price</div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Total Price
+                                    </div>
                                     <Input value={fieldTotalPrice} readOnly />
                                 </div>
                                 <div>
-                                    <div className="text-xs text-muted-foreground">Sell Price</div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Sell Price
+                                    </div>
                                     <Input value={fieldPriceSell} readOnly />
                                 </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Total Sell Price</div>
-                            <Input value={fieldTotalPriceSell} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Biaya Kirim</div>
-                            <Input value={fieldBiayaKirim} onChange={(e) => setFieldBiayaKirim(e.target.value)} />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Margin</div>
-                            <Input value={fieldMargin ? `${fieldMargin}%` : ''} readOnly />
-                        </div>
-                        <div className="md:col-span-3">
-                            <Button variant="default" onClick={handleAddBkpRow}>
-                                Tambah Data
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Total Sell Price
+                                    </div>
+                                    <Input
+                                        value={fieldTotalPriceSell}
+                                        readOnly
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Biaya Kirim
+                                    </div>
+                                    <Input
+                                        value={fieldBiayaKirim}
+                                        onChange={(e) =>
+                                            setFieldBiayaKirim(e.target.value)
+                                        }
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Margin
+                                    </div>
+                                    <Input
+                                        value={
+                                            fieldMargin ? `${fieldMargin}%` : ''
+                                        }
+                                        readOnly
+                                    />
+                                </div>
+                                <div className="md:col-span-3">
+                                    <Button
+                                        variant="default"
+                                        onClick={handleAddBkpRow}
+                                    >
+                                        Tambah Data
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Field DO Add</CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid gap-4 md:grid-cols-3">
-                        <div>
-                            <div className="text-xs text-muted-foreground">No DO Add</div>
-                            <Input value={fieldAddNoDo} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Date</div>
-                            <Input value={fieldAddNoDo ? fieldAddDate : ''} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Ref DO</div>
-                            <Input value={fieldAddNoDo ? fieldAddRefDo : ''} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Customer</div>
-                            <Input value={fieldAddNoDo ? fieldAddCustomer : ''} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Kode Material</div>
-                            <Input value={fieldAddKdMat} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Material</div>
-                            <Input value={fieldAddMat} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Qty</div>
-                            <Input value={fieldAddQty} onChange={(e) => setFieldAddQty(e.target.value)} />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Satuan</div>
-                            <Input value={fieldAddUnit} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Price</div>
-                            <Input value={fieldAddPrice} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Total Price</div>
-                            <Input value={fieldAddTotalPrice} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Sell Price</div>
-                            <Input value={fieldAddPriceSell} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Total Sell Price</div>
-                            <Input value={fieldAddTotalPriceSell} readOnly />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Biaya Kirim</div>
-                            <Input value={fieldAddBiayaKirim} onChange={(e) => setFieldAddBiayaKirim(e.target.value)} />
-                        </div>
-                        <div>
-                            <div className="text-xs text-muted-foreground">Margin</div>
-                            <Input value={fieldAddMargin ? `${fieldAddMargin}%` : ''} readOnly />
-                        </div>
-                        <div className="md:col-span-3">
-                            <Button variant="default" onClick={handleAddDoAddRow}>
-                                Tambah Data
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Field DO Add</CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid gap-4 md:grid-cols-3">
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        No DO Add
+                                    </div>
+                                    <Input value={fieldAddNoDo} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Date
+                                    </div>
+                                    <Input
+                                        value={fieldAddNoDo ? fieldAddDate : ''}
+                                        readOnly
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Ref DO
+                                    </div>
+                                    <Input
+                                        value={
+                                            fieldAddNoDo ? fieldAddRefDo : ''
+                                        }
+                                        readOnly
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Customer
+                                    </div>
+                                    <Input
+                                        value={
+                                            fieldAddNoDo ? fieldAddCustomer : ''
+                                        }
+                                        readOnly
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Kode Material
+                                    </div>
+                                    <Input value={fieldAddKdMat} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Material
+                                    </div>
+                                    <Input value={fieldAddMat} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Qty
+                                    </div>
+                                    <Input
+                                        value={fieldAddQty}
+                                        onChange={(e) =>
+                                            setFieldAddQty(e.target.value)
+                                        }
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Satuan
+                                    </div>
+                                    <Input value={fieldAddUnit} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Price
+                                    </div>
+                                    <Input value={fieldAddPrice} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Total Price
+                                    </div>
+                                    <Input
+                                        value={fieldAddTotalPrice}
+                                        readOnly
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Sell Price
+                                    </div>
+                                    <Input value={fieldAddPriceSell} readOnly />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Total Sell Price
+                                    </div>
+                                    <Input
+                                        value={fieldAddTotalPriceSell}
+                                        readOnly
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Biaya Kirim
+                                    </div>
+                                    <Input
+                                        value={fieldAddBiayaKirim}
+                                        onChange={(e) =>
+                                            setFieldAddBiayaKirim(
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Margin
+                                    </div>
+                                    <Input
+                                        value={
+                                            fieldAddMargin
+                                                ? `${fieldAddMargin}%`
+                                                : ''
+                                        }
+                                        readOnly
+                                    />
+                                </div>
+                                <div className="md:col-span-3">
+                                    <Button
+                                        variant="default"
+                                        onClick={handleAddDoAddRow}
+                                    >
+                                        Tambah Data
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
                         <div className="flex justify-end">
-                            <Button variant="default" onClick={() => setCurrentStep(2)}>
+                            <Button
+                                variant="default"
+                                onClick={() => setCurrentStep(2)}
+                            >
                                 Lanjut
                             </Button>
                         </div>
@@ -946,20 +1363,49 @@ export default function BiayaKirimPembelianCreate() {
                             </CardHeader>
                             <CardContent className="grid gap-4 md:grid-cols-3">
                                 <div>
-                                    <div className="text-xs text-muted-foreground">Doc. Date</div>
-                                    <Input type="date" value={docDate} onChange={(e) => setDocDate(e.target.value)} />
+                                    <div className="text-xs text-muted-foreground">
+                                        Doc. Date
+                                    </div>
+                                    <Input
+                                        type="date"
+                                        value={docDate}
+                                        onChange={(e) =>
+                                            setDocDate(e.target.value)
+                                        }
+                                    />
                                 </div>
                                 <div>
-                                    <div className="text-xs text-muted-foreground">No Invoice</div>
-                                    <Input value={noInvoice} onChange={(e) => setNoInvoice(e.target.value)} />
+                                    <div className="text-xs text-muted-foreground">
+                                        No Invoice
+                                    </div>
+                                    <Input
+                                        value={noInvoice}
+                                        onChange={(e) =>
+                                            setNoInvoice(e.target.value)
+                                        }
+                                    />
                                 </div>
                                 <div>
-                                    <div className="text-xs text-muted-foreground">Nama Ekspedisi</div>
-                                    <Input value={namaEkspedisi} onChange={(e) => setNamaEkspedisi(e.target.value)} />
+                                    <div className="text-xs text-muted-foreground">
+                                        Nama Ekspedisi
+                                    </div>
+                                    <Input
+                                        value={namaEkspedisi}
+                                        onChange={(e) =>
+                                            setNamaEkspedisi(e.target.value)
+                                        }
+                                    />
                                 </div>
                                 <div>
-                                    <div className="text-xs text-muted-foreground">Biaya Kirim</div>
-                                    <Input value={biayaKirim} onChange={(e) => setBiayaKirim(e.target.value)} />
+                                    <div className="text-xs text-muted-foreground">
+                                        Biaya Kirim
+                                    </div>
+                                    <Input
+                                        value={biayaKirim}
+                                        onChange={(e) =>
+                                            setBiayaKirim(e.target.value)
+                                        }
+                                    />
                                 </div>
                             </CardContent>
                         </Card>
@@ -970,35 +1416,54 @@ export default function BiayaKirimPembelianCreate() {
                             </CardHeader>
                             <CardContent className="grid gap-4 md:grid-cols-4">
                                 <div>
-                                    <div className="text-xs text-muted-foreground">Total Cost</div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Total Cost
+                                    </div>
                                     <div className="text-lg font-semibold">
-                                        {formatRupiah(totalModal)} ({formatRawPlain(totalModal)})
+                                        {formatRupiah(totalModal)} (
+                                        {formatRawPlain(totalModal)})
                                     </div>
                                 </div>
                                 <div>
-                                    <div className="text-xs text-muted-foreground">Total Sales</div>
-                                    <div className="text-lg font-semibold">{formatRupiah(totalSales)}</div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Total Sales
+                                    </div>
+                                    <div className="text-lg font-semibold">
+                                        {formatRupiah(totalSales)}
+                                    </div>
                                 </div>
                                 <div>
-                                    <div className="text-xs text-muted-foreground">Shipping Sales</div>
-                                    <div className="text-lg font-semibold">{shippingSalesPercent.toFixed(2)}%</div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Shipping Sales
+                                    </div>
+                                    <div className="text-lg font-semibold">
+                                        {shippingSalesPercent.toFixed(2)}%
+                                    </div>
                                 </div>
                                 <div>
-                                    <div className="text-xs text-muted-foreground">Final Margin</div>
-                                    <div className="text-lg font-semibold">{finalMarginPercent.toFixed(2)}%</div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Final Margin
+                                    </div>
+                                    <div className="text-lg font-semibold">
+                                        {finalMarginPercent.toFixed(2)}%
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
 
                         <Card>
                             <CardHeader>
-                                <CardTitle>Data Biaya Kirim Penjualan DO</CardTitle>
+                                <CardTitle>
+                                    Data Biaya Kirim Penjualan DO
+                                </CardTitle>
                             </CardHeader>
                             <CardContent className="w-full overflow-x-auto">
                                 <Table className="min-w-[900px]">
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="w-[60px]">No</TableHead>
+                                            <TableHead className="w-[60px]">
+                                                No
+                                            </TableHead>
                                             <TableHead>No DO</TableHead>
                                             <TableHead>Date DO</TableHead>
                                             <TableHead>Customer</TableHead>
@@ -1011,57 +1476,153 @@ export default function BiayaKirimPembelianCreate() {
                                             <TableHead>Total Price</TableHead>
                                             <TableHead>Biaya Kirim</TableHead>
                                             <TableHead>Sell Price</TableHead>
-                                            <TableHead>Total Sell Price</TableHead>
+                                            <TableHead>
+                                                Total Sell Price
+                                            </TableHead>
                                             <TableHead>Margin</TableHead>
-                                            <TableHead className="w-[90px] text-center">Aksi</TableHead>
+                                            <TableHead className="w-[90px] text-center">
+                                                Aksi
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {bkpRows.length === 0 ? (
                                             <TableRow>
-                                        <TableCell colSpan={13} className="text-center text-sm text-muted-foreground">
-                                            Belum ada data.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    bkpRows.map((row, idx) => (
-                                        <TableRow key={`${row.no_po}-${row.kd_mat}-${idx}`}>
-                                            <TableCell>{idx + 1}</TableCell>
-                                            <TableCell>{renderValue(row.no_po)}</TableCell>
-                                            <TableCell>{renderValue(row.date)}</TableCell>
-                                            <TableCell>{renderValue(row.customer)}</TableCell>
-                                            <TableCell>{renderValue(row.ref_po_in)}</TableCell>
-                                            <TableCell>{renderValue(row.kd_mat)}</TableCell>
-                                            <TableCell>{renderValue(row.material)}</TableCell>
-                                            <TableCell>{renderValue(row.qty)}</TableCell>
-                                            <TableCell>{renderValue(row.unit)}</TableCell>
-                                            <TableCell>{formatRupiah(row.price)} ({formatRaw(row.price)})</TableCell>
-                                            <TableCell>{formatRupiah(row.total_price)} ({formatRaw(row.total_price)})</TableCell>
-                                            <TableCell>{formatRupiah(row.biaya_kirim)} ({formatRaw(row.biaya_kirim)})</TableCell>
-                                            <TableCell>{formatRupiah(row.price_sell)} ({formatRaw(row.price_sell)})</TableCell>
-                                            <TableCell>{formatRupiah(row.total_price_sell)} ({formatRaw(row.total_price_sell)})</TableCell>
-                                            <TableCell>
-                                                {(() => {
-                                                    const totalSell = toNumber(row.total_price_sell);
-                                                    const totalBuy = toNumber(row.total_price);
-                                                    const biaya = toNumber(row.biaya_kirim);
-                                                    const margin = totalBuy === 0 ? 0 : ((totalSell - totalBuy - biaya) / totalBuy) * 100;
-                                                    return `${margin.toFixed(2)}%`;
-                                                })()}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => handleRemoveBkpRow(idx)}
-                                                    className="text-destructive hover:text-destructive"
+                                                <TableCell
+                                                    colSpan={13}
+                                                    className="text-center text-sm text-muted-foreground"
                                                 >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
+                                                    Belum ada data.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            bkpRows.map((row, idx) => (
+                                                <TableRow
+                                                    key={`${row.no_po}-${row.kd_mat}-${idx}`}
+                                                >
+                                                    <TableCell>
+                                                        {idx + 1}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(row.no_po)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(row.date)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(
+                                                            row.customer,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(
+                                                            row.ref_po_in,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(
+                                                            row.kd_mat,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(
+                                                            row.material,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(row.qty)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(row.unit)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatRupiah(
+                                                            row.price,
+                                                        )}{' '}
+                                                        ({formatRaw(row.price)})
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatRupiah(
+                                                            row.total_price,
+                                                        )}{' '}
+                                                        (
+                                                        {formatRaw(
+                                                            row.total_price,
+                                                        )}
+                                                        )
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatRupiah(
+                                                            row.biaya_kirim,
+                                                        )}{' '}
+                                                        (
+                                                        {formatRaw(
+                                                            row.biaya_kirim,
+                                                        )}
+                                                        )
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatRupiah(
+                                                            row.price_sell,
+                                                        )}{' '}
+                                                        (
+                                                        {formatRaw(
+                                                            row.price_sell,
+                                                        )}
+                                                        )
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatRupiah(
+                                                            row.total_price_sell,
+                                                        )}{' '}
+                                                        (
+                                                        {formatRaw(
+                                                            row.total_price_sell,
+                                                        )}
+                                                        )
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {(() => {
+                                                            const totalSell =
+                                                                toNumber(
+                                                                    row.total_price_sell,
+                                                                );
+                                                            const totalBuy =
+                                                                toNumber(
+                                                                    row.total_price,
+                                                                );
+                                                            const biaya =
+                                                                toNumber(
+                                                                    row.biaya_kirim,
+                                                                );
+                                                            const margin =
+                                                                totalBuy === 0
+                                                                    ? 0
+                                                                    : ((totalSell -
+                                                                          totalBuy -
+                                                                          biaya) /
+                                                                          totalBuy) *
+                                                                      100;
+                                                            return `${margin.toFixed(2)}%`;
+                                                        })()}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() =>
+                                                                handleRemoveBkpRow(
+                                                                    idx,
+                                                                )
+                                                            }
+                                                            className="text-destructive hover:text-destructive"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
                                     </TableBody>
                                 </Table>
                             </CardContent>
@@ -1069,13 +1630,17 @@ export default function BiayaKirimPembelianCreate() {
 
                         <Card>
                             <CardHeader>
-                                <CardTitle>Data Biaya Kirim Penjualan DO Add</CardTitle>
+                                <CardTitle>
+                                    Data Biaya Kirim Penjualan DO Add
+                                </CardTitle>
                             </CardHeader>
                             <CardContent className="w-full overflow-x-auto">
                                 <Table className="min-w-[900px]">
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="w-[60px]">No</TableHead>
+                                            <TableHead className="w-[60px]">
+                                                No
+                                            </TableHead>
                                             <TableHead>No DOT</TableHead>
                                             <TableHead>No DO</TableHead>
                                             <TableHead>Kode Material</TableHead>
@@ -1086,39 +1651,125 @@ export default function BiayaKirimPembelianCreate() {
                                             <TableHead>Total Price</TableHead>
                                             <TableHead>Biaya Kirim</TableHead>
                                             <TableHead>Sell Price</TableHead>
-                                            <TableHead>Total Sell Price</TableHead>
+                                            <TableHead>
+                                                Total Sell Price
+                                            </TableHead>
                                             <TableHead>Margin</TableHead>
-                                            <TableHead className="w-[90px] text-center">Aksi</TableHead>
+                                            <TableHead className="w-[90px] text-center">
+                                                Aksi
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {doAddRowsTable.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={14} className="text-center text-sm text-muted-foreground">
+                                                <TableCell
+                                                    colSpan={14}
+                                                    className="text-center text-sm text-muted-foreground"
+                                                >
                                                     Belum ada data.
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
                                             doAddRowsTable.map((row, idx) => (
-                                                <TableRow key={`${row.no_dot || row.no_do}-${row.kd_mat || idx}-add-${idx}`}>
-                                                    <TableCell>{idx + 1}</TableCell>
-                                                    <TableCell>{renderValue(row.no_dot)}</TableCell>
-                                                    <TableCell>{renderValue(row.no_do)}</TableCell>
-                                                    <TableCell>{renderValue(row.kd_mat)}</TableCell>
-                                                    <TableCell>{renderValue(row.material)}</TableCell>
-                                                    <TableCell>{renderValue(row.qty)}</TableCell>
-                                                    <TableCell>{renderValue(row.unit)}</TableCell>
-                                                    <TableCell>{formatRupiah(row.price)} ({formatRaw(row.price)})</TableCell>
-                                                    <TableCell>{formatRupiah(row.total_price)} ({formatRaw(row.total_price)})</TableCell>
-                                                    <TableCell>{formatRupiah(row.biaya_kirim)} ({formatRaw(row.biaya_kirim)})</TableCell>
-                                                    <TableCell>{formatRupiah(row.price_sell)} ({formatRaw(row.price_sell)})</TableCell>
-                                                    <TableCell>{formatRupiah(row.total_price_sell)} ({formatRaw(row.total_price_sell)})</TableCell>
+                                                <TableRow
+                                                    key={`${row.no_dot || row.no_do}-${row.kd_mat || idx}-add-${idx}`}
+                                                >
+                                                    <TableCell>
+                                                        {idx + 1}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(
+                                                            row.no_dot,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(row.no_do)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(
+                                                            row.kd_mat,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(
+                                                            row.material,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(row.qty)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(row.unit)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatRupiah(
+                                                            row.price,
+                                                        )}{' '}
+                                                        ({formatRaw(row.price)})
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatRupiah(
+                                                            row.total_price,
+                                                        )}{' '}
+                                                        (
+                                                        {formatRaw(
+                                                            row.total_price,
+                                                        )}
+                                                        )
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatRupiah(
+                                                            row.biaya_kirim,
+                                                        )}{' '}
+                                                        (
+                                                        {formatRaw(
+                                                            row.biaya_kirim,
+                                                        )}
+                                                        )
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatRupiah(
+                                                            row.price_sell,
+                                                        )}{' '}
+                                                        (
+                                                        {formatRaw(
+                                                            row.price_sell,
+                                                        )}
+                                                        )
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatRupiah(
+                                                            row.total_price_sell,
+                                                        )}{' '}
+                                                        (
+                                                        {formatRaw(
+                                                            row.total_price_sell,
+                                                        )}
+                                                        )
+                                                    </TableCell>
                                                     <TableCell>
                                                         {(() => {
-                                                            const totalSell = toNumber(row.total_price_sell);
-                                                            const totalBuy = toNumber(row.total_price);
-                                                            const biaya = toNumber(row.biaya_kirim);
-                                                            const margin = totalBuy === 0 ? 0 : ((totalSell - totalBuy - biaya) / totalBuy) * 100;
+                                                            const totalSell =
+                                                                toNumber(
+                                                                    row.total_price_sell,
+                                                                );
+                                                            const totalBuy =
+                                                                toNumber(
+                                                                    row.total_price,
+                                                                );
+                                                            const biaya =
+                                                                toNumber(
+                                                                    row.biaya_kirim,
+                                                                );
+                                                            const margin =
+                                                                totalBuy === 0
+                                                                    ? 0
+                                                                    : ((totalSell -
+                                                                          totalBuy -
+                                                                          biaya) /
+                                                                          totalBuy) *
+                                                                      100;
                                                             return `${margin.toFixed(2)}%`;
                                                         })()}
                                                     </TableCell>
@@ -1126,7 +1777,11 @@ export default function BiayaKirimPembelianCreate() {
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
-                                                            onClick={() => handleRemoveDoAddRow(idx)}
+                                                            onClick={() =>
+                                                                handleRemoveDoAddRow(
+                                                                    idx,
+                                                                )
+                                                            }
                                                             className="text-destructive hover:text-destructive"
                                                         >
                                                             <Trash2 className="h-4 w-4" />
@@ -1141,17 +1796,22 @@ export default function BiayaKirimPembelianCreate() {
                         </Card>
 
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                            <Button variant="outline" onClick={() => setCurrentStep(1)}>
+                            <Button
+                                variant="outline"
+                                onClick={() => setCurrentStep(1)}
+                            >
                                 Kembali
                             </Button>
-                            <Button variant="default" onClick={handleSave}>Simpan Data</Button>
+                            <Button variant="default" onClick={handleSave}>
+                                Simpan Data
+                            </Button>
                         </div>
                     </>
                 )}
             </div>
 
             <Dialog open={poModalOpen} onOpenChange={setPoModalOpen}>
-                <DialogContent className="fixed inset-0 !left-0 !top-0 z-[210] !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 !rounded-none !p-0 !flex !flex-col overflow-hidden">
+                <DialogContent className="fixed inset-0 !top-0 !left-0 z-[210] !flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 !flex-col overflow-hidden !rounded-none !p-0">
                     <div className="flex h-full w-full flex-col bg-background">
                         <div className="border-b px-4 py-3">
                             <DialogTitle>Cari DO</DialogTitle>
@@ -1161,17 +1821,27 @@ export default function BiayaKirimPembelianCreate() {
                                 <Input
                                     placeholder="Cari No DO, Ref PO In, Customer..."
                                     value={poSearch}
-                                    onChange={(e) => setPoSearch(e.target.value)}
+                                    onChange={(e) =>
+                                        setPoSearch(e.target.value)
+                                    }
                                     className="w-full sm:w-64"
                                 />
                                 <Select
-                                    value={poPageSize === Infinity ? 'all' : String(poPageSize)}
+                                    value={
+                                        poPageSize === Infinity
+                                            ? 'all'
+                                            : String(poPageSize)
+                                    }
                                     onValueChange={(value) => {
                                         if (value === 'all') {
                                             setPoPageSize(Infinity);
                                         } else {
                                             const parsed = Number(value);
-                                            setPoPageSize(Number.isNaN(parsed) ? 5 : parsed);
+                                            setPoPageSize(
+                                                Number.isNaN(parsed)
+                                                    ? 5
+                                                    : parsed,
+                                            );
                                         }
                                         setPoCurrentPage(1);
                                     }}
@@ -1181,7 +1851,10 @@ export default function BiayaKirimPembelianCreate() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {PAGE_SIZE_OPTIONS.map((opt) => (
-                                            <SelectItem key={opt.value} value={opt.value}>
+                                            <SelectItem
+                                                key={opt.value}
+                                                value={opt.value}
+                                            >
                                                 {opt.label}
                                             </SelectItem>
                                         ))}
@@ -1203,13 +1876,19 @@ export default function BiayaKirimPembelianCreate() {
                                     <TableBody>
                                         {poLoading ? (
                                             <TableRow>
-                                                <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                                                <TableCell
+                                                    colSpan={4}
+                                                    className="text-center text-sm text-muted-foreground"
+                                                >
                                                     Memuat data...
                                                 </TableCell>
                                             </TableRow>
                                         ) : displayedPoRows.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={4} className="text-center text-sm text-muted-foreground">
+                                                <TableCell
+                                                    colSpan={4}
+                                                    className="text-center text-sm text-muted-foreground"
+                                                >
                                                     Tidak ada data.
                                                 </TableCell>
                                             </TableRow>
@@ -1223,10 +1902,22 @@ export default function BiayaKirimPembelianCreate() {
                                                         setPoModalOpen(false);
                                                     }}
                                                 >
-                                                    <TableCell>{renderValue(row.no_do)}</TableCell>
-                                                    <TableCell>{formatDate(row.tgl)}</TableCell>
-                                                    <TableCell>{renderValue(row.po_cust)}</TableCell>
-                                                    <TableCell>{renderValue(row.customer)}</TableCell>
+                                                    <TableCell>
+                                                        {renderValue(row.no_do)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatDate(row.tgl)}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(
+                                                            row.po_cust,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {renderValue(
+                                                            row.customer,
+                                                        )}
+                                                    </TableCell>
                                                 </TableRow>
                                             ))
                                         )}
@@ -1236,13 +1927,22 @@ export default function BiayaKirimPembelianCreate() {
                         </div>
                         <div className="border-t px-4 py-3">
                             <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                                <div className="text-muted-foreground">Total data: {poTotal}</div>
+                                <div className="text-muted-foreground">
+                                    Total data: {poTotal}
+                                </div>
                                 <div className="flex items-center gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => setPoCurrentPage((prev) => Math.max(1, prev - 1))}
-                                        disabled={poCurrentPage === 1 || poPageSize === Infinity}
+                                        onClick={() =>
+                                            setPoCurrentPage((prev) =>
+                                                Math.max(1, prev - 1),
+                                            )
+                                        }
+                                        disabled={
+                                            poCurrentPage === 1 ||
+                                            poPageSize === Infinity
+                                        }
                                     >
                                         Sebelumnya
                                     </Button>
@@ -1252,8 +1952,18 @@ export default function BiayaKirimPembelianCreate() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => setPoCurrentPage((prev) => Math.min(poTotalPages, prev + 1))}
-                                        disabled={poCurrentPage === poTotalPages || poPageSize === Infinity}
+                                        onClick={() =>
+                                            setPoCurrentPage((prev) =>
+                                                Math.min(
+                                                    poTotalPages,
+                                                    prev + 1,
+                                                ),
+                                            )
+                                        }
+                                        disabled={
+                                            poCurrentPage === poTotalPages ||
+                                            poPageSize === Infinity
+                                        }
                                     >
                                         Berikutnya
                                     </Button>
@@ -1263,6 +1973,19 @@ export default function BiayaKirimPembelianCreate() {
                     </div>
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+const breadcrumbs = [
+    { label: 'Pembayaran', href: '#' },
+    {
+        label: 'Biaya Kirim Penjualan',
+        href: '/pembayaran/biaya-kirim-penjualan',
+    },
+    { label: 'Tambah', href: '/pembayaran/biaya-kirim-penjualan/create' },
+];
+
+BiayaKirimPenjualanCreate.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

@@ -1,14 +1,27 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { Head, router } from '@inertiajs/react';
+import { useEffect, useMemo, useState } from 'react';
 
 const PAGE_SIZE_OPTIONS = [
     { value: '10', label: '10' },
@@ -44,7 +57,9 @@ const formatDate = (value) => {
 };
 
 const formatNumber = (value) =>
-    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value ?? 0);
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        value ?? 0,
+    );
 
 const directionBadge = (mutasi) => {
     const value = Number(mutasi ?? 0);
@@ -61,25 +76,42 @@ const formatPeriodLabel = (yyyymm) => {
     const mm = Number(yyyymm.slice(4, 6));
     const d = new Date(yyyy, Math.max(0, mm - 1), 1);
     if (Number.isNaN(d.getTime())) return yyyymm;
-    return new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('id-ID', {
+        month: 'long',
+        year: 'numeric',
+    }).format(d);
 };
 
-export default function InputPenjualanIndex({ filters = {}, accountOptions = [], defaultAccount = null }) {
+export default function InputPenjualanIndex({
+    filters = {},
+    accountOptions = [],
+    defaultAccount = null,
+}) {
     const [search, setSearch] = useState(filters?.search ?? '');
-    const [account, setAccount] = useState(filters?.account ?? (defaultAccount ?? 'all'));
-    const [period, setPeriod] = useState(filters?.period ?? new Date().toISOString().slice(0, 7).replace('-', ''));
+    const [account, setAccount] = useState(
+        filters?.account ?? defaultAccount ?? 'all',
+    );
+    const [period, setPeriod] = useState(
+        filters?.period ??
+            new Date().toISOString().slice(0, 7).replace('-', ''),
+    );
     const [pageSize, setPageSize] = useState(filters?.pageSize ?? 10);
     const [page, setPage] = useState(1);
 
-    const periodYear = period && (/^\d{6}$/.test(period) || /^\d{4}$/.test(period)) ? period.slice(0, 4) : '';
-    const periodMonth = period && /^\d{6}$/.test(period) ? period.slice(4, 6) : 'all';
+    const periodYear =
+        period && (/^\d{6}$/.test(period) || /^\d{4}$/.test(period))
+            ? period.slice(0, 4)
+            : '';
+    const periodMonth =
+        period && /^\d{6}$/.test(period) ? period.slice(4, 6) : 'all';
     const periodLabel = useMemo(() => formatPeriodLabel(period), [period]);
 
     const yearOptions = useMemo(() => {
         const now = new Date();
         const currentYear = now.getFullYear();
         const years = [];
-        for (let y = currentYear + 1; y >= currentYear - 8; y -= 1) years.push(String(y));
+        for (let y = currentYear + 1; y >= currentYear - 8; y -= 1)
+            years.push(String(y));
         return years;
     }, []);
 
@@ -104,7 +136,8 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
         if (period) bits.push('periode');
         if (account && account !== 'all') bits.push('akun');
         if (search) bits.push('pencarian');
-        if (bits.length === 0) return 'Klik Input Baru untuk membuat jurnal penjualan ke Buku Kas.';
+        if (bits.length === 0)
+            return 'Klik Input Baru untuk membuat jurnal penjualan ke Buku Kas.';
         return `Coba ubah ${bits.join(', ')} atau pilih "Semua akun / Semua".`;
     }, [account, period, search]);
 
@@ -118,9 +151,12 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
             if (period) params.set('period', period);
             params.set('pageSize', 'all');
 
-            const res = await fetch(`/keuangan/input-penjualan/rows?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/keuangan/input-penjualan/rows?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!res.ok) throw await normalizeApiError(res);
             const json = await res.json();
             setRows(Array.isArray(json?.rows) ? json.rows : []);
@@ -155,19 +191,30 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
     }, [search]);
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Input Penjualan', href: '/keuangan/input-penjualan' }]}>
+        <>
             <Head title="Input Penjualan" />
             <div className="flex flex-col gap-4 p-4">
                 <Card>
                     <CardHeader className="space-y-3">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                                <CardTitle>Input Penjualan (Buku Kas)</CardTitle>
+                                <CardTitle>
+                                    Input Penjualan (Buku Kas)
+                                </CardTitle>
                                 <div className="text-xs text-muted-foreground">
-                                    Menampilkan data yang sudah tersimpan di <span className="font-mono">tb_kas</span> untuk transaksi penjualan.
+                                    Menampilkan data yang sudah tersimpan di{' '}
+                                    <span className="font-mono">tb_kas</span>{' '}
+                                    untuk transaksi penjualan.
                                 </div>
                             </div>
-                            <Button type="button" onClick={() => router.visit('/keuangan/input-penjualan/create')}>
+                            <Button
+                                type="button"
+                                onClick={() =>
+                                    router.visit(
+                                        '/keuangan/input-penjualan/create',
+                                    )
+                                }
+                            >
                                 Input Baru
                             </Button>
                         </div>
@@ -187,14 +234,22 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
                                 />
                             </div>
                             <div className="lg:col-span-4">
-                                <Select value={account} onValueChange={setAccount}>
+                                <Select
+                                    value={account}
+                                    onValueChange={setAccount}
+                                >
                                     <SelectTrigger className="w-full">
                                         <SelectValue placeholder="Akun kas/bank" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">Semua akun</SelectItem>
+                                        <SelectItem value="all">
+                                            Semua akun
+                                        </SelectItem>
                                         {accountOptions?.map((opt) => (
-                                            <SelectItem key={opt.value} value={opt.value}>
+                                            <SelectItem
+                                                key={opt.value}
+                                                value={opt.value}
+                                            >
                                                 {opt.label}
                                             </SelectItem>
                                         ))}
@@ -206,7 +261,12 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
                                     <Select
                                         value={periodMonth}
                                         onValueChange={(v) => {
-                                            const y = periodYear || yearOptions[0] || String(new Date().getFullYear());
+                                            const y =
+                                                periodYear ||
+                                                yearOptions[0] ||
+                                                String(
+                                                    new Date().getFullYear(),
+                                                );
                                             if (v === 'all') setPeriod(y);
                                             else setPeriod(`${y}${v}`);
                                         }}
@@ -215,9 +275,14 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
                                             <SelectValue placeholder="Bulan" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Semua bulan</SelectItem>
+                                            <SelectItem value="all">
+                                                Semua bulan
+                                            </SelectItem>
                                             {MONTH_OPTIONS.map((m) => (
-                                                <SelectItem key={m.value} value={m.value}>
+                                                <SelectItem
+                                                    key={m.value}
+                                                    value={m.value}
+                                                >
                                                     {m.label}
                                                 </SelectItem>
                                             ))}
@@ -230,15 +295,19 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
                                                 setPeriod('');
                                                 return;
                                             }
-                                            if (periodMonth === 'all') setPeriod(v);
-                                            else setPeriod(`${v}${periodMonth}`);
+                                            if (periodMonth === 'all')
+                                                setPeriod(v);
+                                            else
+                                                setPeriod(`${v}${periodMonth}`);
                                         }}
                                     >
                                         <SelectTrigger className="w-full">
                                             <SelectValue placeholder="Tahun" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Semua tahun</SelectItem>
+                                            <SelectItem value="all">
+                                                Semua tahun
+                                            </SelectItem>
                                             {yearOptions.map((y) => (
                                                 <SelectItem key={y} value={y}>
                                                     {y}
@@ -247,10 +316,17 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="mt-1 text-[11px] text-muted-foreground">{periodLabel}</div>
+                                <div className="mt-1 text-[11px] text-muted-foreground">
+                                    {periodLabel}
+                                </div>
                             </div>
                             <div className="lg:col-span-1">
-                                <Button type="button" variant="outline" className="w-full" onClick={fetchRows}>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full"
+                                    onClick={fetchRows}
+                                >
                                     Refresh
                                 </Button>
                             </div>
@@ -265,8 +341,12 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
                                     <TableHead>Tgl Voucher</TableHead>
                                     <TableHead>Akun</TableHead>
                                     <TableHead>Keterangan</TableHead>
-                                    <TableHead className="text-right">Mutasi</TableHead>
-                                    <TableHead className="text-right">Saldo</TableHead>
+                                    <TableHead className="text-right">
+                                        Mutasi
+                                    </TableHead>
+                                    <TableHead className="text-right">
+                                        Saldo
+                                    </TableHead>
                                     <TableHead>Status</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -276,7 +356,11 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
                                     loading={loading}
                                     error={error}
                                     onRetry={fetchRows}
-                                    isEmpty={!loading && !error && displayed.length === 0}
+                                    isEmpty={
+                                        !loading &&
+                                        !error &&
+                                        displayed.length === 0
+                                    }
                                     emptyTitle="Belum ada input penjualan."
                                     emptyDescription={emptyDescription}
                                     emptyActionLabel="Input Baru"
@@ -285,19 +369,38 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
                                 {!loading &&
                                     !error &&
                                     displayed.map((row) => {
-                                        const badge = directionBadge(row?.Mutasi_Kas);
+                                        const badge = directionBadge(
+                                            row?.Mutasi_Kas,
+                                        );
                                         return (
-                                            <TableRow key={row?.Kode_Voucher ?? Math.random()}>
-                                                <TableCell className="font-medium">{row?.Kode_Voucher ?? '-'}</TableCell>
-                                                <TableCell>{formatDate(row?.Tgl_Voucher)}</TableCell>
-                                                <TableCell>{row?.Kode_Akun ?? '-'}</TableCell>
-                                                <TableCell className="min-w-[420px] whitespace-normal break-words">
+                                            <TableRow
+                                                key={
+                                                    row?.Kode_Voucher ??
+                                                    Math.random()
+                                                }
+                                            >
+                                                <TableCell className="font-medium">
+                                                    {row?.Kode_Voucher ?? '-'}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {formatDate(
+                                                        row?.Tgl_Voucher,
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {row?.Kode_Akun ?? '-'}
+                                                </TableCell>
+                                                <TableCell className="min-w-[420px] break-words whitespace-normal">
                                                     {row?.Keterangan ?? '-'}
                                                 </TableCell>
                                                 <TableCell className="text-right">{`Rp ${formatNumber(Math.abs(Number(row?.Mutasi_Kas ?? 0)))}`}</TableCell>
                                                 <TableCell className="text-right">{`Rp ${formatNumber(row?.Saldo ?? 0)}`}</TableCell>
                                                 <TableCell>
-                                                    <Badge variant={badge.variant}>{badge.label}</Badge>
+                                                    <Badge
+                                                        variant={badge.variant}
+                                                    >
+                                                        {badge.label}
+                                                    </Badge>
                                                 </TableCell>
                                             </TableRow>
                                         );
@@ -307,14 +410,25 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
 
                         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div className="text-sm text-muted-foreground">
-                                Total data: <span className="font-medium text-foreground">{total ?? 0}</span>
+                                Total data:{' '}
+                                <span className="font-medium text-foreground">
+                                    {total ?? 0}
+                                </span>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 <Select
-                                    value={pageSize === Infinity ? 'all' : String(pageSize)}
+                                    value={
+                                        pageSize === Infinity
+                                            ? 'all'
+                                            : String(pageSize)
+                                    }
                                     onValueChange={(val) => {
                                         setPage(1);
-                                        setPageSize(val === 'all' ? Infinity : Number(val));
+                                        setPageSize(
+                                            val === 'all'
+                                                ? Infinity
+                                                : Number(val),
+                                        );
                                     }}
                                 >
                                     <SelectTrigger className="w-36">
@@ -322,7 +436,10 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
                                     </SelectTrigger>
                                     <SelectContent>
                                         {PAGE_SIZE_OPTIONS.map((opt) => (
-                                            <SelectItem key={opt.value} value={opt.value}>
+                                            <SelectItem
+                                                key={opt.value}
+                                                value={opt.value}
+                                            >
                                                 {opt.label}
                                             </SelectItem>
                                         ))}
@@ -331,19 +448,32 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    disabled={pageSize === Infinity || page <= 1}
-                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    disabled={
+                                        pageSize === Infinity || page <= 1
+                                    }
+                                    onClick={() =>
+                                        setPage((p) => Math.max(1, p - 1))
+                                    }
                                 >
                                     Prev
                                 </Button>
                                 <div className="min-w-[92px] text-center text-sm">
-                                    {pageSize === Infinity ? 'All' : `${page}/${totalPages}`}
+                                    {pageSize === Infinity
+                                        ? 'All'
+                                        : `${page}/${totalPages}`}
                                 </div>
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    disabled={pageSize === Infinity || page >= totalPages}
-                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                    disabled={
+                                        pageSize === Infinity ||
+                                        page >= totalPages
+                                    }
+                                    onClick={() =>
+                                        setPage((p) =>
+                                            Math.min(totalPages, p + 1),
+                                        )
+                                    }
                                 >
                                     Next
                                 </Button>
@@ -352,7 +482,14 @@ export default function InputPenjualanIndex({ filters = {}, accountOptions = [],
                     </CardContent>
                 </Card>
             </div>
-        </AppLayout>
+        </>
     );
 }
 
+InputPenjualanIndex.layout = (page) => {
+    const breadcrumbs = [
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Input Penjualan', href: '/keuangan/input-penjualan' },
+    ];
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

@@ -1,8 +1,5 @@
-import AppLayout from '@/layouts/app-layout';
-import { Head, Link, usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -10,22 +7,19 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import AppLayout from '@/layouts/app-layout';
 import {
-    BookText,
-    Loader2,
-    Printer,
-    Search,
-    Sparkles,
-} from 'lucide-react';
-import { buildBukuBesarUrl } from '@/lib/report-links';
-import {
-    buildTopFindings,
     buildRecommendations,
+    buildTopFindings,
     contextualizeFindings,
     contextualizeRecommendations,
     findingLevelMeta,
     runFuzzyAhpTopsis,
 } from '@/lib/dss-fahp-topsis';
+import { buildBukuBesarUrl } from '@/lib/report-links';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { BookText, Loader2, Printer, Search, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -43,7 +37,9 @@ const formatRupiah = (value) => {
 const formatNumber = (value) => {
     const n = Number(value);
     if (!Number.isFinite(n)) return '0';
-    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
+    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        n,
+    );
 };
 
 const buildPrintUrl = (query) => {
@@ -66,12 +62,16 @@ function StatCard({ label, value, sublabel, accent = 'default' }) {
               : 'text-foreground';
     return (
         <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <div className="text-[11px] tracking-wide text-muted-foreground uppercase">
                 {label}
             </div>
-            <div className={`mt-2 text-xl font-semibold ${accentClass}`}>{value}</div>
+            <div className={`mt-2 text-xl font-semibold ${accentClass}`}>
+                {value}
+            </div>
             {sublabel ? (
-                <div className="mt-1 text-xs text-muted-foreground">{sublabel}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                    {sublabel}
+                </div>
             ) : null}
         </div>
     );
@@ -98,13 +98,21 @@ export default function SaldoAkunIndex() {
     });
     const [loading, setLoading] = useState(false);
 
-    const [saldoFilter, setSaldoFilter] = useState(initialQuery?.saldoFilter ?? 'all'); // all | nonzero | zero
-    const [saldoSign, setSaldoSign] = useState(initialQuery?.saldoSign ?? 'all'); // all | positive | negative | zero
+    const [saldoFilter, setSaldoFilter] = useState(
+        initialQuery?.saldoFilter ?? 'all',
+    ); // all | nonzero | zero
+    const [saldoSign, setSaldoSign] = useState(
+        initialQuery?.saldoSign ?? 'all',
+    ); // all | positive | negative | zero
     const [mark00, setMark00] = useState(initialQuery?.mark00 ?? 'all'); // all | yes
     const [search, setSearch] = useState(initialQuery?.search ?? '');
-    const [debouncedSearch, setDebouncedSearch] = useState(initialQuery?.search ?? '');
+    const [debouncedSearch, setDebouncedSearch] = useState(
+        initialQuery?.search ?? '',
+    );
     const [sortBy, setSortBy] = useState(initialQuery?.sortBy ?? 'Kode_Akun');
-    const [sortDir, setSortDir] = useState((initialQuery?.sortDir ?? 'asc').toLowerCase());
+    const [sortDir, setSortDir] = useState(
+        (initialQuery?.sortDir ?? 'asc').toLowerCase(),
+    );
     const [pageSize, setPageSize] = useState(
         initialQuery?.pageSize === 'all'
             ? 'all'
@@ -119,7 +127,15 @@ export default function SaldoAkunIndex() {
 
     useEffect(() => {
         setPage(1);
-    }, [debouncedSearch, pageSize, saldoFilter, saldoSign, mark00, sortBy, sortDir]);
+    }, [
+        debouncedSearch,
+        pageSize,
+        saldoFilter,
+        saldoSign,
+        mark00,
+        sortBy,
+        sortDir,
+    ]);
 
     const fetchRows = async (opts = {}) => {
         const query = {
@@ -149,10 +165,13 @@ export default function SaldoAkunIndex() {
                 query.pageSize === 'all' ? 'all' : String(query.pageSize),
             );
 
-            const res = await fetch(`/laporan/saldo-akun/rows?${params.toString()}`, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'include',
-            });
+            const res = await fetch(
+                `/laporan/saldo-akun/rows?${params.toString()}`,
+                {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    credentials: 'include',
+                },
+            );
             const json = await res.json();
             if (!res.ok) throw new Error(json?.error || 'Gagal memuat data.');
 
@@ -192,7 +211,16 @@ export default function SaldoAkunIndex() {
     useEffect(() => {
         fetchRows();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [debouncedSearch, saldoFilter, saldoSign, mark00, sortBy, sortDir, page, pageSize]);
+    }, [
+        debouncedSearch,
+        saldoFilter,
+        saldoSign,
+        mark00,
+        sortBy,
+        sortDir,
+        page,
+        pageSize,
+    ]);
 
     const totalPages = useMemo(() => {
         if (pageSize === 'all') return 1;
@@ -207,8 +235,12 @@ export default function SaldoAkunIndex() {
                 negative_count: Number(summary?.negative_count ?? 0),
                 zero_count: Number(summary?.zero_count ?? 0),
                 marked_00_count: Number(summary?.marked_00_count ?? 0),
-                na_nonzero_but_saldo_zero_count: Number(summary?.na_nonzero_but_saldo_zero_count ?? 0),
-                saldo_nonzero_but_na_zero_count: Number(summary?.saldo_nonzero_but_na_zero_count ?? 0),
+                na_nonzero_but_saldo_zero_count: Number(
+                    summary?.na_nonzero_but_saldo_zero_count ?? 0,
+                ),
+                saldo_nonzero_but_na_zero_count: Number(
+                    summary?.saldo_nonzero_but_na_zero_count ?? 0,
+                ),
             }),
         [summary],
     );
@@ -236,8 +268,8 @@ export default function SaldoAkunIndex() {
         ].join(' ');
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Saldo Akun (NABB)" />
+        <>
+            <Head title="Saldo Akun" />
 
             <div className="space-y-5">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -247,15 +279,18 @@ export default function SaldoAkunIndex() {
                                 <BookText className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="text-xl font-semibold text-foreground">Saldo Akun (NABB)</div>
+                                <div className="text-xl font-semibold text-foreground">
+                                    Saldo Akun (NABB)
+                                </div>
                                 <div className="text-sm text-muted-foreground">
-                                    Ringkasan saldo per akun dari `tb_nabb` (snapshot).
+                                    Ringkasan saldo per akun dari `tb_nabb`
+                                    (snapshot).
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <a
                             href={buildPrintUrl({
                                 search: debouncedSearch,
@@ -278,7 +313,7 @@ export default function SaldoAkunIndex() {
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                     <div className="relative w-full sm:w-[360px]">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
@@ -302,28 +337,42 @@ export default function SaldoAkunIndex() {
                         <button
                             type="button"
                             className={quickChipClass(saldoSign === 'positive')}
-                            onClick={() => setSaldoSign((s) => (s === 'positive' ? 'all' : 'positive'))}
+                            onClick={() =>
+                                setSaldoSign((s) =>
+                                    s === 'positive' ? 'all' : 'positive',
+                                )
+                            }
                         >
                             Saldo (+)
                         </button>
                         <button
                             type="button"
                             className={quickChipClass(saldoSign === 'negative')}
-                            onClick={() => setSaldoSign((s) => (s === 'negative' ? 'all' : 'negative'))}
+                            onClick={() =>
+                                setSaldoSign((s) =>
+                                    s === 'negative' ? 'all' : 'negative',
+                                )
+                            }
                         >
                             Saldo (-)
                         </button>
                         <button
                             type="button"
                             className={quickChipClass(saldoSign === 'zero')}
-                            onClick={() => setSaldoSign((s) => (s === 'zero' ? 'all' : 'zero'))}
+                            onClick={() =>
+                                setSaldoSign((s) =>
+                                    s === 'zero' ? 'all' : 'zero',
+                                )
+                            }
                         >
                             Saldo (=0)
                         </button>
                         <button
                             type="button"
                             className={quickChipClass(mark00 === 'yes')}
-                            onClick={() => setMark00((m) => (m === 'yes' ? 'all' : 'yes'))}
+                            onClick={() =>
+                                setMark00((m) => (m === 'yes' ? 'all' : 'yes'))
+                            }
                         >
                             Kode berisi 00
                         </button>
@@ -348,7 +397,10 @@ export default function SaldoAkunIndex() {
                             <SelectItem value="desc">Desc</SelectItem>
                         </SelectContent>
                     </Select>
-                    <Select value={String(pageSize)} onValueChange={setPageSize}>
+                    <Select
+                        value={String(pageSize)}
+                        onValueChange={setPageSize}
+                    >
                         <SelectTrigger className="w-[130px]">
                             <SelectValue placeholder="Tampil" />
                         </SelectTrigger>
@@ -386,9 +438,12 @@ export default function SaldoAkunIndex() {
                                 <Sparkles className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="font-semibold text-foreground">Rekomendasi DSS (Fuzzy AHP-TOPSIS)</div>
+                                <div className="font-semibold text-foreground">
+                                    Rekomendasi DSS (Fuzzy AHP-TOPSIS)
+                                </div>
                                 <div className="text-xs text-muted-foreground">
-                                    Saran prioritas untuk komposisi dan konsistensi saldo akun.
+                                    Saran prioritas untuk komposisi dan
+                                    konsistensi saldo akun.
                                 </div>
                             </div>
                         </div>
@@ -396,14 +451,19 @@ export default function SaldoAkunIndex() {
 
                     {dssFindings.length ? (
                         <div className="mt-3 space-y-2">
-                            <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+                            <div className="text-xs font-semibold tracking-wide text-foreground/80 uppercase">
                                 Temuan DSS (Top 5)
                             </div>
                             <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
                                 {dssFindings.map((item, idx) => (
                                     <li key={`finding-${idx}`}>
-                                        <span className={`mr-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${findingLevelMeta(item?.level).className}`}>
-                                            {findingLevelMeta(item?.level).label}
+                                        <span
+                                            className={`mr-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${findingLevelMeta(item?.level).className}`}
+                                        >
+                                            {
+                                                findingLevelMeta(item?.level)
+                                                    .label
+                                            }
                                         </span>
                                         {item.finding}
                                     </li>
@@ -414,7 +474,7 @@ export default function SaldoAkunIndex() {
 
                     {dssTips.length ? (
                         <div className="mt-3 space-y-2">
-                            <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+                            <div className="text-xs font-semibold tracking-wide text-foreground/80 uppercase">
                                 Saran / Rekomendasi (Top 5)
                             </div>
                             <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
@@ -437,34 +497,43 @@ export default function SaldoAkunIndex() {
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
                         <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
-                            Pastikan `tb_nabb` ada (Kode_Akun, Nama_Akun, NA_Debit, NA_Kredit, Saldo).
+                            Pastikan `tb_nabb` ada (Kode_Akun, Nama_Akun,
+                            NA_Debit, NA_Kredit, Saldo).
                         </div>
                     </div>
                 ) : null}
 
                 <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[1px] dark:bg-black/30">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground dark:bg-black/40">
+                                <Loader2 className="h-4 w-4 animate-spin" />{' '}
+                                Memuat...
                             </div>
                         </div>
                     )}
 
-                    <table className="min-w-full text-sm text-left">
-                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                    <table className="min-w-full text-left text-sm">
+                        <thead className="bg-muted/30 text-[11px] tracking-wide text-muted-foreground uppercase dark:bg-white/5">
                             <tr>
                                 <th className="px-3 py-3">Kode Akun</th>
                                 <th className="px-3 py-3">Nama Akun</th>
-                                <th className="px-3 py-3 text-right">NA Debit</th>
-                                <th className="px-3 py-3 text-right">NA Kredit</th>
+                                <th className="px-3 py-3 text-right">
+                                    NA Debit
+                                </th>
+                                <th className="px-3 py-3 text-right">
+                                    NA Kredit
+                                </th>
                                 <th className="px-3 py-3 text-right">Saldo</th>
                             </tr>
                         </thead>
                         <tbody>
                             {rows.length === 0 && !loading && (
                                 <tr>
-                                    <td colSpan={5} className="px-3 py-10 text-center text-muted-foreground">
+                                    <td
+                                        colSpan={5}
+                                        className="px-3 py-10 text-center text-muted-foreground"
+                                    >
                                         Tidak ada data.
                                     </td>
                                 </tr>
@@ -481,31 +550,45 @@ export default function SaldoAkunIndex() {
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
-                                        <td className={`px-3 py-2 font-medium ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 font-medium ${cellClass}`}
+                                        >
                                             <div className="flex items-center gap-2">
                                                 {has00 ? (
                                                     <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                                 ) : null}
                                                 <Link
-                                                    href={buildBukuBesarUrl({ kodeAkun })}
+                                                    href={buildBukuBesarUrl({
+                                                        kodeAkun,
+                                                    })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 ring-1 ring-amber-500/30 hover:underline dark:text-amber-300'
+                                                            : 'text-amber-700 hover:underline dark:text-amber-300'
                                                     }
                                                 >
                                                     {kodeAkun}
                                                 </Link>
                                             </div>
                                         </td>
-                                        <td className={`px-3 py-2 ${cellClass}`}>{r?.Nama_Akun}</td>
-                                        <td className={`px-3 py-2 text-right ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 ${cellClass}`}
+                                        >
+                                            {r?.Nama_Akun}
+                                        </td>
+                                        <td
+                                            className={`px-3 py-2 text-right ${cellClass}`}
+                                        >
                                             {formatRupiah(r?.NA_Debit)}
                                         </td>
-                                        <td className={`px-3 py-2 text-right ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 text-right ${cellClass}`}
+                                        >
                                             {formatRupiah(r?.NA_Kredit)}
                                         </td>
-                                        <td className={`px-3 py-2 text-right ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 text-right ${cellClass}`}
+                                        >
                                             {formatRupiah(r?.Saldo)}
                                         </td>
                                     </tr>
@@ -521,7 +604,9 @@ export default function SaldoAkunIndex() {
                         <Button
                             size="sm"
                             variant="outline"
-                            disabled={page === 1 || loading || pageSize === 'all'}
+                            disabled={
+                                page === 1 || loading || pageSize === 'all'
+                            }
                             onClick={() => setPage((p) => Math.max(1, p - 1))}
                         >
                             Sebelumnya
@@ -532,14 +617,24 @@ export default function SaldoAkunIndex() {
                         <Button
                             size="sm"
                             variant="outline"
-                            disabled={page >= totalPages || loading || pageSize === 'all'}
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={
+                                page >= totalPages ||
+                                loading ||
+                                pageSize === 'all'
+                            }
+                            onClick={() =>
+                                setPage((p) => Math.min(totalPages, p + 1))
+                            }
                         >
                             Berikutnya
                         </Button>
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+SaldoAkunIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

@@ -387,7 +387,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Tambah Quotation" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div>
@@ -1329,6 +1329,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                         )}
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+QuotationCreate.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

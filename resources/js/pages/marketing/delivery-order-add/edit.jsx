@@ -277,13 +277,7 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
     };
 
     return (
-        <AppLayout
-            breadcrumbs={[
-                { title: 'Dashboard', href: '/dashboard' },
-                { title: 'Marketing', href: '/marketing/delivery-order-add' },
-                { title: 'Edit DOB', href: '#' },
-            ]}
-        >
+        <>
             <Head title="Edit Delivery Order Add" />
             <div className="flex-1 p-4">
                 <div className="mb-6 flex items-center justify-between">
@@ -565,6 +559,15 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
                     </div>
                 )}
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+DeliveryOrderAddEdit.layout = (page) => {
+    const breadcrumbs = [
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Marketing', href: '/marketing/delivery-order-add' },
+        { title: 'Edit DOB', href: '#' },
+    ];
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

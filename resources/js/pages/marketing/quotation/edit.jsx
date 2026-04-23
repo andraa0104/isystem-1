@@ -1,4 +1,3 @@
-
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -11,8 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
-import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const buildBreadcrumbs = (noPenawaran) => [
     { title: 'Dashboard', href: '/dashboard' },
@@ -35,9 +34,7 @@ const steps = [
 const renderValue = (value) => (value ?? '')?.toString();
 
 const parseNumber = (value) => {
-    const parsed = Number(
-        String(value ?? '').replace(/[^\d.-]/g, '')
-    );
+    const parsed = Number(String(value ?? '').replace(/[^\d.-]/g, ''));
     return Number.isNaN(parsed) ? 0 : parsed;
 };
 
@@ -104,8 +101,12 @@ const buildMaterialItems = (details = []) =>
         remark: renderValue(detail.Remark),
     }));
 
-
-export default function QuotationEdit({ quotation = null, quotationDetails = [], customers = [], materials = [] }) {
+export default function QuotationEdit({
+    quotation = null,
+    quotationDetails = [],
+    customers = [],
+    materials = [],
+}) {
     const [activeStep, setActiveStep] = useState(0);
     const [customerModalOpen, setCustomerModalOpen] = useState(false);
     const [materialModalOpen, setMaterialModalOpen] = useState(false);
@@ -120,11 +121,11 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
     const [materialError, setMaterialError] = useState('');
 
     const [customerForm, setCustomerForm] = useState(() =>
-        buildCustomerForm(quotation)
+        buildCustomerForm(quotation),
     );
 
     const [detailForm, setDetailForm] = useState(() =>
-        buildDetailForm(quotation)
+        buildDetailForm(quotation),
     );
 
     const [materialForm, setMaterialForm] = useState({
@@ -137,7 +138,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
     });
 
     const [materialItems, setMaterialItems] = useState(() =>
-        buildMaterialItems(quotationDetails)
+        buildMaterialItems(quotationDetails),
     );
     const [editingMaterialId, setEditingMaterialId] = useState(null);
     const [editingMaterial, setEditingMaterial] = useState(null);
@@ -152,7 +153,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
 
     const breadcrumbs = useMemo(
         () => buildBreadcrumbs(quotation?.No_penawaran),
-        [quotation]
+        [quotation],
     );
 
     const filteredCustomers = useMemo(() => {
@@ -164,7 +165,9 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
         return customerList.filter((item) => {
             const values = [item.kd_cs, item.nm_cs, item.attnd];
             return values.some((value) =>
-                String(value ?? '').toLowerCase().includes(term)
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
             );
         });
     }, [customerSearch, customerList]);
@@ -184,7 +187,10 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
         }
 
         const startIndex = (customerPage - 1) * customerPageSize;
-        return filteredCustomers.slice(startIndex, startIndex + customerPageSize);
+        return filteredCustomers.slice(
+            startIndex,
+            startIndex + customerPageSize,
+        );
     }, [customerPage, customerPageSize, filteredCustomers]);
 
     const filteredMaterials = useMemo(() => {
@@ -196,7 +202,9 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
         return materialList.filter((item) => {
             const values = [item.material, item.unit, item.remark];
             return values.some((value) =>
-                String(value ?? '').toLowerCase().includes(term)
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
             );
         });
     }, [materialSearch, materialList]);
@@ -216,7 +224,10 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
         }
 
         const startIndex = (materialPage - 1) * materialPageSize;
-        return filteredMaterials.slice(startIndex, startIndex + materialPageSize);
+        return filteredMaterials.slice(
+            startIndex,
+            startIndex + materialPageSize,
+        );
     }, [filteredMaterials, materialPage, materialPageSize]);
 
     const marginValue = useMemo(() => {
@@ -238,7 +249,6 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
     useEffect(() => {
         setMaterialItems(buildMaterialItems(quotationDetails));
     }, [quotationDetails]);
-
 
     useEffect(() => {
         setCustomerPage(1);
@@ -297,7 +307,9 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                 throw new Error('Request failed');
             }
             const data = await response.json();
-            setCustomerList(Array.isArray(data?.customers) ? data.customers : []);
+            setCustomerList(
+                Array.isArray(data?.customers) ? data.customers : [],
+            );
         } catch (error) {
             setCustomerError('Gagal memuat data customer.');
         } finally {
@@ -319,7 +331,9 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                 throw new Error('Request failed');
             }
             const data = await response.json();
-            setMaterialList(Array.isArray(data?.materials) ? data.materials : []);
+            setMaterialList(
+                Array.isArray(data?.materials) ? data.materials : [],
+            );
         } catch (error) {
             setMaterialError('Gagal memuat data material.');
         } finally {
@@ -370,7 +384,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
 
             const finishRemove = () => {
                 setMaterialItems((prev) =>
-                    prev.filter((item) => item.id !== id)
+                    prev.filter((item) => item.id !== id),
                 );
                 if (editingMaterialId === id) {
                     setEditingMaterialId(null);
@@ -381,7 +395,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
             if (detailId && quotation?.No_penawaran) {
                 router.delete(
                     `/marketing/quotation/${encodeURIComponent(
-                        quotation.No_penawaran
+                        quotation.No_penawaran,
                     )}/detail/${detailId}`,
                     {
                         preserveScroll: true,
@@ -389,7 +403,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                         onStart: () => setDeletingMaterialId(id),
                         onFinish: () => setDeletingMaterialId(null),
                         onSuccess: finishRemove,
-                    }
+                    },
                 );
                 return;
             }
@@ -423,7 +437,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
             if (field === 'hargaModal' || field === 'hargaPenawaran') {
                 next.margin = calculateMargin(
                     next.hargaModal,
-                    next.hargaPenawaran
+                    next.hargaPenawaran,
                 );
             }
             return next;
@@ -455,7 +469,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
 
         router.put(
             `/marketing/quotation/${encodeURIComponent(
-                quotation.No_penawaran
+                quotation.No_penawaran,
             )}/detail/${editingMaterial.detailId}`,
             {
                 material: editingMaterial.nama,
@@ -476,12 +490,12 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                         prev.map((item) =>
                             item.id === editingMaterialId
                                 ? { ...editingMaterial }
-                                : item
-                        )
+                                : item,
+                        ),
                     );
                     handleCancelEditMaterial();
                 },
-            }
+            },
         );
     };
 
@@ -490,38 +504,42 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
         if (!quotation?.No_penawaran) {
             return;
         }
-        router.put(`/marketing/quotation/${encodeURIComponent(quotation.No_penawaran)}`, {
-            tgl_penawaran: customerForm.tglPenawaran || todayDate(),
-            customer: fillOrSpace(customerForm.nama),
-            alamat: fillOrSpace(customerForm.alamat),
-            telp: fillOrSpace(customerForm.telepon),
-            fax: fillOrSpace(customerForm.fax),
-            email: fillOrSpace(customerForm.email),
-            attend: fillOrSpace(customerForm.attend),
-            payment: fillOrSpace(detailForm.payment),
-            validity: fillOrSpace(detailForm.validity),
-            delivery: fillOrSpace(detailForm.delivery),
-            franco: fillOrSpace(detailForm.franco),
-            note1: fillOrSpace(detailForm.note1),
-            note2: fillOrSpace(detailForm.note2),
-            note3: fillOrSpace(detailForm.note3),
-            materials: materialItems.map((item) => ({
-                material: item.nama,
-                quantity: item.quantity,
-                harga_modal: item.hargaModal,
-                harga_penawaran: item.hargaPenawaran,
-                satuan: item.satuan,
-                margin: item.margin,
-                remark: item.remark,
-            })),
-        }, {
-            onStart: () => setIsSubmitting(true),
-            onFinish: () => setIsSubmitting(false),
-        });
+        router.put(
+            `/marketing/quotation/${encodeURIComponent(quotation.No_penawaran)}`,
+            {
+                tgl_penawaran: customerForm.tglPenawaran || todayDate(),
+                customer: fillOrSpace(customerForm.nama),
+                alamat: fillOrSpace(customerForm.alamat),
+                telp: fillOrSpace(customerForm.telepon),
+                fax: fillOrSpace(customerForm.fax),
+                email: fillOrSpace(customerForm.email),
+                attend: fillOrSpace(customerForm.attend),
+                payment: fillOrSpace(detailForm.payment),
+                validity: fillOrSpace(detailForm.validity),
+                delivery: fillOrSpace(detailForm.delivery),
+                franco: fillOrSpace(detailForm.franco),
+                note1: fillOrSpace(detailForm.note1),
+                note2: fillOrSpace(detailForm.note2),
+                note3: fillOrSpace(detailForm.note3),
+                materials: materialItems.map((item) => ({
+                    material: item.nama,
+                    quantity: item.quantity,
+                    harga_modal: item.hargaModal,
+                    harga_penawaran: item.hargaPenawaran,
+                    satuan: item.satuan,
+                    margin: item.margin,
+                    remark: item.remark,
+                })),
+            },
+            {
+                onStart: () => setIsSubmitting(true),
+                onFinish: () => setIsSubmitting(false),
+            },
+        );
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Edit Quotation" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div>
@@ -577,7 +595,8 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                         onChange={(event) =>
                                             setCustomerForm((prev) => ({
                                                 ...prev,
-                                                tglPenawaran: event.target.value,
+                                                tglPenawaran:
+                                                    event.target.value,
                                             }))
                                         }
                                     />
@@ -860,14 +879,17 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                     <Input
                                         id="harga_modal"
                                         type="text"
-                                        value={formatRupiahInput(materialForm.hargaModal)}
+                                        value={formatRupiahInput(
+                                            materialForm.hargaModal,
+                                        )}
                                         onChange={(event) =>
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                hargaModal: event.target.value.replace(
-                                                    /\D/g,
-                                                    ''
-                                                ),
+                                                hargaModal:
+                                                    event.target.value.replace(
+                                                        /\D/g,
+                                                        '',
+                                                    ),
                                             }))
                                         }
                                     />
@@ -879,14 +901,17 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                     <Input
                                         id="harga_penawaran"
                                         type="text"
-                                        value={formatRupiahInput(materialForm.hargaPenawaran)}
+                                        value={formatRupiahInput(
+                                            materialForm.hargaPenawaran,
+                                        )}
                                         onChange={(event) =>
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                hargaPenawaran: event.target.value.replace(
-                                                    /\D/g,
-                                                    ''
-                                                ),
+                                                hargaPenawaran:
+                                                    event.target.value.replace(
+                                                        /\D/g,
+                                                        '',
+                                                    ),
                                             }))
                                         }
                                     />
@@ -895,7 +920,9 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                     <Label htmlFor="margin">Margin (%)</Label>
                                     <Input
                                         id="margin"
-                                        value={marginValue ? `${marginValue}%` : ''}
+                                        value={
+                                            marginValue ? `${marginValue}%` : ''
+                                        }
                                         readOnly
                                     />
                                 </div>
@@ -989,11 +1016,18 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                                     <td className="px-4 py-3">
                                                         {isEditing ? (
                                                             <Input
-                                                                value={row?.nama ?? ''}
-                                                                onChange={(event) =>
+                                                                value={
+                                                                    row?.nama ??
+                                                                    ''
+                                                                }
+                                                                onChange={(
+                                                                    event,
+                                                                ) =>
                                                                     handleEditMaterialChange(
                                                                         'nama',
-                                                                        event.target.value
+                                                                        event
+                                                                            .target
+                                                                            .value,
                                                                     )
                                                                 }
                                                             />
@@ -1004,11 +1038,18 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                                     <td className="px-4 py-3">
                                                         {isEditing ? (
                                                             <Input
-                                                                value={row?.satuan ?? ''}
-                                                                onChange={(event) =>
+                                                                value={
+                                                                    row?.satuan ??
+                                                                    ''
+                                                                }
+                                                                onChange={(
+                                                                    event,
+                                                                ) =>
                                                                     handleEditMaterialChange(
                                                                         'satuan',
-                                                                        event.target.value
+                                                                        event
+                                                                            .target
+                                                                            .value,
                                                                     )
                                                                 }
                                                             />
@@ -1020,11 +1061,18 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                                         {isEditing ? (
                                                             <Input
                                                                 type="number"
-                                                                value={row?.quantity ?? ''}
-                                                                onChange={(event) =>
+                                                                value={
+                                                                    row?.quantity ??
+                                                                    ''
+                                                                }
+                                                                onChange={(
+                                                                    event,
+                                                                ) =>
                                                                     handleEditMaterialChange(
                                                                         'quantity',
-                                                                        event.target.value
+                                                                        event
+                                                                            .target
+                                                                            .value,
                                                                     )
                                                                 }
                                                             />
@@ -1036,32 +1084,50 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                                         {isEditing ? (
                                                             <Input
                                                                 type="text"
-                                                                value={formatRupiahInput(row?.hargaModal ?? '')}
-                                                                onChange={(event) =>
+                                                                value={formatRupiahInput(
+                                                                    row?.hargaModal ??
+                                                                        '',
+                                                                )}
+                                                                onChange={(
+                                                                    event,
+                                                                ) =>
                                                                     handleEditMaterialChange(
                                                                         'hargaModal',
-                                                                        event.target.value
+                                                                        event
+                                                                            .target
+                                                                            .value,
                                                                     )
                                                                 }
                                                             />
                                                         ) : (
-                                                            formatRupiahInput(item.hargaModal)
+                                                            formatRupiahInput(
+                                                                item.hargaModal,
+                                                            )
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {isEditing ? (
                                                             <Input
                                                                 type="text"
-                                                                value={formatRupiahInput(row?.hargaPenawaran ?? '')}
-                                                                onChange={(event) =>
+                                                                value={formatRupiahInput(
+                                                                    row?.hargaPenawaran ??
+                                                                        '',
+                                                                )}
+                                                                onChange={(
+                                                                    event,
+                                                                ) =>
                                                                     handleEditMaterialChange(
                                                                         'hargaPenawaran',
-                                                                        event.target.value
+                                                                        event
+                                                                            .target
+                                                                            .value,
                                                                     )
                                                                 }
                                                             />
                                                         ) : (
-                                                            formatRupiahInput(item.hargaPenawaran)
+                                                            formatRupiahInput(
+                                                                item.hargaPenawaran,
+                                                            )
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3">
@@ -1072,11 +1138,18 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                                     <td className="px-4 py-3">
                                                         {isEditing ? (
                                                             <Input
-                                                                value={row?.remark ?? ''}
-                                                                onChange={(event) =>
+                                                                value={
+                                                                    row?.remark ??
+                                                                    ''
+                                                                }
+                                                                onChange={(
+                                                                    event,
+                                                                ) =>
                                                                     handleEditMaterialChange(
                                                                         'remark',
-                                                                        event.target.value
+                                                                        event
+                                                                            .target
+                                                                            .value,
                                                                     )
                                                                 }
                                                             />
@@ -1088,79 +1161,79 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             {isEditing ? (
                                                                 <>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    onClick={
-                                                                        handleSaveMaterial
-                                                                    }
-                                                                    disabled={
-                                                                        !row?.detailId ||
-                                                                        isSaving ||
-                                                                        isDeleting
-                                                                    }
-                                                                >
-                                                                    {isSaving && (
-                                                                        <Spinner className="mr-2" />
-                                                                    )}
-                                                                    {isSaving
-                                                                        ? 'Menyimpan...'
-                                                                        : 'Simpan'}
-                                                                </Button>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    onClick={
-                                                                        handleCancelEditMaterial
-                                                                    }
-                                                                    disabled={
-                                                                        isSaving ||
-                                                                        isDeleting
-                                                                    }
-                                                                >
-                                                                    Batal
-                                                                </Button>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    onClick={() =>
-                                                                        handleEditMaterial(
-                                                                            item
-                                                                        )
-                                                                    }
-                                                                    disabled={
-                                                                        isDeleting
-                                                                    }
-                                                                >
-                                                                    Edit
-                                                                </Button>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    onClick={() =>
-                                                                        handleRemoveMaterial(
-                                                                            item.id,
-                                                                            item.detailId
-                                                                        )
-                                                                    }
-                                                                    disabled={
-                                                                        isDeleting
-                                                                    }
-                                                                >
-                                                                    {isDeleting && (
-                                                                        <Spinner className="mr-2" />
-                                                                    )}
-                                                                    {isDeleting
-                                                                        ? 'Menghapus...'
-                                                                        : 'Hapus'}
-                                                                </Button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </td>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        onClick={
+                                                                            handleSaveMaterial
+                                                                        }
+                                                                        disabled={
+                                                                            !row?.detailId ||
+                                                                            isSaving ||
+                                                                            isDeleting
+                                                                        }
+                                                                    >
+                                                                        {isSaving && (
+                                                                            <Spinner className="mr-2" />
+                                                                        )}
+                                                                        {isSaving
+                                                                            ? 'Menyimpan...'
+                                                                            : 'Simpan'}
+                                                                    </Button>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        onClick={
+                                                                            handleCancelEditMaterial
+                                                                        }
+                                                                        disabled={
+                                                                            isSaving ||
+                                                                            isDeleting
+                                                                        }
+                                                                    >
+                                                                        Batal
+                                                                    </Button>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        onClick={() =>
+                                                                            handleEditMaterial(
+                                                                                item,
+                                                                            )
+                                                                        }
+                                                                        disabled={
+                                                                            isDeleting
+                                                                        }
+                                                                    >
+                                                                        Edit
+                                                                    </Button>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        onClick={() =>
+                                                                            handleRemoveMaterial(
+                                                                                item.id,
+                                                                                item.detailId,
+                                                                            )
+                                                                        }
+                                                                        disabled={
+                                                                            isDeleting
+                                                                        }
+                                                                    >
+                                                                        {isDeleting && (
+                                                                            <Spinner className="mr-2" />
+                                                                        )}
+                                                                        {isDeleting
+                                                                            ? 'Menghapus...'
+                                                                            : 'Hapus'}
+                                                                    </Button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
                                                 </tr>
                                             );
                                         })}
@@ -1176,7 +1249,9 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                 type="button"
                                 variant="outline"
                                 onClick={() =>
-                                    setActiveStep((prev) => Math.max(0, prev - 1))
+                                    setActiveStep((prev) =>
+                                        Math.max(0, prev - 1),
+                                    )
                                 }
                                 disabled={activeStep === 0}
                             >
@@ -1187,7 +1262,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                 variant="outline"
                                 onClick={() =>
                                     setActiveStep((prev) =>
-                                        Math.min(steps.length - 1, prev + 1)
+                                        Math.min(steps.length - 1, prev + 1),
                                     )
                                 }
                                 disabled={activeStep === steps.length - 1}
@@ -1199,13 +1274,20 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button
                                     type="submit"
-                                    disabled={isSubmitting || materialItems.length === 0}
+                                    disabled={
+                                        isSubmitting ||
+                                        materialItems.length === 0
+                                    }
                                 >
-                                    {isSubmitting && <Spinner className="mr-2" />}
+                                    {isSubmitting && (
+                                        <Spinner className="mr-2" />
+                                    )}
                                     {isSubmitting ? 'Menyimpan...' : 'Simpan'}
                                 </Button>
                                 <Button variant="outline" asChild>
-                                    <Link href="/marketing/quotation">Batal</Link>
+                                    <Link href="/marketing/quotation">
+                                        Batal
+                                    </Link>
                                 </Button>
                             </div>
                         )}
@@ -1225,7 +1307,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                     }
                 }}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Pilih Customer</DialogTitle>
                     </DialogHeader>
@@ -1243,7 +1325,9 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                 onChange={(event) => {
                                     const value = event.target.value;
                                     setCustomerPageSize(
-                                        value === 'all' ? Infinity : Number(value)
+                                        value === 'all'
+                                            ? Infinity
+                                            : Number(value),
                                     );
                                 }}
                             >
@@ -1341,53 +1425,60 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                         </table>
                     </div>
 
-                    {customerPageSize !== Infinity && customerTotalItems > 0 && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <span>
-                                Menampilkan{' '}
-                                {Math.min(
-                                    (customerPage - 1) * customerPageSize + 1,
-                                    customerTotalItems
-                                )}
-                                -
-                                {Math.min(
-                                    customerPage * customerPageSize,
-                                    customerTotalItems
-                                )}{' '}
-                                dari {customerTotalItems} data
-                            </span>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        setCustomerPage((page) =>
-                                            Math.max(1, page - 1)
-                                        )
-                                    }
-                                    disabled={customerPage === 1}
-                                >
-                                    Sebelumnya
-                                </Button>
-                                <span className="text-sm text-muted-foreground">
-                                    Halaman {customerPage} dari{' '}
-                                    {customerTotalPages}
+                    {customerPageSize !== Infinity &&
+                        customerTotalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (customerPage - 1) * customerPageSize +
+                                            1,
+                                        customerTotalItems,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        customerPage * customerPageSize,
+                                        customerTotalItems,
+                                    )}{' '}
+                                    dari {customerTotalItems} data
                                 </span>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        setCustomerPage((page) =>
-                                            Math.min(customerTotalPages, page + 1)
-                                        )
-                                    }
-                                    disabled={customerPage === customerTotalPages}
-                                >
-                                    Berikutnya
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCustomerPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
+                                        }
+                                        disabled={customerPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {customerPage} dari{' '}
+                                        {customerTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCustomerPage((page) =>
+                                                Math.min(
+                                                    customerTotalPages,
+                                                    page + 1,
+                                                ),
+                                            )
+                                        }
+                                        disabled={
+                                            customerPage === customerTotalPages
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
                 </DialogContent>
             </Dialog>
 
@@ -1403,7 +1494,7 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                     }
                 }}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Pilih Material</DialogTitle>
                     </DialogHeader>
@@ -1421,7 +1512,9 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                 onChange={(event) => {
                                     const value = event.target.value;
                                     setMaterialPageSize(
-                                        value === 'all' ? Infinity : Number(value)
+                                        value === 'all'
+                                            ? Infinity
+                                            : Number(value),
                                     );
                                 }}
                             >
@@ -1453,8 +1546,12 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                                     <th className="px-4 py-3 text-left">
                                         Material
                                     </th>
-                                    <th className="px-4 py-3 text-left">Unit</th>
-                                    <th className="px-4 py-3 text-left">Stok</th>
+                                    <th className="px-4 py-3 text-left">
+                                        Unit
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Stok
+                                    </th>
                                     <th className="px-4 py-3 text-left">
                                         Remark
                                     </th>
@@ -1521,54 +1618,67 @@ export default function QuotationEdit({ quotation = null, quotationDetails = [],
                         </table>
                     </div>
 
-                    {materialPageSize !== Infinity && materialTotalItems > 0 && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <span>
-                                Menampilkan{' '}
-                                {Math.min(
-                                    (materialPage - 1) * materialPageSize + 1,
-                                    materialTotalItems
-                                )}
-                                -
-                                {Math.min(
-                                    materialPage * materialPageSize,
-                                    materialTotalItems
-                                )}{' '}
-                                dari {materialTotalItems} data
-                            </span>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        setMaterialPage((page) =>
-                                            Math.max(1, page - 1)
-                                        )
-                                    }
-                                    disabled={materialPage === 1}
-                                >
-                                    Sebelumnya
-                                </Button>
-                                <span className="text-sm text-muted-foreground">
-                                    Halaman {materialPage} dari {materialTotalPages}
+                    {materialPageSize !== Infinity &&
+                        materialTotalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (materialPage - 1) * materialPageSize +
+                                            1,
+                                        materialTotalItems,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        materialPage * materialPageSize,
+                                        materialTotalItems,
+                                    )}{' '}
+                                    dari {materialTotalItems} data
                                 </span>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        setMaterialPage((page) =>
-                                            Math.min(materialTotalPages, page + 1)
-                                        )
-                                    }
-                                    disabled={materialPage === materialTotalPages}
-                                >
-                                    Berikutnya
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setMaterialPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
+                                        }
+                                        disabled={materialPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {materialPage} dari{' '}
+                                        {materialTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setMaterialPage((page) =>
+                                                Math.min(
+                                                    materialTotalPages,
+                                                    page + 1,
+                                                ),
+                                            )
+                                        }
+                                        disabled={
+                                            materialPage === materialTotalPages
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+QuotationEdit.layout = (page) => {
+    const { quotation } = page.props;
+    const breadcrumbs = buildBreadcrumbs(quotation?.No_penawaran);
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

@@ -25,7 +25,10 @@ const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Penjualan', href: '/penjualan/faktur-penjualan' },
     { title: 'Tanda Terima Invoice', href: '/penjualan/tanda-terima-invoice' },
-    { title: 'Buat Tanda Terima', href: '/penjualan/tanda-terima-invoice/create' },
+    {
+        title: 'Buat Tanda Terima',
+        href: '/penjualan/tanda-terima-invoice/create',
+    },
 ];
 
 const toNumber = (value) => {
@@ -58,7 +61,9 @@ export default function TandaTerimaInvoiceCreate() {
     const [invoicePageSize, setInvoicePageSize] = useState(5);
     const [invoiceCurrentPage, setInvoiceCurrentPage] = useState(1);
 
-    const [dateDoc, setDateDoc] = useState(new Date().toISOString().slice(0, 10));
+    const [dateDoc, setDateDoc] = useState(
+        new Date().toISOString().slice(0, 10),
+    );
     const [selectedInvoices, setSelectedInvoices] = useState([]);
     const [saving, setSaving] = useState(false);
 
@@ -88,9 +93,15 @@ export default function TandaTerimaInvoiceCreate() {
         if (!term) return invoiceRows;
         return invoiceRows.filter((row) => {
             return (
-                String(row.no_fakturpenjualan ?? '').toLowerCase().includes(term) ||
-                String(row.ref_po ?? '').toLowerCase().includes(term) ||
-                String(row.nm_cs ?? '').toLowerCase().includes(term)
+                String(row.no_fakturpenjualan ?? '')
+                    .toLowerCase()
+                    .includes(term) ||
+                String(row.ref_po ?? '')
+                    .toLowerCase()
+                    .includes(term) ||
+                String(row.nm_cs ?? '')
+                    .toLowerCase()
+                    .includes(term)
             );
         });
     }, [invoiceRows, invoiceSearch]);
@@ -104,7 +115,10 @@ export default function TandaTerimaInvoiceCreate() {
     const displayedInvoiceRows = useMemo(() => {
         if (invoicePageSize === Infinity) return filteredInvoiceRows;
         const startIndex = (invoiceCurrentPage - 1) * invoicePageSize;
-        return filteredInvoiceRows.slice(startIndex, startIndex + invoicePageSize);
+        return filteredInvoiceRows.slice(
+            startIndex,
+            startIndex + invoicePageSize,
+        );
     }, [filteredInvoiceRows, invoiceCurrentPage, invoicePageSize]);
 
     useEffect(() => {
@@ -191,7 +205,9 @@ export default function TandaTerimaInvoiceCreate() {
             .then(async (response) => {
                 const payload = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    throw new Error(payload?.message || 'Gagal menyimpan data.');
+                    throw new Error(
+                        payload?.message || 'Gagal menyimpan data.',
+                    );
                 }
                 Swal.fire({
                     icon: 'success',
@@ -212,12 +228,14 @@ export default function TandaTerimaInvoiceCreate() {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Buat Tanda Terima Invoice" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-xl font-semibold">Buat Tanda Terima Invoice</h1>
+                        <h1 className="text-xl font-semibold">
+                            Buat Tanda Terima Invoice
+                        </h1>
                         <p className="text-sm text-muted-foreground">
                             Input data tanda terima invoice.
                         </p>
@@ -240,7 +258,9 @@ export default function TandaTerimaInvoiceCreate() {
 
                 <div className="rounded-xl border border-border/60 bg-card">
                     <div className="border-b border-border/60 px-4 py-3">
-                        <div className="text-base font-semibold">Data Invoice</div>
+                        <div className="text-base font-semibold">
+                            Data Invoice
+                        </div>
                     </div>
                     <div className="px-4 pb-4">
                         <div className="rounded-md border">
@@ -269,14 +289,20 @@ export default function TandaTerimaInvoiceCreate() {
                                         </TableRow>
                                     )}
                                     {selectedInvoices.map((row, index) => (
-                                        <TableRow key={`${row.no_inv}-${index}`}>
+                                        <TableRow
+                                            key={`${row.no_inv}-${index}`}
+                                        >
                                             <TableCell>{index + 1}</TableCell>
                                             <TableCell>{row.no_inv}</TableCell>
-                                            <TableCell>{row.no_faktur}</TableCell>
+                                            <TableCell>
+                                                {row.no_faktur}
+                                            </TableCell>
                                             <TableCell>{row.tgl}</TableCell>
                                             <TableCell>{row.nm_cs}</TableCell>
                                             <TableCell>{row.ref_po}</TableCell>
-                                            <TableCell>{formatRupiah(row.total)}</TableCell>
+                                            <TableCell>
+                                                {formatRupiah(row.total)}
+                                            </TableCell>
                                             <TableCell>
                                                 <Input
                                                     value={row.remark ?? '-'}
@@ -294,7 +320,9 @@ export default function TandaTerimaInvoiceCreate() {
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() =>
-                                                        handleRemoveInvoice(row.no_inv)
+                                                        handleRemoveInvoice(
+                                                            row.no_inv,
+                                                        )
                                                     }
                                                     aria-label="Hapus"
                                                     title="Hapus"
@@ -312,13 +340,19 @@ export default function TandaTerimaInvoiceCreate() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                     <div className="rounded-xl border border-border/60 bg-card p-4">
-                        <div className="text-sm font-medium">Grand Total Price</div>
+                        <div className="text-sm font-medium">
+                            Grand Total Price
+                        </div>
                         <div className="mt-2 text-xl font-semibold">
                             {formatRupiah(grandTotal)}
                         </div>
                     </div>
                     <div className="flex items-end justify-end">
-                        <Button type="button" onClick={handleSave} disabled={saving}>
+                        <Button
+                            type="button"
+                            onClick={handleSave}
+                            disabled={saving}
+                        >
                             {saving ? 'Menyimpan...' : 'Simpan Data'}
                         </Button>
                     </div>
@@ -337,10 +371,18 @@ export default function TandaTerimaInvoiceCreate() {
                         <div className="flex flex-wrap items-center gap-3">
                             <select
                                 className="h-9 rounded-md border border-input bg-background px-3 text-sm shadow-sm"
-                                value={invoicePageSize === Infinity ? 'all' : invoicePageSize}
+                                value={
+                                    invoicePageSize === Infinity
+                                        ? 'all'
+                                        : invoicePageSize
+                                }
                                 onChange={(event) => {
                                     const value = event.target.value;
-                                    setInvoicePageSize(value === 'all' ? Infinity : Number(value));
+                                    setInvoicePageSize(
+                                        value === 'all'
+                                            ? Infinity
+                                            : Number(value),
+                                    );
                                 }}
                             >
                                 <option value={5}>5</option>
@@ -354,7 +396,9 @@ export default function TandaTerimaInvoiceCreate() {
                                 className="min-w-[220px]"
                                 placeholder="Cari no invoice, ref po, customer..."
                                 value={invoiceSearch}
-                                onChange={(event) => setInvoiceSearch(event.target.value)}
+                                onChange={(event) =>
+                                    setInvoiceSearch(event.target.value)
+                                }
                             />
                         </div>
                         <div className="rounded-md border">
@@ -372,12 +416,16 @@ export default function TandaTerimaInvoiceCreate() {
                                 <TableBody>
                                     {invoiceLoading && (
                                         <TableRow>
-                                            <TableCell colSpan={6}>Memuat data...</TableCell>
+                                            <TableCell colSpan={6}>
+                                                Memuat data...
+                                            </TableCell>
                                         </TableRow>
                                     )}
                                     {!invoiceLoading && invoiceError && (
                                         <TableRow>
-                                            <TableCell colSpan={6}>{invoiceError}</TableCell>
+                                            <TableCell colSpan={6}>
+                                                {invoiceError}
+                                            </TableCell>
                                         </TableRow>
                                     )}
                                     {!invoiceLoading &&
@@ -395,64 +443,94 @@ export default function TandaTerimaInvoiceCreate() {
                                             <TableRow
                                                 key={row.no_fakturpenjualan}
                                                 className="cursor-pointer"
-                                                onClick={() => handleSelectInvoice(row)}
+                                                onClick={() =>
+                                                    handleSelectInvoice(row)
+                                                }
                                             >
-                                                <TableCell>{row.no_fakturpenjualan}</TableCell>
-                                                <TableCell>{row.tgl_doc}</TableCell>
-                                                <TableCell>{row.no_fakturpajak}</TableCell>
-                                                <TableCell>{row.ref_po}</TableCell>
-                                                <TableCell>{row.nm_cs}</TableCell>
-                                                <TableCell>{formatRupiah(row.g_total)}</TableCell>
+                                                <TableCell>
+                                                    {row.no_fakturpenjualan}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {row.tgl_doc}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {row.no_fakturpajak}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {row.ref_po}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {row.nm_cs}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {formatRupiah(row.g_total)}
+                                                </TableCell>
                                             </TableRow>
                                         ))}
                                 </TableBody>
                             </Table>
                         </div>
-                        {invoicePageSize !== Infinity && invoiceTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {(invoiceCurrentPage - 1) * invoicePageSize + 1} -{' '}
-                                    {Math.min(
-                                        invoiceCurrentPage * invoicePageSize,
-                                        invoiceTotalItems,
-                                    )}{' '}
-                                    dari {invoiceTotalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setInvoiceCurrentPage((page) =>
-                                                Math.max(1, page - 1),
-                                            )
-                                        }
-                                        disabled={invoiceCurrentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
+                        {invoicePageSize !== Infinity &&
+                            invoiceTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                     <span>
-                                        Halaman {invoiceCurrentPage} dari {invoiceTotalPages}
+                                        Menampilkan{' '}
+                                        {(invoiceCurrentPage - 1) *
+                                            invoicePageSize +
+                                            1}{' '}
+                                        -{' '}
+                                        {Math.min(
+                                            invoiceCurrentPage *
+                                                invoicePageSize,
+                                            invoiceTotalItems,
+                                        )}{' '}
+                                        dari {invoiceTotalItems} data
                                     </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setInvoiceCurrentPage((page) =>
-                                                Math.min(invoiceTotalPages, page + 1),
-                                            )
-                                        }
-                                        disabled={invoiceCurrentPage === invoiceTotalPages}
-                                    >
-                                        Berikutnya
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setInvoiceCurrentPage((page) =>
+                                                    Math.max(1, page - 1),
+                                                )
+                                            }
+                                            disabled={invoiceCurrentPage === 1}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span>
+                                            Halaman {invoiceCurrentPage} dari{' '}
+                                            {invoiceTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setInvoiceCurrentPage((page) =>
+                                                    Math.min(
+                                                        invoiceTotalPages,
+                                                        page + 1,
+                                                    ),
+                                                )
+                                            }
+                                            disabled={
+                                                invoiceCurrentPage ===
+                                                invoiceTotalPages
+                                            }
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
                     </div>
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+TandaTerimaInvoiceCreate.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

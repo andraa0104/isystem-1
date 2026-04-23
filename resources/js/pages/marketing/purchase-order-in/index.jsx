@@ -469,7 +469,7 @@ export default function PurchaseOrderInIndex({
     ]);
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Purchase Order In" />
             <div className="flex h-full flex-1 flex-col gap-5 p-4">
                 {/* Header section with explicit hex background for maximum compatibility */}
@@ -538,13 +538,13 @@ export default function PurchaseOrderInIndex({
                         >
                             PO IN Outstanding
                         </p>
-                        <p className="mt-1 text-2xl font-bold">
+                        <div className="mt-1 text-2xl font-bold">
                             {loading ? (
                                 <Skeleton className="h-8 w-12" />
                             ) : (
                                 (summary.outstanding ?? 0)
                             )}
-                        </p>
+                        </div>
                         <p
                             className={cn(
                                 'mt-1 text-xs font-medium',
@@ -589,13 +589,13 @@ export default function PurchaseOrderInIndex({
                         >
                             PO IN Sisa PR
                         </p>
-                        <p className="mt-1 text-2xl font-bold">
+                        <div className="mt-1 text-2xl font-bold">
                             {loading ? (
                                 <Skeleton className="h-8 w-12" />
                             ) : (
                                 (summary.belum_pr ?? 0)
                             )}
-                        </p>
+                        </div>
                         <p
                             className={cn(
                                 'mt-1 text-xs font-medium',
@@ -660,13 +660,13 @@ export default function PurchaseOrderInIndex({
                         >
                             PO IN Terealisasi
                         </p>
-                        <p className="mt-1 text-2xl font-bold">
+                        <div className="mt-1 text-2xl font-bold">
                             {loading ? (
                                 <Skeleton className="h-8 w-12" />
                             ) : (
                                 realizedItemsByPeriod.length
                             )}
-                        </p>
+                        </div>
                         <p
                             className={cn(
                                 'mt-1 text-xs font-medium',
@@ -1745,6 +1745,10 @@ export default function PurchaseOrderInIndex({
                     </DialogContent>
                 </Dialog>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+PurchaseOrderInIndex.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

@@ -1,8 +1,5 @@
-import AppLayout from '@/layouts/app-layout';
-import { Head, Link, usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -10,8 +7,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { FileSpreadsheet, Loader2, Printer } from 'lucide-react';
+import AppLayout from '@/layouts/app-layout';
 import { buildBukuBesarUrl } from '@/lib/report-links';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { FileSpreadsheet, Loader2, Printer } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -41,7 +41,7 @@ function ColGroupHeader({ title }) {
     return (
         <th
             colSpan={2}
-            className="px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+            className="px-3 py-2 text-center text-[11px] font-semibold tracking-wide text-muted-foreground uppercase"
         >
             {title}
         </th>
@@ -50,7 +50,7 @@ function ColGroupHeader({ title }) {
 
 function ColHeader({ title }) {
     return (
-        <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <th className="px-3 py-2 text-right text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
             {title}
         </th>
     );
@@ -65,10 +65,14 @@ export default function NeracaLajurIndex() {
     const [error, setError] = useState('');
 
     const [search, setSearch] = useState(initialQuery?.search ?? '');
-    const [debouncedSearch, setDebouncedSearch] = useState(initialQuery?.search ?? '');
+    const [debouncedSearch, setDebouncedSearch] = useState(
+        initialQuery?.search ?? '',
+    );
 
     const [sortBy, setSortBy] = useState(initialQuery?.sortBy ?? 'Kode_Akun');
-    const [sortDir, setSortDir] = useState((initialQuery?.sortDir ?? 'asc').toLowerCase());
+    const [sortDir, setSortDir] = useState(
+        (initialQuery?.sortDir ?? 'asc').toLowerCase(),
+    );
 
     const [pageSize, setPageSize] = useState(
         initialQuery?.pageSize === 'all'
@@ -100,9 +104,12 @@ export default function NeracaLajurIndex() {
                 pageSize === 'all' ? 'all' : String(pageSize),
             );
 
-            const res = await fetch(`/laporan/neraca-lajur/rows?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/laporan/neraca-lajur/rows?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             const data = await res.json();
             if (!res.ok) {
                 const msg = String(data?.error ?? 'Gagal memuat data.');
@@ -130,10 +137,14 @@ export default function NeracaLajurIndex() {
         return Math.max(1, Math.ceil(total / size));
     }, [pageSize, total]);
 
-    const printUrl = buildPrintUrl({ search: debouncedSearch, sortBy, sortDir });
+    const printUrl = buildPrintUrl({
+        search: debouncedSearch,
+        sortBy,
+        sortDir,
+    });
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Neraca Lajur" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -142,7 +153,9 @@ export default function NeracaLajurIndex() {
                             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
                                 <FileSpreadsheet className="h-5 w-5 text-foreground/80" />
                             </div>
-                            <h1 className="text-xl font-semibold">Neraca Lajur</h1>
+                            <h1 className="text-xl font-semibold">
+                                Neraca Lajur
+                            </h1>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
                             Ringkasan neraca lajur per akun (snapshot)
@@ -157,16 +170,26 @@ export default function NeracaLajurIndex() {
                             </a>
                         </Button>
 
-                        <span className="text-sm text-muted-foreground">Urut</span>
+                        <span className="text-sm text-muted-foreground">
+                            Urut
+                        </span>
                         <Select value={sortBy} onValueChange={setSortBy}>
                             <SelectTrigger className="w-44">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Kode_Akun">Kode Akun</SelectItem>
-                                <SelectItem value="Nama_Akun">Nama Akun</SelectItem>
-                                <SelectItem value="NA_Debit">NA Debit</SelectItem>
-                                <SelectItem value="NA_Kredit">NA Kredit</SelectItem>
+                                <SelectItem value="Kode_Akun">
+                                    Kode Akun
+                                </SelectItem>
+                                <SelectItem value="Nama_Akun">
+                                    Nama Akun
+                                </SelectItem>
+                                <SelectItem value="NA_Debit">
+                                    NA Debit
+                                </SelectItem>
+                                <SelectItem value="NA_Kredit">
+                                    NA Kredit
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                         <Select value={sortDir} onValueChange={setSortDir}>
@@ -179,10 +202,14 @@ export default function NeracaLajurIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Tampil</span>
+                        <span className="text-sm text-muted-foreground">
+                            Tampil
+                        </span>
                         <Select
                             value={String(pageSize)}
-                            onValueChange={(val) => setPageSize(val === 'all' ? 'all' : Number(val))}
+                            onValueChange={(val) =>
+                                setPageSize(val === 'all' ? 'all' : Number(val))
+                            }
                         >
                             <SelectTrigger className="w-24">
                                 <SelectValue />
@@ -209,7 +236,8 @@ export default function NeracaLajurIndex() {
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
                         <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
-                            Pastikan tabel/kolom `tb_neracalajur` sesuai (Kode_Akun, Nama_Akun, Saldo/AJP/NSSP/RL/NA
+                            Pastikan tabel/kolom `tb_neracalajur` sesuai
+                            (Kode_Akun, Nama_Akun, Saldo/AJP/NSSP/RL/NA
                             Debit-Kredit).
                         </div>
                     </div>
@@ -217,25 +245,26 @@ export default function NeracaLajurIndex() {
 
                 <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[1px] dark:bg-black/30">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground dark:bg-black/40">
+                                <Loader2 className="h-4 w-4 animate-spin" />{' '}
+                                Memuat...
                             </div>
                         </div>
                     )}
 
-                    <table className="min-w-[1200px] w-full text-sm text-left">
+                    <table className="w-full min-w-[1200px] text-left text-sm">
                         <thead className="bg-muted/30 dark:bg-white/5">
                             <tr className="border-b border-border">
                                 <th
                                     rowSpan={2}
-                                    className="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                                    className="px-3 py-3 text-left text-[11px] font-semibold tracking-wide text-muted-foreground uppercase"
                                 >
                                     Kode Akun
                                 </th>
                                 <th
                                     rowSpan={2}
-                                    className="px-3 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                                    className="px-3 py-3 text-left text-[11px] font-semibold tracking-wide text-muted-foreground uppercase"
                                 >
                                     Nama Akun
                                 </th>
@@ -269,11 +298,13 @@ export default function NeracaLajurIndex() {
                                     </td>
                                 </tr>
                             )}
-                            {rows.map((r, idx) => (
+                            {rows.map((r, idx) =>
                                 (() => {
                                     const kodeAkun = String(r?.Kode_Akun ?? '');
                                     const has00 = kodeAkun.includes('00');
-                                    const cellClass = has00 ? markedCellClass : '';
+                                    const cellClass = has00
+                                        ? markedCellClass
+                                        : '';
                                     return (
                                         <tr
                                             key={`${r?.Kode_Akun ?? idx}-${idx}`}
@@ -282,54 +313,107 @@ export default function NeracaLajurIndex() {
                                                 has00 ? markedRowClass : '',
                                             ].join(' ')}
                                         >
-                                            <td className={`px-3 py-2 font-medium ${cellClass}`}>
+                                            <td
+                                                className={`px-3 py-2 font-medium ${cellClass}`}
+                                            >
                                                 <div className="flex items-center gap-2">
                                                     {has00 ? (
                                                         <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                                     ) : null}
                                                     <Link
-                                                        href={buildBukuBesarUrl({ kodeAkun })}
+                                                        href={buildBukuBesarUrl(
+                                                            { kodeAkun },
+                                                        )}
                                                         className={
                                                             has00
-                                                                ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                                : 'text-amber-700 dark:text-amber-300 hover:underline'
+                                                                ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 ring-1 ring-amber-500/30 hover:underline dark:text-amber-300'
+                                                                : 'text-amber-700 hover:underline dark:text-amber-300'
                                                         }
                                                     >
                                                         {kodeAkun}
                                                     </Link>
                                                 </div>
                                             </td>
-                                            <td className={`px-3 py-2 ${cellClass}`}>{r?.Nama_Akun}</td>
+                                            <td
+                                                className={`px-3 py-2 ${cellClass}`}
+                                            >
+                                                {r?.Nama_Akun}
+                                            </td>
 
-                                            <td className={`px-3 py-2 text-right ${cellClass}`}>{formatRupiah(r?.Saldo_Debit)}</td>
-                                            <td className={`px-3 py-2 text-right ${cellClass}`}>{formatRupiah(r?.Saldo_Kredit)}</td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.Saldo_Debit)}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.Saldo_Kredit)}
+                                            </td>
 
-                                            <td className={`px-3 py-2 text-right ${cellClass}`}>{formatRupiah(r?.AJP_Debit)}</td>
-                                            <td className={`px-3 py-2 text-right ${cellClass}`}>{formatRupiah(r?.AJP_Kredit)}</td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.AJP_Debit)}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.AJP_Kredit)}
+                                            </td>
 
-                                            <td className={`px-3 py-2 text-right ${cellClass}`}>{formatRupiah(r?.NSSP_Debit)}</td>
-                                            <td className={`px-3 py-2 text-right ${cellClass}`}>{formatRupiah(r?.NSSP_Kredit)}</td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.NSSP_Debit)}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.NSSP_Kredit)}
+                                            </td>
 
-                                            <td className={`px-3 py-2 text-right ${cellClass}`}>{formatRupiah(r?.RL_Debit)}</td>
-                                            <td className={`px-3 py-2 text-right ${cellClass}`}>{formatRupiah(r?.RL_Kredit)}</td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.RL_Debit)}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.RL_Kredit)}
+                                            </td>
 
-                                            <td className={`px-3 py-2 text-right ${cellClass}`}>{formatRupiah(r?.NA_Debit)}</td>
-                                            <td className={`px-3 py-2 text-right ${cellClass}`}>{formatRupiah(r?.NA_Kredit)}</td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.NA_Debit)}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.NA_Kredit)}
+                                            </td>
                                         </tr>
                                     );
-                                })()
-                            ))}
+                                })(),
+                            )}
                         </tbody>
                     </table>
                 </div>
 
                 <div className="flex flex-col items-start justify-between gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center">
-                    <span>Total data: {new Intl.NumberFormat('id-ID').format(total)}</span>
+                    <span>
+                        Total data:{' '}
+                        {new Intl.NumberFormat('id-ID').format(total)}
+                    </span>
                     <div className="flex items-center gap-2">
                         <Button
                             size="sm"
                             variant="outline"
-                            disabled={page === 1 || loading || pageSize === 'all'}
+                            disabled={
+                                page === 1 || loading || pageSize === 'all'
+                            }
                             onClick={() => setPage((p) => Math.max(1, p - 1))}
                         >
                             Sebelumnya
@@ -340,14 +424,24 @@ export default function NeracaLajurIndex() {
                         <Button
                             size="sm"
                             variant="outline"
-                            disabled={page >= totalPages || loading || pageSize === 'all'}
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={
+                                page >= totalPages ||
+                                loading ||
+                                pageSize === 'all'
+                            }
+                            onClick={() =>
+                                setPage((p) => Math.min(totalPages, p + 1))
+                            }
                         >
                             Berikutnya
                         </Button>
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+NeracaLajurIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

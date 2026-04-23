@@ -22,7 +22,11 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import { ArrowLeft, ArrowRight, Plus, Search } from 'lucide-react';
-import { useEffect, useState } from 'react';
+const breadcrumbs = [
+    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'Marketing', href: '/marketing/delivery-order' },
+    { title: 'Tambah DO', href: '/marketing/delivery-order/create' },
+];
 
 const formatDate = (date) => {
     if (!date) return '';
@@ -223,13 +227,7 @@ export default function DeliveryOrderCreate() {
     };
 
     return (
-        <AppLayout
-            breadcrumbs={[
-                { title: 'Dashboard', href: '/dashboard' },
-                { title: 'Marketing', href: '/marketing/delivery-order' },
-                { title: 'Create DO', href: '#' },
-            ]}
-        >
+        <>
             <Head title="Create Delivery Order" />
             <div className="flex-1 p-4">
                 <div className="mb-6 flex items-center justify-between">
@@ -690,6 +688,9 @@ export default function DeliveryOrderCreate() {
                     )}
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+DeliveryOrderCreate.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

@@ -732,7 +732,7 @@ export default function PurchaseOrderIndex({
         }, 0);
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Purchase Order" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2278,6 +2278,10 @@ export default function PurchaseOrderIndex({
                     </DialogContent>
                 </Dialog>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+PurchaseOrderIndex.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

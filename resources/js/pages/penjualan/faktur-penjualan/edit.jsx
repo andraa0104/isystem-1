@@ -1,3 +1,4 @@
+import { ActionIconButton } from '@/components/action-icon-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,13 +11,12 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { ActionIconButton } from '@/components/action-icon-button';
 import AppLayout from '@/layouts/app-layout';
-import { Head, router } from '@inertiajs/react';
-import Swal from 'sweetalert2';
-import { useEffect, useMemo, useState } from 'react';
-import { Trash2 } from 'lucide-react';
 import { confirmDelete } from '@/lib/confirm-delete';
+import { Head, router } from '@inertiajs/react';
+import { Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -112,7 +112,9 @@ export default function FakturPenjualanEdit({
                 }
                 const doData = await doResponse.json();
                 const doAddData = await doAddResponse.json();
-                setDoMaterials(Array.isArray(doData?.items) ? doData.items : []);
+                setDoMaterials(
+                    Array.isArray(doData?.items) ? doData.items : [],
+                );
                 setDoAddMaterials(
                     Array.isArray(doAddData?.items) ? doAddData.items : [],
                 );
@@ -128,7 +130,7 @@ export default function FakturPenjualanEdit({
         const qty = toNumber(item.qty);
         const hpp = toNumber(item.hpp);
         setMaterialInput({
-            no_ref: type === 'do' ? item.no_do ?? '' : item.no_dob ?? '',
+            no_ref: type === 'do' ? (item.no_do ?? '') : (item.no_dob ?? ''),
             kd_material: item.kd_material ?? '',
             material: item.mat ?? '',
             qty: item.qty ?? '',
@@ -224,16 +226,13 @@ export default function FakturPenjualanEdit({
                 g_total: grandTotalWithPpn,
             },
             {
-                onSuccess: () => {
-                },
+                onSuccess: () => {},
                 onError: (errors) => {
                     Swal.fire({
                         toast: true,
                         position: 'top-end',
                         icon: 'error',
-                        title:
-                            errors?.message ||
-                            'Gagal menyimpan perubahan.',
+                        title: errors?.message || 'Gagal menyimpan perubahan.',
                         showConfirmButton: false,
                         timer: 3500,
                     });
@@ -274,7 +273,7 @@ export default function FakturPenjualanEdit({
     }, [grandTotalPrice, totalPpn]);
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Edit Invoice" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -349,7 +348,9 @@ export default function FakturPenjualanEdit({
                                 />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">PPN</span>
+                                <span className="text-muted-foreground">
+                                    PPN
+                                </span>
                                 <Input
                                     value={formData.ppn}
                                     onChange={(event) =>
@@ -361,7 +362,9 @@ export default function FakturPenjualanEdit({
                                 />
                             </label>
                             <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">Ref PO In</span>
+                                <span className="text-muted-foreground">
+                                    Ref PO In
+                                </span>
                                 <Input value={formData.ref_po_in} readOnly />
                             </label>
                             <label className="space-y-2 text-sm">
@@ -408,7 +411,8 @@ export default function FakturPenjualanEdit({
                                             doMaterials.length === 0 && (
                                                 <TableRow>
                                                     <TableCell colSpan={6}>
-                                                        Memuat data material DO...
+                                                        Memuat data material
+                                                        DO...
                                                     </TableCell>
                                                 </TableRow>
                                             )}
@@ -426,13 +430,24 @@ export default function FakturPenjualanEdit({
                                                 key={`do-${item.no_do}-${item.mat}`}
                                                 className="cursor-pointer hover:bg-muted/60"
                                                 onClick={() =>
-                                                    handleSelectMaterial(item, 'do')
+                                                    handleSelectMaterial(
+                                                        item,
+                                                        'do',
+                                                    )
                                                 }
                                             >
-                                                <TableCell>{item.no_do}</TableCell>
-                                                <TableCell>{item.mat}</TableCell>
-                                                <TableCell>{item.qty}</TableCell>
-                                                <TableCell>{item.unit}</TableCell>
+                                                <TableCell>
+                                                    {item.no_do}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.mat}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.qty}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.unit}
+                                                </TableCell>
                                                 <TableCell>
                                                     {formatRupiah(item.harga)}
                                                 </TableCell>
@@ -486,13 +501,24 @@ export default function FakturPenjualanEdit({
                                                 key={`dot-${item.no_dob}-${item.mat}`}
                                                 className="cursor-pointer hover:bg-muted/60"
                                                 onClick={() =>
-                                                    handleSelectMaterial(item, 'dot')
+                                                    handleSelectMaterial(
+                                                        item,
+                                                        'dot',
+                                                    )
                                                 }
                                             >
-                                                <TableCell>{item.no_dob}</TableCell>
-                                                <TableCell>{item.mat}</TableCell>
-                                                <TableCell>{item.qty}</TableCell>
-                                                <TableCell>{item.unit}</TableCell>
+                                                <TableCell>
+                                                    {item.no_dob}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.mat}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.qty}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.unit}
+                                                </TableCell>
                                                 <TableCell>
                                                     {formatRupiah(item.harga)}
                                                 </TableCell>
@@ -582,12 +608,17 @@ export default function FakturPenjualanEdit({
                                 <div className="grid gap-2">
                                     <Label>Total HPP</Label>
                                     <Input
-                                        value={formatRupiah(materialInput.total_hpp)}
+                                        value={formatRupiah(
+                                            materialInput.total_hpp,
+                                        )}
                                         readOnly
                                     />
                                 </div>
                                 <div className="flex items-end gap-2">
-                                    <Button type="button" onClick={handleUpsertRow}>
+                                    <Button
+                                        type="button"
+                                        onClick={handleUpsertRow}
+                                    >
                                         Simpan Detail
                                     </Button>
                                 </div>
@@ -627,16 +658,28 @@ export default function FakturPenjualanEdit({
                                             <TableRow
                                                 key={`${item.no_ref}-${item.kd_material}`}
                                                 className="cursor-pointer hover:bg-muted/60"
-                                                onClick={() => handleRowClick(item)}
+                                                onClick={() =>
+                                                    handleRowClick(item)
+                                                }
                                             >
-                                                <TableCell>{index + 1}</TableCell>
-                                                <TableCell>{item.no_ref}</TableCell>
+                                                <TableCell>
+                                                    {index + 1}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.no_ref}
+                                                </TableCell>
                                                 <TableCell>
                                                     {item.kd_material}
                                                 </TableCell>
-                                                <TableCell>{item.material}</TableCell>
-                                                <TableCell>{item.qty}</TableCell>
-                                                <TableCell>{item.unit}</TableCell>
+                                                <TableCell>
+                                                    {item.material}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.qty}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {item.unit}
+                                                </TableCell>
                                                 <TableCell>
                                                     {formatRupiah(item.price)}
                                                 </TableCell>
@@ -647,19 +690,28 @@ export default function FakturPenjualanEdit({
                                                     {formatRupiah(item.hpp)}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {formatRupiah(item.total_hpp)}
+                                                    {formatRupiah(
+                                                        item.total_hpp,
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     <ActionIconButton
                                                         label="Hapus"
-                                                        onClick={async (event) => {
+                                                        onClick={async (
+                                                            event,
+                                                        ) => {
                                                             event.stopPropagation();
-                                                            const ok = await confirmDelete({
-                                                                title: 'Hapus baris material?',
-                                                                text: 'Data yang dihapus tidak bisa dikembalikan.',
-                                                            });
+                                                            const ok =
+                                                                await confirmDelete(
+                                                                    {
+                                                                        title: 'Hapus baris material?',
+                                                                        text: 'Data yang dihapus tidak bisa dikembalikan.',
+                                                                    },
+                                                                );
                                                             if (!ok) return;
-                                                            handleDeleteRow(item);
+                                                            handleDeleteRow(
+                                                                item,
+                                                            );
                                                         }}
                                                     >
                                                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -679,23 +731,38 @@ export default function FakturPenjualanEdit({
                             <CardContent className="grid gap-4 md:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label>Grand Total Price</Label>
-                                    <Input value={formatRupiah(grandTotalPrice)} readOnly />
+                                    <Input
+                                        value={formatRupiah(grandTotalPrice)}
+                                        readOnly
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Total PPN</Label>
-                                    <Input value={formatRupiah(totalPpn)} readOnly />
+                                    <Input
+                                        value={formatRupiah(totalPpn)}
+                                        readOnly
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Grand Total HPP</Label>
-                                    <Input value={formatRupiah(grandTotalHpp)} readOnly />
+                                    <Input
+                                        value={formatRupiah(grandTotalHpp)}
+                                        readOnly
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Margin</Label>
-                                    <Input value={`${formatNumber(margin)}%`} readOnly />
+                                    <Input
+                                        value={`${formatNumber(margin)}%`}
+                                        readOnly
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Grand Total Price + PPN</Label>
-                                    <Input value={formatRupiah(grandTotalWithPpn)} readOnly />
+                                    <Input
+                                        value={formatRupiah(grandTotalWithPpn)}
+                                        readOnly
+                                    />
                                 </div>
                             </CardContent>
                         </Card>
@@ -719,6 +786,10 @@ export default function FakturPenjualanEdit({
                     </div>
                 )}
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+FakturPenjualanEdit.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

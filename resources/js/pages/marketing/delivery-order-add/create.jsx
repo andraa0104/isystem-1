@@ -203,7 +203,9 @@ export default function DeliveryOrderAddCreate() {
                 return response.json();
             })
             .then((data) => {
-                setMaterialPrices(Array.isArray(data?.materials) ? data.materials : []);
+                setMaterialPrices(
+                    Array.isArray(data?.materials) ? data.materials : [],
+                );
             })
             .catch(() => {
                 setMaterialPrices([]);
@@ -227,10 +229,7 @@ export default function DeliveryOrderAddCreate() {
     const handleSourceItemClick = (item) => {
         const qty = item.sisa_pr ?? item.qty ?? '';
         const priceRaw =
-            getPriceByKd(item.kd_material) ??
-            item.price_po ??
-            item.harga ??
-            0;
+            getPriceByKd(item.kd_material) ?? item.price_po ?? item.harga ?? 0;
         const price = Number(priceRaw || 0);
         const lastStock = Number(item.last_stock || 0);
         const stockNow = Number(qty || 0) - lastStock;
@@ -329,13 +328,7 @@ export default function DeliveryOrderAddCreate() {
     const prevStep = () => setStep((s) => s - 1);
 
     return (
-        <AppLayout
-            breadcrumbs={[
-                { title: 'Dashboard', href: '/dashboard' },
-                { title: 'Marketing', href: '/marketing/delivery-order-add' },
-                { title: 'Create DOB', href: '#' },
-            ]}
-        >
+        <>
             <Head title="Create Delivery Order Add" />
             <div className="flex-1 p-4">
                 <div className="mb-6 flex items-center justify-between">
@@ -449,7 +442,8 @@ export default function DeliveryOrderAddCreate() {
                                                     >
                                                         <TableCell>
                                                             {renderValue(
-                                                                item.no ?? i + 1,
+                                                                item.no ??
+                                                                    i + 1,
                                                             )}
                                                         </TableCell>
                                                         <TableCell>
@@ -509,7 +503,10 @@ export default function DeliveryOrderAddCreate() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Satuan</Label>
-                                        <Input readOnly value={inputItem.unit} />
+                                        <Input
+                                            readOnly
+                                            value={inputItem.unit}
+                                        />
                                     </div>
                                     <div className="space-y-2 lg:col-span-2">
                                         <Label>Remark</Label>
@@ -521,11 +518,17 @@ export default function DeliveryOrderAddCreate() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Price</Label>
-                                        <Input readOnly value={inputItem.price} />
+                                        <Input
+                                            readOnly
+                                            value={inputItem.price}
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Total Price</Label>
-                                        <Input readOnly value={inputItem.total} />
+                                        <Input
+                                            readOnly
+                                            value={inputItem.total}
+                                        />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Last Stock</Label>
@@ -573,11 +576,11 @@ export default function DeliveryOrderAddCreate() {
                                                     <TableHead className="w-[120px]">
                                                         Satuan
                                                     </TableHead>
-                                                    <TableHead>
-                                                        Harga
-                                                    </TableHead>
+                                                    <TableHead>Harga</TableHead>
                                                     <TableHead>Total</TableHead>
-                                                    <TableHead>Remark</TableHead>
+                                                    <TableHead>
+                                                        Remark
+                                                    </TableHead>
                                                     <TableHead className="w-[70px]">
                                                         Aksi
                                                     </TableHead>
@@ -670,7 +673,7 @@ export default function DeliveryOrderAddCreate() {
             </div>
 
             <Dialog open={isDoModalOpen} onOpenChange={setIsDoModalOpen}>
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none flex flex-col">
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Cari DO Outstanding</DialogTitle>
                         <DialogDescription>
@@ -802,6 +805,15 @@ export default function DeliveryOrderAddCreate() {
                     )}
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+DeliveryOrderAddCreate.layout = (page) => {
+    const breadcrumbs = [
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Marketing', href: '/marketing/delivery-order-add' },
+        { title: 'Create DOB', href: '#' },
+    ];
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

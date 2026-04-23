@@ -635,7 +635,7 @@ export default function PenerimaanMaterialIndex() {
         mode === 'mis' ? 'MIS' : mode === 'mi' ? 'MI' : mode?.toUpperCase();
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Penerimaan Material" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1421,6 +1421,10 @@ export default function PenerimaanMaterialIndex() {
                     </DialogContent>
                 </Dialog>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+PenerimaanMaterialIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

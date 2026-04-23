@@ -434,7 +434,7 @@ export default function PurchaseRequirementEdit({
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Edit PR" />
             <form
                 className="flex h-full flex-1 flex-col gap-4 p-4"
@@ -1147,6 +1147,10 @@ export default function PurchaseRequirementEdit({
                     </DialogContent>
                 </Dialog>
             </form>
-        </AppLayout>
+        </>
     );
 }
+
+PurchaseRequirementEdit.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

@@ -367,12 +367,18 @@ export default function MutasiKasCreate({
         return Math.max(1, Math.ceil((histTotal ?? 0) / histPageSize));
     }, [histTotal, histPageSize]);
 
-    const runSuggest = async ({ reason, payRow, overrideKeterangan, overrideNominal } = {}) => {
+    const runSuggest = async ({
+        reason,
+        payRow,
+        overrideKeterangan,
+        overrideNominal,
+    } = {}) => {
         if (mode === 'transfer' && (!sourceAkun || !destAkun)) return;
         if ((mode === 'in' || mode === 'out') && !kodeAkun) return;
         // Mode keluar: AI dan pengisian form berbasis Payment Cost (tb_bayar) yang dipilih.
         // Jangan auto-isi saat halaman baru dibuka sebelum ada selection.
-        const effectivePayRow = payRow ?? selectedPayRowRef.current ?? selectedPayRow;
+        const effectivePayRow =
+            payRow ?? selectedPayRowRef.current ?? selectedPayRow;
         if (mode === 'out' && !effectivePayRow) return;
         if (
             mode !== 'out' &&
@@ -455,13 +461,15 @@ export default function MutasiKasCreate({
                     // Mode keluar + Payment Cost: always overwrite lines to keep balance,
                     // but we do NOT override keterangan (source of truth = tb_bayar).
                     if (paymentSelected) {
-                        return suggestedLines.slice(0, maxLines).map((l, idx) => ({
-                            akun: String(l?.akun ?? ''),
-                            jenis: String(l?.jenis ?? 'Debit'),
-                            nominal: Number(
-                                l?.nominal ?? (idx === 0 ? dppTarget : 0),
-                            ),
-                        }));
+                        return suggestedLines
+                            .slice(0, maxLines)
+                            .map((l, idx) => ({
+                                akun: String(l?.akun ?? ''),
+                                jenis: String(l?.jenis ?? 'Debit'),
+                                nominal: Number(
+                                    l?.nominal ?? (idx === 0 ? dppTarget : 0),
+                                ),
+                            }));
                     }
 
                     // Other modes: only auto-fill if user hasn't manually set akun in first line yet
@@ -626,9 +634,7 @@ export default function MutasiKasCreate({
                 voucher_type: voucherType,
                 nominal: nominalNumber,
                 keterangan:
-                    mode === 'transfer'
-                        ? transferKetPreviewOut
-                        : keterangan,
+                    mode === 'transfer' ? transferKetPreviewOut : keterangan,
                 has_ppn: mode === 'transfer' ? false : hasPpn,
                 ppn_akun: hasPpn && ppnNumber > 0 ? ppnAkun : null,
                 ppn_nominal: hasPpn && ppnNumber > 0 ? ppnNumber : 0,
@@ -678,13 +684,7 @@ export default function MutasiKasCreate({
     };
 
     return (
-        <AppLayout
-            breadcrumbs={[
-                { title: 'Dashboard', href: '/dashboard' },
-                { title: 'Mutasi Kas', href: '/keuangan/mutasi-kas' },
-                { title: 'Mutasi Baru', href: '/keuangan/mutasi-kas/create' },
-            ]}
-        >
+        <>
             <Head title="Mutasi Kas - Mutasi Baru" />
 
             <div className="flex flex-col gap-4 p-4">
@@ -706,7 +706,8 @@ export default function MutasiKasCreate({
                                             <span className="font-mono">
                                                 tb_bayar
                                             </span>{' '}
-                                            (belum dibukukan: beban_akun bukan spasi).
+                                            (belum dibukukan: beban_akun bukan
+                                            spasi).
                                         </div>
                                     </div>
                                     <Button
@@ -782,9 +783,17 @@ export default function MutasiKasCreate({
                                                 const bayar = Number(
                                                     row?.Bayar ?? 0,
                                                 );
-                                                const noStr = String(row?.No ?? row?.no ?? '').trim();
-                                                const dokStr = String(row?.noduk_beban ?? '').trim();
-                                                const ketStr = String(row?.Keterangan ?? '').trim().slice(0, 36);
+                                                const noStr = String(
+                                                    row?.No ?? row?.no ?? '',
+                                                ).trim();
+                                                const dokStr = String(
+                                                    row?.noduk_beban ?? '',
+                                                ).trim();
+                                                const ketStr = String(
+                                                    row?.Keterangan ?? '',
+                                                )
+                                                    .trim()
+                                                    .slice(0, 36);
                                                 const key = `${String(row?.Kode_Bayar ?? '').trim()}|${noStr}|${dokStr}|${ketStr}|${idx}`;
                                                 const active =
                                                     selectedPay &&
@@ -829,9 +838,14 @@ export default function MutasiKasCreate({
                                                                       )
                                                                     : '',
                                                             );
-                                                            const tgl = String(row?.Tgl_Bayar ?? '').slice(0, 10);
+                                                            const tgl = String(
+                                                                row?.Tgl_Bayar ??
+                                                                    '',
+                                                            ).slice(0, 10);
                                                             if (tgl) {
-                                                                setTglVoucher(tgl);
+                                                                setTglVoucher(
+                                                                    tgl,
+                                                                );
                                                             }
 
                                                             // Prefer beban_akun from tb_bayar as the initial DPP line.
@@ -1371,7 +1385,8 @@ export default function MutasiKasCreate({
                                                         : 'Akun lawan (Beban/DPP)'}
                                                 </div>
                                                 <div className="text-[11px] text-muted-foreground">
-                                                    Total harus sama dengan target DPP.
+                                                    Total harus sama dengan
+                                                    target DPP.
                                                 </div>
                                             </>
                                         ) : null}
@@ -1382,14 +1397,15 @@ export default function MutasiKasCreate({
                                                 type="button"
                                                 variant="outline"
                                                 size="sm"
-                                                disabled={lines.length >= maxLines}
+                                                disabled={
+                                                    lines.length >= maxLines
+                                                }
                                                 onClick={() =>
                                                     setLines((prev) => {
-                                                        const next = Array.isArray(
-                                                            prev,
-                                                        )
-                                                            ? [...prev]
-                                                            : [];
+                                                        const next =
+                                                            Array.isArray(prev)
+                                                                ? [...prev]
+                                                                : [];
                                                         next.push({
                                                             akun: '',
                                                             jenis:
@@ -1414,7 +1430,8 @@ export default function MutasiKasCreate({
                                             <div className="rounded-md border p-3">
                                                 <div className="flex items-center justify-between">
                                                     <div className="text-sm font-medium">
-                                                        Akun sumber (dana keluar)
+                                                        Akun sumber (dana
+                                                        keluar)
                                                     </div>
                                                     <div className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
                                                         Jenis otomatis:{' '}
@@ -1439,7 +1456,8 @@ export default function MutasiKasCreate({
                                             <div className="rounded-md border p-3">
                                                 <div className="flex items-center justify-between">
                                                     <div className="text-sm font-medium">
-                                                        Akun tujuan (penerima dana)
+                                                        Akun tujuan (penerima
+                                                        dana)
                                                     </div>
                                                     <div className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
                                                         Jenis otomatis:{' '}
@@ -1462,183 +1480,194 @@ export default function MutasiKasCreate({
                                             </div>
                                         </div>
                                     ) : (
-	                                    (lines ?? [])
-	                                        .slice(0, maxLines)
-	                                        .map((l, idx) => (
-	                                            <div
-	                                                key={idx}
-	                                                className="rounded-md border p-3"
-	                                            >
-			                                                <div className="flex items-center justify-between">
-			                                                    <div className="text-sm font-medium">
-			                                                        {mode === 'transfer'
-			                                                            ? 'Akun tujuan (penerima dana)'
-			                                                            : mode === 'in'
-			                                                              ? 'Pendapatan'
-			                                                              : 'Beban'}{' '}
-			                                                        {mode === 'transfer'
-			                                                            ? ''
-			                                                            : getSlotLabel(
-			                                                                  idx,
-			                                                              )}
-			                                                    </div>
-			                                                    <div className="flex items-center gap-2">
-			                                                        {mode ===
-			                                                        'transfer' ? (
-			                                                            <div className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
-			                                                                Jenis
-			                                                                otomatis:
-			                                                                <span className="ml-1 font-medium text-foreground">
-			                                                                    Debit
-			                                                                </span>
-			                                                            </div>
-			                                                        ) : (
-			                                                            <Select
-			                                                                value={String(
-			                                                                    l?.jenis ??
-			                                                                        (mode ===
-			                                                                        'in'
-			                                                                            ? 'Kredit'
-			                                                                            : 'Debit'),
-			                                                                )}
-			                                                                onValueChange={(
-			                                                                    v,
-			                                                                ) =>
-			                                                                    setLines(
-			                                                                        (
-			                                                                            prev,
-			                                                                        ) => {
-			                                                                            const next =
-			                                                                                [
-			                                                                                    ...(prev ??
-			                                                                                        []),
-			                                                                                ];
-			                                                                            next[
-			                                                                                idx
-			                                                                            ] = {
-			                                                                                ...next[
-			                                                                                    idx
-			                                                                                ],
-			                                                                                jenis: v,
-			                                                                            };
-			                                                                            return next;
-			                                                                        },
-			                                                                    )
-			                                                                }
-			                                                            >
-			                                                                <SelectTrigger className="h-8 w-[120px]">
-			                                                                    <SelectValue placeholder="Jenis" />
-			                                                                </SelectTrigger>
-			                                                                <SelectContent>
-			                                                                    <SelectItem value="Debit">
-			                                                                        Debit
-			                                                                    </SelectItem>
-			                                                                    <SelectItem value="Kredit">
-			                                                                        Kredit
-			                                                                    </SelectItem>
-			                                                                </SelectContent>
-			                                                            </Select>
-			                                                        )}
-                                                        {mode !== 'transfer' ? (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-	                                                                size="sm"
-                                                                onClick={() => {
-                                                                    setActiveLineIndex(
-                                                                        idx,
-                                                                    );
-                                                                    setLineDialogOpen(
-                                                                        true,
-                                                                    );
-                                                                }}
-                                                            >
-                                                                Cari
-                                                            </Button>
-                                                        ) : null}
-                                                        {mode !== 'transfer' ? (
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                disabled={
-                                                                    lines.length <=
-                                                                    1
-                                                                }
-                                                                onClick={() =>
-                                                                    setLines(
-                                                                        (
-                                                                            prev,
-                                                                        ) => {
-                                                                            const next =
-                                                                                [
-                                                                                    ...(prev ??
-                                                                                        []),
-                                                                                ];
-                                                                            next.splice(
-                                                                                idx,
-                                                                                1,
-                                                                            );
-                                                                            return next;
-                                                                        },
-                                                                    )
-                                                                }
-                                                            >
-                                                                Hapus
-                                                            </Button>
-                                                        ) : null}
+                                        (lines ?? [])
+                                            .slice(0, maxLines)
+                                            .map((l, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className="rounded-md border p-3"
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="text-sm font-medium">
+                                                            {mode === 'transfer'
+                                                                ? 'Akun tujuan (penerima dana)'
+                                                                : mode === 'in'
+                                                                  ? 'Pendapatan'
+                                                                  : 'Beban'}{' '}
+                                                            {mode === 'transfer'
+                                                                ? ''
+                                                                : getSlotLabel(
+                                                                      idx,
+                                                                  )}
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            {mode ===
+                                                            'transfer' ? (
+                                                                <div className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
+                                                                    Jenis
+                                                                    otomatis:
+                                                                    <span className="ml-1 font-medium text-foreground">
+                                                                        Debit
+                                                                    </span>
+                                                                </div>
+                                                            ) : (
+                                                                <Select
+                                                                    value={String(
+                                                                        l?.jenis ??
+                                                                            (mode ===
+                                                                            'in'
+                                                                                ? 'Kredit'
+                                                                                : 'Debit'),
+                                                                    )}
+                                                                    onValueChange={(
+                                                                        v,
+                                                                    ) =>
+                                                                        setLines(
+                                                                            (
+                                                                                prev,
+                                                                            ) => {
+                                                                                const next =
+                                                                                    [
+                                                                                        ...(prev ??
+                                                                                            []),
+                                                                                    ];
+                                                                                next[
+                                                                                    idx
+                                                                                ] =
+                                                                                    {
+                                                                                        ...next[
+                                                                                            idx
+                                                                                        ],
+                                                                                        jenis: v,
+                                                                                    };
+                                                                                return next;
+                                                                            },
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <SelectTrigger className="h-8 w-[120px]">
+                                                                        <SelectValue placeholder="Jenis" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="Debit">
+                                                                            Debit
+                                                                        </SelectItem>
+                                                                        <SelectItem value="Kredit">
+                                                                            Kredit
+                                                                        </SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            )}
+                                                            {mode !==
+                                                            'transfer' ? (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        setActiveLineIndex(
+                                                                            idx,
+                                                                        );
+                                                                        setLineDialogOpen(
+                                                                            true,
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    Cari
+                                                                </Button>
+                                                            ) : null}
+                                                            {mode !==
+                                                            'transfer' ? (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    disabled={
+                                                                        lines.length <=
+                                                                        1
+                                                                    }
+                                                                    onClick={() =>
+                                                                        setLines(
+                                                                            (
+                                                                                prev,
+                                                                            ) => {
+                                                                                const next =
+                                                                                    [
+                                                                                        ...(prev ??
+                                                                                            []),
+                                                                                    ];
+                                                                                next.splice(
+                                                                                    idx,
+                                                                                    1,
+                                                                                );
+                                                                                return next;
+                                                                            },
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    Hapus
+                                                                </Button>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-2 grid grid-cols-1 gap-2">
+                                                        <div className="rounded-md border px-3 py-2 text-sm">
+                                                            {l?.akun ? (
+                                                                getAccountLabel(
+                                                                    glAccountOptions,
+                                                                    l.akun,
+                                                                )
+                                                            ) : (
+                                                                <span className="text-muted-foreground">
+                                                                    Pilih akun
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <Input
+                                                            inputMode="numeric"
+                                                            value={String(
+                                                                l?.nominal ??
+                                                                    '',
+                                                            )}
+                                                            onChange={(e) =>
+                                                                setLines(
+                                                                    (prev) => {
+                                                                        const next =
+                                                                            [
+                                                                                ...(prev ??
+                                                                                    []),
+                                                                            ];
+                                                                        next[
+                                                                            idx
+                                                                        ] = {
+                                                                            ...next[
+                                                                                idx
+                                                                            ],
+                                                                            nominal:
+                                                                                e
+                                                                                    .target
+                                                                                    .value ===
+                                                                                ''
+                                                                                    ? 0
+                                                                                    : Number(
+                                                                                          e
+                                                                                              .target
+                                                                                              .value,
+                                                                                      ),
+                                                                        };
+                                                                        return next;
+                                                                    },
+                                                                )
+                                                            }
+                                                            placeholder="0"
+                                                            disabled={
+                                                                mode ===
+                                                                'transfer'
+                                                            }
+                                                        />
                                                     </div>
                                                 </div>
-		                                                <div className="mt-2 grid grid-cols-1 gap-2">
-		                                                    <div className="rounded-md border px-3 py-2 text-sm">
-		                                                        {l?.akun ? (
-		                                                            getAccountLabel(
-		                                                                glAccountOptions,
-		                                                                l.akun,
-		                                                            )
-		                                                        ) : (
-		                                                            <span className="text-muted-foreground">
-		                                                                Pilih akun
-		                                                            </span>
-		                                                        )}
-		                                                    </div>
-		                                                    <Input
-		                                                        inputMode="numeric"
-		                                                        value={String(
-		                                                            l?.nominal ?? '',
-		                                                        )}
-		                                                        onChange={(e) =>
-		                                                            setLines((prev) => {
-		                                                                const next = [
-		                                                                    ...(prev ??
-		                                                                        []),
-		                                                                ];
-		                                                                next[idx] = {
-		                                                                    ...next[
-		                                                                        idx
-		                                                                    ],
-		                                                                    nominal:
-		                                                                        e.target
-		                                                                            .value ===
-		                                                                        ''
-		                                                                            ? 0
-		                                                                            : Number(
-		                                                                                  e
-		                                                                                      .target
-		                                                                                      .value,
-		                                                                              ),
-		                                                                };
-		                                                                return next;
-		                                                            })
-		                                                        }
-		                                                        placeholder="0"
-		                                                        disabled={
-		                                                            mode === 'transfer'
-		                                                        }
-		                                                    />
-		                                                </div>
-	                                            </div>
-	                                        ))
+                                            ))
                                     )}
                                 </div>
 
@@ -1755,6 +1784,15 @@ export default function MutasiKasCreate({
                     });
                 }}
             />
-        </AppLayout>
+        </>
     );
 }
+
+MutasiKasCreate.layout = (page) => {
+    const breadcrumbs = [
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Mutasi Kas', href: '/keuangan/mutasi-kas' },
+        { title: 'Mutasi Baru', href: '#' },
+    ];
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

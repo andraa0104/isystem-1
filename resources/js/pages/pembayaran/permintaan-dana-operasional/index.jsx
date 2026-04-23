@@ -1,10 +1,14 @@
-import AppLayout from '@/layouts/app-layout';
-import { Head } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { ActionIconButton } from '@/components/action-icon-button';
 import { Button } from '@/components/ui/button';
-import { Link } from '@inertiajs/react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -13,20 +17,25 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ActionIconButton } from '@/components/action-icon-button';
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import AppLayout from '@/layouts/app-layout';
+import { Head, Link } from '@inertiajs/react';
 import { Eye, Loader2, Plus, Printer } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Pembayaran', href: '/pembayaran/permintaan-dana-operasional' },
-    { title: 'Permintaan Dana Operasional', href: '/pembayaran/permintaan-dana-operasional' },
+    {
+        title: 'Permintaan Dana Operasional',
+        href: '/pembayaran/permintaan-dana-operasional',
+    },
 ];
 
 const renderValue = (value) =>
@@ -41,7 +50,7 @@ const getRawValue = (source, keys) => {
             return value;
         }
         const matchKey = sourceKeys.find(
-            (candidate) => candidate.toLowerCase() === key.toLowerCase()
+            (candidate) => candidate.toLowerCase() === key.toLowerCase(),
         );
         if (matchKey) {
             const matched = source[matchKey];
@@ -68,7 +77,9 @@ const formatRupiah = (value) => {
 };
 
 const formatNumber = (value) =>
-    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value ?? 0);
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        value ?? 0,
+    );
 
 const formatDate = (value) => {
     if (!value) return '-';
@@ -153,10 +164,16 @@ export default function PermintaanDanaOperasionalIndex() {
             const params = new URLSearchParams();
             params.set('search', debouncedSearch);
             params.set('page', String(page));
-            params.set('pageSize', pageSize === 'all' ? 'all' : String(pageSize));
-            const res = await fetch(`/pembayaran/permintaan-dana-operasional/rows?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            params.set(
+                'pageSize',
+                pageSize === 'all' ? 'all' : String(pageSize),
+            );
+            const res = await fetch(
+                `/pembayaran/permintaan-dana-operasional/rows?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!res.ok) throw new Error('Gagal memuat data.');
             const data = await res.json();
             setRows(Array.isArray(data?.rows) ? data.rows : []);
@@ -188,10 +205,13 @@ export default function PermintaanDanaOperasionalIndex() {
             const params = new URLSearchParams();
             params.set('search', pdoDebouncedSearch);
             params.set('page', String(pdoPage));
-            params.set('pageSize', pdoPageSize === 'all' ? 'all' : String(pdoPageSize));
+            params.set(
+                'pageSize',
+                pdoPageSize === 'all' ? 'all' : String(pdoPageSize),
+            );
             const res = await fetch(
                 `/pembayaran/permintaan-dana-operasional/${encodeURIComponent(pdoNo)}/rows?${params.toString()}`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             );
             if (!res.ok) throw new Error('Gagal memuat detail PDO.');
             const data = await res.json();
@@ -219,9 +239,12 @@ export default function PermintaanDanaOperasionalIndex() {
         setInvoiceDetail(null);
         setInvoiceCurrentPage(1);
         try {
-            const res = await fetch(`/pembelian/invoice-masuk/${encodeURIComponent(noFi)}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/pembelian/invoice-masuk/${encodeURIComponent(noFi)}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!res.ok) throw new Error('Gagal memuat detail invoice.');
             const data = await res.json();
             setInvoiceDetail(data?.header ?? null);
@@ -253,7 +276,10 @@ export default function PermintaanDanaOperasionalIndex() {
     };
 
     useEffect(() => {
-        const handler = setTimeout(() => setDebouncedDetailSearch(detailSearch), 500);
+        const handler = setTimeout(
+            () => setDebouncedDetailSearch(detailSearch),
+            500,
+        );
         return () => clearTimeout(handler);
     }, [detailSearch]);
 
@@ -274,8 +300,13 @@ export default function PermintaanDanaOperasionalIndex() {
             })
             .then((data) => {
                 setSelectedPo(data?.purchaseOrder ?? null);
-                setSelectedDetails(Array.isArray(data?.purchaseOrderDetails) ? data.purchaseOrderDetails : []);
-                if (!data?.purchaseOrder) setPoDetailError('Data PO tidak ditemukan.');
+                setSelectedDetails(
+                    Array.isArray(data?.purchaseOrderDetails)
+                        ? data.purchaseOrderDetails
+                        : [],
+                );
+                if (!data?.purchaseOrder)
+                    setPoDetailError('Data PO tidak ditemukan.');
             })
             .catch((e) => {
                 setSelectedPo(null);
@@ -291,7 +322,7 @@ export default function PermintaanDanaOperasionalIndex() {
         return invoiceItems.filter((row) =>
             [row?.mat]
                 .map((v) => String(v ?? '').toLowerCase())
-                .some((v) => v.includes(term))
+                .some((v) => v.includes(term)),
         );
     }, [invoiceItems, invoiceSearch]);
 
@@ -324,12 +355,14 @@ export default function PermintaanDanaOperasionalIndex() {
     }, [selectedDetails, detailCurrentPage, detailPageSize]);
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Permintaan Dana Operasional" />
             <div className="flex flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <h1 className="text-xl font-semibold">Permintaan Dana Operasional</h1>
+                        <h1 className="text-xl font-semibold">
+                            Permintaan Dana Operasional
+                        </h1>
                         <p className="mt-1 text-sm text-muted-foreground">
                             Monitoring permintaan dana operasional (PDO)
                         </p>
@@ -356,11 +389,15 @@ export default function PermintaanDanaOperasionalIndex() {
                                 />
                             </div>
                             <div className="flex items-center gap-2">
-                                <span className="text-sm text-muted-foreground">Tampil</span>
+                                <span className="text-sm text-muted-foreground">
+                                    Tampil
+                                </span>
                                 <Select
                                     value={String(pageSize)}
                                     onValueChange={(val) =>
-                                        setPageSize(val === 'all' ? 'all' : Number(val))
+                                        setPageSize(
+                                            val === 'all' ? 'all' : Number(val),
+                                        )
                                     }
                                 >
                                     <SelectTrigger className="w-24">
@@ -371,7 +408,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                         <SelectItem value="10">10</SelectItem>
                                         <SelectItem value="25">25</SelectItem>
                                         <SelectItem value="50">50</SelectItem>
-                                        <SelectItem value="all">Semua</SelectItem>
+                                        <SelectItem value="all">
+                                            Semua
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -381,40 +420,79 @@ export default function PermintaanDanaOperasionalIndex() {
                             {loading && (
                                 <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
                                     <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
-                                        <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+                                        <Loader2 className="h-4 w-4 animate-spin" />{' '}
+                                        Memuat...
                                     </div>
                                 </div>
                             )}
-                            <table className="min-w-[1000px] w-full text-sm text-left">
-                                <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                            <table className="w-full min-w-[1000px] text-left text-sm">
+                                <thead className="bg-white/5 text-[11px] tracking-wide text-muted-foreground uppercase">
                                     <tr>
                                         <th className="px-3 py-3">No PDO</th>
-                                        <th className="px-3 py-3">Posting Date</th>
-                                        <th className="px-3 py-3 text-right">Kas Bank</th>
-                                        <th className="px-3 py-3 text-right">Kas Tunai</th>
-                                        <th className="px-3 py-3 text-right">Jumlah PDO</th>
-                                        <th className="px-3 py-3 text-right">Jumlah Ditransfer</th>
-                                        <th className="px-3 py-3 text-right">Sisa PDO</th>
-                                        <th className="px-3 py-3 text-center">Aksi</th>
+                                        <th className="px-3 py-3">
+                                            Posting Date
+                                        </th>
+                                        <th className="px-3 py-3 text-right">
+                                            Kas Bank
+                                        </th>
+                                        <th className="px-3 py-3 text-right">
+                                            Kas Tunai
+                                        </th>
+                                        <th className="px-3 py-3 text-right">
+                                            Jumlah PDO
+                                        </th>
+                                        <th className="px-3 py-3 text-right">
+                                            Jumlah Ditransfer
+                                        </th>
+                                        <th className="px-3 py-3 text-right">
+                                            Sisa PDO
+                                        </th>
+                                        <th className="px-3 py-3 text-center">
+                                            Aksi
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {rows.length === 0 && !loading && (
                                         <tr>
-                                            <td colSpan={8} className="px-3 py-10 text-center text-muted-foreground">
-                                                {error ? error : 'Tidak ada data.'}
+                                            <td
+                                                colSpan={8}
+                                                className="px-3 py-10 text-center text-muted-foreground"
+                                            >
+                                                {error
+                                                    ? error
+                                                    : 'Tidak ada data.'}
                                             </td>
                                         </tr>
                                     )}
                                     {rows.map((r, idx) => (
-                                        <tr key={idx} className="border-t border-white/5 hover:bg-white/5">
-                                            <td className="px-3 py-2 font-medium">{renderValue(r?.no_pdo)}</td>
-                                            <td className="px-3 py-2">{renderValue(r?.posting_date)}</td>
-                                            <td className="px-3 py-2 text-right">{formatRupiah(r?.kas_bank)}</td>
-                                            <td className="px-3 py-2 text-right">{formatRupiah(r?.kas_tunai)}</td>
-                                            <td className="px-3 py-2 text-right">{formatRupiah(r?.jumlah_pdo)}</td>
-                                            <td className="px-3 py-2 text-right">{formatRupiah(r?.jumlah_ditransfer)}</td>
-                                            <td className="px-3 py-2 text-right">{formatRupiah(r?.sisa_pdo)}</td>
+                                        <tr
+                                            key={idx}
+                                            className="border-t border-white/5 hover:bg-white/5"
+                                        >
+                                            <td className="px-3 py-2 font-medium">
+                                                {renderValue(r?.no_pdo)}
+                                            </td>
+                                            <td className="px-3 py-2">
+                                                {renderValue(r?.posting_date)}
+                                            </td>
+                                            <td className="px-3 py-2 text-right">
+                                                {formatRupiah(r?.kas_bank)}
+                                            </td>
+                                            <td className="px-3 py-2 text-right">
+                                                {formatRupiah(r?.kas_tunai)}
+                                            </td>
+                                            <td className="px-3 py-2 text-right">
+                                                {formatRupiah(r?.jumlah_pdo)}
+                                            </td>
+                                            <td className="px-3 py-2 text-right">
+                                                {formatRupiah(
+                                                    r?.jumlah_ditransfer,
+                                                )}
+                                            </td>
+                                            <td className="px-3 py-2 text-right">
+                                                {formatRupiah(r?.sisa_pdo)}
+                                            </td>
                                             <td className="px-3 py-2 text-center">
                                                 <div className="flex items-center justify-center gap-2">
                                                     <ActionIconButton
@@ -423,12 +501,17 @@ export default function PermintaanDanaOperasionalIndex() {
                                                             setPdoNo(r.no_pdo);
                                                             setPdoPage(1);
                                                             setPdoPageSize(5);
-                                                            setPdoModalOpen(true);
+                                                            setPdoModalOpen(
+                                                                true,
+                                                            );
                                                         }}
                                                     >
                                                         <Eye className="h-4 w-4" />
                                                     </ActionIconButton>
-                                                    <ActionIconButton label="Cetak" asChild>
+                                                    <ActionIconButton
+                                                        label="Cetak"
+                                                        asChild
+                                                    >
                                                         <a
                                                             href={`/pembayaran/permintaan-dana-operasional/${encodeURIComponent(
                                                                 r.no_pdo,
@@ -448,13 +531,18 @@ export default function PermintaanDanaOperasionalIndex() {
                         </div>
 
                         <div className="mt-4 flex flex-col items-start justify-between gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center">
-                            <span>Total data: {new Intl.NumberFormat('id-ID').format(total)}</span>
+                            <span>
+                                Total data:{' '}
+                                {new Intl.NumberFormat('id-ID').format(total)}
+                            </span>
                             <div className="flex items-center gap-2">
                                 <Button
                                     size="sm"
                                     variant="outline"
                                     disabled={page === 1 || loading}
-                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    onClick={() =>
+                                        setPage((p) => Math.max(1, p - 1))
+                                    }
                                 >
                                     Sebelumnya
                                 </Button>
@@ -465,7 +553,11 @@ export default function PermintaanDanaOperasionalIndex() {
                                     size="sm"
                                     variant="outline"
                                     disabled={page >= totalPages || loading}
-                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                    onClick={() =>
+                                        setPage((p) =>
+                                            Math.min(totalPages, p + 1),
+                                        )
+                                    }
                                 >
                                     Berikutnya
                                 </Button>
@@ -475,86 +567,193 @@ export default function PermintaanDanaOperasionalIndex() {
                 </Card>
 
                 {/* Invoice detail modal (persis seperti halaman invoice masuk) */}
-                <Dialog open={invoiceModalOpen} onOpenChange={setInvoiceModalOpen}>
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-hidden">
+                <Dialog
+                    open={invoiceModalOpen}
+                    onOpenChange={setInvoiceModalOpen}
+                >
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-hidden !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Detail Invoice</DialogTitle>
-                            <DialogDescription>Informasi header dan detail invoice masuk.</DialogDescription>
+                            <DialogDescription>
+                                Informasi header dan detail invoice masuk.
+                            </DialogDescription>
                         </DialogHeader>
-                        <div className="flex flex-col gap-4 h-[calc(100vh-8rem)]">
-                            <div className="grid gap-4 lg:grid-cols-2 rounded-lg border border-sidebar-border/70 p-4 text-sm overflow-auto">
-                                {invoiceLoading && <p className="text-muted-foreground">Memuat detail...</p>}
+                        <div className="flex h-[calc(100vh-8rem)] flex-col gap-4">
+                            <div className="grid gap-4 overflow-auto rounded-lg border border-sidebar-border/70 p-4 text-sm lg:grid-cols-2">
+                                {invoiceLoading && (
+                                    <p className="text-muted-foreground">
+                                        Memuat detail...
+                                    </p>
+                                )}
                                 {!invoiceLoading && invoiceError && (
-                                    <p className="text-rose-600">{invoiceError}</p>
+                                    <p className="text-rose-600">
+                                        {invoiceError}
+                                    </p>
                                 )}
-                                {!invoiceLoading && !invoiceError && invoiceDetail && (
-                                    <>
-                                        <div className="space-y-2">
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">No FI</span>
-                                                <span>{invoiceDetail.no_doc ?? '-'}</span>
+                                {!invoiceLoading &&
+                                    !invoiceError &&
+                                    invoiceDetail && (
+                                        <>
+                                            <div className="space-y-2">
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        No FI
+                                                    </span>
+                                                    <span>
+                                                        {invoiceDetail.no_doc ??
+                                                            '-'}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        No Invoice
+                                                    </span>
+                                                    <span>
+                                                        {invoiceDetail.t_doc ??
+                                                            '-'}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Ref PO
+                                                    </span>
+                                                    <span>
+                                                        {invoiceDetail.ref_po ??
+                                                            '-'}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Date
+                                                    </span>
+                                                    <span>
+                                                        {formatDate(
+                                                            invoiceDetail.doc_rec,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Invoice Date
+                                                    </span>
+                                                    <span>
+                                                        {formatDate(
+                                                            invoiceDetail.inv_d,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Posting Date
+                                                    </span>
+                                                    <span>
+                                                        {formatDate(
+                                                            invoiceDetail.post,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Payment Terms
+                                                    </span>
+                                                    <span>
+                                                        {invoiceDetail.p_term ??
+                                                            '-'}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Nama Vendor
+                                                    </span>
+                                                    <span>
+                                                        {invoiceDetail.nm_vdr ??
+                                                            '-'}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">No Invoice</span>
-                                                <span>{invoiceDetail.t_doc ?? '-'}</span>
+                                            <div className="space-y-2">
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Total Price
+                                                    </span>
+                                                    <span>
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            invoiceDetail.a_idr ??
+                                                                0,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Price PPN
+                                                    </span>
+                                                    <span>
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            invoiceDetail.tax ??
+                                                                0,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Grand Total
+                                                    </span>
+                                                    <span className="font-semibold">
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            invoiceDetail.total ??
+                                                                0,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Pembayaran
+                                                    </span>
+                                                    <span>
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            invoiceDetail.pembayaran ??
+                                                                0,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Sisa Bayar
+                                                    </span>
+                                                    <span>
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            invoiceDetail.sisa_bayar ??
+                                                                0,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        Tanggal Bayar
+                                                    </span>
+                                                    <span>
+                                                        {formatDate(
+                                                            invoiceDetail.tgl_bayar,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                    <span className="text-muted-foreground">
+                                                        No Gudang
+                                                    </span>
+                                                    <span>
+                                                        {invoiceDetail.no_gudang ??
+                                                            '-'}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Ref PO</span>
-                                                <span>{invoiceDetail.ref_po ?? '-'}</span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Date</span>
-                                                <span>{formatDate(invoiceDetail.doc_rec)}</span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Invoice Date</span>
-                                                <span>{formatDate(invoiceDetail.inv_d)}</span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Posting Date</span>
-                                                <span>{formatDate(invoiceDetail.post)}</span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Payment Terms</span>
-                                                <span>{invoiceDetail.p_term ?? '-'}</span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Nama Vendor</span>
-                                                <span>{invoiceDetail.nm_vdr ?? '-'}</span>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Total Price</span>
-                                                <span>Rp {formatNumber(invoiceDetail.a_idr ?? 0)}</span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Price PPN</span>
-                                                <span>Rp {formatNumber(invoiceDetail.tax ?? 0)}</span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Grand Total</span>
-                                                <span className="font-semibold">Rp {formatNumber(invoiceDetail.total ?? 0)}</span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Pembayaran</span>
-                                                <span>Rp {formatNumber(invoiceDetail.pembayaran ?? 0)}</span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Sisa Bayar</span>
-                                                <span>Rp {formatNumber(invoiceDetail.sisa_bayar ?? 0)}</span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">Tanggal Bayar</span>
-                                                <span>{formatDate(invoiceDetail.tgl_bayar)}</span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">No Gudang</span>
-                                                <span>{invoiceDetail.no_gudang ?? '-'}</span>
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
+                                        </>
+                                    )}
                             </div>
 
                             <div className="flex flex-wrap gap-3">
@@ -568,10 +767,18 @@ export default function PermintaanDanaOperasionalIndex() {
                                     className="w-full max-w-xs"
                                 />
                                 <Select
-                                    value={invoicePageSize === Infinity ? 'all' : String(invoicePageSize)}
+                                    value={
+                                        invoicePageSize === Infinity
+                                            ? 'all'
+                                            : String(invoicePageSize)
+                                    }
                                     onValueChange={(val) => {
                                         setInvoiceCurrentPage(1);
-                                        setInvoicePageSize(val === 'all' ? Infinity : Number(val));
+                                        setInvoicePageSize(
+                                            val === 'all'
+                                                ? Infinity
+                                                : Number(val),
+                                        );
                                     }}
                                 >
                                     <SelectTrigger className="w-32">
@@ -579,11 +786,16 @@ export default function PermintaanDanaOperasionalIndex() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         {[5, 10, 25, 50].map((n) => (
-                                            <SelectItem key={n} value={String(n)}>
+                                            <SelectItem
+                                                key={n}
+                                                value={String(n)}
+                                            >
                                                 {n}
                                             </SelectItem>
                                         ))}
-                                        <SelectItem value="all">Semua data</SelectItem>
+                                        <SelectItem value="all">
+                                            Semua data
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -593,57 +805,107 @@ export default function PermintaanDanaOperasionalIndex() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Material</TableHead>
-                                            <TableHead className="text-right">Qty</TableHead>
-                                            <TableHead className="text-right">Price</TableHead>
-                                            <TableHead className="text-right">Total Price</TableHead>
+                                            <TableHead className="text-right">
+                                                Qty
+                                            </TableHead>
+                                            <TableHead className="text-right">
+                                                Price
+                                            </TableHead>
+                                            <TableHead className="text-right">
+                                                Total Price
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {displayedInvoiceItems.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                                <TableCell
+                                                    colSpan={4}
+                                                    className="text-center text-muted-foreground"
+                                                >
                                                     Tidak ada data.
                                                 </TableCell>
                                             </TableRow>
                                         )}
-                                        {displayedInvoiceItems.map((item, idx) => (
-                                            <TableRow key={`${item.no_doc}-${item.mat}-${idx}`}>
-                                                <TableCell>{item.mat ?? '-'}</TableCell>
-                                                <TableCell className="text-right">{formatNumber(item.qty_gr ?? 0)}</TableCell>
-                                                <TableCell className="text-right">Rp {formatNumber(item.harga ?? 0)}</TableCell>
-                                                <TableCell className="text-right">Rp {formatNumber(item.ttl_harga ?? 0)}</TableCell>
-                                            </TableRow>
-                                        ))}
+                                        {displayedInvoiceItems.map(
+                                            (item, idx) => (
+                                                <TableRow
+                                                    key={`${item.no_doc}-${item.mat}-${idx}`}
+                                                >
+                                                    <TableCell>
+                                                        {item.mat ?? '-'}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        {formatNumber(
+                                                            item.qty_gr ?? 0,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            item.harga ?? 0,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            item.ttl_harga ?? 0,
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ),
+                                        )}
                                     </TableBody>
                                 </Table>
                             </div>
 
-                            {invoicePageSize !== Infinity && invoiceTotalPages > 1 && (
-                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                    <span>Total data: {filteredInvoiceItems.length}</span>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setInvoiceCurrentPage((p) => Math.max(1, p - 1))}
-                                            disabled={invoiceCurrentPage === 1}
-                                        >
-                                            Sebelumnya
-                                        </Button>
+                            {invoicePageSize !== Infinity &&
+                                invoiceTotalPages > 1 && (
+                                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                         <span>
-                                            Halaman {invoiceCurrentPage} / {invoiceTotalPages}
+                                            Total data:{' '}
+                                            {filteredInvoiceItems.length}
                                         </span>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setInvoiceCurrentPage((p) => Math.min(invoiceTotalPages, p + 1))}
-                                            disabled={invoiceCurrentPage === invoiceTotalPages}
-                                        >
-                                            Berikutnya
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    setInvoiceCurrentPage((p) =>
+                                                        Math.max(1, p - 1),
+                                                    )
+                                                }
+                                                disabled={
+                                                    invoiceCurrentPage === 1
+                                                }
+                                            >
+                                                Sebelumnya
+                                            </Button>
+                                            <span>
+                                                Halaman {invoiceCurrentPage} /{' '}
+                                                {invoiceTotalPages}
+                                            </span>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    setInvoiceCurrentPage((p) =>
+                                                        Math.min(
+                                                            invoiceTotalPages,
+                                                            p + 1,
+                                                        ),
+                                                    )
+                                                }
+                                                disabled={
+                                                    invoiceCurrentPage ===
+                                                    invoiceTotalPages
+                                                }
+                                            >
+                                                Berikutnya
+                                            </Button>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
                         </div>
                     </DialogContent>
                 </Dialog>
@@ -664,11 +926,12 @@ export default function PermintaanDanaOperasionalIndex() {
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Detail PDO</DialogTitle>
                             <DialogDescription>
-                                Menampilkan baris detail PDO untuk {pdoNo || '-'}.
+                                Menampilkan baris detail PDO untuk{' '}
+                                {pdoNo || '-'}.
                             </DialogDescription>
                         </DialogHeader>
 
@@ -677,16 +940,24 @@ export default function PermintaanDanaOperasionalIndex() {
                                 <div className="w-full sm:max-w-md">
                                     <Input
                                         value={pdoSearch}
-                                        onChange={(e) => setPdoSearch(e.target.value)}
+                                        onChange={(e) =>
+                                            setPdoSearch(e.target.value)
+                                        }
                                         placeholder="Cari No FI atau Ref PO..."
                                     />
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className="text-sm text-muted-foreground">Tampil</span>
+                                    <span className="text-sm text-muted-foreground">
+                                        Tampil
+                                    </span>
                                     <Select
                                         value={String(pdoPageSize)}
                                         onValueChange={(val) =>
-                                            setPdoPageSize(val === 'all' ? 'all' : Number(val))
+                                            setPdoPageSize(
+                                                val === 'all'
+                                                    ? 'all'
+                                                    : Number(val),
+                                            )
                                         }
                                     >
                                         <SelectTrigger className="w-24">
@@ -694,10 +965,18 @@ export default function PermintaanDanaOperasionalIndex() {
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="5">5</SelectItem>
-                                            <SelectItem value="10">10</SelectItem>
-                                            <SelectItem value="25">25</SelectItem>
-                                            <SelectItem value="50">50</SelectItem>
-                                            <SelectItem value="all">Semua</SelectItem>
+                                            <SelectItem value="10">
+                                                10
+                                            </SelectItem>
+                                            <SelectItem value="25">
+                                                25
+                                            </SelectItem>
+                                            <SelectItem value="50">
+                                                50
+                                            </SelectItem>
+                                            <SelectItem value="all">
+                                                Semua
+                                            </SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -707,57 +986,99 @@ export default function PermintaanDanaOperasionalIndex() {
                                 {pdoLoading && (
                                     <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/30 backdrop-blur-[1px]">
                                         <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-sm text-muted-foreground">
-                                            <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+                                            <Loader2 className="h-4 w-4 animate-spin" />{' '}
+                                            Memuat...
                                         </div>
                                     </div>
                                 )}
-                                <table className="min-w-[1200px] w-full text-sm text-left">
-                                    <thead className="bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                                <table className="w-full min-w-[1200px] text-left text-sm">
+                                    <thead className="bg-white/5 text-[11px] tracking-wide text-muted-foreground uppercase">
                                         <tr>
                                             <th className="px-3 py-3">No FI</th>
-                                            <th className="px-3 py-3">Posting Date</th>
-                                            <th className="px-3 py-3">Inv Date</th>
-                                            <th className="px-3 py-3">Ref PO</th>
-                                            <th className="px-3 py-3">Vendor</th>
-                                            <th className="px-3 py-3 text-right">Amount</th>
-                                            <th className="px-3 py-3 text-right">Paid</th>
-                                            <th className="px-3 py-3">Pay Date</th>
-                                            <th className="px-3 py-3 text-right">PDO Now</th>
-                                            <th className="px-3 py-3 text-right">Last End PDO</th>
-                                            <th className="px-3 py-3">Remark</th>
+                                            <th className="px-3 py-3">
+                                                Posting Date
+                                            </th>
+                                            <th className="px-3 py-3">
+                                                Inv Date
+                                            </th>
+                                            <th className="px-3 py-3">
+                                                Ref PO
+                                            </th>
+                                            <th className="px-3 py-3">
+                                                Vendor
+                                            </th>
+                                            <th className="px-3 py-3 text-right">
+                                                Amount
+                                            </th>
+                                            <th className="px-3 py-3 text-right">
+                                                Paid
+                                            </th>
+                                            <th className="px-3 py-3">
+                                                Pay Date
+                                            </th>
+                                            <th className="px-3 py-3 text-right">
+                                                PDO Now
+                                            </th>
+                                            <th className="px-3 py-3 text-right">
+                                                Last End PDO
+                                            </th>
+                                            <th className="px-3 py-3">
+                                                Remark
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {pdoRows.length === 0 && !pdoLoading && (
-                                            <tr>
-                                                <td colSpan={11} className="px-3 py-10 text-center text-muted-foreground">
-                                                    Tidak ada data.
-                                                </td>
-                                            </tr>
-                                        )}
+                                        {pdoRows.length === 0 &&
+                                            !pdoLoading && (
+                                                <tr>
+                                                    <td
+                                                        colSpan={11}
+                                                        className="px-3 py-10 text-center text-muted-foreground"
+                                                    >
+                                                        Tidak ada data.
+                                                    </td>
+                                                </tr>
+                                            )}
                                         {pdoRows.map((r, idx) => (
-                                            <tr key={idx} className="border-t border-white/5 hover:bg-white/5">
+                                            <tr
+                                                key={idx}
+                                                className="border-t border-white/5 hover:bg-white/5"
+                                            >
                                                 <td className="px-3 py-2">
                                                     {r?.no_fi ? (
                                                         <button
                                                             type="button"
                                                             className="text-left underline-offset-4 hover:underline"
-                                                            onClick={() => openInvoiceDetail(r.no_fi)}
+                                                            onClick={() =>
+                                                                openInvoiceDetail(
+                                                                    r.no_fi,
+                                                                )
+                                                            }
                                                         >
-                                                        {r.no_fi}
-                                                    </button>
-                                                ) : (
-                                                    ''
-                                                )}
-                                            </td>
-                                            <td className="px-3 py-2">{renderValue(r?.posting_date)}</td>
-                                            <td className="px-3 py-2">{renderValue(r?.inv_date)}</td>
-                                            <td className="px-3 py-2">
-                                                {r?.ref_po ? (
-                                                    <button
+                                                            {r.no_fi}
+                                                        </button>
+                                                    ) : (
+                                                        ''
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    {renderValue(
+                                                        r?.posting_date,
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    {renderValue(r?.inv_date)}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    {r?.ref_po ? (
+                                                        <button
                                                             type="button"
                                                             className="text-left underline-offset-4 hover:underline"
-                                                            onClick={() => openPoDetail(r.ref_po)}
+                                                            onClick={() =>
+                                                                openPoDetail(
+                                                                    r.ref_po,
+                                                                )
+                                                            }
                                                         >
                                                             {r.ref_po}
                                                         </button>
@@ -765,13 +1086,33 @@ export default function PermintaanDanaOperasionalIndex() {
                                                         ''
                                                     )}
                                                 </td>
-                                                <td className="px-3 py-2">{renderValue(r?.vendor)}</td>
-                                                <td className="px-3 py-2 text-right">{formatRupiah(r?.jumlah_inv)}</td>
-                                                <td className="px-3 py-2 text-right">{formatRupiah(r?.jumlah_bayar)}</td>
-                                                <td className="px-3 py-2">{formatDate(r?.tgl_bayar)}</td>
-                                                <td className="px-3 py-2 text-right">{formatRupiah(r?.pdo_now)}</td>
-                                                <td className="px-3 py-2 text-right">{formatRupiah(r?.lastend_pdo)}</td>
-                                                <td className="px-3 py-2">{renderValue(r?.remark)}</td>
+                                                <td className="px-3 py-2">
+                                                    {renderValue(r?.vendor)}
+                                                </td>
+                                                <td className="px-3 py-2 text-right">
+                                                    {formatRupiah(
+                                                        r?.jumlah_inv,
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2 text-right">
+                                                    {formatRupiah(
+                                                        r?.jumlah_bayar,
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    {formatDate(r?.tgl_bayar)}
+                                                </td>
+                                                <td className="px-3 py-2 text-right">
+                                                    {formatRupiah(r?.pdo_now)}
+                                                </td>
+                                                <td className="px-3 py-2 text-right">
+                                                    {formatRupiah(
+                                                        r?.lastend_pdo,
+                                                    )}
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                    {renderValue(r?.remark)}
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -780,13 +1121,24 @@ export default function PermintaanDanaOperasionalIndex() {
 
                             {pdoPageSize !== 'all' && pdoTotalPages > 1 && (
                                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                    <span>Total data: {new Intl.NumberFormat('id-ID').format(pdoTotal)}</span>
+                                    <span>
+                                        Total data:{' '}
+                                        {new Intl.NumberFormat('id-ID').format(
+                                            pdoTotal,
+                                        )}
+                                    </span>
                                     <div className="flex items-center gap-2">
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            disabled={pdoPage === 1 || pdoLoading}
-                                            onClick={() => setPdoPage((p) => Math.max(1, p - 1))}
+                                            disabled={
+                                                pdoPage === 1 || pdoLoading
+                                            }
+                                            onClick={() =>
+                                                setPdoPage((p) =>
+                                                    Math.max(1, p - 1),
+                                                )
+                                            }
                                         >
                                             Sebelumnya
                                         </Button>
@@ -796,8 +1148,18 @@ export default function PermintaanDanaOperasionalIndex() {
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            disabled={pdoPage >= pdoTotalPages || pdoLoading}
-                                            onClick={() => setPdoPage((p) => Math.min(pdoTotalPages, p + 1))}
+                                            disabled={
+                                                pdoPage >= pdoTotalPages ||
+                                                pdoLoading
+                                            }
+                                            onClick={() =>
+                                                setPdoPage((p) =>
+                                                    Math.min(
+                                                        pdoTotalPages,
+                                                        p + 1,
+                                                    ),
+                                                )
+                                            }
                                         >
                                             Berikutnya
                                         </Button>
@@ -826,13 +1188,14 @@ export default function PermintaanDanaOperasionalIndex() {
                     }}
                 >
                     <DialogContent
-                        className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto"
+                        className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none"
                         aria-describedby="pdo-po-detail-desc"
                     >
                         <DialogHeader>
                             <DialogTitle>Detail Purchase Order</DialogTitle>
                             <DialogDescription id="pdo-po-detail-desc">
-                                Menampilkan informasi header dan detail material PO.
+                                Menampilkan informasi header dan detail material
+                                PO.
                             </DialogDescription>
                         </DialogHeader>
 
@@ -855,7 +1218,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     No PO
                                                 </span>
                                                 <span>
-                                                    {renderValue(selectedPo.no_po)}
+                                                    {renderValue(
+                                                        selectedPo.no_po,
+                                                    )}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
@@ -876,7 +1241,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     Ref PR
                                                 </span>
                                                 <span>
-                                                    {renderValue(selectedPo.ref_pr)}
+                                                    {renderValue(
+                                                        selectedPo.ref_pr,
+                                                    )}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
@@ -884,7 +1251,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     Ref Quota
                                                 </span>
                                                 <span>
-                                                    {renderValue(selectedPo.ref_quota)}
+                                                    {renderValue(
+                                                        selectedPo.ref_quota,
+                                                    )}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
@@ -904,7 +1273,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     Ref PO In
                                                 </span>
                                                 <span>
-                                                    {renderValue(selectedPo.ref_poin)}
+                                                    {renderValue(
+                                                        selectedPo.ref_poin,
+                                                    )}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
@@ -925,7 +1296,12 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     PPN
                                                 </span>
                                                 <span>
-                                                    {getValue(selectedPo, ['ppn', 'Ppn', 'PPN', 'PPn'])}
+                                                    {getValue(selectedPo, [
+                                                        'ppn',
+                                                        'Ppn',
+                                                        'PPN',
+                                                        'PPn',
+                                                    ])}
                                                 </span>
                                             </div>
                                         </div>
@@ -941,7 +1317,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     Delivery Time
                                                 </span>
                                                 <span>
-                                                    {getValue(selectedDetail, ['del_time'])}
+                                                    {getValue(selectedDetail, [
+                                                        'del_time',
+                                                    ])}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
@@ -949,7 +1327,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     Payment Terms
                                                 </span>
                                                 <span>
-                                                    {getValue(selectedDetail, ['payment_terms'])}
+                                                    {getValue(selectedDetail, [
+                                                        'payment_terms',
+                                                    ])}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
@@ -957,7 +1337,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     Franco Loco
                                                 </span>
                                                 <span>
-                                                    {getValue(selectedDetail, ['franco_loco'])}
+                                                    {getValue(selectedDetail, [
+                                                        'franco_loco',
+                                                    ])}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
@@ -965,7 +1347,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     Note 1
                                                 </span>
                                                 <span>
-                                                    {getValue(selectedDetail, ['ket1'])}
+                                                    {getValue(selectedDetail, [
+                                                        'ket1',
+                                                    ])}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
@@ -973,7 +1357,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     Note 2
                                                 </span>
                                                 <span>
-                                                    {getValue(selectedDetail, ['ket2'])}
+                                                    {getValue(selectedDetail, [
+                                                        'ket2',
+                                                    ])}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
@@ -981,7 +1367,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     Note 3
                                                 </span>
                                                 <span>
-                                                    {getValue(selectedDetail, ['ket3'])}
+                                                    {getValue(selectedDetail, [
+                                                        'ket3',
+                                                    ])}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
@@ -989,7 +1377,9 @@ export default function PermintaanDanaOperasionalIndex() {
                                                     Note 4
                                                 </span>
                                                 <span>
-                                                    {getValue(selectedDetail, ['ket4'])}
+                                                    {getValue(selectedDetail, [
+                                                        'ket4',
+                                                    ])}
                                                 </span>
                                             </div>
                                         </div>
@@ -1000,7 +1390,7 @@ export default function PermintaanDanaOperasionalIndex() {
                                     <h3 className="text-base font-semibold">
                                         Ringkasan Harga
                                     </h3>
-                                    <div className="grid gap-2 max-w-xl">
+                                    <div className="grid max-w-xl gap-2">
                                         <div className="grid grid-cols-[200px_1fr] gap-2">
                                             <span className="text-muted-foreground">
                                                 Sub Total
@@ -1013,7 +1403,7 @@ export default function PermintaanDanaOperasionalIndex() {
                                                         'S_TOTAL',
                                                         'subtotal',
                                                         'Sub_total',
-                                                    ])
+                                                    ]),
                                                 )}
                                             </span>
                                         </div>
@@ -1030,7 +1420,7 @@ export default function PermintaanDanaOperasionalIndex() {
                                                         'ppn',
                                                         'Ppn',
                                                         'PPN',
-                                                    ])
+                                                    ]),
                                                 )}
                                             </span>
                                         </div>
@@ -1045,7 +1435,7 @@ export default function PermintaanDanaOperasionalIndex() {
                                                         'G_total',
                                                         'total',
                                                         'Total',
-                                                    ])
+                                                    ]),
                                                 )}
                                             </span>
                                         </div>
@@ -1060,10 +1450,19 @@ export default function PermintaanDanaOperasionalIndex() {
                                         <div className="flex items-center gap-2">
                                             <select
                                                 className="h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm"
-                                                value={detailPageSize === Infinity ? 'all' : detailPageSize}
+                                                value={
+                                                    detailPageSize === Infinity
+                                                        ? 'all'
+                                                        : detailPageSize
+                                                }
                                                 onChange={(event) => {
-                                                    const value = event.target.value;
-                                                    setDetailPageSize(value === 'all' ? Infinity : Number(value));
+                                                    const value =
+                                                        event.target.value;
+                                                    setDetailPageSize(
+                                                        value === 'all'
+                                                            ? Infinity
+                                                            : Number(value),
+                                                    );
                                                     setDetailCurrentPage(1);
                                                 }}
                                             >
@@ -1071,14 +1470,20 @@ export default function PermintaanDanaOperasionalIndex() {
                                                 <option value={10}>10</option>
                                                 <option value={25}>25</option>
                                                 <option value={50}>50</option>
-                                                <option value="all">Semua</option>
+                                                <option value="all">
+                                                    Semua
+                                                </option>
                                             </select>
                                             <input
                                                 type="text"
                                                 placeholder="Cari material..."
-                                                className="h-8 rounded-md border border-input bg-background px-3 text-xs shadow-sm w-40"
+                                                className="h-8 w-40 rounded-md border border-input bg-background px-3 text-xs shadow-sm"
                                                 value={detailSearch}
-                                                onChange={(event) => setDetailSearch(event.target.value)}
+                                                onChange={(event) =>
+                                                    setDetailSearch(
+                                                        event.target.value,
+                                                    )
+                                                }
                                             />
                                         </div>
                                     </div>
@@ -1086,88 +1491,197 @@ export default function PermintaanDanaOperasionalIndex() {
                                         <table className="w-full text-sm">
                                             <thead className="bg-muted/50 text-muted-foreground">
                                                 <tr>
-                                                    <th className="px-4 py-3 text-left">No</th>
-                                                    <th className="px-4 py-3 text-left">Material</th>
-                                                    <th className="px-4 py-3 text-left">Qty</th>
-                                                    <th className="px-4 py-3 text-left">Satuan</th>
-                                                    <th className="px-4 py-3 text-left">Price</th>
-                                                    <th className="px-4 py-3 text-left">Total Price</th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        No
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Material
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Qty
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Satuan
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Price
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Total Price
+                                                    </th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {poDetailLoading && (
                                                     <tr>
-                                                        <td className="px-4 py-6 text-center text-muted-foreground" colSpan={6}>
+                                                        <td
+                                                            className="px-4 py-6 text-center text-muted-foreground"
+                                                            colSpan={6}
+                                                        >
                                                             Memuat detail PO...
                                                         </td>
                                                     </tr>
                                                 )}
-                                                {!poDetailLoading && displayedDetailItems.length === 0 && (
-                                                    <tr>
-                                                        <td className="px-4 py-6 text-center text-muted-foreground" colSpan={6}>
-                                                            {poDetailError ? poDetailError : 'Tidak ada data.'}
-                                                        </td>
-                                                    </tr>
-                                                )}
-                                                {!poDetailLoading && displayedDetailItems.map((detail, idx) => (
-                                                    <tr key={`${detail.no_po}-${detail.no}-${idx}`} className="border-t border-sidebar-border/70">
-                                                        <td className="px-4 py-3">{renderValue(detail.no)}</td>
-                                                        <td className="px-4 py-3">
-                                                            {getValue(detail, ['material', 'Material'])}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {getValue(detail, ['qty', 'Qty'])}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {getValue(detail, ['unit', 'Unit'])}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {formatRupiah(getRawValue(detail, ['price', 'Price']))}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {formatRupiah(getRawValue(detail, ['total_price', 'Total_price']))}
-                                                        </td>
-                                                    </tr>
-                                                ))}
+                                                {!poDetailLoading &&
+                                                    displayedDetailItems.length ===
+                                                        0 && (
+                                                        <tr>
+                                                            <td
+                                                                className="px-4 py-6 text-center text-muted-foreground"
+                                                                colSpan={6}
+                                                            >
+                                                                {poDetailError
+                                                                    ? poDetailError
+                                                                    : 'Tidak ada data.'}
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                {!poDetailLoading &&
+                                                    displayedDetailItems.map(
+                                                        (detail, idx) => (
+                                                            <tr
+                                                                key={`${detail.no_po}-${detail.no}-${idx}`}
+                                                                className="border-t border-sidebar-border/70"
+                                                            >
+                                                                <td className="px-4 py-3">
+                                                                    {renderValue(
+                                                                        detail.no,
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {getValue(
+                                                                        detail,
+                                                                        [
+                                                                            'material',
+                                                                            'Material',
+                                                                        ],
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {getValue(
+                                                                        detail,
+                                                                        [
+                                                                            'qty',
+                                                                            'Qty',
+                                                                        ],
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {getValue(
+                                                                        detail,
+                                                                        [
+                                                                            'unit',
+                                                                            'Unit',
+                                                                        ],
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {formatRupiah(
+                                                                        getRawValue(
+                                                                            detail,
+                                                                            [
+                                                                                'price',
+                                                                                'Price',
+                                                                            ],
+                                                                        ),
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {formatRupiah(
+                                                                        getRawValue(
+                                                                            detail,
+                                                                            [
+                                                                                'total_price',
+                                                                                'Total_price',
+                                                                            ],
+                                                                        ),
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        ),
+                                                    )}
                                             </tbody>
                                         </table>
                                     </div>
 
-                                    {!poDetailLoading && detailPageSize !== Infinity && detailTotalItems > 0 && (
-                                        <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
-                                            <span>
-                                                Menampilkan {Math.min((detailCurrentPage - 1) * detailPageSize + 1, detailTotalItems)}-
-                                                {Math.min(detailCurrentPage * detailPageSize, detailTotalItems)} dari {detailTotalItems}
-                                            </span>
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => setDetailCurrentPage((p) => Math.max(1, p - 1))}
-                                                    disabled={detailCurrentPage === 1}
-                                                >
-                                                    Sebelumnya
-                                                </Button>
-                                                <span className="text-sm text-muted-foreground">
-                                                    Halaman {detailCurrentPage} dari {detailTotalPages}
+                                    {!poDetailLoading &&
+                                        detailPageSize !== Infinity &&
+                                        detailTotalItems > 0 && (
+                                            <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                                                <span>
+                                                    Menampilkan{' '}
+                                                    {Math.min(
+                                                        (detailCurrentPage -
+                                                            1) *
+                                                            detailPageSize +
+                                                            1,
+                                                        detailTotalItems,
+                                                    )}
+                                                    -
+                                                    {Math.min(
+                                                        detailCurrentPage *
+                                                            detailPageSize,
+                                                        detailTotalItems,
+                                                    )}{' '}
+                                                    dari {detailTotalItems}
                                                 </span>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => setDetailCurrentPage((p) => Math.min(detailTotalPages, p + 1))}
-                                                    disabled={detailCurrentPage === detailTotalPages}
-                                                >
-                                                    Berikutnya
-                                                </Button>
+                                                <div className="flex gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setDetailCurrentPage(
+                                                                (p) =>
+                                                                    Math.max(
+                                                                        1,
+                                                                        p - 1,
+                                                                    ),
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            detailCurrentPage ===
+                                                            1
+                                                        }
+                                                    >
+                                                        Sebelumnya
+                                                    </Button>
+                                                    <span className="text-sm text-muted-foreground">
+                                                        Halaman{' '}
+                                                        {detailCurrentPage} dari{' '}
+                                                        {detailTotalPages}
+                                                    </span>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setDetailCurrentPage(
+                                                                (p) =>
+                                                                    Math.min(
+                                                                        detailTotalPages,
+                                                                        p + 1,
+                                                                    ),
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            detailCurrentPage ===
+                                                            detailTotalPages
+                                                        }
+                                                    >
+                                                        Berikutnya
+                                                    </Button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
                                 </div>
                             </div>
                         )}
                     </DialogContent>
                 </Dialog>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+PermintaanDanaOperasionalIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

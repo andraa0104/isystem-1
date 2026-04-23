@@ -1,8 +1,5 @@
-import AppLayout from '@/layouts/app-layout';
-import { Head, Link, usePage } from '@inertiajs/react';
-import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -10,16 +7,19 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import AppLayout from '@/layouts/app-layout';
+import { buildBukuBesarUrl } from '@/lib/report-links';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
-    BookOpen,
-    ChevronDown,
     AlertTriangle,
+    BookOpen,
     CheckCircle2,
+    ChevronDown,
     Loader2,
     Printer,
     Search,
 } from 'lucide-react';
-import { buildBukuBesarUrl } from '@/lib/report-links';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -37,14 +37,20 @@ const formatRupiah = (value) => {
 const formatNumber = (value) => {
     const n = Number(value);
     if (!Number.isFinite(n)) return '0';
-    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
+    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        n,
+    );
 };
 
 const formatDate = (value) => {
     if (!value) return '';
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return String(value);
-    return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    }).format(d);
 };
 
 const getPeriodLabel = (periodType, period) => {
@@ -56,7 +62,10 @@ const getPeriodLabel = (periodType, period) => {
     const y = Number(period.slice(0, 4));
     const m = Number(period.slice(4, 6));
     const d = new Date(y, Math.max(0, m - 1), 1);
-    return new Intl.DateTimeFormat('id-ID', { month: 'short', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('id-ID', {
+        month: 'short',
+        year: 'numeric',
+    }).format(d);
 };
 
 const buildPrintUrl = (query) => {
@@ -83,11 +92,15 @@ function StatCard({ label, value, hint, accent = 'default' }) {
 
     return (
         <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <div className="text-[11px] tracking-wide text-muted-foreground uppercase">
                 {label}
             </div>
-            <div className={`mt-2 text-xl font-semibold ${accentClass}`}>{value}</div>
-            {hint ? <div className="mt-1 text-xs text-muted-foreground">{hint}</div> : null}
+            <div className={`mt-2 text-xl font-semibold ${accentClass}`}>
+                {value}
+            </div>
+            {hint ? (
+                <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
+            ) : null}
         </div>
     );
 }
@@ -114,15 +127,24 @@ export default function JurnalUmumIndex() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const [periodType, setPeriodType] = useState(initialQuery?.periodType ?? 'month');
+    const [periodType, setPeriodType] = useState(
+        initialQuery?.periodType ?? 'month',
+    );
     const [period, setPeriod] = useState(
-        initialQuery?.period ?? (periodType === 'year' ? defaultYear ?? '' : defaultPeriod ?? ''),
+        initialQuery?.period ??
+            (periodType === 'year'
+                ? (defaultYear ?? '')
+                : (defaultPeriod ?? '')),
     );
     const [balance, setBalance] = useState(initialQuery?.balance ?? 'all'); // all|balanced|unbalanced
     const [search, setSearch] = useState(initialQuery?.search ?? '');
-    const [debouncedSearch, setDebouncedSearch] = useState(initialQuery?.search ?? '');
+    const [debouncedSearch, setDebouncedSearch] = useState(
+        initialQuery?.search ?? '',
+    );
     const [sortBy, setSortBy] = useState(initialQuery?.sortBy ?? 'Tgl_Jurnal');
-    const [sortDir, setSortDir] = useState((initialQuery?.sortDir ?? 'desc').toLowerCase());
+    const [sortDir, setSortDir] = useState(
+        (initialQuery?.sortDir ?? 'desc').toLowerCase(),
+    );
     const [pageSize, setPageSize] = useState(
         initialQuery?.pageSize === 'all'
             ? 'all'
@@ -137,7 +159,9 @@ export default function JurnalUmumIndex() {
 
     const latestMonthForYear = (year) => {
         if (!year || !/^\d{4}$/.test(year)) return '';
-        const hit = periodOptions.find((p) => String(p).startsWith(String(year)));
+        const hit = periodOptions.find((p) =>
+            String(p).startsWith(String(year)),
+        );
         return hit ? String(hit) : '';
     };
 
@@ -148,7 +172,15 @@ export default function JurnalUmumIndex() {
 
     useEffect(() => {
         setPage(1);
-    }, [debouncedSearch, pageSize, sortBy, sortDir, period, periodType, balance]);
+    }, [
+        debouncedSearch,
+        pageSize,
+        sortBy,
+        sortDir,
+        period,
+        periodType,
+        balance,
+    ]);
 
     const fetchRows = async () => {
         setLoading(true);
@@ -162,11 +194,17 @@ export default function JurnalUmumIndex() {
             params.set('sortBy', sortBy);
             params.set('sortDir', sortDir);
             params.set('page', String(page));
-            params.set('pageSize', pageSize === 'all' ? 'all' : String(pageSize));
+            params.set(
+                'pageSize',
+                pageSize === 'all' ? 'all' : String(pageSize),
+            );
 
-            const res = await fetch(`/laporan/jurnal-umum/rows?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/laporan/jurnal-umum/rows?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             const data = await res.json();
             if (!res.ok) {
                 const msg = String(data?.error ?? 'Gagal memuat data.');
@@ -212,7 +250,16 @@ export default function JurnalUmumIndex() {
     useEffect(() => {
         fetchRows();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [periodType, period, balance, debouncedSearch, pageSize, page, sortBy, sortDir]);
+    }, [
+        periodType,
+        period,
+        balance,
+        debouncedSearch,
+        pageSize,
+        page,
+        sortBy,
+        sortDir,
+    ]);
 
     const totalPages = useMemo(() => {
         if (pageSize === 'all') return 1;
@@ -235,12 +282,14 @@ export default function JurnalUmumIndex() {
         if (unbalanced > 0) {
             return {
                 label: `${formatNumber(balanced)} seimbang • ${formatNumber(unbalanced)} tidak`,
-                className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20',
+                className:
+                    'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20',
             };
         }
         return {
             label: `${formatNumber(balanced)} seimbang`,
-            className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20',
+            className:
+                'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20',
         };
     }, [summary]);
 
@@ -253,12 +302,17 @@ export default function JurnalUmumIndex() {
         try {
             const params = new URLSearchParams();
             params.set('kodeJurnal', kodeJurnal);
-            const res = await fetch(`/laporan/jurnal-umum/details?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/laporan/jurnal-umum/details?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             const data = await res.json();
             if (!res.ok) {
-                const msg = String(data?.error ?? 'Gagal memuat detail jurnal.');
+                const msg = String(
+                    data?.error ?? 'Gagal memuat detail jurnal.',
+                );
                 setDetailError((s) => ({ ...s, [kodeJurnal]: msg }));
                 throw new Error(msg);
             }
@@ -271,14 +325,17 @@ export default function JurnalUmumIndex() {
                 },
             }));
         } catch {
-            setDetailMap((s) => ({ ...s, [kodeJurnal]: { details: [], totals: null } }));
+            setDetailMap((s) => ({
+                ...s,
+                [kodeJurnal]: { details: [], totals: null },
+            }));
         } finally {
             setDetailLoading((s) => ({ ...s, [kodeJurnal]: false }));
         }
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Jurnal Umum" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -287,15 +344,29 @@ export default function JurnalUmumIndex() {
                             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
                                 <BookOpen className="h-5 w-5 text-foreground/80" />
                             </div>
-                            <h1 className="text-xl font-semibold">Jurnal Umum</h1>
+                            <h1 className="text-xl font-semibold">
+                                Jurnal Umum
+                            </h1>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Daftar jurnal periodik (header) + detail akun (lazy-load)
+                            Daftar jurnal periodik (header) + detail akun
+                            (lazy-load)
                         </p>
-                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 dark:bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-1 text-xs text-muted-foreground dark:bg-white/5">
                             <Search className="h-3.5 w-3.5" />
-                            Periode: <span className="text-foreground/80">{getPeriodLabel(periodType, period)}</span>
-                            {period ? <span className="text-muted-foreground">({period})</span> : <span className="text-muted-foreground">(-)</span>}
+                            Periode:{' '}
+                            <span className="text-foreground/80">
+                                {getPeriodLabel(periodType, period)}
+                            </span>
+                            {period ? (
+                                <span className="text-muted-foreground">
+                                    ({period})
+                                </span>
+                            ) : (
+                                <span className="text-muted-foreground">
+                                    (-)
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -307,7 +378,9 @@ export default function JurnalUmumIndex() {
                             </a>
                         </Button>
 
-                        <span className="text-sm text-muted-foreground">Mode</span>
+                        <span className="text-sm text-muted-foreground">
+                            Mode
+                        </span>
                         <Select
                             value={periodType}
                             onValueChange={(val) => {
@@ -318,7 +391,10 @@ export default function JurnalUmumIndex() {
                                         ? String(period).slice(0, 4)
                                         : /^\d{4}$/.test(String(period))
                                           ? String(period)
-                                          : String(defaultYear || '').slice(0, 4);
+                                          : String(defaultYear || '').slice(
+                                                0,
+                                                4,
+                                            );
                                     setPeriod(y || defaultYear || '');
                                 } else {
                                     const y = /^\d{4}$/.test(String(period))
@@ -326,7 +402,10 @@ export default function JurnalUmumIndex() {
                                         : /^\d{6}$/.test(String(period))
                                           ? String(period).slice(0, 4)
                                           : '';
-                                    const p = latestMonthForYear(y) || defaultPeriod || '';
+                                    const p =
+                                        latestMonthForYear(y) ||
+                                        defaultPeriod ||
+                                        '';
                                     setPeriod(p);
                                 }
                             }}
@@ -340,7 +419,9 @@ export default function JurnalUmumIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Periode</span>
+                        <span className="text-sm text-muted-foreground">
+                            Periode
+                        </span>
                         <Select value={period} onValueChange={setPeriod}>
                             <SelectTrigger className="w-44">
                                 <SelectValue />
@@ -348,7 +429,9 @@ export default function JurnalUmumIndex() {
                             <SelectContent>
                                 {periodType === 'year' ? (
                                     yearOptions.length === 0 ? (
-                                        <SelectItem value={period || ''}>{period || '-'}</SelectItem>
+                                        <SelectItem value={period || ''}>
+                                            {period || '-'}
+                                        </SelectItem>
                                     ) : (
                                         yearOptions.map((y) => (
                                             <SelectItem key={y} value={y}>
@@ -357,7 +440,9 @@ export default function JurnalUmumIndex() {
                                         ))
                                     )
                                 ) : periodOptions.length === 0 ? (
-                                    <SelectItem value={period || ''}>{period || '-'}</SelectItem>
+                                    <SelectItem value={period || ''}>
+                                        {period || '-'}
+                                    </SelectItem>
                                 ) : (
                                     periodOptions.map((p) => (
                                         <SelectItem key={p} value={p}>
@@ -368,30 +453,48 @@ export default function JurnalUmumIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Status</span>
+                        <span className="text-sm text-muted-foreground">
+                            Status
+                        </span>
                         <Select value={balance} onValueChange={setBalance}>
                             <SelectTrigger className="w-40">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">Semua</SelectItem>
-                                <SelectItem value="balanced">Seimbang</SelectItem>
-                                <SelectItem value="unbalanced">Tidak seimbang</SelectItem>
+                                <SelectItem value="balanced">
+                                    Seimbang
+                                </SelectItem>
+                                <SelectItem value="unbalanced">
+                                    Tidak seimbang
+                                </SelectItem>
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Urut</span>
+                        <span className="text-sm text-muted-foreground">
+                            Urut
+                        </span>
                         <Select value={sortBy} onValueChange={setSortBy}>
                             <SelectTrigger className="w-44">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Tgl_Jurnal">Tanggal</SelectItem>
-                                <SelectItem value="Kode_Jurnal">Kode Jurnal</SelectItem>
-                                <SelectItem value="Kode_Voucher">Voucher</SelectItem>
+                                <SelectItem value="Tgl_Jurnal">
+                                    Tanggal
+                                </SelectItem>
+                                <SelectItem value="Kode_Jurnal">
+                                    Kode Jurnal
+                                </SelectItem>
+                                <SelectItem value="Kode_Voucher">
+                                    Voucher
+                                </SelectItem>
                                 <SelectItem value="Lines">Lines</SelectItem>
-                                <SelectItem value="Total_Debit">Total Debit</SelectItem>
-                                <SelectItem value="Total_Kredit">Total Kredit</SelectItem>
+                                <SelectItem value="Total_Debit">
+                                    Total Debit
+                                </SelectItem>
+                                <SelectItem value="Total_Kredit">
+                                    Total Kredit
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                         <Select value={sortDir} onValueChange={setSortDir}>
@@ -404,7 +507,9 @@ export default function JurnalUmumIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Tampil</span>
+                        <span className="text-sm text-muted-foreground">
+                            Tampil
+                        </span>
                         <Select
                             value={String(pageSize)}
                             onValueChange={(val) =>
@@ -432,23 +537,40 @@ export default function JurnalUmumIndex() {
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-4">
-                    <StatCard label="Total Jurnal" value={formatNumber(summary.total_jurnal)} hint="Sesuai filter" />
-                    <StatCard label="Total Debit" value={formatRupiah(summary.sum_debit)} />
-                    <StatCard label="Total Kredit" value={formatRupiah(summary.sum_kredit)} />
+                    <StatCard
+                        label="Total Jurnal"
+                        value={formatNumber(summary.total_jurnal)}
+                        hint="Sesuai filter"
+                    />
+                    <StatCard
+                        label="Total Debit"
+                        value={formatRupiah(summary.sum_debit)}
+                    />
+                    <StatCard
+                        label="Total Kredit"
+                        value={formatRupiah(summary.sum_kredit)}
+                    />
                     <StatCard
                         label="Kualitas Posting"
                         value={formatRupiah(summary.sum_selisih_abs)}
                         hint="Total selisih ABS"
-                        accent={summary.sum_selisih_abs > 0 ? 'negative' : 'positive'}
+                        accent={
+                            summary.sum_selisih_abs > 0
+                                ? 'negative'
+                                : 'positive'
+                        }
                     />
                 </div>
 
                 <div className="rounded-2xl border border-border bg-card p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <div className="text-sm font-semibold text-foreground">Ringkasan Status</div>
+                            <div className="text-sm font-semibold text-foreground">
+                                Ringkasan Status
+                            </div>
                             <div className="mt-0.5 text-xs text-muted-foreground">
-                                Seimbang jika total debit = total kredit (per jurnal).
+                                Seimbang jika total debit = total kredit (per
+                                jurnal).
                             </div>
                         </div>
                         <div
@@ -472,38 +594,47 @@ export default function JurnalUmumIndex() {
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
                         <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
-                            Sumber: `tb_jurnal` (header) + `tb_jurnaldetail` (detail).
+                            Sumber: `tb_jurnal` (header) + `tb_jurnaldetail`
+                            (detail).
                         </div>
                     </div>
                 ) : null}
 
                 <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[1px] dark:bg-black/30">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground dark:bg-black/40">
+                                <Loader2 className="h-4 w-4 animate-spin" />{' '}
+                                Memuat...
                             </div>
                         </div>
                     )}
 
-                    <table className="min-w-full text-sm text-left">
-                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                    <table className="min-w-full text-left text-sm">
+                        <thead className="bg-muted/30 text-[11px] tracking-wide text-muted-foreground uppercase dark:bg-white/5">
                             <tr>
-                                <th className="px-3 py-3 w-12" />
+                                <th className="w-12 px-3 py-3" />
                                 <th className="px-3 py-3">Tanggal</th>
                                 <th className="px-3 py-3">Kode Jurnal</th>
                                 <th className="px-3 py-3">Voucher</th>
                                 <th className="px-3 py-3">Remark</th>
                                 <th className="px-3 py-3 text-right">Lines</th>
-                                <th className="px-3 py-3 text-right">Total Debit</th>
-                                <th className="px-3 py-3 text-right">Total Kredit</th>
+                                <th className="px-3 py-3 text-right">
+                                    Total Debit
+                                </th>
+                                <th className="px-3 py-3 text-right">
+                                    Total Kredit
+                                </th>
                                 <th className="px-3 py-3 text-right">Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             {rows.length === 0 && !loading ? (
                                 <tr>
-                                    <td colSpan={9} className="px-3 py-10 text-center text-muted-foreground">
+                                    <td
+                                        colSpan={9}
+                                        className="px-3 py-10 text-center text-muted-foreground"
+                                    >
                                         Tidak ada data.
                                     </td>
                                 </tr>
@@ -518,12 +649,20 @@ export default function JurnalUmumIndex() {
                                 const statusClass = r?.is_balanced
                                     ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20'
                                     : 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20';
-                                const statusText = r?.is_balanced ? 'Seimbang' : 'Tidak';
+                                const statusText = r?.is_balanced
+                                    ? 'Seimbang'
+                                    : 'Tidak';
 
                                 const detail = detailMap[kodeJurnal];
-                                const detLoading = Boolean(detailLoading[kodeJurnal]);
-                                const detErr = String(detailError[kodeJurnal] ?? '');
-                                const detRows = Array.isArray(detail?.details) ? detail.details : [];
+                                const detLoading = Boolean(
+                                    detailLoading[kodeJurnal],
+                                );
+                                const detErr = String(
+                                    detailError[kodeJurnal] ?? '',
+                                );
+                                const detRows = Array.isArray(detail?.details)
+                                    ? detail.details
+                                    : [];
 
                                 return (
                                     <Fragment key={`${kodeJurnal}-${idx}`}>
@@ -533,7 +672,9 @@ export default function JurnalUmumIndex() {
                                                 has00 ? markedRowClass : '',
                                             ].join(' ')}
                                         >
-                                            <td className={`px-3 py-2 ${cellClass}`}>
+                                            <td
+                                                className={`px-3 py-2 ${cellClass}`}
+                                            >
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
@@ -542,74 +683,101 @@ export default function JurnalUmumIndex() {
                                                     aria-label="Toggle detail"
                                                     onClick={() => {
                                                         const next = !open;
-                                                        setOpenMap((s) => ({ ...s, [kodeJurnal]: next }));
-                                                        if (next) loadDetailsIfNeeded(kodeJurnal);
+                                                        setOpenMap((s) => ({
+                                                            ...s,
+                                                            [kodeJurnal]: next,
+                                                        }));
+                                                        if (next)
+                                                            loadDetailsIfNeeded(
+                                                                kodeJurnal,
+                                                            );
                                                     }}
                                                 >
                                                     <ChevronDown
                                                         className={[
                                                             'h-4 w-4 transition-transform',
-                                                            open ? 'rotate-180' : '',
+                                                            open
+                                                                ? 'rotate-180'
+                                                                : '',
                                                         ].join(' ')}
                                                     />
                                                 </Button>
                                             </td>
-                                                <td className={`px-3 py-2 ${cellClass}`}>
-                                                    {formatDate(r?.Tgl_Jurnal)}
-                                                </td>
-                                                <td className={`px-3 py-2 font-medium ${cellClass}`}>
-                                                    <div className="flex items-center gap-2">
-                                                        {has00 ? (
-                                                            <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
-                                                        ) : null}
-                                                        <span
-                                                            className={
-                                                                has00
-                                                                    ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30'
-                                                                    : ''
-                                                            }
-                                                        >
-                                                            {kodeJurnal}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className={`px-3 py-2 ${cellClass}`}>
-                                                    {r?.Kode_Voucher || '-'}
-                                                </td>
-                                                <td className={`px-3 py-2 ${cellClass}`}>
-                                                    <div className="max-w-[520px] whitespace-normal break-words text-foreground/80">
-                                                        {r?.Remark || '-'}
-                                                    </div>
-                                                </td>
-                                                <td className={`px-3 py-2 text-right ${cellClass}`}>
-                                                    {formatNumber(r?.lines)}
-                                                </td>
-                                                <td className={`px-3 py-2 text-right font-semibold ${cellClass}`}>
-                                                    {formatRupiah(r?.total_debit)}
-                                                </td>
-                                                <td className={`px-3 py-2 text-right font-semibold ${cellClass}`}>
-                                                    {formatRupiah(r?.total_kredit)}
-                                                </td>
-                                                <td className={`px-3 py-2 text-right ${cellClass}`}>
+                                            <td
+                                                className={`px-3 py-2 ${cellClass}`}
+                                            >
+                                                {formatDate(r?.Tgl_Jurnal)}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 font-medium ${cellClass}`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    {has00 ? (
+                                                        <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
+                                                    ) : null}
                                                     <span
-                                                        className={[
-                                                            'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1',
-                                                            statusClass,
-                                                        ].join(' ')}
+                                                        className={
+                                                            has00
+                                                                ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 ring-1 ring-amber-500/30 dark:text-amber-300'
+                                                                : ''
+                                                        }
                                                     >
-                                                        {r?.is_balanced ? (
-                                                            <CheckCircle2 className="h-4 w-4" />
-                                                        ) : (
-                                                            <AlertTriangle className="h-4 w-4" />
-                                                        )}
-                                                        {statusText}
+                                                        {kodeJurnal}
                                                     </span>
-                                                </td>
-                                            </tr>
+                                                </div>
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 ${cellClass}`}
+                                            >
+                                                {r?.Kode_Voucher || '-'}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 ${cellClass}`}
+                                            >
+                                                <div className="max-w-[520px] break-words whitespace-normal text-foreground/80">
+                                                    {r?.Remark || '-'}
+                                                </div>
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                {formatNumber(r?.lines)}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 text-right font-semibold ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.total_debit)}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 text-right font-semibold ${cellClass}`}
+                                            >
+                                                {formatRupiah(r?.total_kredit)}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 text-right ${cellClass}`}
+                                            >
+                                                <span
+                                                    className={[
+                                                        'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1',
+                                                        statusClass,
+                                                    ].join(' ')}
+                                                >
+                                                    {r?.is_balanced ? (
+                                                        <CheckCircle2 className="h-4 w-4" />
+                                                    ) : (
+                                                        <AlertTriangle className="h-4 w-4" />
+                                                    )}
+                                                    {statusText}
+                                                </span>
+                                            </td>
+                                        </tr>
 
                                         {open ? (
                                             <tr className="border-t border-border/50">
-                                                <td colSpan={9} className="px-3 pb-4 pt-0">
+                                                <td
+                                                    colSpan={9}
+                                                    className="px-3 pt-0 pb-4"
+                                                >
                                                     <div className="mt-3 rounded-2xl border border-border bg-muted/30 dark:bg-black/20">
                                                         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
                                                             <div className="text-sm font-semibold text-foreground">
@@ -624,7 +792,8 @@ export default function JurnalUmumIndex() {
                                                             </div>
                                                         </div>
 
-                                                        {detErr && !detLoading ? (
+                                                        {detErr &&
+                                                        !detLoading ? (
                                                             <div className="border-b border-border px-4 py-3 text-sm text-rose-700 dark:text-rose-300">
                                                                 {detErr}
                                                             </div>
@@ -632,13 +801,15 @@ export default function JurnalUmumIndex() {
 
                                                         <div className="overflow-x-auto">
                                                             <table className="min-w-full text-sm">
-                                                                <thead className="bg-muted/30 dark:bg-white/5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                                                <thead className="bg-muted/30 text-[11px] tracking-wide text-muted-foreground uppercase dark:bg-white/5">
                                                                     <tr>
                                                                         <th className="px-4 py-2 text-left">
-                                                                            Kode Akun
+                                                                            Kode
+                                                                            Akun
                                                                         </th>
                                                                         <th className="px-4 py-2 text-left">
-                                                                            Nama Akun
+                                                                            Nama
+                                                                            Akun
                                                                         </th>
                                                                         <th className="px-4 py-2 text-right">
                                                                             Debit
@@ -652,64 +823,112 @@ export default function JurnalUmumIndex() {
                                                                     {detLoading ? (
                                                                         <tr>
                                                                             <td
-                                                                                colSpan={4}
+                                                                                colSpan={
+                                                                                    4
+                                                                                }
                                                                                 className="px-4 py-6 text-center text-muted-foreground"
                                                                             >
                                                                                 <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-                                                                                Memuat detail...
+                                                                                Memuat
+                                                                                detail...
                                                                             </td>
                                                                         </tr>
-                                                                    ) : detRows.length === 0 ? (
+                                                                    ) : detRows.length ===
+                                                                      0 ? (
                                                                         <tr>
                                                                             <td
-                                                                                colSpan={4}
+                                                                                colSpan={
+                                                                                    4
+                                                                                }
                                                                                 className="px-4 py-6 text-center text-muted-foreground"
                                                                             >
-                                                                                Tidak ada detail.
+                                                                                Tidak
+                                                                                ada
+                                                                                detail.
                                                                             </td>
                                                                         </tr>
                                                                     ) : (
-                                                                        detRows.map((d, di) => {
-                                                                            const kodeAkun = String(d?.Kode_Akun ?? '');
-                                                                            const has00Detail = kodeAkun.includes('00');
-                                                                            const c = has00Detail ? markedCellClass : '';
-                                                                            return (
-                                                                                <tr
-                                                                                    key={`${kodeJurnal}-${kodeAkun}-${di}`}
-                                                                                    className={[
-                                                                                        'border-t border-border/50',
-                                                                                        has00Detail ? markedRowClass : '',
-                                                                                    ].join(' ')}
-                                                                                >
-                                                                                    <td className={`px-4 py-2 font-medium ${c}`}>
-                                                                                        <div className="flex items-center gap-2">
-                                                                                            {has00Detail ? (
-                                                                                                <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
-                                                                                            ) : null}
-                                                                                            <Link
-                                                                                                href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
-                                                                                                className={
-                                                                                                    has00Detail
-                                                                                                        ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                                                                        : 'text-amber-700 dark:text-amber-300 hover:underline'
-                                                                                                }
-                                                                                            >
-                                                                                                {kodeAkun}
-                                                                                            </Link>
-                                                                                        </div>
-                                                                                    </td>
-                                                                                    <td className={`px-4 py-2 ${c}`}>
-                                                                                        {d?.Nama_Akun || '-'}
-                                                                                    </td>
-                                                                                    <td className={`px-4 py-2 text-right font-semibold ${c}`}>
-                                                                                        {formatRupiah(d?.Debit)}
-                                                                                    </td>
-                                                                                    <td className={`px-4 py-2 text-right font-semibold ${c}`}>
-                                                                                        {formatRupiah(d?.Kredit)}
-                                                                                    </td>
-                                                                                </tr>
-                                                                            );
-                                                                        })
+                                                                        detRows.map(
+                                                                            (
+                                                                                d,
+                                                                                di,
+                                                                            ) => {
+                                                                                const kodeAkun =
+                                                                                    String(
+                                                                                        d?.Kode_Akun ??
+                                                                                            '',
+                                                                                    );
+                                                                                const has00Detail =
+                                                                                    kodeAkun.includes(
+                                                                                        '00',
+                                                                                    );
+                                                                                const c =
+                                                                                    has00Detail
+                                                                                        ? markedCellClass
+                                                                                        : '';
+                                                                                return (
+                                                                                    <tr
+                                                                                        key={`${kodeJurnal}-${kodeAkun}-${di}`}
+                                                                                        className={[
+                                                                                            'border-t border-border/50',
+                                                                                            has00Detail
+                                                                                                ? markedRowClass
+                                                                                                : '',
+                                                                                        ].join(
+                                                                                            ' ',
+                                                                                        )}
+                                                                                    >
+                                                                                        <td
+                                                                                            className={`px-4 py-2 font-medium ${c}`}
+                                                                                        >
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                {has00Detail ? (
+                                                                                                    <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
+                                                                                                ) : null}
+                                                                                                <Link
+                                                                                                    href={buildBukuBesarUrl(
+                                                                                                        {
+                                                                                                            kodeAkun,
+                                                                                                            periodType,
+                                                                                                            period,
+                                                                                                        },
+                                                                                                    )}
+                                                                                                    className={
+                                                                                                        has00Detail
+                                                                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 ring-1 ring-amber-500/30 hover:underline dark:text-amber-300'
+                                                                                                            : 'text-amber-700 hover:underline dark:text-amber-300'
+                                                                                                    }
+                                                                                                >
+                                                                                                    {
+                                                                                                        kodeAkun
+                                                                                                    }
+                                                                                                </Link>
+                                                                                            </div>
+                                                                                        </td>
+                                                                                        <td
+                                                                                            className={`px-4 py-2 ${c}`}
+                                                                                        >
+                                                                                            {d?.Nama_Akun ||
+                                                                                                '-'}
+                                                                                        </td>
+                                                                                        <td
+                                                                                            className={`px-4 py-2 text-right font-semibold ${c}`}
+                                                                                        >
+                                                                                            {formatRupiah(
+                                                                                                d?.Debit,
+                                                                                            )}
+                                                                                        </td>
+                                                                                        <td
+                                                                                            className={`px-4 py-2 text-right font-semibold ${c}`}
+                                                                                        >
+                                                                                            {formatRupiah(
+                                                                                                d?.Kredit,
+                                                                                            )}
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                );
+                                                                            },
+                                                                        )
                                                                     )}
                                                                 </tbody>
                                                             </table>
@@ -727,7 +946,10 @@ export default function JurnalUmumIndex() {
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="text-sm text-muted-foreground">
-                        Total data: <span className="text-foreground/80">{formatNumber(total)}</span>
+                        Total data:{' '}
+                        <span className="text-foreground/80">
+                            {formatNumber(total)}
+                        </span>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button
@@ -747,13 +969,19 @@ export default function JurnalUmumIndex() {
                         <Button
                             variant="outline"
                             disabled={page >= totalPages || pageSize === 'all'}
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            onClick={() =>
+                                setPage((p) => Math.min(totalPages, p + 1))
+                            }
                         >
                             Berikutnya
                         </Button>
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+JurnalUmumIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

@@ -1,11 +1,5 @@
-import AppLayout from '@/layouts/app-layout';
-import { Head, router } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
     Dialog,
     DialogContent,
@@ -13,6 +7,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -20,6 +16,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import AppLayout from '@/layouts/app-layout';
+import { Head, router } from '@inertiajs/react';
+import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -231,7 +231,11 @@ export default function KeuanganPenyesuaianCreate({
                 if (first?.touched?.jenis && source === 'header') {
                     next[0] = {
                         ...first,
-                        touched: { ...(first.touched ?? {}), jenis: false, jenisSource: '' },
+                        touched: {
+                            ...(first.touched ?? {}),
+                            jenis: false,
+                            jenisSource: '',
+                        },
                     };
                     return next;
                 }
@@ -241,7 +245,11 @@ export default function KeuanganPenyesuaianCreate({
             next[0] = {
                 ...first,
                 jenis: j,
-                touched: { ...(first.touched ?? {}), jenis: true, jenisSource: 'header' },
+                touched: {
+                    ...(first.touched ?? {}),
+                    jenis: true,
+                    jenisSource: 'header',
+                },
             };
             return next;
         });
@@ -270,7 +278,9 @@ export default function KeuanganPenyesuaianCreate({
         const anyMissingAkun = lines.some((l) => !String(l?.akun ?? '').trim());
         if (anyMissingAkun) return false;
         const anyBadNom = lines.some(
-            (l) => !Number.isFinite(Number(l?.nominal ?? 0)) || Number(l?.nominal ?? 0) <= 0,
+            (l) =>
+                !Number.isFinite(Number(l?.nominal ?? 0)) ||
+                Number(l?.nominal ?? 0) <= 0,
         );
         if (anyBadNom) return false;
         return totals.diff === 0;
@@ -300,14 +310,24 @@ export default function KeuanganPenyesuaianCreate({
         const diff = Math.round((d - k) * 100) / 100;
 
         const needNom = Math.abs(diff);
-        const needJenis = diff > 0 ? 'Kredit' : diff < 0 ? 'Debit' : String(last?.jenis ?? 'Debit');
+        const needJenis =
+            diff > 0
+                ? 'Kredit'
+                : diff < 0
+                  ? 'Debit'
+                  : String(last?.jenis ?? 'Debit');
         const jenisTouched = Boolean(last?.touched?.jenis);
-        const nextJenis = jenisTouched ? String(last?.jenis ?? needJenis) : needJenis;
+        const nextJenis = jenisTouched
+            ? String(last?.jenis ?? needJenis)
+            : needJenis;
 
         const curNom = Number(last?.nominal ?? 0);
         const curNomSafe = Number.isFinite(curNom) ? curNom : 0;
-        const sameNom = Math.round(curNomSafe * 100) / 100 === Math.round(needNom * 100) / 100;
-        const sameJenis = jenisTouched || String(last?.jenis ?? '') === needJenis;
+        const sameNom =
+            Math.round(curNomSafe * 100) / 100 ===
+            Math.round(needNom * 100) / 100;
+        const sameJenis =
+            jenisTouched || String(last?.jenis ?? '') === needJenis;
         if (sameNom && sameJenis) return;
 
         setLines((prev) => {
@@ -317,11 +337,16 @@ export default function KeuanganPenyesuaianCreate({
             if (Boolean(cur?.touched?.nominal)) return prev;
 
             const curJenisTouched = Boolean(cur?.touched?.jenis);
-            const desiredJenis = curJenisTouched ? String(cur?.jenis ?? nextJenis) : nextJenis;
+            const desiredJenis = curJenisTouched
+                ? String(cur?.jenis ?? nextJenis)
+                : nextJenis;
             const curN = Number(cur?.nominal ?? 0);
             const curNSafe = Number.isFinite(curN) ? curN : 0;
-            const sameN = Math.round(curNSafe * 100) / 100 === Math.round(needNom * 100) / 100;
-            const sameJ = curJenisTouched || String(cur?.jenis ?? '') === desiredJenis;
+            const sameN =
+                Math.round(curNSafe * 100) / 100 ===
+                Math.round(needNom * 100) / 100;
+            const sameJ =
+                curJenisTouched || String(cur?.jenis ?? '') === desiredJenis;
             if (sameN && sameJ) return prev;
 
             const next = [...prev];
@@ -344,13 +369,19 @@ export default function KeuanganPenyesuaianCreate({
             params.set('remark', r);
             const a = String(headerAkun ?? '').trim();
             if (a) params.set('kodeAkun', a);
-            if (headerNominalNumber > 0) params.set('nominal', String(headerNominalNumber));
-            if (headerJenis === 'Debit' || headerJenis === 'Kredit') params.set('jenis', headerJenis);
-            const res = await fetch(`/keuangan/penyesuaian/suggest?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            if (headerNominalNumber > 0)
+                params.set('nominal', String(headerNominalNumber));
+            if (headerJenis === 'Debit' || headerJenis === 'Kredit')
+                params.set('jenis', headerJenis);
+            const res = await fetch(
+                `/keuangan/penyesuaian/suggest?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             const data = await res.json();
-            if (!res.ok) throw new Error(String(data?.error ?? 'Gagal suggest.'));
+            if (!res.ok)
+                throw new Error(String(data?.error ?? 'Gagal suggest.'));
 
             const suggestedLines = Array.isArray(data?.lines) ? data.lines : [];
             setSuggestMeta({
@@ -363,18 +394,24 @@ export default function KeuanganPenyesuaianCreate({
             setLines((prev) => {
                 const next = [...prev];
                 // Apply suggested akun+jenis only if not touched
-                suggestedLines.slice(0, Math.min(4, next.length)).forEach((s, idx) => {
-                    const cur = next[idx] ?? { touched: {} };
-                    const akunTouched = Boolean(cur?.touched?.akun);
-                    const jenisTouched = Boolean(cur?.touched?.jenis);
-                    const akun = String(s?.akun ?? '').trim();
-                    const jenis = String(s?.jenis ?? '').trim();
-                    next[idx] = {
-                        ...cur,
-                        akun: akunTouched ? cur.akun : akun || cur.akun,
-                        jenis: jenisTouched ? cur.jenis : (jenis === 'Kredit' ? 'Kredit' : 'Debit'),
-                    };
-                });
+                suggestedLines
+                    .slice(0, Math.min(4, next.length))
+                    .forEach((s, idx) => {
+                        const cur = next[idx] ?? { touched: {} };
+                        const akunTouched = Boolean(cur?.touched?.akun);
+                        const jenisTouched = Boolean(cur?.touched?.jenis);
+                        const akun = String(s?.akun ?? '').trim();
+                        const jenis = String(s?.jenis ?? '').trim();
+                        next[idx] = {
+                            ...cur,
+                            akun: akunTouched ? cur.akun : akun || cur.akun,
+                            jenis: jenisTouched
+                                ? cur.jenis
+                                : jenis === 'Kredit'
+                                  ? 'Kredit'
+                                  : 'Debit',
+                        };
+                    });
                 return next.slice(0, 4);
             });
         } catch {
@@ -415,7 +452,7 @@ export default function KeuanganPenyesuaianCreate({
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Penyesuaian - Buat Baru" />
 
             <div className="space-y-4 p-4">
@@ -430,8 +467,11 @@ export default function KeuanganPenyesuaianCreate({
                         <CardHeader>
                             <CardTitle>Header</CardTitle>
                             <div className="text-xs text-muted-foreground">
-                                Periode mengikuti buku aktif (buka buku terakhir):{' '}
-                                <span className="font-mono">{activeBookMonthYm || '-'}</span>
+                                Periode mengikuti buku aktif (buka buku
+                                terakhir):{' '}
+                                <span className="font-mono">
+                                    {activeBookMonthYm || '-'}
+                                </span>
                                 . Periode wajib tanggal 1.
                             </div>
                         </CardHeader>
@@ -447,7 +487,9 @@ export default function KeuanganPenyesuaianCreate({
                                     <Input
                                         type="date"
                                         value={postingDate}
-                                        onChange={(e) => setPostingDate(e.target.value)}
+                                        onChange={(e) =>
+                                            setPostingDate(e.target.value)
+                                        }
                                     />
                                 </div>
                             ) : null}
@@ -463,13 +505,16 @@ export default function KeuanganPenyesuaianCreate({
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        onClick={() => setHeaderDialogOpen(true)}
+                                        onClick={() =>
+                                            setHeaderDialogOpen(true)
+                                        }
                                     >
                                         Cari
                                     </Button>
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                    DSS akan memprioritaskan pola penyesuaian yang sering memakai akun ini.
+                                    DSS akan memprioritaskan pola penyesuaian
+                                    yang sering memakai akun ini.
                                 </div>
                             </div>
 
@@ -478,11 +523,14 @@ export default function KeuanganPenyesuaianCreate({
                                 <Input
                                     inputMode="numeric"
                                     value={headerNominal}
-                                    onChange={(e) => setHeaderNominal(e.target.value)}
+                                    onChange={(e) =>
+                                        setHeaderNominal(e.target.value)
+                                    }
                                     placeholder="Contoh: 545938"
                                 />
                                 <div className="text-xs text-muted-foreground">
-                                    Jumlah membantu DSS memberi rekomendasi yang lebih relevan dan membantu auto-balance.
+                                    Jumlah membantu DSS memberi rekomendasi yang
+                                    lebih relevan dan membantu auto-balance.
                                 </div>
                             </div>
 
@@ -496,12 +544,18 @@ export default function KeuanganPenyesuaianCreate({
                                         <SelectValue placeholder="(opsional) Debit / Kredit" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="Debit">Debit</SelectItem>
-                                        <SelectItem value="Kredit">Kredit</SelectItem>
+                                        <SelectItem value="Debit">
+                                            Debit
+                                        </SelectItem>
+                                        <SelectItem value="Kredit">
+                                            Kredit
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <div className="text-xs text-muted-foreground">
-                                    Jika diisi, DSS akan menyesuaikan rekomendasi akun lawan agar seimbang dengan jenis yang dipilih.
+                                    Jika diisi, DSS akan menyesuaikan
+                                    rekomendasi akun lawan agar seimbang dengan
+                                    jenis yang dipilih.
                                 </div>
                             </div>
 
@@ -512,10 +566,14 @@ export default function KeuanganPenyesuaianCreate({
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        disabled={suggestLoading || !remark.trim()}
+                                        disabled={
+                                            suggestLoading || !remark.trim()
+                                        }
                                         onClick={runSuggest}
                                     >
-                                        {suggestLoading ? 'Menganalisis...' : 'Refresh DSS'}
+                                        {suggestLoading
+                                            ? 'Menganalisis...'
+                                            : 'Refresh DSS'}
                                     </Button>
                                 </div>
                                 <Textarea
@@ -528,21 +586,51 @@ export default function KeuanganPenyesuaianCreate({
                                     className="min-h-[120px]"
                                 />
                                 <div className="text-xs text-muted-foreground">
-                                    DSS aktif berdasarkan kemiripan Remark dari riwayat{' '}
-                                    <span className="font-mono">tb_jurnalpenyesuaian</span>.
+                                    DSS aktif berdasarkan kemiripan Remark dari
+                                    riwayat{' '}
+                                    <span className="font-mono">
+                                        tb_jurnalpenyesuaian
+                                    </span>
+                                    .
                                 </div>
                                 {suggestMeta?.confidence > 0 ? (
                                     <div className="rounded-md border bg-muted/20 p-3 text-xs">
-                                        Confidence: {Math.round((suggestMeta.confidence ?? 0) * 100)}%
-                                        {Array.isArray(suggestMeta.evidence) && suggestMeta.evidence.length ? (
+                                        Confidence:{' '}
+                                        {Math.round(
+                                            (suggestMeta.confidence ?? 0) * 100,
+                                        )}
+                                        %
+                                        {Array.isArray(suggestMeta.evidence) &&
+                                        suggestMeta.evidence.length ? (
                                             <div className="mt-2 space-y-1">
-                                                <div className="font-medium">Evidence (top 3)</div>
-                                                {suggestMeta.evidence.slice(0, 3).map((ev, idx) => (
-                                                    <div key={idx} className="text-muted-foreground">
-                                                        <span className="font-mono">{String(ev?.Kode_Jurnal ?? '')}</span>{' '}
-                                                        ({String(ev?.Periode ?? '')}) — {String(ev?.Remark ?? '').slice(0, 80)}
-                                                    </div>
-                                                ))}
+                                                <div className="font-medium">
+                                                    Evidence (top 3)
+                                                </div>
+                                                {suggestMeta.evidence
+                                                    .slice(0, 3)
+                                                    .map((ev, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className="text-muted-foreground"
+                                                        >
+                                                            <span className="font-mono">
+                                                                {String(
+                                                                    ev?.Kode_Jurnal ??
+                                                                        '',
+                                                                )}
+                                                            </span>{' '}
+                                                            (
+                                                            {String(
+                                                                ev?.Periode ??
+                                                                    '',
+                                                            )}
+                                                            ) —{' '}
+                                                            {String(
+                                                                ev?.Remark ??
+                                                                    '',
+                                                            ).slice(0, 80)}
+                                                        </div>
+                                                    ))}
                                             </div>
                                         ) : null}
                                     </div>
@@ -555,7 +643,8 @@ export default function KeuanganPenyesuaianCreate({
                         <CardHeader className="space-y-1">
                             <CardTitle>Baris Akun (maks 4)</CardTitle>
                             <div className="text-xs text-muted-foreground">
-                                Minimal 2 baris. Total Debit harus sama dengan Total Kredit.
+                                Minimal 2 baris. Total Debit harus sama dengan
+                                Total Kredit.
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -565,7 +654,9 @@ export default function KeuanganPenyesuaianCreate({
                                 </div>
                                 <Button
                                     type="button"
-                                    variant={autoBalance ? 'default' : 'outline'}
+                                    variant={
+                                        autoBalance ? 'default' : 'outline'
+                                    }
                                     size="sm"
                                     onClick={() => setAutoBalance((v) => !v)}
                                 >
@@ -575,7 +666,10 @@ export default function KeuanganPenyesuaianCreate({
 
                             <div className="space-y-3">
                                 {(lines ?? []).map((l, idx) => (
-                                    <div key={idx} className="rounded-xl border p-3">
+                                    <div
+                                        key={idx}
+                                        className="rounded-xl border p-3"
+                                    >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="text-sm font-medium">
                                                 Baris {idx + 1}
@@ -587,7 +681,13 @@ export default function KeuanganPenyesuaianCreate({
                                                         variant="outline"
                                                         size="sm"
                                                         onClick={() => {
-                                                            setLines((prev) => prev.filter((_, i) => i !== idx));
+                                                            setLines((prev) =>
+                                                                prev.filter(
+                                                                    (_, i) =>
+                                                                        i !==
+                                                                        idx,
+                                                                ),
+                                                            );
                                                         }}
                                                     >
                                                         Hapus
@@ -602,7 +702,9 @@ export default function KeuanganPenyesuaianCreate({
                                                 <div className="mt-2 flex gap-2">
                                                     <div className="flex-1 rounded-md border px-3 py-2 text-sm break-words whitespace-normal">
                                                         {l?.akun ? (
-                                                            getLineAkunLabel(l.akun)
+                                                            getLineAkunLabel(
+                                                                l.akun,
+                                                            )
                                                         ) : (
                                                             <span className="text-muted-foreground">
                                                                 Pilih akun...
@@ -613,7 +715,9 @@ export default function KeuanganPenyesuaianCreate({
                                                         type="button"
                                                         variant="outline"
                                                         onClick={() => {
-                                                            setActiveLineIndex(idx);
+                                                            setActiveLineIndex(
+                                                                idx,
+                                                            );
                                                             setDialogOpen(true);
                                                         }}
                                                     >
@@ -627,30 +731,53 @@ export default function KeuanganPenyesuaianCreate({
                                                     <Label>Jenis</Label>
                                                     <div className="mt-2">
                                                         <Select
-                                                            value={String(l?.jenis ?? 'Debit')}
-                                                            onValueChange={(v) => {
-                                                                setLines((prev) => {
-                                                                    const next = [...prev];
-                                                                    const cur = next[idx] ?? {};
-                                                                    next[idx] = {
-                                                                        ...cur,
-                                                                        jenis: v,
-                                                                        touched: {
-                                                                            ...(cur.touched ?? {}),
-                                                                            jenis: true,
-                                                                            jenisSource: 'user',
-                                                                        },
-                                                                    };
-                                                                    return next;
-                                                                });
+                                                            value={String(
+                                                                l?.jenis ??
+                                                                    'Debit',
+                                                            )}
+                                                            onValueChange={(
+                                                                v,
+                                                            ) => {
+                                                                setLines(
+                                                                    (prev) => {
+                                                                        const next =
+                                                                            [
+                                                                                ...prev,
+                                                                            ];
+                                                                        const cur =
+                                                                            next[
+                                                                                idx
+                                                                            ] ??
+                                                                            {};
+                                                                        next[
+                                                                            idx
+                                                                        ] = {
+                                                                            ...cur,
+                                                                            jenis: v,
+                                                                            touched:
+                                                                                {
+                                                                                    ...(cur.touched ??
+                                                                                        {}),
+                                                                                    jenis: true,
+                                                                                    jenisSource:
+                                                                                        'user',
+                                                                                },
+                                                                        };
+                                                                        return next;
+                                                                    },
+                                                                );
                                                             }}
                                                         >
                                                             <SelectTrigger>
                                                                 <SelectValue placeholder="Jenis" />
                                                             </SelectTrigger>
                                                             <SelectContent>
-                                                                <SelectItem value="Debit">Debit</SelectItem>
-                                                                <SelectItem value="Kredit">Kredit</SelectItem>
+                                                                <SelectItem value="Debit">
+                                                                    Debit
+                                                                </SelectItem>
+                                                                <SelectItem value="Kredit">
+                                                                    Kredit
+                                                                </SelectItem>
                                                             </SelectContent>
                                                         </Select>
                                                     </div>
@@ -663,29 +790,52 @@ export default function KeuanganPenyesuaianCreate({
                                                             value={
                                                                 l?.nominal === 0
                                                                     ? ''
-                                                                    : String(l?.nominal ?? '')
+                                                                    : String(
+                                                                          l?.nominal ??
+                                                                              '',
+                                                                      )
                                                             }
                                                             onChange={(e) => {
-                                                                const raw = e.target.value;
+                                                                const raw =
+                                                                    e.target
+                                                                        .value;
                                                                 const num =
                                                                     raw === ''
                                                                         ? 0
-                                                                        : Number(raw);
-                                                                setLines((prev) => {
-                                                                    const next = [...prev];
-                                                                    const cur = next[idx] ?? {};
-                                                                    next[idx] = {
-                                                                        ...cur,
-                                                                        nominal: Number.isFinite(num)
-                                                                            ? num
-                                                                            : 0,
-                                                                        touched: {
-                                                                            ...(cur.touched ?? {}),
-                                                                            nominal: true,
-                                                                        },
-                                                                    };
-                                                                    return next;
-                                                                });
+                                                                        : Number(
+                                                                              raw,
+                                                                          );
+                                                                setLines(
+                                                                    (prev) => {
+                                                                        const next =
+                                                                            [
+                                                                                ...prev,
+                                                                            ];
+                                                                        const cur =
+                                                                            next[
+                                                                                idx
+                                                                            ] ??
+                                                                            {};
+                                                                        next[
+                                                                            idx
+                                                                        ] = {
+                                                                            ...cur,
+                                                                            nominal:
+                                                                                Number.isFinite(
+                                                                                    num,
+                                                                                )
+                                                                                    ? num
+                                                                                    : 0,
+                                                                            touched:
+                                                                                {
+                                                                                    ...(cur.touched ??
+                                                                                        {}),
+                                                                                    nominal: true,
+                                                                                },
+                                                                        };
+                                                                        return next;
+                                                                    },
+                                                                );
                                                             }}
                                                             placeholder="0"
                                                         />
@@ -752,7 +902,9 @@ export default function KeuanganPenyesuaianCreate({
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() => router.visit('/keuangan/penyesuaian')}
+                                    onClick={() =>
+                                        router.visit('/keuangan/penyesuaian')
+                                    }
                                 >
                                     Kembali
                                 </Button>
@@ -795,6 +947,10 @@ export default function KeuanganPenyesuaianCreate({
                     setHeaderAkun(v);
                 }}
             />
-        </AppLayout>
+        </>
     );
 }
+
+KeuanganPenyesuaianCreate.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

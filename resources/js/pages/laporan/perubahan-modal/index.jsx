@@ -1,8 +1,5 @@
-import AppLayout from '@/layouts/app-layout';
-import { Head, Link, usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -10,6 +7,17 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import AppLayout from '@/layouts/app-layout';
+import {
+    buildRecommendations,
+    buildTopFindings,
+    contextualizeFindings,
+    contextualizeRecommendations,
+    findingLevelMeta,
+    runFuzzyAhpTopsis,
+} from '@/lib/dss-fahp-topsis';
+import { buildBukuBesarUrl } from '@/lib/report-links';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     AlertTriangle,
     ArrowDownRight,
@@ -19,15 +27,7 @@ import {
     Printer,
     Sparkles,
 } from 'lucide-react';
-import { buildBukuBesarUrl } from '@/lib/report-links';
-import {
-    buildTopFindings,
-    buildRecommendations,
-    contextualizeFindings,
-    contextualizeRecommendations,
-    findingLevelMeta,
-    runFuzzyAhpTopsis,
-} from '@/lib/dss-fahp-topsis';
+import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -45,7 +45,9 @@ const formatRupiah = (value) => {
 const formatNumber = (value) => {
     const n = Number(value);
     if (!Number.isFinite(n)) return '0';
-    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
+    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        n,
+    );
 };
 
 const getPeriodLabel = (periodType, period) => {
@@ -58,7 +60,10 @@ const getPeriodLabel = (periodType, period) => {
     const y = Number(period.slice(0, 4));
     const m = Number(period.slice(4, 6));
     const d = new Date(y, Math.max(0, m - 1), 1);
-    return new Intl.DateTimeFormat('id-ID', { month: 'short', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('id-ID', {
+        month: 'short',
+        year: 'numeric',
+    }).format(d);
 };
 
 const buildPrintUrl = (query) => {
@@ -86,12 +91,18 @@ function StatCard({ label, value, accent = 'default', icon: Icon, helper }) {
         <div className="rounded-2xl border border-border bg-card p-4">
             <div className="flex items-start justify-between gap-3">
                 <div>
-                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <div className="text-[11px] tracking-wide text-muted-foreground uppercase">
                         {label}
                     </div>
-                    <div className={`mt-2 text-xl font-semibold ${accentClass}`}>{value}</div>
+                    <div
+                        className={`mt-2 text-xl font-semibold ${accentClass}`}
+                    >
+                        {value}
+                    </div>
                     {helper ? (
-                        <div className="mt-1 text-xs text-muted-foreground">{helper}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">
+                            {helper}
+                        </div>
                     ) : null}
                 </div>
                 {Icon ? (
@@ -113,7 +124,9 @@ export default function PerubahanModalIndex() {
         defaultYear = '',
     } = usePage().props;
 
-    const [periodType, setPeriodType] = useState(initialQuery?.periodType ?? 'month');
+    const [periodType, setPeriodType] = useState(
+        initialQuery?.periodType ?? 'month',
+    );
     const [period, setPeriod] = useState(initialQuery?.period ?? '');
     const [search, setSearch] = useState(initialQuery?.search ?? '');
     const [sortBy, setSortBy] = useState(initialQuery?.sortBy ?? 'Net');
@@ -146,7 +159,14 @@ export default function PerubahanModalIndex() {
 
         if (period && /^\d{6}$/.test(period)) return;
         setPeriod(defaultPeriod || periodOptions?.[0] || '');
-    }, [periodType, period, defaultPeriod, periodOptions, defaultYear, yearOptions]);
+    }, [
+        periodType,
+        period,
+        defaultPeriod,
+        periodOptions,
+        defaultYear,
+        yearOptions,
+    ]);
 
     const query = useMemo(
         () => ({
@@ -182,11 +202,14 @@ export default function PerubahanModalIndex() {
                 params.set('page', String(query.page ?? 1));
                 params.set('pageSize', String(query.pageSize ?? 25));
 
-                const res = await fetch(`/laporan/perubahan-modal/rows?${params.toString()}`, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    signal: controller.signal,
-                    credentials: 'include',
-                });
+                const res = await fetch(
+                    `/laporan/perubahan-modal/rows?${params.toString()}`,
+                    {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        signal: controller.signal,
+                        credentials: 'include',
+                    },
+                );
                 const json = await res.json();
 
                 if (!res.ok) {
@@ -242,7 +265,8 @@ export default function PerubahanModalIndex() {
                 tolerance,
                 computed_ending_equity: computedEnding,
                 opening_plus_computed:
-                    Math.abs(Number(summary?.opening_equity ?? 0)) + Math.abs(computedEnding),
+                    Math.abs(Number(summary?.opening_equity ?? 0)) +
+                    Math.abs(computedEnding),
             }),
         [diff, tolerance, computedEnding, summary],
     );
@@ -262,7 +286,7 @@ export default function PerubahanModalIndex() {
     );
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Perubahan Modal" />
 
             <div className="space-y-5">
@@ -273,21 +297,26 @@ export default function PerubahanModalIndex() {
                                 <Landmark className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="text-xl font-semibold text-foreground">Perubahan Modal</div>
+                                <div className="text-xl font-semibold text-foreground">
+                                    Perubahan Modal
+                                </div>
                                 <div className="text-sm text-muted-foreground">
-                                    Rekonsiliasi modal (ekuitas) periodik — snapshot `tb_nabbrekap` + perhitungan jurnal.
+                                    Rekonsiliasi modal (ekuitas) periodik —
+                                    snapshot `tb_nabbrekap` + perhitungan
+                                    jurnal.
                                 </div>
                             </div>
                         </div>
 
-                        <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 dark:bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                        <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-1 text-xs text-muted-foreground dark:bg-white/5">
                             <span>Periode:</span>
                             <span className="font-medium text-foreground/80">
                                 {getPeriodLabel(periodType, period) || '—'}
                             </span>
                             {periodType === 'year' && effectivePeriod ? (
                                 <span className="text-muted-foreground">
-                                    • Snapshot akhir: {effectivePeriodLabel || effectivePeriod}
+                                    • Snapshot akhir:{' '}
+                                    {effectivePeriodLabel || effectivePeriod}
                                 </span>
                             ) : null}
                         </div>
@@ -295,7 +324,13 @@ export default function PerubahanModalIndex() {
 
                     <div className="flex flex-wrap items-center gap-2">
                         <a
-                            href={buildPrintUrl({ periodType, period, search, sortBy, sortDir })}
+                            href={buildPrintUrl({
+                                periodType,
+                                period,
+                                search,
+                                sortBy,
+                                sortDir,
+                            })}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex"
@@ -309,7 +344,10 @@ export default function PerubahanModalIndex() {
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                     <div className="flex items-center gap-2">
-                        <Select value={periodType} onValueChange={setPeriodType}>
+                        <Select
+                            value={periodType}
+                            onValueChange={setPeriodType}
+                        >
                             <SelectTrigger className="w-[160px]">
                                 <SelectValue placeholder="Mode" />
                             </SelectTrigger>
@@ -332,7 +370,11 @@ export default function PerubahanModalIndex() {
                                       ))
                                     : periodOptions.map((p) => (
                                           <SelectItem key={p} value={String(p)}>
-                                              {getPeriodLabel('month', String(p))} ({p})
+                                              {getPeriodLabel(
+                                                  'month',
+                                                  String(p),
+                                              )}{' '}
+                                              ({p})
                                           </SelectItem>
                                       ))}
                             </SelectContent>
@@ -353,8 +395,12 @@ export default function PerubahanModalIndex() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="Net">Net</SelectItem>
-                                <SelectItem value="Kode_Akun">Kode Akun</SelectItem>
-                                <SelectItem value="Nama_Akun">Nama Akun</SelectItem>
+                                <SelectItem value="Kode_Akun">
+                                    Kode Akun
+                                </SelectItem>
+                                <SelectItem value="Nama_Akun">
+                                    Nama Akun
+                                </SelectItem>
                                 <SelectItem value="Debit">Debit</SelectItem>
                                 <SelectItem value="Kredit">Kredit</SelectItem>
                             </SelectContent>
@@ -368,7 +414,10 @@ export default function PerubahanModalIndex() {
                                 <SelectItem value="desc">Desc</SelectItem>
                             </SelectContent>
                         </Select>
-                        <Select value={String(pageSize)} onValueChange={setPageSize}>
+                        <Select
+                            value={String(pageSize)}
+                            onValueChange={setPageSize}
+                        >
                             <SelectTrigger className="w-[130px]">
                                 <SelectValue placeholder="Tampil" />
                             </SelectTrigger>
@@ -391,21 +440,33 @@ export default function PerubahanModalIndex() {
                     <StatCard
                         label="Tambahan Modal"
                         value={formatRupiah(summary?.contributions)}
-                        accent={Number(summary?.contributions ?? 0) > 0 ? 'positive' : 'default'}
+                        accent={
+                            Number(summary?.contributions ?? 0) > 0
+                                ? 'positive'
+                                : 'default'
+                        }
                         icon={ArrowUpRight}
                         helper="Dari akun ekuitas (prefix 3)"
                     />
                     <StatCard
                         label="Prive"
                         value={formatRupiah(summary?.withdrawals)}
-                        accent={Number(summary?.withdrawals ?? 0) > 0 ? 'negative' : 'default'}
+                        accent={
+                            Number(summary?.withdrawals ?? 0) > 0
+                                ? 'negative'
+                                : 'default'
+                        }
                         icon={ArrowDownRight}
                         helper="Dari akun ekuitas (prefix 3)"
                     />
                     <StatCard
                         label="Laba Bersih"
                         value={formatRupiah(summary?.net_income)}
-                        accent={Number(summary?.net_income ?? 0) >= 0 ? 'positive' : 'negative'}
+                        accent={
+                            Number(summary?.net_income ?? 0) >= 0
+                                ? 'positive'
+                                : 'negative'
+                        }
                         icon={Sparkles}
                         helper="Nominal (prefix 4–7)"
                     />
@@ -421,7 +482,11 @@ export default function PerubahanModalIndex() {
                         label="Modal Akhir (Snapshot)"
                         value={formatRupiah(snapshotEnding)}
                         icon={Landmark}
-                        helper={effectivePeriodLabel ? `Basis: ${effectivePeriodLabel}` : null}
+                        helper={
+                            effectivePeriodLabel
+                                ? `Basis: ${effectivePeriodLabel}`
+                                : null
+                        }
                     />
                     <StatCard
                         label="Selisih"
@@ -439,9 +504,12 @@ export default function PerubahanModalIndex() {
                                 <Sparkles className="h-5 w-5 text-muted-foreground" />
                             </div>
                             <div>
-                                <div className="font-semibold text-foreground">Rekomendasi DSS (Fuzzy AHP-TOPSIS)</div>
+                                <div className="font-semibold text-foreground">
+                                    Rekomendasi DSS (Fuzzy AHP-TOPSIS)
+                                </div>
                                 <div className="text-xs text-muted-foreground">
-                                    Saran prioritas untuk kualitas rekonsiliasi perubahan modal periode aktif.
+                                    Saran prioritas untuk kualitas rekonsiliasi
+                                    perubahan modal periode aktif.
                                 </div>
                             </div>
                         </div>
@@ -449,14 +517,19 @@ export default function PerubahanModalIndex() {
 
                     {dssFindings.length ? (
                         <div className="mt-3 space-y-2">
-                            <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+                            <div className="text-xs font-semibold tracking-wide text-foreground/80 uppercase">
                                 Temuan DSS (Top 5)
                             </div>
                             <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
                                 {dssFindings.map((item, idx) => (
                                     <li key={`finding-${idx}`}>
-                                        <span className={`mr-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${findingLevelMeta(item?.level).className}`}>
-                                            {findingLevelMeta(item?.level).label}
+                                        <span
+                                            className={`mr-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${findingLevelMeta(item?.level).className}`}
+                                        >
+                                            {
+                                                findingLevelMeta(item?.level)
+                                                    .label
+                                            }
                                         </span>
                                         {item.finding}
                                     </li>
@@ -467,7 +540,7 @@ export default function PerubahanModalIndex() {
 
                     {dssTips.length ? (
                         <div className="mt-3 space-y-2">
-                            <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+                            <div className="text-xs font-semibold tracking-wide text-foreground/80 uppercase">
                                 Saran / Rekomendasi (Top 5)
                             </div>
                             <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
@@ -490,22 +563,25 @@ export default function PerubahanModalIndex() {
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
                         <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
-                            Pastikan tabel tersedia: `tb_nabbrekap` (Kode_NaBB, Kode_Akun, Saldo), `tb_jurnal` + `tb_jurnaldetail`, dan `tb_jurnalpenyesuaian`.
+                            Pastikan tabel tersedia: `tb_nabbrekap` (Kode_NaBB,
+                            Kode_Akun, Saldo), `tb_jurnal` + `tb_jurnaldetail`,
+                            dan `tb_jurnalpenyesuaian`.
                         </div>
                     </div>
                 ) : null}
 
                 <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[1px] dark:bg-black/30">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground dark:bg-black/40">
+                                <Loader2 className="h-4 w-4 animate-spin" />{' '}
+                                Memuat...
                             </div>
                         </div>
                     )}
 
-                    <table className="min-w-full text-sm text-left">
-                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                    <table className="min-w-full text-left text-sm">
+                        <thead className="bg-muted/30 text-[11px] tracking-wide text-muted-foreground uppercase dark:bg-white/5">
                             <tr>
                                 <th className="px-3 py-3">Kode Akun</th>
                                 <th className="px-3 py-3">Nama Akun</th>
@@ -517,14 +593,19 @@ export default function PerubahanModalIndex() {
                         <tbody>
                             {rows.length === 0 && !loading && (
                                 <tr>
-                                    <td colSpan={5} className="px-3 py-10 text-center text-muted-foreground">
+                                    <td
+                                        colSpan={5}
+                                        className="px-3 py-10 text-center text-muted-foreground"
+                                    >
                                         Tidak ada data.
                                     </td>
                                 </tr>
                             )}
                             {rows.map((r, idx) => {
                                 const kodeAkun = String(r?.Kode_Akun ?? '');
-                                const has00 = Boolean(r?.has_00) || kodeAkun.includes('00');
+                                const has00 =
+                                    Boolean(r?.has_00) ||
+                                    kodeAkun.includes('00');
                                 const cellClass = has00 ? markedCellClass : '';
                                 const net = Number(r?.net ?? 0);
                                 return (
@@ -535,35 +616,53 @@ export default function PerubahanModalIndex() {
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
-                                        <td className={`px-3 py-2 font-medium ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 font-medium ${cellClass}`}
+                                        >
                                             <div className="flex items-center gap-2">
                                                 {has00 ? (
                                                     <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                                 ) : null}
                                                 <Link
-                                                    href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
+                                                    href={buildBukuBesarUrl({
+                                                        kodeAkun,
+                                                        periodType,
+                                                        period,
+                                                    })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 ring-1 ring-amber-500/30 hover:underline dark:text-amber-300'
+                                                            : 'text-amber-700 hover:underline dark:text-amber-300'
                                                     }
                                                 >
                                                     {kodeAkun}
                                                 </Link>
                                             </div>
                                         </td>
-                                        <td className={`px-3 py-2 ${cellClass}`}>{r?.Nama_Akun}</td>
-                                        <td className={`px-3 py-2 text-right ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 ${cellClass}`}
+                                        >
+                                            {r?.Nama_Akun}
+                                        </td>
+                                        <td
+                                            className={`px-3 py-2 text-right ${cellClass}`}
+                                        >
                                             {formatRupiah(r?.debit)}
                                         </td>
-                                        <td className={`px-3 py-2 text-right ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 text-right ${cellClass}`}
+                                        >
                                             {formatRupiah(r?.kredit)}
                                         </td>
                                         <td
                                             className={[
                                                 'px-3 py-2 text-right',
                                                 cellClass,
-                                                net > 0 ? 'text-emerald-700 dark:text-emerald-300' : net < 0 ? 'text-rose-700 dark:text-rose-300' : 'text-foreground/80',
+                                                net > 0
+                                                    ? 'text-emerald-700 dark:text-emerald-300'
+                                                    : net < 0
+                                                      ? 'text-rose-700 dark:text-rose-300'
+                                                      : 'text-foreground/80',
                                             ].join(' ')}
                                         >
                                             {formatRupiah(net)}
@@ -581,7 +680,9 @@ export default function PerubahanModalIndex() {
                         <Button
                             size="sm"
                             variant="outline"
-                            disabled={page === 1 || loading || pageSize === 'all'}
+                            disabled={
+                                page === 1 || loading || pageSize === 'all'
+                            }
                             onClick={() => setPage((p) => Math.max(1, p - 1))}
                         >
                             Sebelumnya
@@ -592,14 +693,24 @@ export default function PerubahanModalIndex() {
                         <Button
                             size="sm"
                             variant="outline"
-                            disabled={page >= totalPages || loading || pageSize === 'all'}
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={
+                                page >= totalPages ||
+                                loading ||
+                                pageSize === 'all'
+                            }
+                            onClick={() =>
+                                setPage((p) => Math.min(totalPages, p + 1))
+                            }
                         >
                             Berikutnya
                         </Button>
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+PerubahanModalIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

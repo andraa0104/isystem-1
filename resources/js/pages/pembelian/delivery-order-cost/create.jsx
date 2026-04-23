@@ -1,3 +1,5 @@
+import { ActionIconButton } from '@/components/action-icon-button';
+import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -18,12 +20,10 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { Head, router } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { readApiError, normalizeApiError } from '@/lib/api-error';
-import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
-import { ActionIconButton } from '@/components/action-icon-button';
 import Swal from 'sweetalert2';
 
 const formatDate = (date) => {
@@ -90,7 +90,9 @@ export default function DeliveryOrderCostCreate() {
                 setMaterialTotalPages(data?.last_page ?? 1);
             })
             .catch((error) => {
-                setMaterialError(normalizeApiError(error, 'Gagal memuat data material.'));
+                setMaterialError(
+                    normalizeApiError(error, 'Gagal memuat data material.'),
+                );
                 setMaterialList([]);
             })
             .finally(() => {
@@ -218,18 +220,12 @@ export default function DeliveryOrderCostCreate() {
     );
 
     return (
-                <AppLayout
-                    breadcrumbs={[
-                        { title: 'Dashboard', href: '/dashboard' },
-                        { title: 'Pembelian', href: '/pembelian/delivery-order-cost' },
-                        { title: 'Create DO Biaya', href: '#' },
-                    ]}
-                >
-                    <Head title="Create Delivery Order Cost" />
+        <>
+            <Head title="Create Delivery Order Cost" />
             <div className="flex-1 p-4">
                 <div className="mb-6 flex items-center justify-between">
                     <h1 className="text-2xl font-bold">
-                            Buat Delivery Order Cost
+                        Buat Delivery Order Cost
                     </h1>
                     <div className="text-sm text-muted-foreground">
                         Step {step} of 2
@@ -359,7 +355,10 @@ export default function DeliveryOrderCostCreate() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Satuan</Label>
-                                        <Input readOnly value={inputItem.unit} />
+                                        <Input
+                                            readOnly
+                                            value={inputItem.unit}
+                                        />
                                     </div>
                                     <div className="space-y-2 lg:col-span-2">
                                         <Label>Remark</Label>
@@ -378,7 +377,10 @@ export default function DeliveryOrderCostCreate() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Total Price</Label>
-                                        <Input readOnly value={inputItem.total} />
+                                        <Input
+                                            readOnly
+                                            value={inputItem.total}
+                                        />
                                     </div>
                                     <div className="flex items-end justify-end lg:col-span-4">
                                         <Button
@@ -414,7 +416,9 @@ export default function DeliveryOrderCostCreate() {
                                                     </TableHead>
                                                     <TableHead>Price</TableHead>
                                                     <TableHead>Total</TableHead>
-                                                    <TableHead>Remark</TableHead>
+                                                    <TableHead>
+                                                        Remark
+                                                    </TableHead>
                                                     <TableHead className="w-[70px]">
                                                         Aksi
                                                     </TableHead>
@@ -454,7 +458,11 @@ export default function DeliveryOrderCostCreate() {
                                                                 <ActionIconButton
                                                                     label="Hapus"
                                                                     variant="destructive"
-                                                                    onClick={() => handleRemoveItem(i)}
+                                                                    onClick={() =>
+                                                                        handleRemoveItem(
+                                                                            i,
+                                                                        )
+                                                                    }
                                                                 >
                                                                     <Trash2 className="h-4 w-4" />
                                                                 </ActionIconButton>
@@ -502,7 +510,7 @@ export default function DeliveryOrderCostCreate() {
                 open={isMaterialModalOpen}
                 onOpenChange={setIsMaterialModalOpen}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none flex flex-col">
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Cari Material</DialogTitle>
                         <DialogDescription>
@@ -564,11 +572,19 @@ export default function DeliveryOrderCostCreate() {
                                     columns={4}
                                     loading={materialLoading}
                                     error={materialError}
-                                    onRetry={() => fetchMaterials(materialPage || 1)}
-                                    isEmpty={!materialLoading && !materialError && materialList.length === 0}
+                                    onRetry={() =>
+                                        fetchMaterials(materialPage || 1)
+                                    }
+                                    isEmpty={
+                                        !materialLoading &&
+                                        !materialError &&
+                                        materialList.length === 0
+                                    }
                                     emptyTitle="Tidak ada data material."
                                 />
-                                {!materialLoading && !materialError && materialList.map((item) => (
+                                {!materialLoading &&
+                                    !materialError &&
+                                    materialList.map((item) => (
                                         <TableRow key={item.kd_material}>
                                             <TableCell>
                                                 {item.material}
@@ -593,35 +609,49 @@ export default function DeliveryOrderCostCreate() {
                         </Table>
                     </div>
 
-                    {materialPageSize !== Infinity && materialList.length > 0 && (
-                        <div className="flex items-center justify-between pt-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    fetchMaterials(materialPage - 1)
-                                }
-                                disabled={materialPage <= 1}
-                            >
-                                Prev
-                            </Button>
-                            <span className="text-sm text-muted-foreground">
-                                {materialPaginationText}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    fetchMaterials(materialPage + 1)
-                                }
-                                disabled={materialPage >= materialTotalPages}
-                            >
-                                Next
-                            </Button>
-                        </div>
-                    )}
+                    {materialPageSize !== Infinity &&
+                        materialList.length > 0 && (
+                            <div className="flex items-center justify-between pt-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        fetchMaterials(materialPage - 1)
+                                    }
+                                    disabled={materialPage <= 1}
+                                >
+                                    Prev
+                                </Button>
+                                <span className="text-sm text-muted-foreground">
+                                    {materialPaginationText}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        fetchMaterials(materialPage + 1)
+                                    }
+                                    disabled={
+                                        materialPage >= materialTotalPages
+                                    }
+                                >
+                                    Next
+                                </Button>
+                            </div>
+                        )}
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+DeliveryOrderCostCreate.layout = (page) => (
+    <AppLayout
+        children={page}
+        breadcrumbs={[
+            { title: 'Dashboard', href: '/dashboard' },
+            { title: 'Pembelian', href: '/pembelian/delivery-order-cost' },
+            { title: 'Create DO Biaya', href: '#' },
+        ]}
+    />
+);

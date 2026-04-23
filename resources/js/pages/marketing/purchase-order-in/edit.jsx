@@ -680,7 +680,7 @@ export default function PurchaseOrderInEdit({
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Edit PO In" />
             <div className="flex h-full flex-1 flex-col gap-5 p-4">
                 {/* Header section with explicit hex background for maximum compatibility */}
@@ -1752,6 +1752,10 @@ export default function PurchaseOrderInEdit({
                     )}
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+PurchaseOrderInEdit.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

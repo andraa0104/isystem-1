@@ -705,7 +705,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Tambah PO In" />
             <div className="flex h-full flex-1 flex-col gap-5 p-4">
                 {/* Header section with explicit hex background for maximum compatibility */}
@@ -2138,6 +2138,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     </form>
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+PurchaseOrderInCreate.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

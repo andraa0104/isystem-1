@@ -1,8 +1,5 @@
-import AppLayout from '@/layouts/app-layout';
-import { Head, Link, usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -10,8 +7,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Printer, Scale } from 'lucide-react';
+import AppLayout from '@/layouts/app-layout';
 import { buildBukuBesarUrl } from '@/lib/report-links';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { Loader2, Printer, Scale } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -29,7 +29,9 @@ const formatRupiah = (value) => {
 const formatNumber = (value) => {
     const n = Number(value);
     if (!Number.isFinite(n)) return '0';
-    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
+    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        n,
+    );
 };
 
 const buildPrintUrl = (query) => {
@@ -46,10 +48,12 @@ const markedCellClass = 'bg-amber-500/10';
 function StatCard({ label, value }) {
     return (
         <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <div className="text-[11px] tracking-wide text-muted-foreground uppercase">
                 {label}
             </div>
-            <div className="mt-2 text-xl font-semibold text-foreground">{value}</div>
+            <div className="mt-2 text-xl font-semibold text-foreground">
+                {value}
+            </div>
         </div>
     );
 }
@@ -68,10 +72,14 @@ export default function NeracaSaldoIndex() {
     const [error, setError] = useState('');
 
     const [search, setSearch] = useState(initialQuery?.search ?? '');
-    const [debouncedSearch, setDebouncedSearch] = useState(initialQuery?.search ?? '');
+    const [debouncedSearch, setDebouncedSearch] = useState(
+        initialQuery?.search ?? '',
+    );
 
     const [sortBy, setSortBy] = useState(initialQuery?.sortBy ?? 'Kode_Akun');
-    const [sortDir, setSortDir] = useState((initialQuery?.sortDir ?? 'asc').toLowerCase());
+    const [sortDir, setSortDir] = useState(
+        (initialQuery?.sortDir ?? 'asc').toLowerCase(),
+    );
 
     const [pageSize, setPageSize] = useState(
         initialQuery?.pageSize === 'all'
@@ -98,11 +106,17 @@ export default function NeracaSaldoIndex() {
             params.set('sortBy', sortBy);
             params.set('sortDir', sortDir);
             params.set('page', String(page));
-            params.set('pageSize', pageSize === 'all' ? 'all' : String(pageSize));
+            params.set(
+                'pageSize',
+                pageSize === 'all' ? 'all' : String(pageSize),
+            );
 
-            const res = await fetch(`/laporan/neraca-saldo/rows?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/laporan/neraca-saldo/rows?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             const data = await res.json();
             if (!res.ok) {
                 const msg = String(data?.error ?? 'Gagal memuat data.');
@@ -137,10 +151,14 @@ export default function NeracaSaldoIndex() {
         return Math.max(1, Math.ceil(total / size));
     }, [pageSize, total]);
 
-    const printUrl = buildPrintUrl({ search: debouncedSearch, sortBy, sortDir });
+    const printUrl = buildPrintUrl({
+        search: debouncedSearch,
+        sortBy,
+        sortDir,
+    });
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Neraca Saldo" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -149,7 +167,9 @@ export default function NeracaSaldoIndex() {
                             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
                                 <Scale className="h-5 w-5 text-foreground/80" />
                             </div>
-                            <h1 className="text-xl font-semibold">Neraca Saldo</h1>
+                            <h1 className="text-xl font-semibold">
+                                Neraca Saldo
+                            </h1>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
                             Ringkasan saldo debit dan kredit per akun (snapshot)
@@ -164,14 +184,20 @@ export default function NeracaSaldoIndex() {
                             </a>
                         </Button>
 
-                        <span className="text-sm text-muted-foreground">Urut</span>
+                        <span className="text-sm text-muted-foreground">
+                            Urut
+                        </span>
                         <Select value={sortBy} onValueChange={setSortBy}>
                             <SelectTrigger className="w-44">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Kode_Akun">Kode Akun</SelectItem>
-                                <SelectItem value="Nama_Akun">Nama Akun</SelectItem>
+                                <SelectItem value="Kode_Akun">
+                                    Kode Akun
+                                </SelectItem>
+                                <SelectItem value="Nama_Akun">
+                                    Nama Akun
+                                </SelectItem>
                                 <SelectItem value="Debit">Debit</SelectItem>
                                 <SelectItem value="Kredit">Kredit</SelectItem>
                             </SelectContent>
@@ -186,10 +212,14 @@ export default function NeracaSaldoIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Tampil</span>
+                        <span className="text-sm text-muted-foreground">
+                            Tampil
+                        </span>
                         <Select
                             value={String(pageSize)}
-                            onValueChange={(val) => setPageSize(val === 'all' ? 'all' : Number(val))}
+                            onValueChange={(val) =>
+                                setPageSize(val === 'all' ? 'all' : Number(val))
+                            }
                         >
                             <SelectTrigger className="w-24">
                                 <SelectValue />
@@ -212,9 +242,18 @@ export default function NeracaSaldoIndex() {
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-3">
-                    <StatCard label="Total Akun" value={formatNumber(summary.total_accounts)} />
-                    <StatCard label="Total Debit" value={formatRupiah(summary.debit)} />
-                    <StatCard label="Total Kredit" value={formatRupiah(summary.kredit)} />
+                    <StatCard
+                        label="Total Akun"
+                        value={formatNumber(summary.total_accounts)}
+                    />
+                    <StatCard
+                        label="Total Debit"
+                        value={formatRupiah(summary.debit)}
+                    />
+                    <StatCard
+                        label="Total Kredit"
+                        value={formatRupiah(summary.kredit)}
+                    />
                 </div>
 
                 {error ? (
@@ -222,22 +261,24 @@ export default function NeracaSaldoIndex() {
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
                         <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
-                            Pastikan `tb_neracasaldo` ada (Kode_Akun, Debit, Kredit) dan `tb_nabb` ada (Nama_Akun).
+                            Pastikan `tb_neracasaldo` ada (Kode_Akun, Debit,
+                            Kredit) dan `tb_nabb` ada (Nama_Akun).
                         </div>
                     </div>
                 ) : null}
 
                 <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[1px] dark:bg-black/30">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground dark:bg-black/40">
+                                <Loader2 className="h-4 w-4 animate-spin" />{' '}
+                                Memuat...
                             </div>
                         </div>
                     )}
 
-                    <table className="min-w-full text-sm text-left">
-                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                    <table className="min-w-full text-left text-sm">
+                        <thead className="bg-muted/30 text-[11px] tracking-wide text-muted-foreground uppercase dark:bg-white/5">
                             <tr>
                                 <th className="px-3 py-3">Kode Akun</th>
                                 <th className="px-3 py-3">Nama Akun</th>
@@ -248,7 +289,10 @@ export default function NeracaSaldoIndex() {
                         <tbody>
                             {rows.length === 0 && !loading && (
                                 <tr>
-                                    <td colSpan={4} className="px-3 py-10 text-center text-muted-foreground">
+                                    <td
+                                        colSpan={4}
+                                        className="px-3 py-10 text-center text-muted-foreground"
+                                    >
                                         Tidak ada data.
                                     </td>
                                 </tr>
@@ -265,28 +309,40 @@ export default function NeracaSaldoIndex() {
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
-                                        <td className={`px-3 py-2 font-medium ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 font-medium ${cellClass}`}
+                                        >
                                             <div className="flex items-center gap-2">
                                                 {has00 ? (
                                                     <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                                 ) : null}
                                                 <Link
-                                                    href={buildBukuBesarUrl({ kodeAkun })}
+                                                    href={buildBukuBesarUrl({
+                                                        kodeAkun,
+                                                    })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 ring-1 ring-amber-500/30 hover:underline dark:text-amber-300'
+                                                            : 'text-amber-700 hover:underline dark:text-amber-300'
                                                     }
                                                 >
                                                     {kodeAkun}
                                                 </Link>
                                             </div>
                                         </td>
-                                        <td className={`px-3 py-2 ${cellClass}`}>{r?.Nama_Akun}</td>
-                                        <td className={`px-3 py-2 text-right ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 ${cellClass}`}
+                                        >
+                                            {r?.Nama_Akun}
+                                        </td>
+                                        <td
+                                            className={`px-3 py-2 text-right ${cellClass}`}
+                                        >
                                             {formatRupiah(r?.Debit)}
                                         </td>
-                                        <td className={`px-3 py-2 text-right ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 text-right ${cellClass}`}
+                                        >
                                             {formatRupiah(r?.Kredit)}
                                         </td>
                                     </tr>
@@ -302,7 +358,9 @@ export default function NeracaSaldoIndex() {
                         <Button
                             size="sm"
                             variant="outline"
-                            disabled={page === 1 || loading || pageSize === 'all'}
+                            disabled={
+                                page === 1 || loading || pageSize === 'all'
+                            }
                             onClick={() => setPage((p) => Math.max(1, p - 1))}
                         >
                             Sebelumnya
@@ -313,14 +371,24 @@ export default function NeracaSaldoIndex() {
                         <Button
                             size="sm"
                             variant="outline"
-                            disabled={page >= totalPages || loading || pageSize === 'all'}
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={
+                                page >= totalPages ||
+                                loading ||
+                                pageSize === 'all'
+                            }
+                            onClick={() =>
+                                setPage((p) => Math.min(totalPages, p + 1))
+                            }
                         >
                             Berikutnya
                         </Button>
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+NeracaSaldoIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

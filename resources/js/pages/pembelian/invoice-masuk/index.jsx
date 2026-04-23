@@ -41,6 +41,12 @@ const STATUS_OPTIONS = [
     { value: 'belum_dijurnal', label: 'Invoice belum dijurnal' },
 ];
 
+const breadcrumbs = [
+    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'Pembelian', href: '/pembelian/invoice-masuk' },
+    { title: 'Invoice Masuk', href: '/pembelian/invoice-masuk' },
+];
+
 const PAGE_SIZE_OPTIONS = [
     { value: '5', label: '5' },
     { value: '10', label: '10' },
@@ -469,12 +475,7 @@ export default function InvoiceMasukIndex({
     };
 
     return (
-        <AppLayout
-            breadcrumbs={[
-                { title: 'Dashboard', href: '/dashboard' },
-                { title: 'Invoice Masuk', href: '/pembelian/invoice-masuk' },
-            ]}
-        >
+        <>
             <Head title="Invoice Masuk" />
             <div className="flex flex-col gap-4 p-4">
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-stretch">
@@ -1835,6 +1836,9 @@ export default function InvoiceMasukIndex({
                     </div>
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+InvoiceMasukIndex.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

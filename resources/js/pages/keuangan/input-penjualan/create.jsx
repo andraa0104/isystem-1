@@ -1,16 +1,35 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Head, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Head, router } from '@inertiajs/react';
+import { useEffect, useMemo, useState } from 'react';
 
 const PAGE_SIZE_OPTIONS = [
     { value: '10', label: '10' },
@@ -20,13 +39,19 @@ const PAGE_SIZE_OPTIONS = [
 ];
 
 const formatNumber = (value) =>
-    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value ?? 0);
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        value ?? 0,
+    );
 
 const formatDate = (value) => {
     if (!value) return '-';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
-    return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
+    return new Intl.DateTimeFormat('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    }).format(date);
 };
 
 const parsePpnPercent = (ppnRaw) => {
@@ -65,10 +90,20 @@ const mergeLinesByAccount = (inputLines) => {
         }
         map.get(key).nominal += Number.isFinite(nominal) ? nominal : 0;
     }
-    return Array.from(map.values()).filter((l) => l.akun !== '' || l.nominal !== 0);
+    return Array.from(map.values()).filter(
+        (l) => l.akun !== '' || l.nominal !== 0,
+    );
 };
 
-function AccountSearchDialog({ title, description, open, onOpenChange, options, value, onSelect }) {
+function AccountSearchDialog({
+    title,
+    description,
+    open,
+    onOpenChange,
+    options,
+    value,
+    onSelect,
+}) {
     const [q, setQ] = useState('');
 
     const filtered = useMemo(() => {
@@ -90,7 +125,9 @@ function AccountSearchDialog({ title, description, open, onOpenChange, options, 
             <DialogContent className="max-w-xl">
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
-                    {description ? <DialogDescription>{description}</DialogDescription> : null}
+                    {description ? (
+                        <DialogDescription>{description}</DialogDescription>
+                    ) : null}
                 </DialogHeader>
                 <div className="space-y-3">
                     <Input
@@ -103,7 +140,8 @@ function AccountSearchDialog({ title, description, open, onOpenChange, options, 
                             <div className="divide-y">
                                 {filtered.map((opt) => {
                                     const v = String(opt?.value ?? '');
-                                    const active = v !== '' && v === String(value ?? '');
+                                    const active =
+                                        v !== '' && v === String(value ?? '');
                                     return (
                                         <button
                                             key={v || opt?.label}
@@ -116,20 +154,30 @@ function AccountSearchDialog({ title, description, open, onOpenChange, options, 
                                                 onOpenChange(false);
                                             }}
                                         >
-                                            <div className="font-medium text-foreground">{opt?.label ?? v}</div>
+                                            <div className="font-medium text-foreground">
+                                                {opt?.label ?? v}
+                                            </div>
                                             {opt?.label && opt?.label !== v ? (
-                                                <div className="text-xs text-muted-foreground">{v}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {v}
+                                                </div>
                                             ) : null}
                                         </button>
                                     );
                                 })}
                             </div>
                         ) : (
-                            <div className="p-4 text-sm text-muted-foreground">Tidak ada hasil.</div>
+                            <div className="p-4 text-sm text-muted-foreground">
+                                Tidak ada hasil.
+                            </div>
                         )}
                     </div>
                     <div className="flex justify-end gap-2">
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => onOpenChange(false)}
+                        >
                             Tutup
                         </Button>
                     </div>
@@ -174,14 +222,18 @@ export default function InputPenjualanCreate({
     const [detailLoading, setDetailLoading] = useState(false);
 
     const [kodeAkunAuto, setKodeAkunAuto] = useState(true);
-    const [kodeAkun, setKodeAkun] = useState(defaultAccount ?? (accountOptions?.[0]?.value ?? ''));
+    const [kodeAkun, setKodeAkun] = useState(
+        defaultAccount ?? accountOptions?.[0]?.value ?? '',
+    );
     const voucherType = useMemo(
         () => guessVoucherType(kodeAkun),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [kodeAkun, accountOptions],
     );
 
-    const [tglVoucher, setTglVoucher] = useState(() => new Date().toISOString().slice(0, 10));
+    const [tglVoucher, setTglVoucher] = useState(() =>
+        new Date().toISOString().slice(0, 10),
+    );
     const [keterangan, setKeterangan] = useState('');
     const [keteranganAuto, setKeteranganAuto] = useState(true);
     const [nominal, setNominal] = useState('');
@@ -197,12 +249,21 @@ export default function InputPenjualanCreate({
     const [autoSuggestedNo, setAutoSuggestedNo] = useState('');
 
     const calc = useMemo(() => {
-        const totalInv = Number(selectedDetail?.g_total ?? selected?.g_total ?? 0);
-        const taxInv = Math.max(0, Number(selectedDetail?.h_ppn ?? selected?.h_ppn ?? 0));
+        const totalInv = Number(
+            selectedDetail?.g_total ?? selected?.g_total ?? 0,
+        );
+        const taxInv = Math.max(
+            0,
+            Number(selectedDetail?.h_ppn ?? selected?.h_ppn ?? 0),
+        );
         const dppInv = Math.max(0, totalInv - taxInv);
-        const bayar = Number(selectedDetail?.total_bayaran ?? selected?.total_bayaran ?? 0);
-        const cashNominal = nominal === '' ? (bayar > 0 ? bayar : totalInv) : Number(nominal);
-        const ratio = totalInv > 0 ? Math.min(1, Math.max(0, cashNominal / totalInv)) : 1;
+        const bayar = Number(
+            selectedDetail?.total_bayaran ?? selected?.total_bayaran ?? 0,
+        );
+        const cashNominal =
+            nominal === '' ? (bayar > 0 ? bayar : totalInv) : Number(nominal);
+        const ratio =
+            totalInv > 0 ? Math.min(1, Math.max(0, cashNominal / totalInv)) : 1;
         return {
             totalInv,
             taxInv,
@@ -214,9 +275,14 @@ export default function InputPenjualanCreate({
         };
     }, [selectedDetail, selected, nominal]);
 
-    const ppnPercent = useMemo(() => parsePpnPercent(selectedDetail?.ppn ?? selected?.ppn), [selectedDetail, selected]);
+    const ppnPercent = useMemo(
+        () => parsePpnPercent(selectedDetail?.ppn ?? selected?.ppn),
+        [selectedDetail, selected],
+    );
 
-    const [lines, setLines] = useState(() => [{ akun: '', jenis: 'Kredit', nominal: 0 }]);
+    const [lines, setLines] = useState(() => [
+        { akun: '', jenis: 'Kredit', nominal: 0 },
+    ]);
 
     useEffect(() => {
         setLines((prev) => {
@@ -229,11 +295,19 @@ export default function InputPenjualanCreate({
         });
     }, [calc.dppCash]);
 
-    const linesSum = useMemo(() => (lines ?? []).reduce((acc, l) => acc + Number(l?.nominal ?? 0), 0), [lines]);
-    const linesDiff = useMemo(() => Math.round((calc.dppCash - linesSum) * 100) / 100, [calc.dppCash, linesSum]);
+    const linesSum = useMemo(
+        () =>
+            (lines ?? []).reduce((acc, l) => acc + Number(l?.nominal ?? 0), 0),
+        [lines],
+    );
+    const linesDiff = useMemo(
+        () => Math.round((calc.dppCash - linesSum) * 100) / 100,
+        [calc.dppCash, linesSum],
+    );
 
     const maxLines = calc.taxCash > 0 ? 2 : 3;
-    const getSlotLabel = (idx) => (calc.taxCash > 0 ? (idx === 0 ? 1 : 3) : idx + 1);
+    const getSlotLabel = (idx) =>
+        calc.taxCash > 0 ? (idx === 0 ? 1 : 3) : idx + 1;
 
     const displayed = useMemo(() => {
         if (pageSize === Infinity) return rows;
@@ -253,9 +327,12 @@ export default function InputPenjualanCreate({
             const params = new URLSearchParams();
             if (search) params.set('search', search);
             params.set('pageSize', 'all');
-            const res = await fetch(`/keuangan/input-penjualan/invoice-rows?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/keuangan/input-penjualan/invoice-rows?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!res.ok) throw await normalizeApiError(res);
             const json = await res.json();
             setRows(Array.isArray(json?.rows) ? json.rows : []);
@@ -273,9 +350,12 @@ export default function InputPenjualanCreate({
         if (!noFaktur) return;
         setDetailLoading(true);
         try {
-            const res = await fetch(`/keuangan/input-penjualan/invoice-detail/${encodeURIComponent(noFaktur)}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/keuangan/input-penjualan/invoice-detail/${encodeURIComponent(noFaktur)}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!res.ok) throw await normalizeApiError(res);
             const json = await res.json();
             setSelectedDetail(json?.header ?? null);
@@ -292,9 +372,12 @@ export default function InputPenjualanCreate({
         try {
             const params = new URLSearchParams();
             if (cashNominal) params.set('nominal', String(cashNominal));
-            const res = await fetch(`/keuangan/input-penjualan/suggest/${encodeURIComponent(noFaktur)}?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/keuangan/input-penjualan/suggest/${encodeURIComponent(noFaktur)}?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!res.ok) throw await normalizeApiError(res);
             const json = await res.json();
 
@@ -306,18 +389,32 @@ export default function InputPenjualanCreate({
 
             // voucher_type is now derived from selected kas/bank account (no user selection)
 
-            const beban = Array.isArray(json?.beban_lines) ? json.beban_lines : [];
+            const beban = Array.isArray(json?.beban_lines)
+                ? json.beban_lines
+                : [];
             if (beban.length) {
                 const merged = mergeLinesByAccount(
                     beban.map((l) => ({
                         akun: String(l?.akun ?? '').trim(),
                         jenis: String(l?.jenis ?? 'Kredit'),
                         nominal: Number(l?.nominal ?? 0),
-                    }))
+                    })),
                 );
-                setLines(merged.length ? merged : [{ akun: '', jenis: 'Kredit', nominal: calc.dppCash }]);
+                setLines(
+                    merged.length
+                        ? merged
+                        : [
+                              {
+                                  akun: '',
+                                  jenis: 'Kredit',
+                                  nominal: calc.dppCash,
+                              },
+                          ],
+                );
             } else {
-                setLines([{ akun: '', jenis: 'Kredit', nominal: calc.dppCash }]);
+                setLines([
+                    { akun: '', jenis: 'Kredit', nominal: calc.dppCash },
+                ]);
             }
 
             const ppn = String(json?.ppn_akun ?? '').trim();
@@ -356,7 +453,9 @@ export default function InputPenjualanCreate({
         setSelectedDetail(null);
         setKeteranganAuto(true);
         setPpnAkunAuto(true);
-        setKeterangan(`Penjualan/INV ${row?.no_fakturpenjualan ?? ''}${row?.nm_cs ? ` — ${row.nm_cs}` : ''}`);
+        setKeterangan(
+            `Penjualan/INV ${row?.no_fakturpenjualan ?? ''}${row?.nm_cs ? ` — ${row.nm_cs}` : ''}`,
+        );
 
         const paid = Number(row?.total_bayaran ?? 0);
         const totalInv = Number(row?.g_total ?? 0);
@@ -403,12 +502,12 @@ export default function InputPenjualanCreate({
                     setLines([{ akun: '', jenis: 'Kredit', nominal: 0 }]);
                     fetchRows();
                 },
-            }
+            },
         );
     };
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }, { title: 'Input Penjualan', href: '/keuangan/input-penjualan' }, { title: 'Input Baru', href: '/keuangan/input-penjualan/create' }]}>
+        <>
             <Head title="Input Penjualan - Input Baru" />
             <div className="flex flex-col gap-4 p-4">
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
@@ -416,12 +515,30 @@ export default function InputPenjualanCreate({
                         <CardHeader className="space-y-3">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
-                                    <CardTitle>Pilih Faktur Penjualan</CardTitle>
+                                    <CardTitle>
+                                        Pilih Faktur Penjualan
+                                    </CardTitle>
                                     <div className="text-xs text-muted-foreground">
-                                        Ambil dari <span className="font-mono">tb_kdfakturpenjualan</span> (header) dan detail <span className="font-mono">tb_fakturpenjualan</span>.
+                                        Ambil dari{' '}
+                                        <span className="font-mono">
+                                            tb_kdfakturpenjualan
+                                        </span>{' '}
+                                        (header) dan detail{' '}
+                                        <span className="font-mono">
+                                            tb_fakturpenjualan
+                                        </span>
+                                        .
                                     </div>
                                 </div>
-                                <Button type="button" variant="outline" onClick={() => router.visit('/keuangan/input-penjualan')}>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() =>
+                                        router.visit(
+                                            '/keuangan/input-penjualan',
+                                        )
+                                    }
+                                >
                                     Kembali
                                 </Button>
                             </div>
@@ -451,9 +568,15 @@ export default function InputPenjualanCreate({
                                         <TableHead>No Faktur</TableHead>
                                         <TableHead>Tgl</TableHead>
                                         <TableHead>Customer</TableHead>
-                                        <TableHead className="text-right">Total</TableHead>
-                                        <TableHead className="text-right">PPN</TableHead>
-                                        <TableHead className="text-right">Bayar</TableHead>
+                                        <TableHead className="text-right">
+                                            Total
+                                        </TableHead>
+                                        <TableHead className="text-right">
+                                            PPN
+                                        </TableHead>
+                                        <TableHead className="text-right">
+                                            Bayar
+                                        </TableHead>
                                         <TableHead>Status</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -463,7 +586,11 @@ export default function InputPenjualanCreate({
                                         loading={loading}
                                         error={error}
                                         onRetry={fetchRows}
-                                        isEmpty={!loading && !error && displayed.length === 0}
+                                        isEmpty={
+                                            !loading &&
+                                            !error &&
+                                            displayed.length === 0
+                                        }
                                         emptyTitle="Tidak ada data faktur."
                                         emptyDescription="Ubah kata kunci pencarian."
                                     />
@@ -471,26 +598,52 @@ export default function InputPenjualanCreate({
                                         !error &&
                                         displayed.map((row) => {
                                             const st = getInvoiceStatus(row);
-                                            const active = selected?.no_fakturpenjualan === row?.no_fakturpenjualan;
+                                            const active =
+                                                selected?.no_fakturpenjualan ===
+                                                row?.no_fakturpenjualan;
                                             return (
                                                 <TableRow
-                                                    key={row?.no_fakturpenjualan ?? Math.random()}
+                                                    key={
+                                                        row?.no_fakturpenjualan ??
+                                                        Math.random()
+                                                    }
                                                     className={`cursor-pointer ${active ? 'bg-primary/5' : ''}`}
                                                     onClick={() => {
-                                                        applySelectedToForm(row);
-                                                        fetchDetail(String(row?.no_fakturpenjualan ?? '').trim());
+                                                        applySelectedToForm(
+                                                            row,
+                                                        );
+                                                        fetchDetail(
+                                                            String(
+                                                                row?.no_fakturpenjualan ??
+                                                                    '',
+                                                            ).trim(),
+                                                        );
                                                     }}
                                                 >
-                                                    <TableCell className="font-medium">{row?.no_fakturpenjualan ?? '-'}</TableCell>
-                                                    <TableCell>{formatDate(row?.tgl_doc)}</TableCell>
-                                                    <TableCell className="max-w-[260px] truncate" title={row?.nm_cs ?? ''}>
+                                                    <TableCell className="font-medium">
+                                                        {row?.no_fakturpenjualan ??
+                                                            '-'}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {formatDate(
+                                                            row?.tgl_doc,
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell
+                                                        className="max-w-[260px] truncate"
+                                                        title={row?.nm_cs ?? ''}
+                                                    >
                                                         {row?.nm_cs ?? '-'}
                                                     </TableCell>
                                                     <TableCell className="text-right">{`Rp ${formatNumber(row?.g_total ?? 0)}`}</TableCell>
                                                     <TableCell className="text-right">{`Rp ${formatNumber(row?.h_ppn ?? 0)}`}</TableCell>
                                                     <TableCell className="text-right">{`Rp ${formatNumber(row?.total_bayaran ?? 0)}`}</TableCell>
                                                     <TableCell>
-                                                        <Badge variant={st.variant}>{st.label}</Badge>
+                                                        <Badge
+                                                            variant={st.variant}
+                                                        >
+                                                            {st.label}
+                                                        </Badge>
                                                     </TableCell>
                                                 </TableRow>
                                             );
@@ -500,14 +653,25 @@ export default function InputPenjualanCreate({
 
                             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="text-sm text-muted-foreground">
-                                    Total data: <span className="font-medium text-foreground">{total ?? 0}</span>
+                                    Total data:{' '}
+                                    <span className="font-medium text-foreground">
+                                        {total ?? 0}
+                                    </span>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
                                     <Select
-                                        value={pageSize === Infinity ? 'all' : String(pageSize)}
+                                        value={
+                                            pageSize === Infinity
+                                                ? 'all'
+                                                : String(pageSize)
+                                        }
                                         onValueChange={(val) => {
                                             setPage(1);
-                                            setPageSize(val === 'all' ? Infinity : Number(val));
+                                            setPageSize(
+                                                val === 'all'
+                                                    ? Infinity
+                                                    : Number(val),
+                                            );
                                         }}
                                     >
                                         <SelectTrigger className="w-36">
@@ -515,7 +679,10 @@ export default function InputPenjualanCreate({
                                         </SelectTrigger>
                                         <SelectContent>
                                             {PAGE_SIZE_OPTIONS.map((opt) => (
-                                                <SelectItem key={opt.value} value={opt.value}>
+                                                <SelectItem
+                                                    key={opt.value}
+                                                    value={opt.value}
+                                                >
                                                     {opt.label}
                                                 </SelectItem>
                                             ))}
@@ -524,19 +691,32 @@ export default function InputPenjualanCreate({
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        disabled={pageSize === Infinity || page <= 1}
-                                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                        disabled={
+                                            pageSize === Infinity || page <= 1
+                                        }
+                                        onClick={() =>
+                                            setPage((p) => Math.max(1, p - 1))
+                                        }
                                     >
                                         Prev
                                     </Button>
                                     <div className="min-w-[92px] text-center text-sm">
-                                        {pageSize === Infinity ? 'All' : `${page}/${totalPages}`}
+                                        {pageSize === Infinity
+                                            ? 'All'
+                                            : `${page}/${totalPages}`}
                                     </div>
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        disabled={pageSize === Infinity || page >= totalPages}
-                                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                        disabled={
+                                            pageSize === Infinity ||
+                                            page >= totalPages
+                                        }
+                                        onClick={() =>
+                                            setPage((p) =>
+                                                Math.min(totalPages, p + 1),
+                                            )
+                                        }
                                     >
                                         Next
                                     </Button>
@@ -549,48 +729,88 @@ export default function InputPenjualanCreate({
                         <CardHeader className="space-y-2">
                             <CardTitle>Jurnal Penjualan ke Buku Kas</CardTitle>
                             <div className="text-xs text-muted-foreground">
-                                Voucher otomatis: <span className="font-mono">{'{DB}/{CV|GV|BV}/00000001'}</span> (masuk).
+                                Voucher otomatis:{' '}
+                                <span className="font-mono">
+                                    {'{DB}/{CV|GV|BV}/00000001'}
+                                </span>{' '}
+                                (masuk).
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-2 rounded-lg border bg-muted/10 p-3">
-                                <div className="text-xs text-muted-foreground">Faktur terpilih</div>
-                                <div className="text-sm font-semibold">{selected?.no_fakturpenjualan ?? '-'}</div>
-                                <div className="text-xs text-muted-foreground">{selected?.nm_cs ? String(selected.nm_cs) : 'Pilih faktur di tabel.'}</div>
+                                <div className="text-xs text-muted-foreground">
+                                    Faktur terpilih
+                                </div>
+                                <div className="text-sm font-semibold">
+                                    {selected?.no_fakturpenjualan ?? '-'}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                    {selected?.nm_cs
+                                        ? String(selected.nm_cs)
+                                        : 'Pilih faktur di tabel.'}
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 gap-3 rounded-lg border bg-muted/10 p-3">
                                 <div className="flex items-center justify-between">
-                                    <div className="text-xs text-muted-foreground">Ringkasan</div>
+                                    <div className="text-xs text-muted-foreground">
+                                        Ringkasan
+                                    </div>
                                     <Button
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        disabled={!selected?.no_fakturpenjualan || suggestLoading}
+                                        disabled={
+                                            !selected?.no_fakturpenjualan ||
+                                            suggestLoading
+                                        }
                                         onClick={() =>
                                             applySuggestion({
-                                                noFaktur: String(selected?.no_fakturpenjualan ?? '').trim(),
+                                                noFaktur: String(
+                                                    selected?.no_fakturpenjualan ??
+                                                        '',
+                                                ).trim(),
                                                 cashNominal: calc.cashNominal,
                                             })
                                         }
                                     >
-                                        {suggestLoading ? 'Menganalisa...' : 'Auto Suggest Ulang'}
+                                        {suggestLoading
+                                            ? 'Menganalisa...'
+                                            : 'Auto Suggest Ulang'}
                                     </Button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 text-sm">
-                                    <div className="text-muted-foreground">Total</div>
+                                    <div className="text-muted-foreground">
+                                        Total
+                                    </div>
                                     <div className="text-right font-medium">{`Rp ${formatNumber(calc.totalInv)}`}</div>
-                                    <div className="text-muted-foreground">DPP</div>
+                                    <div className="text-muted-foreground">
+                                        DPP
+                                    </div>
                                     <div className="text-right font-medium">{`Rp ${formatNumber(calc.dppCash)}`}</div>
-                                    <div className="text-muted-foreground">PPN %</div>
-                                    <div className="text-right font-medium">{ppnPercent === null ? '-' : `${ppnPercent}%`}</div>
-                                    <div className="text-muted-foreground">PPN</div>
-                                    <div className="text-right font-medium">{detailLoading ? '...' : `Rp ${formatNumber(calc.taxCash)}`}</div>
+                                    <div className="text-muted-foreground">
+                                        PPN %
+                                    </div>
+                                    <div className="text-right font-medium">
+                                        {ppnPercent === null
+                                            ? '-'
+                                            : `${ppnPercent}%`}
+                                    </div>
+                                    <div className="text-muted-foreground">
+                                        PPN
+                                    </div>
+                                    <div className="text-right font-medium">
+                                        {detailLoading
+                                            ? '...'
+                                            : `Rp ${formatNumber(calc.taxCash)}`}
+                                    </div>
                                 </div>
                             </div>
 
                             <div className="space-y-2">
-                                <div className="text-sm font-medium">Akun Kas/Bank</div>
+                                <div className="text-sm font-medium">
+                                    Akun Kas/Bank
+                                </div>
                                 <Select
                                     value={kodeAkun}
                                     onValueChange={(v) => {
@@ -603,7 +823,10 @@ export default function InputPenjualanCreate({
                                     </SelectTrigger>
                                     <SelectContent>
                                         {accountOptions?.map((opt) => (
-                                            <SelectItem key={opt.value} value={opt.value}>
+                                            <SelectItem
+                                                key={opt.value}
+                                                value={opt.value}
+                                            >
                                                 {opt.label}
                                             </SelectItem>
                                         ))}
@@ -612,97 +835,194 @@ export default function InputPenjualanCreate({
                             </div>
 
                             <div className="space-y-2">
-                                <div className="text-sm font-medium">Pendapatan (DPP)</div>
+                                <div className="text-sm font-medium">
+                                    Pendapatan (DPP)
+                                </div>
                                 <div className="grid gap-3 rounded-lg border p-3">
                                     <div className="flex justify-end">
                                         <Button
                                             type="button"
                                             variant="ghost"
-                                            disabled={(lines?.length ?? 0) >= maxLines}
-                                            onClick={() => setLines((prev) => [...(prev ?? []), { akun: '', jenis: 'Kredit', nominal: 0 }])}
+                                            disabled={
+                                                (lines?.length ?? 0) >= maxLines
+                                            }
+                                            onClick={() =>
+                                                setLines((prev) => [
+                                                    ...(prev ?? []),
+                                                    {
+                                                        akun: '',
+                                                        jenis: 'Kredit',
+                                                        nominal: 0,
+                                                    },
+                                                ])
+                                            }
                                         >
                                             Tambah
                                         </Button>
                                     </div>
-	                                    {(lines ?? []).map((line, idx) => (
-	                                        <div key={idx} className="grid grid-cols-1 gap-2 rounded-md border bg-background p-2">
-	                                            <div className="flex items-center justify-between gap-2">
-	                                                <div className="text-xs font-medium text-muted-foreground">{`Pendapatan ${getSlotLabel(idx)}`}</div>
-	                                                <div className="flex items-center gap-2">
-	                                                    {(lines?.length ?? 0) > 1 ? (
-	                                                        <Button
-	                                                            type="button"
-	                                                            variant="ghost"
-                                                            onClick={() => setLines((prev) => (prev ?? []).filter((_, i) => i !== idx))}
+                                    {(lines ?? []).map((line, idx) => (
+                                        <div
+                                            key={idx}
+                                            className="grid grid-cols-1 gap-2 rounded-md border bg-background p-2"
+                                        >
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="text-xs font-medium text-muted-foreground">{`Pendapatan ${getSlotLabel(idx)}`}</div>
+                                                <div className="flex items-center gap-2">
+                                                    {(lines?.length ?? 0) >
+                                                    1 ? (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            onClick={() =>
+                                                                setLines(
+                                                                    (prev) =>
+                                                                        (
+                                                                            prev ??
+                                                                            []
+                                                                        ).filter(
+                                                                            (
+                                                                                _,
+                                                                                i,
+                                                                            ) =>
+                                                                                i !==
+                                                                                idx,
+                                                                        ),
+                                                                )
+                                                            }
                                                         >
                                                             Hapus
                                                         </Button>
-	                                                    ) : null}
-	                                                </div>
-	                                            </div>
-	                                            <div className="grid grid-cols-1 gap-2">
-	                                                <Button
-	                                                    type="button"
-	                                                    variant="outline"
-	                                                    className="h-auto w-full items-start justify-between gap-2 py-2"
-	                                                    onClick={() => setActiveLineIndex(idx)}
-	                                                >
-	                                                    <span className="text-left leading-snug break-words whitespace-normal">
-	                                                        {line?.akun ? getAccountLabel(glAccountOptions, line.akun) : 'Pilih akun pendapatan'}
-	                                                    </span>
-	                                                    <span className="shrink-0 text-muted-foreground">Cari</span>
-	                                                </Button>
-	                                            </div>
-	                                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-	                                                <div className="space-y-1">
-	                                                    <Label className="text-xs text-muted-foreground">Jenis</Label>
-	                                                    <Select
-	                                                        value={String(line?.jenis ?? '') || 'Kredit'}
-	                                                        onValueChange={(v) =>
-	                                                            setLines((prev) =>
-	                                                                (prev ?? []).map((l, i) => (i === idx ? { ...l, jenis: v } : l))
-	                                                            )
-	                                                        }
-	                                                    >
-	                                                        <SelectTrigger className="h-9">
-	                                                            <SelectValue placeholder="Jenis" />
-	                                                        </SelectTrigger>
-	                                                        <SelectContent>
-	                                                            <SelectItem value="Kredit">Kredit</SelectItem>
-	                                                            <SelectItem value="Debit">Debit</SelectItem>
-	                                                        </SelectContent>
-	                                                    </Select>
-	                                                </div>
-	                                                <div className="space-y-1">
-	                                                    <Label className="text-xs text-muted-foreground">Nominal</Label>
-	                                                    <Input
-	                                                        inputMode="numeric"
-	                                                        value={String(line?.nominal ?? '')}
-	                                                        onChange={(e) => {
-	                                                            const v = e.target.value.replace(/[^\d.]/g, '');
-	                                                            setLines((prev) =>
-	                                                                (prev ?? []).map((l, i) => (i === idx ? { ...l, nominal: v === '' ? 0 : Number(v) } : l))
-	                                                            );
-	                                                        }}
-	                                                        placeholder="Jumlah (Rp)"
-	                                                    />
-	                                                </div>
-	                                            </div>
-	                                        </div>
-	                                    ))}
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className="h-auto w-full items-start justify-between gap-2 py-2"
+                                                    onClick={() =>
+                                                        setActiveLineIndex(idx)
+                                                    }
+                                                >
+                                                    <span className="text-left leading-snug break-words whitespace-normal">
+                                                        {line?.akun
+                                                            ? getAccountLabel(
+                                                                  glAccountOptions,
+                                                                  line.akun,
+                                                              )
+                                                            : 'Pilih akun pendapatan'}
+                                                    </span>
+                                                    <span className="shrink-0 text-muted-foreground">
+                                                        Cari
+                                                    </span>
+                                                </Button>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-muted-foreground">
+                                                        Jenis
+                                                    </Label>
+                                                    <Select
+                                                        value={
+                                                            String(
+                                                                line?.jenis ??
+                                                                    '',
+                                                            ) || 'Kredit'
+                                                        }
+                                                        onValueChange={(v) =>
+                                                            setLines((prev) =>
+                                                                (
+                                                                    prev ?? []
+                                                                ).map((l, i) =>
+                                                                    i === idx
+                                                                        ? {
+                                                                              ...l,
+                                                                              jenis: v,
+                                                                          }
+                                                                        : l,
+                                                                ),
+                                                            )
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="h-9">
+                                                            <SelectValue placeholder="Jenis" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="Kredit">
+                                                                Kredit
+                                                            </SelectItem>
+                                                            <SelectItem value="Debit">
+                                                                Debit
+                                                            </SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs text-muted-foreground">
+                                                        Nominal
+                                                    </Label>
+                                                    <Input
+                                                        inputMode="numeric"
+                                                        value={String(
+                                                            line?.nominal ?? '',
+                                                        )}
+                                                        onChange={(e) => {
+                                                            const v =
+                                                                e.target.value.replace(
+                                                                    /[^\d.]/g,
+                                                                    '',
+                                                                );
+                                                            setLines((prev) =>
+                                                                (
+                                                                    prev ?? []
+                                                                ).map((l, i) =>
+                                                                    i === idx
+                                                                        ? {
+                                                                              ...l,
+                                                                              nominal:
+                                                                                  v ===
+                                                                                  ''
+                                                                                      ? 0
+                                                                                      : Number(
+                                                                                            v,
+                                                                                        ),
+                                                                          }
+                                                                        : l,
+                                                                ),
+                                                            );
+                                                        }}
+                                                        placeholder="Jumlah (Rp)"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                     <div className="grid grid-cols-2 gap-2 text-sm">
-                                        <div className="text-muted-foreground">DPP target</div>
+                                        <div className="text-muted-foreground">
+                                            DPP target
+                                        </div>
                                         <div className="text-right font-medium">{`Rp ${formatNumber(calc.dppCash)}`}</div>
-                                        <div className="text-muted-foreground">Total</div>
+                                        <div className="text-muted-foreground">
+                                            Total
+                                        </div>
                                         <div className="text-right font-medium">{`Rp ${formatNumber(linesSum)}`}</div>
-                                        <div className="text-muted-foreground">Selisih</div>
-                                        <div className={`text-right font-medium ${linesDiff === 0 ? 'text-foreground' : 'text-destructive'}`}>
+                                        <div className="text-muted-foreground">
+                                            Selisih
+                                        </div>
+                                        <div
+                                            className={`text-right font-medium ${linesDiff === 0 ? 'text-foreground' : 'text-destructive'}`}
+                                        >
                                             {`Rp ${formatNumber(linesDiff)}`}
                                         </div>
                                     </div>
                                     {calc.taxCash > 0 ? (
                                         <div className="text-xs text-muted-foreground">
-                                            Catatan: PPN masuk ke <span className="font-mono">Kode_Akun2</span>, jadi pendapatan DPP maksimal 2 baris.
+                                            Catatan: PPN masuk ke{' '}
+                                            <span className="font-mono">
+                                                Kode_Akun2
+                                            </span>
+                                            , jadi pendapatan DPP maksimal 2
+                                            baris.
                                         </div>
                                     ) : null}
                                 </div>
@@ -710,24 +1030,48 @@ export default function InputPenjualanCreate({
 
                             {calc.taxCash > 0 ? (
                                 <div className="space-y-2">
-                                    <div className="text-sm font-medium">Akun PPN Keluaran</div>
-                                    <Button type="button" variant="outline" className="w-full justify-between" onClick={() => setPpnDialogOpen(true)}>
+                                    <div className="text-sm font-medium">
+                                        Akun PPN Keluaran
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="w-full justify-between"
+                                        onClick={() => setPpnDialogOpen(true)}
+                                    >
                                         <span className="truncate">
-                                            {ppnAkun ? getAccountLabel(glAccountOptions, ppnAkun) : 'Pilih akun PPN'}
+                                            {ppnAkun
+                                                ? getAccountLabel(
+                                                      glAccountOptions,
+                                                      ppnAkun,
+                                                  )
+                                                : 'Pilih akun PPN'}
                                         </span>
-                                        <span className="text-muted-foreground">Cari</span>
+                                        <span className="text-muted-foreground">
+                                            Cari
+                                        </span>
                                     </Button>
                                     <div className="text-xs text-muted-foreground">{`Nominal PPN: Rp ${formatNumber(calc.taxCash)}`}</div>
                                 </div>
                             ) : null}
 
                             <div className="space-y-2">
-                                <div className="text-sm font-medium">Tanggal Voucher</div>
-                                <Input type="date" value={tglVoucher} onChange={(e) => setTglVoucher(e.target.value)} />
+                                <div className="text-sm font-medium">
+                                    Tanggal Voucher
+                                </div>
+                                <Input
+                                    type="date"
+                                    value={tglVoucher}
+                                    onChange={(e) =>
+                                        setTglVoucher(e.target.value)
+                                    }
+                                />
                             </div>
 
                             <div className="space-y-2">
-                                <div className="text-sm font-medium">Keterangan</div>
+                                <div className="text-sm font-medium">
+                                    Keterangan
+                                </div>
                                 <Input
                                     value={keterangan}
                                     onChange={(e) => {
@@ -739,11 +1083,20 @@ export default function InputPenjualanCreate({
                             </div>
 
                             <div className="space-y-2">
-                                <div className="text-sm font-medium">Nominal (Masuk)</div>
+                                <div className="text-sm font-medium">
+                                    Nominal (Masuk)
+                                </div>
                                 <Input
                                     inputMode="numeric"
                                     value={nominal}
-                                    onChange={(e) => setNominal(e.target.value.replace(/[^\d.]/g, ''))}
+                                    onChange={(e) =>
+                                        setNominal(
+                                            e.target.value.replace(
+                                                /[^\d.]/g,
+                                                '',
+                                            ),
+                                        )
+                                    }
                                     placeholder="Contoh: 2500000"
                                 />
                             </div>
@@ -776,7 +1129,13 @@ export default function InputPenjualanCreate({
                                         setSelectedDetail(null);
                                         setKeterangan('');
                                         setNominal('');
-                                        setLines([{ akun: '', jenis: 'Kredit', nominal: 0 }]);
+                                        setLines([
+                                            {
+                                                akun: '',
+                                                jenis: 'Kredit',
+                                                nominal: 0,
+                                            },
+                                        ]);
                                     }}
                                 >
                                     Reset
@@ -794,10 +1153,18 @@ export default function InputPenjualanCreate({
                         if (!v) setActiveLineIndex(null);
                     }}
                     options={glAccountOptions}
-                    value={activeLineIndex !== null ? lines?.[activeLineIndex]?.akun : ''}
+                    value={
+                        activeLineIndex !== null
+                            ? lines?.[activeLineIndex]?.akun
+                            : ''
+                    }
                     onSelect={(val) => {
                         if (activeLineIndex === null) return;
-                        setLines((prev) => (prev ?? []).map((l, i) => (i === activeLineIndex ? { ...l, akun: val } : l)));
+                        setLines((prev) =>
+                            (prev ?? []).map((l, i) =>
+                                i === activeLineIndex ? { ...l, akun: val } : l,
+                            ),
+                        );
                     }}
                 />
 
@@ -814,6 +1181,15 @@ export default function InputPenjualanCreate({
                     }}
                 />
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+InputPenjualanCreate.layout = (page) => {
+    const breadcrumbs = [
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Input Penjualan', href: '/keuangan/input-penjualan' },
+        { title: 'Input Baru', href: '#' },
+    ];
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

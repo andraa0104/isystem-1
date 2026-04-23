@@ -1,3 +1,5 @@
+import { ActionIconButton } from '@/components/action-icon-button';
+import { ErrorState } from '@/components/data-states/ErrorState';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -15,12 +17,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
-import { Head, router, useForm } from '@inertiajs/react';
-import { ActionIconButton } from '@/components/action-icon-button';
-import { ErrorState } from '@/components/data-states/ErrorState';
-import { confirmDelete } from '@/lib/confirm-delete';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { confirmDelete } from '@/lib/confirm-delete';
 import { formatDateId } from '@/lib/formatters';
+import { Head, router, useForm } from '@inertiajs/react';
 import { Eye, Pencil, Plus, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
@@ -95,13 +95,15 @@ export default function CustomerIndex({ customers = [] }) {
         items.sort((a, b) =>
             codeOrder === 'desc'
                 ? compareCode(b.kd_cs, a.kd_cs)
-                : compareCode(a.kd_cs, b.kd_cs)
+                : compareCode(a.kd_cs, b.kd_cs),
         );
         if (!term) {
             return items;
         }
         return items.filter((item) =>
-            String(item.nm_cs ?? '').toLowerCase().includes(term)
+            String(item.nm_cs ?? '')
+                .toLowerCase()
+                .includes(term),
         );
     }, [customers, searchTerm, codeOrder]);
 
@@ -133,7 +135,9 @@ export default function CustomerIndex({ customers = [] }) {
             return doHistory;
         }
         return doHistory.filter((item) =>
-            String(item.no_do ?? '').toLowerCase().includes(term)
+            String(item.no_do ?? '')
+                .toLowerCase()
+                .includes(term),
         );
     }, [doHistory, doSearchTerm]);
 
@@ -185,7 +189,9 @@ export default function CustomerIndex({ customers = [] }) {
             setViewCustomer(payload.customer ?? null);
             setDoHistory(payload.deliveryOrders ?? []);
         } catch (error) {
-            setViewError(normalizeApiError(error, 'Gagal memuat data customer.'));
+            setViewError(
+                normalizeApiError(error, 'Gagal memuat data customer.'),
+            );
         } finally {
             setViewLoading(false);
         }
@@ -206,7 +212,9 @@ export default function CustomerIndex({ customers = [] }) {
                 ...payload.customer,
             });
         } catch (error) {
-            setEditError(normalizeApiError(error, 'Gagal memuat data customer.'));
+            setEditError(
+                normalizeApiError(error, 'Gagal memuat data customer.'),
+            );
         } finally {
             setEditLoading(false);
         }
@@ -257,9 +265,12 @@ export default function CustomerIndex({ customers = [] }) {
         });
         if (!ok) return;
 
-        router.delete(`/master-data/customer/${encodeURIComponent(customer.kd_cs)}`, {
-            preserveScroll: true,
-        });
+        router.delete(
+            `/master-data/customer/${encodeURIComponent(customer.kd_cs)}`,
+            {
+                preserveScroll: true,
+            },
+        );
     };
 
     const handleCreateSubmit = (event) => {
@@ -289,7 +300,7 @@ export default function CustomerIndex({ customers = [] }) {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Data Customer" />
             <div className="flex flex-col gap-6 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -331,7 +342,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             setPageSize(
                                                 value === 'all'
                                                     ? Infinity
-                                                    : Number(value)
+                                                    : Number(value),
                                             );
                                             setCurrentPage(1);
                                         }}
@@ -353,9 +364,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             setCurrentPage(1);
                                         }}
                                     >
-                                        <option value="asc">
-                                            Kode CS A-Z
-                                        </option>
+                                        <option value="asc">Kode CS A-Z</option>
                                         <option value="desc">
                                             Kode CS Z-A
                                         </option>
@@ -379,84 +388,121 @@ export default function CustomerIndex({ customers = [] }) {
 
                         <div className="overflow-hidden rounded-xl border border-sidebar-border/70">
                             <div className="max-h-[65vh] overflow-auto overscroll-contain">
-                            <table className="w-full text-sm">
-                                <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left">
-                                            No
-                                        </th>
-                                        <th className="sticky left-0 z-[2] w-[160px] bg-background/95 px-4 py-3 text-left">
-                                            Kode CS
-                                        </th>
-                                        <th className="sticky left-[160px] z-[2] min-w-[240px] bg-background/95 px-4 py-3 text-left">
-                                            Nama CS
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Alamat
-                                        </th>
-                                        <th className="sticky right-0 z-[2] bg-background/95 px-4 py-3 text-center">
-                                            Aksi
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {displayedCustomers.length === 0 && (
+                                <table className="w-full text-sm">
+                                    <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                         <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={5}
-                                            >
-                                                <div>Data customer belum tersedia.</div>
-                                                <div className="mt-3">
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        onClick={() => setIsCreateModalOpen(true)}
-                                                    >
-                                                        Tambah Customer
-                                                    </Button>
-                                                </div>
-                                            </td>
+                                            <th className="px-4 py-3 text-left">
+                                                No
+                                            </th>
+                                            <th className="sticky left-0 z-[2] w-[160px] bg-background/95 px-4 py-3 text-left">
+                                                Kode CS
+                                            </th>
+                                            <th className="sticky left-[160px] z-[2] min-w-[240px] bg-background/95 px-4 py-3 text-left">
+                                                Nama CS
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Alamat
+                                            </th>
+                                            <th className="sticky right-0 z-[2] bg-background/95 px-4 py-3 text-center">
+                                                Aksi
+                                            </th>
                                         </tr>
-                                    )}
-                                    {displayedCustomers.map((item, index) => (
-                                        <tr
-                                            key={`${item.kd_cs}-${index}`}
-                                            className="border-t border-sidebar-border/70"
-                                        >
-                                            <td className="px-4 py-3">
-                                                {(pageSize === Infinity
-                                                    ? index
-                                                    : (currentPage - 1) *
-                                                          pageSize +
-                                                      index) + 1}
-                                            </td>
-                                            <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
-                                                {renderValue(item.kd_cs)}
-                                            </td>
-                                            <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
-                                                {renderValue(item.nm_cs)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.alamat_cs)}
-                                            </td>
-                                            <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <ActionIconButton label="Detail" onClick={() => handleView(item)}>
-                                                        <Eye className="h-4 w-4" />
-                                                    </ActionIconButton>
-                                                    <ActionIconButton label="Edit" onClick={() => handleEdit(item)}>
-                                                        <Pencil className="h-4 w-4" />
-                                                    </ActionIconButton>
-                                                    <ActionIconButton label="Hapus" onClick={() => handleDelete(item)}>
-                                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                                    </ActionIconButton>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        {displayedCustomers.length === 0 && (
+                                            <tr>
+                                                <td
+                                                    className="px-4 py-6 text-center text-muted-foreground"
+                                                    colSpan={5}
+                                                >
+                                                    <div>
+                                                        Data customer belum
+                                                        tersedia.
+                                                    </div>
+                                                    <div className="mt-3">
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                setIsCreateModalOpen(
+                                                                    true,
+                                                                )
+                                                            }
+                                                        >
+                                                            Tambah Customer
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {displayedCustomers.map(
+                                            (item, index) => (
+                                                <tr
+                                                    key={`${item.kd_cs}-${index}`}
+                                                    className="border-t border-sidebar-border/70"
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        {(pageSize === Infinity
+                                                            ? index
+                                                            : (currentPage -
+                                                                  1) *
+                                                                  pageSize +
+                                                              index) + 1}
+                                                    </td>
+                                                    <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
+                                                        {renderValue(
+                                                            item.kd_cs,
+                                                        )}
+                                                    </td>
+                                                    <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
+                                                        {renderValue(
+                                                            item.nm_cs,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(
+                                                            item.alamat_cs,
+                                                        )}
+                                                    </td>
+                                                    <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <ActionIconButton
+                                                                label="Detail"
+                                                                onClick={() =>
+                                                                    handleView(
+                                                                        item,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Eye className="h-4 w-4" />
+                                                            </ActionIconButton>
+                                                            <ActionIconButton
+                                                                label="Edit"
+                                                                onClick={() =>
+                                                                    handleEdit(
+                                                                        item,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Pencil className="h-4 w-4" />
+                                                            </ActionIconButton>
+                                                            <ActionIconButton
+                                                                label="Hapus"
+                                                                onClick={() =>
+                                                                    handleDelete(
+                                                                        item,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                            </ActionIconButton>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ),
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
@@ -466,12 +512,12 @@ export default function CustomerIndex({ customers = [] }) {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (currentPage - 1) * pageSize + 1,
-                                        totalItems
+                                        totalItems,
                                     )}
                                     -
                                     {Math.min(
                                         currentPage * pageSize,
-                                        totalItems
+                                        totalItems,
                                     )}{' '}
                                     dari {totalItems} data
                                 </span>
@@ -481,7 +527,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         size="sm"
                                         onClick={() =>
                                             setCurrentPage((page) =>
-                                                Math.max(1, page - 1)
+                                                Math.max(1, page - 1),
                                             )
                                         }
                                         disabled={currentPage === 1}
@@ -496,7 +542,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         size="sm"
                                         onClick={() =>
                                             setCurrentPage((page) =>
-                                                Math.min(totalPages, page + 1)
+                                                Math.min(totalPages, page + 1),
                                             )
                                         }
                                         disabled={currentPage === totalPages}
@@ -520,7 +566,7 @@ export default function CustomerIndex({ customers = [] }) {
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Tambah Customer</DialogTitle>
                         </DialogHeader>
@@ -537,7 +583,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         onChange={(event) =>
                                             setCreateData(
                                                 'nm_cs',
-                                                event.target.value
+                                                event.target.value,
                                             )
                                         }
                                     />
@@ -555,7 +601,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         onChange={(event) =>
                                             setCreateData(
                                                 'kota_cs',
-                                                event.target.value
+                                                event.target.value,
                                             )
                                         }
                                     />
@@ -568,7 +614,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         onChange={(event) =>
                                             setCreateData(
                                                 'alamat_cs',
-                                                event.target.value
+                                                event.target.value,
                                             )
                                         }
                                     />
@@ -581,7 +627,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         onChange={(event) =>
                                             setCreateData(
                                                 'telp_cs',
-                                                event.target.value
+                                                event.target.value,
                                             )
                                         }
                                     />
@@ -594,7 +640,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         onChange={(event) =>
                                             setCreateData(
                                                 'fax_cs',
-                                                event.target.value
+                                                event.target.value,
                                             )
                                         }
                                     />
@@ -607,7 +653,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         onChange={(event) =>
                                             setCreateData(
                                                 'npwp_cs',
-                                                event.target.value
+                                                event.target.value,
                                             )
                                         }
                                     />
@@ -620,7 +666,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         onChange={(event) =>
                                             setCreateData(
                                                 'Attnd',
-                                                event.target.value
+                                                event.target.value,
                                             )
                                         }
                                     />
@@ -635,7 +681,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         onChange={(event) =>
                                             setCreateData(
                                                 'npwp1_cs',
-                                                event.target.value
+                                                event.target.value,
                                             )
                                         }
                                     />
@@ -650,7 +696,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         onChange={(event) =>
                                             setCreateData(
                                                 'npwp2_cs',
-                                                event.target.value
+                                                event.target.value,
                                             )
                                         }
                                     />
@@ -664,7 +710,10 @@ export default function CustomerIndex({ customers = [] }) {
                                 >
                                     Batal
                                 </Button>
-                                <Button type="submit" disabled={createProcessing}>
+                                <Button
+                                    type="submit"
+                                    disabled={createProcessing}
+                                >
                                     {createProcessing
                                         ? 'Menyimpan...'
                                         : 'Simpan Data'}
@@ -691,7 +740,7 @@ export default function CustomerIndex({ customers = [] }) {
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Detail Customer</DialogTitle>
                         </DialogHeader>
@@ -714,7 +763,11 @@ export default function CustomerIndex({ customers = [] }) {
                                     <Button
                                         type="button"
                                         size="sm"
-                                        variant={viewTab === 'profil' ? 'default' : 'outline'}
+                                        variant={
+                                            viewTab === 'profil'
+                                                ? 'default'
+                                                : 'outline'
+                                        }
                                         onClick={() => setViewTab('profil')}
                                     >
                                         Profil
@@ -722,7 +775,11 @@ export default function CustomerIndex({ customers = [] }) {
                                     <Button
                                         type="button"
                                         size="sm"
-                                        variant={viewTab === 'riwayat' ? 'default' : 'outline'}
+                                        variant={
+                                            viewTab === 'riwayat'
+                                                ? 'default'
+                                                : 'outline'
+                                        }
                                         onClick={() => setViewTab('riwayat')}
                                     >
                                         Riwayat DO
@@ -751,7 +808,7 @@ export default function CustomerIndex({ customers = [] }) {
                                         </span>
                                         <div className="font-medium">
                                             {renderValue(
-                                                viewCustomer.alamat_cs
+                                                viewCustomer.alamat_cs,
                                             )}
                                         </div>
                                     </div>
@@ -792,9 +849,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             Alamat NPWP 1
                                         </span>
                                         <div className="font-medium">
-                                            {renderValue(
-                                                viewCustomer.npwp1_cs
-                                            )}
+                                            {renderValue(viewCustomer.npwp1_cs)}
                                         </div>
                                     </div>
                                     <div>
@@ -802,9 +857,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             Alamat NPWP 2
                                         </span>
                                         <div className="font-medium">
-                                            {renderValue(
-                                                viewCustomer.npwp2_cs
-                                            )}
+                                            {renderValue(viewCustomer.npwp2_cs)}
                                         </div>
                                     </div>
                                     <div>
@@ -818,191 +871,211 @@ export default function CustomerIndex({ customers = [] }) {
                                 </div>
 
                                 {viewTab === 'riwayat' ? (
-                                <div className="space-y-3">
-                                    <h3 className="text-base font-semibold">Riwayat Delivery Order</h3>
-                                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                        <label>
-                                            Tampilkan
-                                            <select
-                                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                                value={
-                                                    doPageSize === Infinity
-                                                        ? 'all'
-                                                        : doPageSize
-                                                }
-                                                onChange={(event) => {
-                                                    const value =
-                                                        event.target.value;
-                                                    setDoPageSize(
-                                                        value === 'all'
-                                                            ? Infinity
-                                                            : Number(value)
-                                                    );
-                                                    setDoCurrentPage(1);
-                                                }}
-                                            >
-                                                <option value={5}>5</option>
-                                                <option value={10}>10</option>
-                                                <option value={25}>25</option>
-                                                <option value={50}>50</option>
-                                                <option value="all">Semua</option>
-                                            </select>
-                                        </label>
-                                        <label>
-                                            Cari DO
-                                            <input
-                                                type="search"
-                                                className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                                placeholder="Cari nomor DO..."
-                                                value={doSearchTerm}
-                                                onChange={(event) => {
-                                                    setDoSearchTerm(
-                                                        event.target.value
-                                                    );
-                                                    setDoCurrentPage(1);
-                                                }}
-                                            />
-                                        </label>
-                                    </div>
+                                    <div className="space-y-3">
+                                        <h3 className="text-base font-semibold">
+                                            Riwayat Delivery Order
+                                        </h3>
+                                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                            <label>
+                                                Tampilkan
+                                                <select
+                                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                                    value={
+                                                        doPageSize === Infinity
+                                                            ? 'all'
+                                                            : doPageSize
+                                                    }
+                                                    onChange={(event) => {
+                                                        const value =
+                                                            event.target.value;
+                                                        setDoPageSize(
+                                                            value === 'all'
+                                                                ? Infinity
+                                                                : Number(value),
+                                                        );
+                                                        setDoCurrentPage(1);
+                                                    }}
+                                                >
+                                                    <option value={5}>5</option>
+                                                    <option value={10}>
+                                                        10
+                                                    </option>
+                                                    <option value={25}>
+                                                        25
+                                                    </option>
+                                                    <option value={50}>
+                                                        50
+                                                    </option>
+                                                    <option value="all">
+                                                        Semua
+                                                    </option>
+                                                </select>
+                                            </label>
+                                            <label>
+                                                Cari DO
+                                                <input
+                                                    type="search"
+                                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                                    placeholder="Cari nomor DO..."
+                                                    value={doSearchTerm}
+                                                    onChange={(event) => {
+                                                        setDoSearchTerm(
+                                                            event.target.value,
+                                                        );
+                                                        setDoCurrentPage(1);
+                                                    }}
+                                                />
+                                            </label>
+                                        </div>
 
-                                    <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                                        <table className="w-full text-sm">
-                                            <thead className="bg-muted/50 text-muted-foreground">
-                                                <tr>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Nomor DO
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Date
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Ref PO
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Aksi
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {displayedDoHistory.length ===
-                                                    0 && (
+                                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-muted/50 text-muted-foreground">
                                                     <tr>
-                                                        <td
-                                                            className="px-4 py-6 text-center text-muted-foreground"
-                                                            colSpan={4}
-                                                        >
-                                                            Data DO belum
-                                                            tersedia.
-                                                        </td>
+                                                        <th className="px-4 py-3 text-left">
+                                                            Nomor DO
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left">
+                                                            Date
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left">
+                                                            Ref PO
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left">
+                                                            Aksi
+                                                        </th>
                                                     </tr>
-                                                )}
-                                                {displayedDoHistory.map(
-                                                    (item) => (
-                                                        <tr
-                                                            key={item.no_do}
-                                                            className="border-t border-sidebar-border/70"
-                                                        >
-                                                            <td className="px-4 py-3">
-                                                                {renderValue(
-                                                                    item.no_do
-                                                                )}
+                                                </thead>
+                                                <tbody>
+                                                    {displayedDoHistory.length ===
+                                                        0 && (
+                                                        <tr>
+                                                            <td
+                                                                className="px-4 py-6 text-center text-muted-foreground"
+                                                                colSpan={4}
+                                                            >
+                                                                Data DO belum
+                                                                tersedia.
                                                             </td>
-															<td className="px-4 py-3">
-																{formatDateId(item.date)}
-															</td>
-                                                            <td className="px-4 py-3">
-                                                                {renderValue(
-                                                                    item.ref_po
-                                                                )}
-                                                            </td>
-															<td className="px-4 py-3">
-																<ActionIconButton label="Cetak" asChild>
-																	<a
-																		href={`/marketing/delivery-order/${encodeURIComponent(
-																			item.no_do
-																		)}/print`}
-																		target="_blank"
-																		rel="noreferrer"
-																	>
-																		<Printer className="h-4 w-4" />
-																	</a>
-																</ActionIconButton>
-															</td>
-														</tr>
-													)
-												)}
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-	                                    {doPageSize !== Infinity &&
-	                                        doTotalItems > 0 && (
-	                                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                                <span>
-                                                    Menampilkan{' '}
-                                                    {Math.min(
-                                                        (doCurrentPage - 1) *
-                                                            doPageSize +
-                                                            1,
-                                                        doTotalItems
+                                                        </tr>
                                                     )}
-                                                    -
-                                                    {Math.min(
-                                                        doCurrentPage *
-                                                            doPageSize,
-                                                        doTotalItems
-                                                    )}{' '}
-                                                    dari {doTotalItems} data
-                                                </span>
-                                                <div className="flex items-center gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            setDoCurrentPage(
-                                                                (page) =>
-                                                                    Math.max(
-                                                                        1,
-                                                                        page - 1
-                                                                    )
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            doCurrentPage === 1
-                                                        }
-                                                    >
-                                                        Sebelumnya
-                                                    </Button>
+                                                    {displayedDoHistory.map(
+                                                        (item) => (
+                                                            <tr
+                                                                key={item.no_do}
+                                                                className="border-t border-sidebar-border/70"
+                                                            >
+                                                                <td className="px-4 py-3">
+                                                                    {renderValue(
+                                                                        item.no_do,
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {formatDateId(
+                                                                        item.date,
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    {renderValue(
+                                                                        item.ref_po,
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    <ActionIconButton
+                                                                        label="Cetak"
+                                                                        asChild
+                                                                    >
+                                                                        <a
+                                                                            href={`/marketing/delivery-order/${encodeURIComponent(
+                                                                                item.no_do,
+                                                                            )}/print`}
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                        >
+                                                                            <Printer className="h-4 w-4" />
+                                                                        </a>
+                                                                    </ActionIconButton>
+                                                                </td>
+                                                            </tr>
+                                                        ),
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {doPageSize !== Infinity &&
+                                            doTotalItems > 0 && (
+                                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                                     <span>
-                                                        Halaman {doCurrentPage}{' '}
-                                                        dari {doTotalPages}
+                                                        Menampilkan{' '}
+                                                        {Math.min(
+                                                            (doCurrentPage -
+                                                                1) *
+                                                                doPageSize +
+                                                                1,
+                                                            doTotalItems,
+                                                        )}
+                                                        -
+                                                        {Math.min(
+                                                            doCurrentPage *
+                                                                doPageSize,
+                                                            doTotalItems,
+                                                        )}{' '}
+                                                        dari {doTotalItems} data
                                                     </span>
-	                                                    <Button
-	                                                        variant="outline"
-	                                                        size="sm"
-	                                                        onClick={() =>
-	                                                            setDoCurrentPage(
-	                                                                (page) =>
-	                                                                    Math.min(
-	                                                                        doTotalPages,
-	                                                                        page + 1
-	                                                                    )
-	                                                            )
-	                                                        }
-	                                                        disabled={
-	                                                            doCurrentPage ===
-	                                                            doTotalPages
-	                                                        }
-	                                                    >
-	                                                        Berikutnya
-	                                                    </Button>
-	                                                </div>
-	                                            </div>
-	                                        )}
-	                                </div>
-	                                ) : null}
-	                            </div>
-	                        )}
+                                                    <div className="flex items-center gap-2">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                setDoCurrentPage(
+                                                                    (page) =>
+                                                                        Math.max(
+                                                                            1,
+                                                                            page -
+                                                                                1,
+                                                                        ),
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                doCurrentPage ===
+                                                                1
+                                                            }
+                                                        >
+                                                            Sebelumnya
+                                                        </Button>
+                                                        <span>
+                                                            Halaman{' '}
+                                                            {doCurrentPage} dari{' '}
+                                                            {doTotalPages}
+                                                        </span>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                setDoCurrentPage(
+                                                                    (page) =>
+                                                                        Math.min(
+                                                                            doTotalPages,
+                                                                            page +
+                                                                                1,
+                                                                        ),
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                doCurrentPage ===
+                                                                doTotalPages
+                                                            }
+                                                        >
+                                                            Berikutnya
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                    </div>
+                                ) : null}
+                            </div>
+                        )}
                     </DialogContent>
                 </Dialog>
             )}
@@ -1019,7 +1092,7 @@ export default function CustomerIndex({ customers = [] }) {
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Edit Customer</DialogTitle>
                         </DialogHeader>
@@ -1047,7 +1120,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             onChange={(event) =>
                                                 setEditData(
                                                     'nm_cs',
-                                                    event.target.value
+                                                    event.target.value,
                                                 )
                                             }
                                         />
@@ -1067,7 +1140,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             onChange={(event) =>
                                                 setEditData(
                                                     'kota_cs',
-                                                    event.target.value
+                                                    event.target.value,
                                                 )
                                             }
                                         />
@@ -1082,7 +1155,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             onChange={(event) =>
                                                 setEditData(
                                                     'alamat_cs',
-                                                    event.target.value
+                                                    event.target.value,
                                                 )
                                             }
                                         />
@@ -1097,7 +1170,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             onChange={(event) =>
                                                 setEditData(
                                                     'telp_cs',
-                                                    event.target.value
+                                                    event.target.value,
                                                 )
                                             }
                                         />
@@ -1110,7 +1183,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             onChange={(event) =>
                                                 setEditData(
                                                     'fax_cs',
-                                                    event.target.value
+                                                    event.target.value,
                                                 )
                                             }
                                         />
@@ -1125,7 +1198,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             onChange={(event) =>
                                                 setEditData(
                                                     'npwp_cs',
-                                                    event.target.value
+                                                    event.target.value,
                                                 )
                                             }
                                         />
@@ -1140,7 +1213,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             onChange={(event) =>
                                                 setEditData(
                                                     'Attnd',
-                                                    event.target.value
+                                                    event.target.value,
                                                 )
                                             }
                                         />
@@ -1155,7 +1228,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             onChange={(event) =>
                                                 setEditData(
                                                     'npwp1_cs',
-                                                    event.target.value
+                                                    event.target.value,
                                                 )
                                             }
                                         />
@@ -1170,7 +1243,7 @@ export default function CustomerIndex({ customers = [] }) {
                                             onChange={(event) =>
                                                 setEditData(
                                                     'npwp2_cs',
-                                                    event.target.value
+                                                    event.target.value,
                                                 )
                                             }
                                         />
@@ -1180,7 +1253,9 @@ export default function CustomerIndex({ customers = [] }) {
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        onClick={() => setIsEditModalOpen(false)}
+                                        onClick={() =>
+                                            setIsEditModalOpen(false)
+                                        }
                                     >
                                         Batal
                                     </Button>
@@ -1199,6 +1274,10 @@ export default function CustomerIndex({ customers = [] }) {
                     </DialogContent>
                 </Dialog>
             )}
-        </AppLayout>
+        </>
     );
 }
+
+CustomerIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

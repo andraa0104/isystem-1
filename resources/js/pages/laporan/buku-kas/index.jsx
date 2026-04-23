@@ -1,8 +1,5 @@
-import AppLayout from '@/layouts/app-layout';
-import { Head, Link, usePage } from '@inertiajs/react';
-import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -10,8 +7,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { ChevronDown, Loader2, Printer, Search, Wallet } from 'lucide-react';
+import AppLayout from '@/layouts/app-layout';
 import { buildBukuBesarUrl } from '@/lib/report-links';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { ChevronDown, Loader2, Printer, Search, Wallet } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -30,14 +30,20 @@ const formatRupiah = (value, dashIfNull = false) => {
 const formatNumber = (value) => {
     const n = Number(value);
     if (!Number.isFinite(n)) return '0';
-    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
+    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        n,
+    );
 };
 
 const formatDate = (value) => {
     if (!value) return '';
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return String(value);
-    return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    }).format(d);
 };
 
 const getPeriodLabel = (periodType, period) => {
@@ -49,7 +55,10 @@ const getPeriodLabel = (periodType, period) => {
     const y = Number(period.slice(0, 4));
     const m = Number(period.slice(4, 6));
     const d = new Date(y, Math.max(0, m - 1), 1);
-    return new Intl.DateTimeFormat('id-ID', { month: 'short', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('id-ID', {
+        month: 'short',
+        year: 'numeric',
+    }).format(d);
 };
 
 const buildPrintUrl = (query) => {
@@ -74,11 +83,15 @@ function StatCard({ label, value, hint, accent = 'default' }) {
 
     return (
         <div className="rounded-2xl border border-border bg-card p-4">
-            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <div className="text-[11px] tracking-wide text-muted-foreground uppercase">
                 {label}
             </div>
-            <div className={`mt-2 text-xl font-semibold ${accentClass}`}>{value}</div>
-            {hint ? <div className="mt-1 text-xs text-muted-foreground">{hint}</div> : null}
+            <div className={`mt-2 text-xl font-semibold ${accentClass}`}>
+                {value}
+            </div>
+            {hint ? (
+                <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
+            ) : null}
         </div>
     );
 }
@@ -110,16 +123,27 @@ export default function BukuKasIndex() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const [periodType, setPeriodType] = useState(initialQuery?.periodType ?? 'month');
-    const [period, setPeriod] = useState(
-        initialQuery?.period ?? (periodType === 'year' ? defaultYear ?? '' : defaultPeriod ?? ''),
+    const [periodType, setPeriodType] = useState(
+        initialQuery?.periodType ?? 'month',
     );
-    const [account, setAccount] = useState(initialQuery?.account ?? defaultAccount ?? 'all');
+    const [period, setPeriod] = useState(
+        initialQuery?.period ??
+            (periodType === 'year'
+                ? (defaultYear ?? '')
+                : (defaultPeriod ?? '')),
+    );
+    const [account, setAccount] = useState(
+        initialQuery?.account ?? defaultAccount ?? 'all',
+    );
     const [flow, setFlow] = useState(initialQuery?.flow ?? 'all');
     const [search, setSearch] = useState(initialQuery?.search ?? '');
-    const [debouncedSearch, setDebouncedSearch] = useState(initialQuery?.search ?? '');
+    const [debouncedSearch, setDebouncedSearch] = useState(
+        initialQuery?.search ?? '',
+    );
     const [sortBy, setSortBy] = useState(initialQuery?.sortBy ?? 'Tgl_Voucher');
-    const [sortDir, setSortDir] = useState((initialQuery?.sortDir ?? 'desc').toLowerCase());
+    const [sortDir, setSortDir] = useState(
+        (initialQuery?.sortDir ?? 'desc').toLowerCase(),
+    );
     const [pageSize, setPageSize] = useState(
         initialQuery?.pageSize === 'all'
             ? 'all'
@@ -131,7 +155,9 @@ export default function BukuKasIndex() {
 
     const latestMonthForYear = (year) => {
         if (!year || !/^\d{4}$/.test(year)) return '';
-        const hit = periodOptions.find((p) => String(p).startsWith(String(year)));
+        const hit = periodOptions.find((p) =>
+            String(p).startsWith(String(year)),
+        );
         return hit ? String(hit) : '';
     };
 
@@ -142,7 +168,16 @@ export default function BukuKasIndex() {
 
     useEffect(() => {
         setPage(1);
-    }, [debouncedSearch, pageSize, sortBy, sortDir, period, periodType, account, flow]);
+    }, [
+        debouncedSearch,
+        pageSize,
+        sortBy,
+        sortDir,
+        period,
+        periodType,
+        account,
+        flow,
+    ]);
 
     const fetchRows = async () => {
         setLoading(true);
@@ -157,11 +192,17 @@ export default function BukuKasIndex() {
             params.set('sortBy', sortBy);
             params.set('sortDir', sortDir);
             params.set('page', String(page));
-            params.set('pageSize', pageSize === 'all' ? 'all' : String(pageSize));
+            params.set(
+                'pageSize',
+                pageSize === 'all' ? 'all' : String(pageSize),
+            );
 
-            const res = await fetch(`/laporan/buku-kas/rows?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/laporan/buku-kas/rows?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             const data = await res.json();
             if (!res.ok) {
                 const msg = String(data?.error ?? 'Gagal memuat data.');
@@ -206,7 +247,17 @@ export default function BukuKasIndex() {
     useEffect(() => {
         fetchRows();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [periodType, period, account, flow, debouncedSearch, pageSize, page, sortBy, sortDir]);
+    }, [
+        periodType,
+        period,
+        account,
+        flow,
+        debouncedSearch,
+        pageSize,
+        page,
+        sortBy,
+        sortDir,
+    ]);
 
     const totalPages = useMemo(() => {
         if (pageSize === 'all') return 1;
@@ -225,10 +276,14 @@ export default function BukuKasIndex() {
     });
 
     const netAccent =
-        summary.net_change > 0 ? 'positive' : summary.net_change < 0 ? 'negative' : 'default';
+        summary.net_change > 0
+            ? 'positive'
+            : summary.net_change < 0
+              ? 'negative'
+              : 'default';
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Buku Kas" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -242,10 +297,21 @@ export default function BukuKasIndex() {
                         <p className="mt-1 text-sm text-muted-foreground">
                             Mutasi kas/bank dan saldo berjalan (periodik)
                         </p>
-                        <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full border border-border bg-muted/30 dark:bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                        <div className="mt-2 inline-flex flex-wrap items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-1 text-xs text-muted-foreground dark:bg-white/5">
                             <Search className="h-3.5 w-3.5" />
-                            Periode: <span className="text-foreground/80">{getPeriodLabel(periodType, period)}</span>
-                            {period ? <span className="text-muted-foreground">({period})</span> : <span className="text-muted-foreground">(-)</span>}
+                            Periode:{' '}
+                            <span className="text-foreground/80">
+                                {getPeriodLabel(periodType, period)}
+                            </span>
+                            {period ? (
+                                <span className="text-muted-foreground">
+                                    ({period})
+                                </span>
+                            ) : (
+                                <span className="text-muted-foreground">
+                                    (-)
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -257,7 +323,9 @@ export default function BukuKasIndex() {
                             </a>
                         </Button>
 
-                        <span className="text-sm text-muted-foreground">Mode</span>
+                        <span className="text-sm text-muted-foreground">
+                            Mode
+                        </span>
                         <Select
                             value={periodType}
                             onValueChange={(val) => {
@@ -268,7 +336,10 @@ export default function BukuKasIndex() {
                                         ? String(period).slice(0, 4)
                                         : /^\d{4}$/.test(String(period))
                                           ? String(period)
-                                          : String(defaultYear || '').slice(0, 4);
+                                          : String(defaultYear || '').slice(
+                                                0,
+                                                4,
+                                            );
                                     setPeriod(y || defaultYear || '');
                                 } else {
                                     const y = /^\d{4}$/.test(String(period))
@@ -276,7 +347,10 @@ export default function BukuKasIndex() {
                                         : /^\d{6}$/.test(String(period))
                                           ? String(period).slice(0, 4)
                                           : '';
-                                    const p = latestMonthForYear(y) || defaultPeriod || '';
+                                    const p =
+                                        latestMonthForYear(y) ||
+                                        defaultPeriod ||
+                                        '';
                                     setPeriod(p);
                                 }
                             }}
@@ -290,7 +364,9 @@ export default function BukuKasIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Periode</span>
+                        <span className="text-sm text-muted-foreground">
+                            Periode
+                        </span>
                         <Select value={period} onValueChange={setPeriod}>
                             <SelectTrigger className="w-44">
                                 <SelectValue />
@@ -298,7 +374,9 @@ export default function BukuKasIndex() {
                             <SelectContent>
                                 {periodType === 'year' ? (
                                     yearOptions.length === 0 ? (
-                                        <SelectItem value={period || ''}>{period || '-'}</SelectItem>
+                                        <SelectItem value={period || ''}>
+                                            {period || '-'}
+                                        </SelectItem>
                                     ) : (
                                         yearOptions.map((y) => (
                                             <SelectItem key={y} value={y}>
@@ -307,7 +385,9 @@ export default function BukuKasIndex() {
                                         ))
                                     )
                                 ) : periodOptions.length === 0 ? (
-                                    <SelectItem value={period || ''}>{period || '-'}</SelectItem>
+                                    <SelectItem value={period || ''}>
+                                        {period || '-'}
+                                    </SelectItem>
                                 ) : (
                                     periodOptions.map((p) => (
                                         <SelectItem key={p} value={p}>
@@ -318,7 +398,9 @@ export default function BukuKasIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Akun</span>
+                        <span className="text-sm text-muted-foreground">
+                            Akun
+                        </span>
                         <Select value={account} onValueChange={setAccount}>
                             <SelectTrigger className="w-64">
                                 <SelectValue />
@@ -333,7 +415,9 @@ export default function BukuKasIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Arus</span>
+                        <span className="text-sm text-muted-foreground">
+                            Arus
+                        </span>
                         <Select value={flow} onValueChange={setFlow}>
                             <SelectTrigger className="w-32">
                                 <SelectValue />
@@ -345,14 +429,20 @@ export default function BukuKasIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Urut</span>
+                        <span className="text-sm text-muted-foreground">
+                            Urut
+                        </span>
                         <Select value={sortBy} onValueChange={setSortBy}>
                             <SelectTrigger className="w-44">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Tgl_Voucher">Tgl Voucher</SelectItem>
-                                <SelectItem value="Kode_Voucher">Kode Voucher</SelectItem>
+                                <SelectItem value="Tgl_Voucher">
+                                    Tgl Voucher
+                                </SelectItem>
+                                <SelectItem value="Kode_Voucher">
+                                    Kode Voucher
+                                </SelectItem>
                                 <SelectItem value="Mutasi">Mutasi</SelectItem>
                                 <SelectItem value="Saldo">Saldo</SelectItem>
                             </SelectContent>
@@ -367,7 +457,9 @@ export default function BukuKasIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Tampil</span>
+                        <span className="text-sm text-muted-foreground">
+                            Tampil
+                        </span>
                         <Select
                             value={String(pageSize)}
                             onValueChange={(val) =>
@@ -398,34 +490,64 @@ export default function BukuKasIndex() {
                     <StatCard
                         label="Saldo Awal"
                         value={formatRupiah(summary.opening_balance, true)}
-                        hint={account === 'all' ? 'Pilih akun untuk saldo' : 'Sebelum periode'}
+                        hint={
+                            account === 'all'
+                                ? 'Pilih akun untuk saldo'
+                                : 'Sebelum periode'
+                        }
                     />
-                    <StatCard label="Total Masuk" value={formatRupiah(summary.total_in)} accent="positive" />
-                    <StatCard label="Total Keluar" value={formatRupiah(summary.total_out)} accent="negative" />
+                    <StatCard
+                        label="Total Masuk"
+                        value={formatRupiah(summary.total_in)}
+                        accent="positive"
+                    />
+                    <StatCard
+                        label="Total Keluar"
+                        value={formatRupiah(summary.total_out)}
+                        accent="negative"
+                    />
                     <StatCard
                         label="Saldo Akhir"
                         value={formatRupiah(summary.closing_balance, true)}
-                        hint={account === 'all' ? 'Pilih akun untuk saldo' : 'Akhir periode'}
+                        hint={
+                            account === 'all'
+                                ? 'Pilih akun untuk saldo'
+                                : 'Akhir periode'
+                        }
                     />
                 </div>
 
                 <div className="rounded-2xl border border-border bg-card p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
-                            <div className="text-sm font-semibold text-foreground">Ringkasan</div>
+                            <div className="text-sm font-semibold text-foreground">
+                                Ringkasan
+                            </div>
                             <div className="mt-0.5 text-xs text-muted-foreground">
-                                Net change dihitung dari total mutasi sesuai filter.
+                                Net change dihitung dari total mutasi sesuai
+                                filter.
                             </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <div className="rounded-full border border-border bg-muted/30 dark:bg-black/20 px-3 py-1 text-xs text-muted-foreground">
+                            <div className="rounded-full border border-border bg-muted/30 px-3 py-1 text-xs text-muted-foreground dark:bg-black/20">
                                 Net Change:{' '}
-                                <span className={netAccent === 'positive' ? 'text-emerald-700 dark:text-emerald-300' : netAccent === 'negative' ? 'text-rose-700 dark:text-rose-300' : 'text-foreground/80'}>
+                                <span
+                                    className={
+                                        netAccent === 'positive'
+                                            ? 'text-emerald-700 dark:text-emerald-300'
+                                            : netAccent === 'negative'
+                                              ? 'text-rose-700 dark:text-rose-300'
+                                              : 'text-foreground/80'
+                                    }
+                                >
                                     {formatRupiah(summary.net_change)}
                                 </span>
                             </div>
-                            <div className="rounded-full border border-border bg-muted/30 dark:bg-black/20 px-3 py-1 text-xs text-muted-foreground">
-                                Voucher: <span className="text-foreground/80">{formatNumber(summary.count_voucher)}</span>
+                            <div className="rounded-full border border-border bg-muted/30 px-3 py-1 text-xs text-muted-foreground dark:bg-black/20">
+                                Voucher:{' '}
+                                <span className="text-foreground/80">
+                                    {formatNumber(summary.count_voucher)}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -443,17 +565,18 @@ export default function BukuKasIndex() {
 
                 <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[1px] dark:bg-black/30">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground dark:bg-black/40">
+                                <Loader2 className="h-4 w-4 animate-spin" />{' '}
+                                Memuat...
                             </div>
                         </div>
                     )}
 
-                    <table className="min-w-full text-sm text-left">
-                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                    <table className="min-w-full text-left text-sm">
+                        <thead className="bg-muted/30 text-[11px] tracking-wide text-muted-foreground uppercase dark:bg-white/5">
                             <tr>
-                                <th className="px-3 py-3 w-12" />
+                                <th className="w-12 px-3 py-3" />
                                 <th className="px-3 py-3">Tgl Voucher</th>
                                 <th className="px-3 py-3">Kode Voucher</th>
                                 <th className="px-3 py-3">Keterangan</th>
@@ -464,19 +587,30 @@ export default function BukuKasIndex() {
                         <tbody>
                             {rows.length === 0 && !loading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-3 py-10 text-center text-muted-foreground">
+                                    <td
+                                        colSpan={6}
+                                        className="px-3 py-10 text-center text-muted-foreground"
+                                    >
                                         Tidak ada data.
                                     </td>
                                 </tr>
                             ) : null}
 
                             {rows.map((r, idx) => {
-                                const kodeVoucher = String(r?.Kode_Voucher ?? '');
+                                const kodeVoucher = String(
+                                    r?.Kode_Voucher ?? '',
+                                );
                                 const open = Boolean(openMap[kodeVoucher]);
                                 const mutasi = Number(r?.Mutasi_Kas ?? 0);
-                                const direction = String(r?.direction ?? 'neutral');
-                                const breakdowns = Array.isArray(r?.breakdowns) ? r.breakdowns : [];
-                                const has00 = kodeVoucher.includes('00') || String(r?.Kode_Akun ?? '').includes('00');
+                                const direction = String(
+                                    r?.direction ?? 'neutral',
+                                );
+                                const breakdowns = Array.isArray(r?.breakdowns)
+                                    ? r.breakdowns
+                                    : [];
+                                const has00 =
+                                    kodeVoucher.includes('00') ||
+                                    String(r?.Kode_Akun ?? '').includes('00');
                                 const cellClass = has00 ? markedCellClass : '';
 
                                 const mutasiClass =
@@ -494,7 +628,9 @@ export default function BukuKasIndex() {
                                                 has00 ? markedRowClass : '',
                                             ].join(' ')}
                                         >
-                                            <td className={`px-3 py-2 ${cellClass}`}>
+                                            <td
+                                                className={`px-3 py-2 ${cellClass}`}
+                                            >
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
@@ -502,42 +638,66 @@ export default function BukuKasIndex() {
                                                     className="h-8 w-8"
                                                     aria-label="Toggle breakdown"
                                                     onClick={() => {
-                                                        setOpenMap((s) => ({ ...s, [kodeVoucher]: !open }));
+                                                        setOpenMap((s) => ({
+                                                            ...s,
+                                                            [kodeVoucher]:
+                                                                !open,
+                                                        }));
                                                     }}
                                                 >
                                                     <ChevronDown
                                                         className={[
                                                             'h-4 w-4 transition-transform',
-                                                            open ? 'rotate-180' : '',
+                                                            open
+                                                                ? 'rotate-180'
+                                                                : '',
                                                         ].join(' ')}
                                                     />
                                                 </Button>
                                             </td>
-                                            <td className={`px-3 py-2 ${cellClass}`}>{formatDate(r?.Tgl_Voucher)}</td>
-                                            <td className={`px-3 py-2 font-medium ${cellClass}`}>{kodeVoucher}</td>
-                                            <td className={`px-3 py-2 ${cellClass}`}>
+                                            <td
+                                                className={`px-3 py-2 ${cellClass}`}
+                                            >
+                                                {formatDate(r?.Tgl_Voucher)}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 font-medium ${cellClass}`}
+                                            >
+                                                {kodeVoucher}
+                                            </td>
+                                            <td
+                                                className={`px-3 py-2 ${cellClass}`}
+                                            >
                                                 <div className="max-w-[640px] truncate text-foreground/80">
                                                     {r?.Keterangan || '-'}
                                                 </div>
                                             </td>
-                                            <td className={`px-3 py-2 text-right font-semibold ${cellClass} ${mutasiClass}`}>
+                                            <td
+                                                className={`px-3 py-2 text-right font-semibold ${cellClass} ${mutasiClass}`}
+                                            >
                                                 {formatRupiah(mutasi)}
                                             </td>
-                                            <td className={`px-3 py-2 text-right font-semibold ${cellClass}`}>
+                                            <td
+                                                className={`px-3 py-2 text-right font-semibold ${cellClass}`}
+                                            >
                                                 {formatRupiah(r?.Saldo)}
                                             </td>
                                         </tr>
 
                                         {open ? (
                                             <tr className="border-t border-border/50">
-                                                <td colSpan={6} className="px-3 pb-4 pt-0">
+                                                <td
+                                                    colSpan={6}
+                                                    className="px-3 pt-0 pb-4"
+                                                >
                                                     <div className="mt-3 rounded-2xl border border-border bg-muted/30 dark:bg-black/20">
                                                         <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
                                                             <div className="text-sm font-semibold text-foreground">
                                                                 Rincian Beban
                                                             </div>
                                                             <div className="text-xs text-muted-foreground">
-                                                                {breakdowns.length === 0
+                                                                {breakdowns.length ===
+                                                                0
                                                                     ? 'Tidak ada rincian'
                                                                     : `${formatNumber(breakdowns.length)} item`}
                                                             </div>
@@ -545,16 +705,19 @@ export default function BukuKasIndex() {
 
                                                         <div className="overflow-x-auto">
                                                             <table className="min-w-full text-sm">
-                                                                <thead className="bg-muted/30 dark:bg-white/5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                                                                <thead className="bg-muted/30 text-[11px] tracking-wide text-muted-foreground uppercase dark:bg-white/5">
                                                                     <tr>
                                                                         <th className="px-4 py-2 text-left">
-                                                                            Kode Akun
+                                                                            Kode
+                                                                            Akun
                                                                         </th>
                                                                         <th className="px-4 py-2 text-left">
-                                                                            Nama Akun
+                                                                            Nama
+                                                                            Akun
                                                                         </th>
                                                                         <th className="px-4 py-2 text-left">
-                                                                            Jenis Beban
+                                                                            Jenis
+                                                                            Beban
                                                                         </th>
                                                                         <th className="px-4 py-2 text-right">
                                                                             Nominal
@@ -562,53 +725,101 @@ export default function BukuKasIndex() {
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
-                                                                    {breakdowns.length === 0 ? (
+                                                                    {breakdowns.length ===
+                                                                    0 ? (
                                                                         <tr>
-                                                                            <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
-                                                                                Tidak ada rincian beban.
+                                                                            <td
+                                                                                colSpan={
+                                                                                    4
+                                                                                }
+                                                                                className="px-4 py-6 text-center text-muted-foreground"
+                                                                            >
+                                                                                Tidak
+                                                                                ada
+                                                                                rincian
+                                                                                beban.
                                                                             </td>
                                                                         </tr>
                                                                     ) : (
-                                                                        breakdowns.map((b, bi) => {
-                                                                            const kodeAkun = String(b?.kode_akun ?? '');
-                                                                            const has00Detail = kodeAkun.includes('00');
-                                                                            const c = has00Detail ? markedCellClass : '';
-                                                                            return (
-                                                                                <tr
-                                                                                    key={`${kodeVoucher}-${kodeAkun}-${bi}`}
-                                                                                    className={[
-                                                                                        'border-t border-border/50',
-                                                                                        has00Detail ? markedRowClass : '',
-                                                                                    ].join(' ')}
-                                                                                >
-                                                                                    <td className={`px-4 py-2 font-medium ${c}`}>
-                                                                                        {kodeAkun ? (
-                                                                                            <Link
-                                                                                                href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
-                                                                                                className={
-                                                                                                    has00Detail
-                                                                                                        ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                                                                        : 'text-amber-700 dark:text-amber-300 hover:underline'
-                                                                                                }
-                                                                                            >
-                                                                                                {kodeAkun}
-                                                                                            </Link>
-                                                                                        ) : (
-                                                                                            '-'
+                                                                        breakdowns.map(
+                                                                            (
+                                                                                b,
+                                                                                bi,
+                                                                            ) => {
+                                                                                const kodeAkun =
+                                                                                    String(
+                                                                                        b?.kode_akun ??
+                                                                                            '',
+                                                                                    );
+                                                                                const has00Detail =
+                                                                                    kodeAkun.includes(
+                                                                                        '00',
+                                                                                    );
+                                                                                const c =
+                                                                                    has00Detail
+                                                                                        ? markedCellClass
+                                                                                        : '';
+                                                                                return (
+                                                                                    <tr
+                                                                                        key={`${kodeVoucher}-${kodeAkun}-${bi}`}
+                                                                                        className={[
+                                                                                            'border-t border-border/50',
+                                                                                            has00Detail
+                                                                                                ? markedRowClass
+                                                                                                : '',
+                                                                                        ].join(
+                                                                                            ' ',
                                                                                         )}
-                                                                                    </td>
-                                                                                    <td className={`px-4 py-2 ${c}`}>
-                                                                                        {b?.nama_akun || '-'}
-                                                                                    </td>
-                                                                                    <td className={`px-4 py-2 ${c}`}>
-                                                                                        {b?.jenis_beban || '-'}
-                                                                                    </td>
-                                                                                    <td className={`px-4 py-2 text-right font-semibold ${c}`}>
-                                                                                        {formatRupiah(b?.nominal)}
-                                                                                    </td>
-                                                                                </tr>
-                                                                            );
-                                                                        })
+                                                                                    >
+                                                                                        <td
+                                                                                            className={`px-4 py-2 font-medium ${c}`}
+                                                                                        >
+                                                                                            {kodeAkun ? (
+                                                                                                <Link
+                                                                                                    href={buildBukuBesarUrl(
+                                                                                                        {
+                                                                                                            kodeAkun,
+                                                                                                            periodType,
+                                                                                                            period,
+                                                                                                        },
+                                                                                                    )}
+                                                                                                    className={
+                                                                                                        has00Detail
+                                                                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 ring-1 ring-amber-500/30 hover:underline dark:text-amber-300'
+                                                                                                            : 'text-amber-700 hover:underline dark:text-amber-300'
+                                                                                                    }
+                                                                                                >
+                                                                                                    {
+                                                                                                        kodeAkun
+                                                                                                    }
+                                                                                                </Link>
+                                                                                            ) : (
+                                                                                                '-'
+                                                                                            )}
+                                                                                        </td>
+                                                                                        <td
+                                                                                            className={`px-4 py-2 ${c}`}
+                                                                                        >
+                                                                                            {b?.nama_akun ||
+                                                                                                '-'}
+                                                                                        </td>
+                                                                                        <td
+                                                                                            className={`px-4 py-2 ${c}`}
+                                                                                        >
+                                                                                            {b?.jenis_beban ||
+                                                                                                '-'}
+                                                                                        </td>
+                                                                                        <td
+                                                                                            className={`px-4 py-2 text-right font-semibold ${c}`}
+                                                                                        >
+                                                                                            {formatRupiah(
+                                                                                                b?.nominal,
+                                                                                            )}
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                );
+                                                                            },
+                                                                        )
                                                                     )}
                                                                 </tbody>
                                                             </table>
@@ -626,7 +837,10 @@ export default function BukuKasIndex() {
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="text-sm text-muted-foreground">
-                        Total data: <span className="text-foreground/80">{formatNumber(total)}</span>
+                        Total data:{' '}
+                        <span className="text-foreground/80">
+                            {formatNumber(total)}
+                        </span>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button
@@ -646,13 +860,19 @@ export default function BukuKasIndex() {
                         <Button
                             variant="outline"
                             disabled={page >= totalPages || pageSize === 'all'}
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            onClick={() =>
+                                setPage((p) => Math.min(totalPages, p + 1))
+                            }
                         >
                             Berikutnya
                         </Button>
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+BukuKasIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

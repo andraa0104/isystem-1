@@ -1,9 +1,14 @@
-import AppLayout from '@/layouts/app-layout';
-import { Head, Link } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { ActionIconButton } from '@/components/action-icon-button';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -12,20 +17,25 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-} from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ActionIconButton } from '@/components/action-icon-button';
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import AppLayout from '@/layouts/app-layout';
+import { Head, Link } from '@inertiajs/react';
 import { Eye, Loader2, Plus, Printer } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Pembayaran', href: '/pembayaran/permintaan-dana-biaya' },
-    { title: 'Permintaan Dana Biaya', href: '/pembayaran/permintaan-dana-biaya' },
+    {
+        title: 'Permintaan Dana Biaya',
+        href: '/pembayaran/permintaan-dana-biaya',
+    },
 ];
 
 const renderValue = (value) =>
@@ -42,7 +52,9 @@ const formatRupiah = (value) => {
 };
 
 const formatNumber = (value) =>
-    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(value ?? 0);
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        value ?? 0,
+    );
 
 const formatDate = (value) => {
     if (!value) return '-';
@@ -92,7 +104,11 @@ export default function PermintaanDanaBiayaIndex() {
     const [bayarTotal, setBayarTotal] = useState(0);
     const [bayarPageSize, setBayarPageSize] = useState(5);
     const [bayarPage, setBayarPage] = useState(1);
-    const [bayarSumsServer, setBayarSumsServer] = useState({ total: 0, bayar: 0, sisa: 0 });
+    const [bayarSumsServer, setBayarSumsServer] = useState({
+        total: 0,
+        bayar: 0,
+        sisa: 0,
+    });
 
     useEffect(() => {
         const t = setTimeout(() => setDebouncedSearch(search), 450);
@@ -116,10 +132,16 @@ export default function PermintaanDanaBiayaIndex() {
             const params = new URLSearchParams();
             params.set('search', debouncedSearch);
             params.set('page', String(page));
-            params.set('pageSize', pageSize === 'all' ? 'all' : String(pageSize));
-            const res = await fetch(`/pembayaran/permintaan-dana-biaya/rows?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            params.set(
+                'pageSize',
+                pageSize === 'all' ? 'all' : String(pageSize),
+            );
+            const res = await fetch(
+                `/pembayaran/permintaan-dana-biaya/rows?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!res.ok) throw new Error('Gagal memuat data.');
             const data = await res.json();
             setRows(Array.isArray(data?.rows) ? data.rows : []);
@@ -152,10 +174,13 @@ export default function PermintaanDanaBiayaIndex() {
             const params = new URLSearchParams();
             params.set('no_pdb', detailNo);
             params.set('page', String(detailPage));
-            params.set('pageSize', detailPageSize === 'all' ? 'all' : String(detailPageSize));
+            params.set(
+                'pageSize',
+                detailPageSize === 'all' ? 'all' : String(detailPageSize),
+            );
             const res = await fetch(
                 `/pembayaran/permintaan-dana-biaya/detail-rows?${params.toString()}`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             );
             if (!res.ok) {
                 const payload = await res.json().catch(() => null);
@@ -192,13 +217,21 @@ export default function PermintaanDanaBiayaIndex() {
             const params = new URLSearchParams();
             params.set('kode_bayar', kodeBayar);
             params.set('page', String(bayarPage));
-            params.set('pageSize', bayarPageSize === 'all' ? 'all' : String(bayarPageSize));
-            const res = await fetch(`/pembayaran/permintaan-dana-biaya/bayar-detail?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            params.set(
+                'pageSize',
+                bayarPageSize === 'all' ? 'all' : String(bayarPageSize),
+            );
+            const res = await fetch(
+                `/pembayaran/permintaan-dana-biaya/bayar-detail?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!res.ok) {
                 const payload = await res.json().catch(() => null);
-                throw new Error(payload?.message || 'Gagal memuat detail pembayaran.');
+                throw new Error(
+                    payload?.message || 'Gagal memuat detail pembayaran.',
+                );
             }
             const data = await res.json();
             setBayarRows(Array.isArray(data?.rows) ? data.rows : []);
@@ -241,17 +274,24 @@ export default function PermintaanDanaBiayaIndex() {
     const printPdb = (noPdb) => {
         const params = new URLSearchParams();
         params.set('no_pdb', noPdb);
-        window.open(`/pembayaran/permintaan-dana-biaya/print?${params.toString()}`, '_blank');
+        window.open(
+            `/pembayaran/permintaan-dana-biaya/print?${params.toString()}`,
+            '_blank',
+        );
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Permintaan Dana Biaya" />
             <div className="flex flex-col gap-6 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <div className="text-sm text-muted-foreground">Pembayaran</div>
-                        <div className="text-2xl font-semibold">Permintaan Dana Biaya</div>
+                        <div className="text-sm text-muted-foreground">
+                            Pembayaran
+                        </div>
+                        <div className="text-2xl font-semibold">
+                            Permintaan Dana Biaya
+                        </div>
                         <div className="text-sm text-muted-foreground">
                             Ringkasan permintaan dana biaya berdasarkan PDB.
                         </div>
@@ -280,7 +320,13 @@ export default function PermintaanDanaBiayaIndex() {
                                 Tampil
                                 <Select
                                     value={String(pageSize)}
-                                    onValueChange={(value) => setPageSize(value === 'all' ? 'all' : Number(value))}
+                                    onValueChange={(value) =>
+                                        setPageSize(
+                                            value === 'all'
+                                                ? 'all'
+                                                : Number(value),
+                                        )
+                                    }
                                 >
                                     <SelectTrigger className="h-9 w-[110px]">
                                         <SelectValue />
@@ -290,7 +336,9 @@ export default function PermintaanDanaBiayaIndex() {
                                         <SelectItem value="10">10</SelectItem>
                                         <SelectItem value="25">25</SelectItem>
                                         <SelectItem value="50">50</SelectItem>
-                                        <SelectItem value="all">Semua</SelectItem>
+                                        <SelectItem value="all">
+                                            Semua
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -313,32 +361,73 @@ export default function PermintaanDanaBiayaIndex() {
                                         <TableHead>Total</TableHead>
                                         <TableHead>Transfer</TableHead>
                                         <TableHead>Sisa</TableHead>
-                                        <TableHead className="text-center">Aksi</TableHead>
+                                        <TableHead className="text-center">
+                                            Aksi
+                                        </TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {rows.length === 0 && !loading ? (
                                         <TableRow>
-                                            <TableCell colSpan={9} className="text-center text-muted-foreground">
+                                            <TableCell
+                                                colSpan={9}
+                                                className="text-center text-muted-foreground"
+                                            >
                                                 {error || 'Tidak ada data.'}
                                             </TableCell>
                                         </TableRow>
                                     ) : (
                                         rows.map((row) => (
-                                            <TableRow key={`${row?.no_pdb}-${row?.tgl_buat}`}>
-                                                <TableCell className="font-medium">{renderValue(row?.no_pdb)}</TableCell>
-                                                <TableCell>{formatDate(row?.tgl_buat)}</TableCell>
-                                                <TableCell>{formatRupiah(row?.kas_bank)}</TableCell>
-                                                <TableCell>{formatRupiah(row?.kas_tunai)}</TableCell>
-                                                <TableCell>{formatRupiah(row?.total)}</TableCell>
-                                                <TableCell>{formatRupiah(row?.transfer)}</TableCell>
-                                                <TableCell>{formatRupiah(row?.sisa)}</TableCell>
+                                            <TableRow
+                                                key={`${row?.no_pdb}-${row?.tgl_buat}`}
+                                            >
+                                                <TableCell className="font-medium">
+                                                    {renderValue(row?.no_pdb)}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {formatDate(row?.tgl_buat)}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {formatRupiah(
+                                                        row?.kas_bank,
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {formatRupiah(
+                                                        row?.kas_tunai,
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {formatRupiah(row?.total)}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {formatRupiah(
+                                                        row?.transfer,
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {formatRupiah(row?.sisa)}
+                                                </TableCell>
                                                 <TableCell className="text-center">
                                                     <div className="flex items-center justify-center gap-2">
-                                                        <ActionIconButton label="Detail" onClick={() => openDetail(row?.no_pdb)}>
+                                                        <ActionIconButton
+                                                            label="Detail"
+                                                            onClick={() =>
+                                                                openDetail(
+                                                                    row?.no_pdb,
+                                                                )
+                                                            }
+                                                        >
                                                             <Eye className="h-4 w-4" />
                                                         </ActionIconButton>
-                                                        <ActionIconButton label="Cetak" onClick={() => printPdb(row?.no_pdb)}>
+                                                        <ActionIconButton
+                                                            label="Cetak"
+                                                            onClick={() =>
+                                                                printPdb(
+                                                                    row?.no_pdb,
+                                                                )
+                                                            }
+                                                        >
                                                             <Printer className="h-4 w-4" />
                                                         </ActionIconButton>
                                                     </div>
@@ -357,7 +446,9 @@ export default function PermintaanDanaBiayaIndex() {
                                     variant="outline"
                                     size="sm"
                                     disabled={page <= 1 || pageSize === 'all'}
-                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    onClick={() =>
+                                        setPage((p) => Math.max(1, p - 1))
+                                    }
                                 >
                                     Sebelumnya
                                 </Button>
@@ -367,8 +458,14 @@ export default function PermintaanDanaBiayaIndex() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    disabled={page >= totalPages || pageSize === 'all'}
-                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                    disabled={
+                                        page >= totalPages || pageSize === 'all'
+                                    }
+                                    onClick={() =>
+                                        setPage((p) =>
+                                            Math.min(totalPages, p + 1),
+                                        )
+                                    }
                                 >
                                     Berikutnya
                                 </Button>
@@ -379,7 +476,11 @@ export default function PermintaanDanaBiayaIndex() {
             </div>
 
             {/* modal={false} so a stacked fullscreen overlay (Detail Pembayaran) can still receive pointer events. */}
-            <Dialog open={detailOpen} onOpenChange={setDetailOpen} modal={false}>
+            <Dialog
+                open={detailOpen}
+                onOpenChange={setDetailOpen}
+                modal={false}
+            >
                 <DialogContent
                     className="max-w-5xl"
                     // Prevent closing Detail PDB when user interacts with the stacked fullscreen Detail Pembayaran.
@@ -397,7 +498,10 @@ export default function PermintaanDanaBiayaIndex() {
                     <DialogHeader>
                         <DialogTitle>Detail PDB</DialogTitle>
                         <DialogDescription>
-                            No PDB: <span className="font-medium">{renderValue(detailNo)}</span>
+                            No PDB:{' '}
+                            <span className="font-medium">
+                                {renderValue(detailNo)}
+                            </span>
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -407,7 +511,9 @@ export default function PermintaanDanaBiayaIndex() {
                             <Select
                                 value={String(detailPageSize)}
                                 onValueChange={(value) =>
-                                    setDetailPageSize(value === 'all' ? 'all' : Number(value))
+                                    setDetailPageSize(
+                                        value === 'all' ? 'all' : Number(value),
+                                    )
                                 }
                             >
                                 <SelectTrigger className="h-8 w-[110px]">
@@ -436,30 +542,47 @@ export default function PermintaanDanaBiayaIndex() {
                                     <TableHead>No</TableHead>
                                     <TableHead>Kode Bayar</TableHead>
                                     <TableHead>Keterangan</TableHead>
-                                    <TableHead className="text-right">Jumlah</TableHead>
+                                    <TableHead className="text-right">
+                                        Jumlah
+                                    </TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {detailRows.length === 0 && !detailLoading ? (
                                     <TableRow>
-                                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                        <TableCell
+                                            colSpan={4}
+                                            className="text-center text-muted-foreground"
+                                        >
                                             {detailError || 'Tidak ada data.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
                                     detailRows.map((row, index) => (
-                                        <TableRow key={`${row?.kode_bayar}-${row?.no}-${index}`}>
-                                            <TableCell>{row?.no ?? index + 1}</TableCell>
+                                        <TableRow
+                                            key={`${row?.kode_bayar}-${row?.no}-${index}`}
+                                        >
+                                            <TableCell>
+                                                {row?.no ?? index + 1}
+                                            </TableCell>
                                             <TableCell>
                                                 <button
                                                     type="button"
                                                     className="text-primary underline"
-                                                    onClick={() => openBayar(row?.kode_bayar)}
+                                                    onClick={() =>
+                                                        openBayar(
+                                                            row?.kode_bayar,
+                                                        )
+                                                    }
                                                 >
-                                                    {renderValue(row?.kode_bayar)}
+                                                    {renderValue(
+                                                        row?.kode_bayar,
+                                                    )}
                                                 </button>
                                             </TableCell>
-                                            <TableCell>{renderValue(row?.keterangan)}</TableCell>
+                                            <TableCell>
+                                                {renderValue(row?.keterangan)}
+                                            </TableCell>
                                             <TableCell className="text-right">
                                                 {formatRupiah(row?.jumlah)}
                                             </TableCell>
@@ -476,8 +599,12 @@ export default function PermintaanDanaBiayaIndex() {
                             <Button
                                 variant="outline"
                                 size="sm"
-                                disabled={detailPage <= 1 || detailPageSize === 'all'}
-                                onClick={() => setDetailPage((p) => Math.max(1, p - 1))}
+                                disabled={
+                                    detailPage <= 1 || detailPageSize === 'all'
+                                }
+                                onClick={() =>
+                                    setDetailPage((p) => Math.max(1, p - 1))
+                                }
                             >
                                 Sebelumnya
                             </Button>
@@ -487,8 +614,15 @@ export default function PermintaanDanaBiayaIndex() {
                             <Button
                                 variant="outline"
                                 size="sm"
-                                disabled={detailPage >= detailTotalPages || detailPageSize === 'all'}
-                                onClick={() => setDetailPage((p) => Math.min(detailTotalPages, p + 1))}
+                                disabled={
+                                    detailPage >= detailTotalPages ||
+                                    detailPageSize === 'all'
+                                }
+                                onClick={() =>
+                                    setDetailPage((p) =>
+                                        Math.min(detailTotalPages, p + 1),
+                                    )
+                                }
                             >
                                 Berikutnya
                             </Button>
@@ -508,9 +642,14 @@ export default function PermintaanDanaBiayaIndex() {
 
                         <div className="flex items-start justify-between gap-3">
                             <div>
-                                <div className="text-xl font-semibold">Detail Pembayaran</div>
+                                <div className="text-xl font-semibold">
+                                    Detail Pembayaran
+                                </div>
                                 <div className="mt-1 text-sm text-muted-foreground">
-                                    Kode Bayar: <span className="font-medium">{renderValue(bayarKode)}</span>
+                                    Kode Bayar:{' '}
+                                    <span className="font-medium">
+                                        {renderValue(bayarKode)}
+                                    </span>
                                 </div>
                             </div>
                             <Button
@@ -524,22 +663,29 @@ export default function PermintaanDanaBiayaIndex() {
                                 onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    window.setTimeout(() => setBayarOpen(false), 0);
+                                    window.setTimeout(
+                                        () => setBayarOpen(false),
+                                        0,
+                                    );
                                 }}
                             >
-                                <span className="sr-only">Close</span>
-                                ×
+                                <span className="sr-only">Close</span>×
                             </Button>
                         </div>
 
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                            <div className="text-sm text-muted-foreground">
-                            </div>
+                            <div className="text-sm text-muted-foreground"></div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 Tampil
                                 <Select
                                     value={String(bayarPageSize)}
-                                    onValueChange={(value) => setBayarPageSize(value === 'all' ? 'all' : Number(value))}
+                                    onValueChange={(value) =>
+                                        setBayarPageSize(
+                                            value === 'all'
+                                                ? 'all'
+                                                : Number(value),
+                                        )
+                                    }
                                 >
                                     <SelectTrigger className="h-8 w-[110px]">
                                         <SelectValue />
@@ -549,7 +695,9 @@ export default function PermintaanDanaBiayaIndex() {
                                         <SelectItem value="10">10</SelectItem>
                                         <SelectItem value="25">25</SelectItem>
                                         <SelectItem value="50">50</SelectItem>
-                                        <SelectItem value="all">Semua</SelectItem>
+                                        <SelectItem value="all">
+                                            Semua
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -563,74 +711,140 @@ export default function PermintaanDanaBiayaIndex() {
                                     <TableRow>
                                         <TableHead>No</TableHead>
                                         <TableHead>Keterangan</TableHead>
-                                        <TableHead className="hidden md:table-cell">Penanggung</TableHead>
-                                        <TableHead className="hidden md:table-cell">Total</TableHead>
-                                        <TableHead className="hidden md:table-cell">Bayar</TableHead>
-                                        <TableHead className="hidden md:table-cell">Sisa</TableHead>
-                                        <TableHead className="hidden md:table-cell">Akun</TableHead>
-                                        <TableHead className="hidden md:table-cell">No Dokumen</TableHead>
+                                        <TableHead className="hidden md:table-cell">
+                                            Penanggung
+                                        </TableHead>
+                                        <TableHead className="hidden md:table-cell">
+                                            Total
+                                        </TableHead>
+                                        <TableHead className="hidden md:table-cell">
+                                            Bayar
+                                        </TableHead>
+                                        <TableHead className="hidden md:table-cell">
+                                            Sisa
+                                        </TableHead>
+                                        <TableHead className="hidden md:table-cell">
+                                            Akun
+                                        </TableHead>
+                                        <TableHead className="hidden md:table-cell">
+                                            No Dokumen
+                                        </TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {bayarRows.length === 0 && !bayarLoading ? (
                                         <TableRow>
-                                            <TableCell colSpan={8} className="text-center text-muted-foreground">
-                                                {bayarError || 'Tidak ada data.'}
+                                            <TableCell
+                                                colSpan={8}
+                                                className="text-center text-muted-foreground"
+                                            >
+                                                {bayarError ||
+                                                    'Tidak ada data.'}
                                             </TableCell>
                                         </TableRow>
                                     ) : (
                                         bayarRows.map((row, index) => (
-                                            <TableRow key={`${row?.Kode_Bayar}-${row?.No}-${index}`}>
-                                                <TableCell>{row?.No ?? index + 1}</TableCell>
-                                                <TableCell className="whitespace-normal break-words">
+                                            <TableRow
+                                                key={`${row?.Kode_Bayar}-${row?.No}-${index}`}
+                                            >
+                                                <TableCell>
+                                                    {row?.No ?? index + 1}
+                                                </TableCell>
+                                                <TableCell className="break-words whitespace-normal">
                                                     <div className="space-y-2">
-                                                        <div>{renderValue(row?.Keterangan)}</div>
+                                                        <div>
+                                                            {renderValue(
+                                                                row?.Keterangan,
+                                                            )}
+                                                        </div>
                                                         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground md:hidden">
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span>Penanggung</span>
+                                                                <span>
+                                                                    Penanggung
+                                                                </span>
                                                                 <span className="text-foreground/90">
-                                                                    {renderValue(row?.Penanggung)}
+                                                                    {renderValue(
+                                                                        row?.Penanggung,
+                                                                    )}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span>Total</span>
+                                                                <span>
+                                                                    Total
+                                                                </span>
                                                                 <span className="text-foreground/90">
-                                                                    {formatRupiah(row?.Total)}
+                                                                    {formatRupiah(
+                                                                        row?.Total,
+                                                                    )}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span>Bayar</span>
+                                                                <span>
+                                                                    Bayar
+                                                                </span>
                                                                 <span className="text-foreground/90">
-                                                                    {formatRupiah(row?.Bayar)}
+                                                                    {formatRupiah(
+                                                                        row?.Bayar,
+                                                                    )}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span>Sisa</span>
+                                                                <span>
+                                                                    Sisa
+                                                                </span>
                                                                 <span className="text-foreground/90">
-                                                                    {formatRupiah(row?.Sisa)}
+                                                                    {formatRupiah(
+                                                                        row?.Sisa,
+                                                                    )}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span>Akun</span>
+                                                                <span>
+                                                                    Akun
+                                                                </span>
                                                                 <span className="text-foreground/90">
-                                                                    {renderValue(row?.beban_akun)}
+                                                                    {renderValue(
+                                                                        row?.beban_akun,
+                                                                    )}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span>No Dok</span>
+                                                                <span>
+                                                                    No Dok
+                                                                </span>
                                                                 <span className="text-foreground/90">
-                                                                    {renderValue(row?.noduk_beban)}
+                                                                    {renderValue(
+                                                                        row?.noduk_beban,
+                                                                    )}
                                                                 </span>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="hidden md:table-cell">{renderValue(row?.Penanggung)}</TableCell>
-                                                <TableCell className="hidden md:table-cell">{formatRupiah(row?.Total)}</TableCell>
-                                                <TableCell className="hidden md:table-cell">{formatRupiah(row?.Bayar)}</TableCell>
-                                                <TableCell className="hidden md:table-cell">{formatRupiah(row?.Sisa)}</TableCell>
-                                                <TableCell className="hidden md:table-cell">{renderValue(row?.beban_akun)}</TableCell>
-                                                <TableCell className="hidden md:table-cell">{renderValue(row?.noduk_beban)}</TableCell>
+                                                <TableCell className="hidden md:table-cell">
+                                                    {renderValue(
+                                                        row?.Penanggung,
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="hidden md:table-cell">
+                                                    {formatRupiah(row?.Total)}
+                                                </TableCell>
+                                                <TableCell className="hidden md:table-cell">
+                                                    {formatRupiah(row?.Bayar)}
+                                                </TableCell>
+                                                <TableCell className="hidden md:table-cell">
+                                                    {formatRupiah(row?.Sisa)}
+                                                </TableCell>
+                                                <TableCell className="hidden md:table-cell">
+                                                    {renderValue(
+                                                        row?.beban_akun,
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="hidden md:table-cell">
+                                                    {renderValue(
+                                                        row?.noduk_beban,
+                                                    )}
+                                                </TableCell>
                                             </TableRow>
                                         ))
                                     )}
@@ -646,8 +860,13 @@ export default function PermintaanDanaBiayaIndex() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    disabled={bayarPage <= 1 || bayarPageSize === 'all'}
-                                    onClick={() => setBayarPage((p) => Math.max(1, p - 1))}
+                                    disabled={
+                                        bayarPage <= 1 ||
+                                        bayarPageSize === 'all'
+                                    }
+                                    onClick={() =>
+                                        setBayarPage((p) => Math.max(1, p - 1))
+                                    }
                                 >
                                     Sebelumnya
                                 </Button>
@@ -657,8 +876,15 @@ export default function PermintaanDanaBiayaIndex() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    disabled={bayarPage >= bayarTotalPages || bayarPageSize === 'all'}
-                                    onClick={() => setBayarPage((p) => Math.min(bayarTotalPages, p + 1))}
+                                    disabled={
+                                        bayarPage >= bayarTotalPages ||
+                                        bayarPageSize === 'all'
+                                    }
+                                    onClick={() =>
+                                        setBayarPage((p) =>
+                                            Math.min(bayarTotalPages, p + 1),
+                                        )
+                                    }
                                 >
                                     Berikutnya
                                 </Button>
@@ -666,21 +892,37 @@ export default function PermintaanDanaBiayaIndex() {
                         </div>
                         <div className="mt-3 grid gap-2 rounded-xl border border-white/10 bg-white/5 p-3 text-sm">
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Sum Total</span>
-                                <span className="font-semibold">{formatRupiah(bayarSumsServer.total)}</span>
+                                <span className="text-muted-foreground">
+                                    Sum Total
+                                </span>
+                                <span className="font-semibold">
+                                    {formatRupiah(bayarSumsServer.total)}
+                                </span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Sum Bayar</span>
-                                <span className="font-semibold">{formatRupiah(bayarSumsServer.bayar)}</span>
+                                <span className="text-muted-foreground">
+                                    Sum Bayar
+                                </span>
+                                <span className="font-semibold">
+                                    {formatRupiah(bayarSumsServer.bayar)}
+                                </span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">Sum Sisa</span>
-                                <span className="font-semibold">{formatRupiah(bayarSumsServer.sisa)}</span>
+                                <span className="text-muted-foreground">
+                                    Sum Sisa
+                                </span>
+                                <span className="font-semibold">
+                                    {formatRupiah(bayarSumsServer.sisa)}
+                                </span>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
-        </AppLayout>
+        </>
     );
 }
+
+PermintaanDanaBiayaIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

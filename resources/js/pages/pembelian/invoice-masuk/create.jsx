@@ -268,13 +268,7 @@ export default function InvoiceMasukCreate() {
     };
 
     return (
-        <AppLayout
-            breadcrumbs={[
-                { title: 'Dashboard', href: '/dashboard' },
-                { title: 'Invoice Masuk', href: '/pembelian/invoice-masuk' },
-                { title: 'Tambah FI', href: '/pembelian/invoice-masuk/create' },
-            ]}
-        >
+        <>
             <Head title="Tambah Invoice Masuk" />
             <div className="space-y-4 p-4">
                 {poError ? <ErrorState error={poError} /> : null}
@@ -728,6 +722,17 @@ export default function InvoiceMasukCreate() {
                     </div>
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+InvoiceMasukCreate.layout = (page) => (
+    <AppLayout
+        children={page}
+        breadcrumbs={[
+            { title: 'Dashboard', href: '/dashboard' },
+            { title: 'Invoice Masuk', href: '/pembelian/invoice-masuk' },
+            { title: 'Tambah FI', href: '/pembelian/invoice-masuk/create' },
+        ]}
+    />
+);

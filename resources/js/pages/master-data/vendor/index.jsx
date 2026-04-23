@@ -1,3 +1,5 @@
+import { ActionIconButton } from '@/components/action-icon-button';
+import { ErrorState } from '@/components/data-states/ErrorState';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -15,14 +17,12 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
-import { Head, router, useForm } from '@inertiajs/react';
-import { ActionIconButton } from '@/components/action-icon-button';
-import { ErrorState } from '@/components/data-states/ErrorState';
-import { confirmDelete } from '@/lib/confirm-delete';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
+import { confirmDelete } from '@/lib/confirm-delete';
+import { Head, router, useForm } from '@inertiajs/react';
 import { Eye, Pencil, Plus, Printer, Trash2 } from 'lucide-react';
-import Swal from 'sweetalert2';
 import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -110,13 +110,15 @@ export default function VendorIndex({ vendors = [] }) {
         items.sort((a, b) =>
             codeOrder === 'desc'
                 ? compareCode(b.kd_vdr, a.kd_vdr)
-                : compareCode(a.kd_vdr, b.kd_vdr)
+                : compareCode(a.kd_vdr, b.kd_vdr),
         );
         if (!term) {
             return items;
         }
         return items.filter((item) =>
-            String(item.nm_vdr ?? '').toLowerCase().includes(term)
+            String(item.nm_vdr ?? '')
+                .toLowerCase()
+                .includes(term),
         );
     }, [vendors, searchTerm, codeOrder]);
 
@@ -148,7 +150,9 @@ export default function VendorIndex({ vendors = [] }) {
             return poHistory;
         }
         return poHistory.filter((item) =>
-            String(item.no_po ?? '').toLowerCase().includes(term)
+            String(item.no_po ?? '')
+                .toLowerCase()
+                .includes(term),
         );
     }, [poHistory, poSearchTerm]);
 
@@ -273,9 +277,12 @@ export default function VendorIndex({ vendors = [] }) {
         });
         if (!ok) return;
 
-        router.delete(`/master-data/vendor/${encodeURIComponent(vendor.kd_vdr)}`, {
-            preserveScroll: true,
-        });
+        router.delete(
+            `/master-data/vendor/${encodeURIComponent(vendor.kd_vdr)}`,
+            {
+                preserveScroll: true,
+            },
+        );
     };
 
     const handleCreateSubmit = (event) => {
@@ -335,9 +342,7 @@ export default function VendorIndex({ vendors = [] }) {
                     }
                 />
                 {errors.almt_vdr && (
-                    <p className="text-xs text-rose-600">
-                        {errors.almt_vdr}
-                    </p>
+                    <p className="text-xs text-rose-600">{errors.almt_vdr}</p>
                 )}
             </div>
             <div className="space-y-2">
@@ -479,7 +484,7 @@ export default function VendorIndex({ vendors = [] }) {
     );
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Data Vendor" />
             <div className="flex flex-col gap-6 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -521,7 +526,7 @@ export default function VendorIndex({ vendors = [] }) {
                                             setPageSize(
                                                 value === 'all'
                                                     ? Infinity
-                                                    : Number(value)
+                                                    : Number(value),
                                             );
                                             setCurrentPage(1);
                                         }}
@@ -569,84 +574,108 @@ export default function VendorIndex({ vendors = [] }) {
 
                         <div className="overflow-hidden rounded-xl border border-sidebar-border/70">
                             <div className="max-h-[65vh] overflow-auto overscroll-contain">
-                            <table className="w-full text-sm">
-                                <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left">
-                                            No
-                                        </th>
-                                        <th className="sticky left-0 z-[2] w-[160px] bg-background/95 px-4 py-3 text-left">
-                                            Kode Vendor
-                                        </th>
-                                        <th className="sticky left-[160px] z-[2] min-w-[240px] bg-background/95 px-4 py-3 text-left">
-                                            Nama Vendor
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Alamat
-                                        </th>
-                                        <th className="sticky right-0 z-[2] bg-background/95 px-4 py-3 text-center">
-                                            Aksi
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {displayedVendors.length === 0 && (
+                                <table className="w-full text-sm">
+                                    <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                         <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={5}
+                                            <th className="px-4 py-3 text-left">
+                                                No
+                                            </th>
+                                            <th className="sticky left-0 z-[2] w-[160px] bg-background/95 px-4 py-3 text-left">
+                                                Kode Vendor
+                                            </th>
+                                            <th className="sticky left-[160px] z-[2] min-w-[240px] bg-background/95 px-4 py-3 text-left">
+                                                Nama Vendor
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Alamat
+                                            </th>
+                                            <th className="sticky right-0 z-[2] bg-background/95 px-4 py-3 text-center">
+                                                Aksi
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {displayedVendors.length === 0 && (
+                                            <tr>
+                                                <td
+                                                    className="px-4 py-6 text-center text-muted-foreground"
+                                                    colSpan={5}
+                                                >
+                                                    <div>
+                                                        Data vendor belum
+                                                        tersedia.
+                                                    </div>
+                                                    <div className="mt-3">
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                setIsCreateModalOpen(
+                                                                    true,
+                                                                )
+                                                            }
+                                                        >
+                                                            Tambah Vendor
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {displayedVendors.map((item, index) => (
+                                            <tr
+                                                key={`${item.kd_vdr}-${index}`}
+                                                className="border-t border-sidebar-border/70"
                                             >
-                                                <div>Data vendor belum tersedia.</div>
-                                                <div className="mt-3">
-                                                    <Button
-                                                        type="button"
-                                                        size="sm"
-                                                        onClick={() => setIsCreateModalOpen(true)}
-                                                    >
-                                                        Tambah Vendor
-                                                    </Button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                    {displayedVendors.map((item, index) => (
-                                        <tr
-                                            key={`${item.kd_vdr}-${index}`}
-                                            className="border-t border-sidebar-border/70"
-                                        >
-                                            <td className="px-4 py-3">
-                                                {(pageSize === Infinity
-                                                    ? index
-                                                    : (currentPage - 1) *
-                                                          pageSize +
-                                                      index) + 1}
-                                            </td>
-                                            <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
-                                                {renderValue(item.kd_vdr)}
-                                            </td>
-                                            <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
-                                                {renderValue(item.nm_vdr)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.almt_vdr)}
-                                            </td>
-                                            <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <ActionIconButton label="Detail" onClick={() => handleView(item)}>
-                                                        <Eye className="h-4 w-4" />
-                                                    </ActionIconButton>
-                                                    <ActionIconButton label="Edit" onClick={() => handleEdit(item)}>
-                                                        <Pencil className="h-4 w-4" />
-                                                    </ActionIconButton>
-                                                    <ActionIconButton label="Hapus" onClick={() => handleDelete(item)}>
-                                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                                    </ActionIconButton>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                                <td className="px-4 py-3">
+                                                    {(pageSize === Infinity
+                                                        ? index
+                                                        : (currentPage - 1) *
+                                                              pageSize +
+                                                          index) + 1}
+                                                </td>
+                                                <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
+                                                    {renderValue(item.kd_vdr)}
+                                                </td>
+                                                <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
+                                                    {renderValue(item.nm_vdr)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.almt_vdr)}
+                                                </td>
+                                                <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <ActionIconButton
+                                                            label="Detail"
+                                                            onClick={() =>
+                                                                handleView(item)
+                                                            }
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </ActionIconButton>
+                                                        <ActionIconButton
+                                                            label="Edit"
+                                                            onClick={() =>
+                                                                handleEdit(item)
+                                                            }
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </ActionIconButton>
+                                                        <ActionIconButton
+                                                            label="Hapus"
+                                                            onClick={() =>
+                                                                handleDelete(
+                                                                    item,
+                                                                )
+                                                            }
+                                                        >
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </ActionIconButton>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
 
@@ -656,12 +685,12 @@ export default function VendorIndex({ vendors = [] }) {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (currentPage - 1) * pageSize + 1,
-                                        totalItems
+                                        totalItems,
                                     )}
                                     -
                                     {Math.min(
                                         currentPage * pageSize,
-                                        totalItems
+                                        totalItems,
                                     )}{' '}
                                     dari {totalItems} data
                                 </span>
@@ -671,7 +700,7 @@ export default function VendorIndex({ vendors = [] }) {
                                         size="sm"
                                         onClick={() =>
                                             setCurrentPage((page) =>
-                                                Math.max(1, page - 1)
+                                                Math.max(1, page - 1),
                                             )
                                         }
                                         disabled={currentPage === 1}
@@ -686,7 +715,7 @@ export default function VendorIndex({ vendors = [] }) {
                                         size="sm"
                                         onClick={() =>
                                             setCurrentPage((page) =>
-                                                Math.min(totalPages, page + 1)
+                                                Math.min(totalPages, page + 1),
                                             )
                                         }
                                         disabled={currentPage === totalPages}
@@ -711,7 +740,7 @@ export default function VendorIndex({ vendors = [] }) {
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Tambah Vendor</DialogTitle>
                         </DialogHeader>
@@ -731,9 +760,12 @@ export default function VendorIndex({ vendors = [] }) {
                                 ? renderVendorStepOne(
                                       createData,
                                       setCreateData,
-                                      createErrors
+                                      createErrors,
                                   )
-                                : renderVendorStepTwo(createData, setCreateData)}
+                                : renderVendorStepTwo(
+                                      createData,
+                                      setCreateData,
+                                  )}
                             <div className="flex flex-wrap justify-end gap-2">
                                 {createStep === 2 && (
                                     <Button
@@ -784,7 +816,7 @@ export default function VendorIndex({ vendors = [] }) {
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Detail Vendor</DialogTitle>
                         </DialogHeader>
@@ -807,7 +839,11 @@ export default function VendorIndex({ vendors = [] }) {
                                     <Button
                                         type="button"
                                         size="sm"
-                                        variant={viewTab === 'profil' ? 'default' : 'outline'}
+                                        variant={
+                                            viewTab === 'profil'
+                                                ? 'default'
+                                                : 'outline'
+                                        }
                                         onClick={() => setViewTab('profil')}
                                     >
                                         Profil
@@ -815,341 +851,391 @@ export default function VendorIndex({ vendors = [] }) {
                                     <Button
                                         type="button"
                                         size="sm"
-                                        variant={viewTab === 'riwayat' ? 'default' : 'outline'}
+                                        variant={
+                                            viewTab === 'riwayat'
+                                                ? 'default'
+                                                : 'outline'
+                                        }
                                         onClick={() => setViewTab('riwayat')}
                                     >
                                         Riwayat PO
                                     </Button>
                                 </div>
                                 {viewTab === 'profil' ? (
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Kode Vendor
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.kd_vdr)}
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Kode Vendor
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(viewVendor.kd_vdr)}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Nama Vendor
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(viewVendor.nm_vdr)}
+                                            </div>
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <span className="text-muted-foreground">
+                                                Alamat
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.almt_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Telepon
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.telp_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Fax
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.fax_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Email
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.eml_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Attended
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.attn_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                NPWP
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.npwp_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Alamat NPWP 1
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.npwp1_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Alamat NPWP 2
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.npwp2_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Rekening 1
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.rek1_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Nama Bank 1
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.bank1_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Atas Nama 1
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.an1_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Rekening 2
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.rek2_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Nama Bank 2
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.bank2_vdr,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Atas Nama 2
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewVendor.an2_vdr,
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Nama Vendor
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.nm_vdr)}
-                                        </div>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <span className="text-muted-foreground">
-                                            Alamat
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.almt_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Telepon
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.telp_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Fax
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.fax_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Email
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.eml_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Attended
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.attn_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            NPWP
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.npwp_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Alamat NPWP 1
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.npwp1_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Alamat NPWP 2
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.npwp2_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Rekening 1
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.rek1_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Nama Bank 1
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.bank1_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Atas Nama 1
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.an1_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Rekening 2
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.rek2_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Nama Bank 2
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.bank2_vdr)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Atas Nama 2
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewVendor.an2_vdr)}
-                                        </div>
-                                    </div>
-                                </div>
                                 ) : null}
 
                                 {viewTab === 'riwayat' ? (
-                                <div className="space-y-3">
-                                    <h3 className="text-base font-semibold">Riwayat PO</h3>
-                                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                        <label>
-                                            Tampilkan
-                                            <select
-                                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                                value={
-                                                    poPageSize === Infinity
-                                                        ? 'all'
-                                                        : poPageSize
-                                                }
-                                                onChange={(event) => {
-                                                    const value =
-                                                        event.target.value;
-                                                    setPoPageSize(
-                                                        value === 'all'
-                                                            ? Infinity
-                                                            : Number(value)
-                                                    );
-                                                    setPoCurrentPage(1);
-                                                }}
-                                            >
-                                                <option value={5}>5</option>
-                                                <option value={10}>10</option>
-                                                <option value={25}>25</option>
-                                                <option value={50}>50</option>
-                                                <option value="all">Semua</option>
-                                            </select>
-                                        </label>
-                                        <label>
-                                            Cari PO
-                                            <input
-                                                type="search"
-                                                className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                                placeholder="Cari nomor PO..."
-                                                value={poSearchTerm}
-                                                onChange={(event) => {
-                                                    setPoSearchTerm(
-                                                        event.target.value
-                                                    );
-                                                    setPoCurrentPage(1);
-                                                }}
-                                            />
-                                        </label>
-                                    </div>
+                                    <div className="space-y-3">
+                                        <h3 className="text-base font-semibold">
+                                            Riwayat PO
+                                        </h3>
+                                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                            <label>
+                                                Tampilkan
+                                                <select
+                                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                                    value={
+                                                        poPageSize === Infinity
+                                                            ? 'all'
+                                                            : poPageSize
+                                                    }
+                                                    onChange={(event) => {
+                                                        const value =
+                                                            event.target.value;
+                                                        setPoPageSize(
+                                                            value === 'all'
+                                                                ? Infinity
+                                                                : Number(value),
+                                                        );
+                                                        setPoCurrentPage(1);
+                                                    }}
+                                                >
+                                                    <option value={5}>5</option>
+                                                    <option value={10}>
+                                                        10
+                                                    </option>
+                                                    <option value={25}>
+                                                        25
+                                                    </option>
+                                                    <option value={50}>
+                                                        50
+                                                    </option>
+                                                    <option value="all">
+                                                        Semua
+                                                    </option>
+                                                </select>
+                                            </label>
+                                            <label>
+                                                Cari PO
+                                                <input
+                                                    type="search"
+                                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                                    placeholder="Cari nomor PO..."
+                                                    value={poSearchTerm}
+                                                    onChange={(event) => {
+                                                        setPoSearchTerm(
+                                                            event.target.value,
+                                                        );
+                                                        setPoCurrentPage(1);
+                                                    }}
+                                                />
+                                            </label>
+                                        </div>
 
-                                    <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                                        <table className="w-full text-sm">
-                                            <thead className="bg-muted/50 text-muted-foreground">
-                                                <tr>
-												<th className="px-4 py-3 text-left">
-													Nomor PO
-												</th>
-												<th className="px-4 py-3 text-right">
-													Sub Total
-												</th>
-												<th className="px-4 py-3 text-right">
-													PPN
-												</th>
-												<th className="px-4 py-3 text-right">
-													Grand Total
-												</th>
-												<th className="px-4 py-3 text-left">
-													Aksi
-												</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {displayedPoHistory.length ===
-                                                    0 && (
+                                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-muted/50 text-muted-foreground">
                                                     <tr>
-                                                        <td
-                                                            className="px-4 py-6 text-center text-muted-foreground"
-                                                            colSpan={5}
-                                                        >
-                                                            Data PO belum
-                                                            tersedia.
-                                                        </td>
+                                                        <th className="px-4 py-3 text-left">
+                                                            Nomor PO
+                                                        </th>
+                                                        <th className="px-4 py-3 text-right">
+                                                            Sub Total
+                                                        </th>
+                                                        <th className="px-4 py-3 text-right">
+                                                            PPN
+                                                        </th>
+                                                        <th className="px-4 py-3 text-right">
+                                                            Grand Total
+                                                        </th>
+                                                        <th className="px-4 py-3 text-left">
+                                                            Aksi
+                                                        </th>
                                                     </tr>
-                                                )}
-                                                {displayedPoHistory.map(
-                                                    (item) => (
-                                                        <tr
-                                                            key={item.no_po}
-                                                            className="border-t border-sidebar-border/70"
-                                                        >
-                                                            <td className="px-4 py-3">
-                                                                {renderValue(
-                                                                    item.no_po
-                                                                )}
+                                                </thead>
+                                                <tbody>
+                                                    {displayedPoHistory.length ===
+                                                        0 && (
+                                                        <tr>
+                                                            <td
+                                                                className="px-4 py-6 text-center text-muted-foreground"
+                                                                colSpan={5}
+                                                            >
+                                                                Data PO belum
+                                                                tersedia.
                                                             </td>
-															<td className="px-4 py-3 text-right tabular-nums">
-																{formatRupiah(
-																	item.s_total
-																)}
-															</td>
-															<td className="px-4 py-3 text-right tabular-nums">
-																{formatRupiah(
-																	item.h_ppn
-																)}
-															</td>
-															<td className="px-4 py-3 text-right tabular-nums">
-																{formatRupiah(
-																	item.g_total
-																)}
-															</td>
-																<td className="px-4 py-3">
-																	<ActionIconButton label="Cetak" asChild>
-																		<a
-																			href={`/pembelian/purchase-order/${encodeURIComponent(
-																				item.no_po
-																			)}/print`}
-																			target="_blank"
-																			rel="noreferrer"
-																		>
-																			<Printer className="h-4 w-4" />
-																		</a>
-																	</ActionIconButton>
-																</td>
-														</tr>
-													)
-												)}
-                                            </tbody>
-                                        </table>
-                                    </div>
-
-	                                    {poPageSize !== Infinity &&
-	                                        poTotalItems > 0 && (
-	                                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                                <span>
-                                                    Menampilkan{' '}
-                                                    {Math.min(
-                                                        (poCurrentPage - 1) *
-                                                            poPageSize +
-                                                            1,
-                                                        poTotalItems
+                                                        </tr>
                                                     )}
-                                                    -
-                                                    {Math.min(
-                                                        poCurrentPage *
-                                                            poPageSize,
-                                                        poTotalItems
-                                                    )}{' '}
-                                                    dari {poTotalItems} data
-                                                </span>
-                                                <div className="flex items-center gap-2">
-	                                                    <Button
-	                                                        variant="outline"
-	                                                        size="sm"
-	                                                        onClick={() =>
-                                                            setPoCurrentPage(
-                                                                (page) =>
-                                                                    Math.max(
-                                                                        1,
-                                                                        page - 1
-                                                                    )
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            poCurrentPage === 1
-                                                        }
-                                                    >
-                                                        Sebelumnya
-                                                    </Button>
+                                                    {displayedPoHistory.map(
+                                                        (item) => (
+                                                            <tr
+                                                                key={item.no_po}
+                                                                className="border-t border-sidebar-border/70"
+                                                            >
+                                                                <td className="px-4 py-3">
+                                                                    {renderValue(
+                                                                        item.no_po,
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right tabular-nums">
+                                                                    {formatRupiah(
+                                                                        item.s_total,
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right tabular-nums">
+                                                                    {formatRupiah(
+                                                                        item.h_ppn,
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-right tabular-nums">
+                                                                    {formatRupiah(
+                                                                        item.g_total,
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3">
+                                                                    <ActionIconButton
+                                                                        label="Cetak"
+                                                                        asChild
+                                                                    >
+                                                                        <a
+                                                                            href={`/pembelian/purchase-order/${encodeURIComponent(
+                                                                                item.no_po,
+                                                                            )}/print`}
+                                                                            target="_blank"
+                                                                            rel="noreferrer"
+                                                                        >
+                                                                            <Printer className="h-4 w-4" />
+                                                                        </a>
+                                                                    </ActionIconButton>
+                                                                </td>
+                                                            </tr>
+                                                        ),
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {poPageSize !== Infinity &&
+                                            poTotalItems > 0 && (
+                                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                                     <span>
-                                                        Halaman {poCurrentPage}{' '}
-                                                        dari {poTotalPages}
+                                                        Menampilkan{' '}
+                                                        {Math.min(
+                                                            (poCurrentPage -
+                                                                1) *
+                                                                poPageSize +
+                                                                1,
+                                                            poTotalItems,
+                                                        )}
+                                                        -
+                                                        {Math.min(
+                                                            poCurrentPage *
+                                                                poPageSize,
+                                                            poTotalItems,
+                                                        )}{' '}
+                                                        dari {poTotalItems} data
                                                     </span>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            setPoCurrentPage(
-                                                                (page) =>
-                                                                    Math.min(
-                                                                        poTotalPages,
-                                                                        page + 1
-                                                                    )
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            poCurrentPage ===
-                                                            poTotalPages
-                                                        }
-	                                                    >
-	                                                        Berikutnya
-	                                                    </Button>
-	                                                </div>
-	                                            </div>
-	                                        )}
-	                                </div>
-	                                ) : null}
-	                            </div>
-	                        )}
+                                                    <div className="flex items-center gap-2">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                setPoCurrentPage(
+                                                                    (page) =>
+                                                                        Math.max(
+                                                                            1,
+                                                                            page -
+                                                                                1,
+                                                                        ),
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                poCurrentPage ===
+                                                                1
+                                                            }
+                                                        >
+                                                            Sebelumnya
+                                                        </Button>
+                                                        <span>
+                                                            Halaman{' '}
+                                                            {poCurrentPage} dari{' '}
+                                                            {poTotalPages}
+                                                        </span>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                setPoCurrentPage(
+                                                                    (page) =>
+                                                                        Math.min(
+                                                                            poTotalPages,
+                                                                            page +
+                                                                                1,
+                                                                        ),
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                poCurrentPage ===
+                                                                poTotalPages
+                                                            }
+                                                        >
+                                                            Berikutnya
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                    </div>
+                                ) : null}
+                            </div>
+                        )}
                     </DialogContent>
                 </Dialog>
             )}
@@ -1167,7 +1253,7 @@ export default function VendorIndex({ vendors = [] }) {
                         }
                     }}
                 >
-                    <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none overflow-y-auto">
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Edit Vendor</DialogTitle>
                         </DialogHeader>
@@ -1196,11 +1282,11 @@ export default function VendorIndex({ vendors = [] }) {
                                     ? renderVendorStepOne(
                                           editData,
                                           setEditData,
-                                          editErrors
+                                          editErrors,
                                       )
                                     : renderVendorStepTwo(
                                           editData,
-                                          setEditData
+                                          setEditData,
                                       )}
                                 <div className="flex flex-wrap justify-end gap-2">
                                     {editStep === 2 && (
@@ -1236,6 +1322,10 @@ export default function VendorIndex({ vendors = [] }) {
                     </DialogContent>
                 </Dialog>
             )}
-        </AppLayout>
+        </>
     );
 }
+
+VendorIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

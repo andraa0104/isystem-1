@@ -1,12 +1,25 @@
-import { useMemo, useState } from 'react';
-import { Head, Link, router } from '@inertiajs/react';
-import AppLayout from '@/layouts/app-layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import AppLayout from '@/layouts/app-layout';
+import { Head, router } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
 
 const PAGE_OPTIONS = [
     { value: '5', label: '5' },
@@ -17,7 +30,9 @@ const PAGE_OPTIONS = [
 ];
 
 const formatNumber = (value) =>
-    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Number(value ?? 0));
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        Number(value ?? 0),
+    );
 const formatMoney = (value) => {
     if (value === null || value === undefined || value === '') return '0';
     const num = Number(value);
@@ -42,12 +57,19 @@ const formatDbMoney = (value) => {
 };
 const parsePercent = (raw) => {
     if (raw === null || raw === undefined || raw === '') return 0;
-    const cleaned = String(raw).replace(/[^0-9.,-]/g, '').replace(',', '.').trim();
+    const cleaned = String(raw)
+        .replace(/[^0-9.,-]/g, '')
+        .replace(',', '.')
+        .trim();
     const num = Number(cleaned);
     return Number.isNaN(num) ? 0 : num;
 };
 
-export default function InvoiceMasukEdit({ invoice, invoiceItems = [], noGudang }) {
+export default function InvoiceMasukEdit({
+    invoice,
+    invoiceItems = [],
+    noGudang,
+}) {
     const [step, setStep] = useState(1);
     const [header, setHeader] = useState({
         no_fi: invoice?.no_doc ?? '',
@@ -65,14 +87,14 @@ export default function InvoiceMasukEdit({ invoice, invoiceItems = [], noGudang 
     const [materials, setMaterials] = useState(
         Array.isArray(invoiceItems)
             ? invoiceItems.map((item) => ({
-                kd_mat: item.kd_mat ?? '',
-                material: item.mat ?? '',
-                qty: item.qty_gr ?? 0,
-                unit: item.unit ?? '',
-                price: item.harga ?? 0,
-                total_price: item.ttl_harga ?? 0,
-            }))
-            : []
+                  kd_mat: item.kd_mat ?? '',
+                  material: item.mat ?? '',
+                  qty: item.qty_gr ?? 0,
+                  unit: item.unit ?? '',
+                  price: item.harga ?? 0,
+                  total_price: item.ttl_harga ?? 0,
+              }))
+            : [],
     );
 
     const [materialPageSize, setMaterialPageSize] = useState(5);
@@ -94,9 +116,9 @@ export default function InvoiceMasukEdit({ invoice, invoiceItems = [], noGudang 
             materials.reduce(
                 (sum, item) =>
                     sum + Number(item.price ?? 0) * Number(item.qty ?? 0),
-                0
+                0,
             ),
-        [materials]
+        [materials],
     );
     const pricePpn = useMemo(() => {
         const p = parsePercent(header.ppn);
@@ -108,43 +130,43 @@ export default function InvoiceMasukEdit({ invoice, invoiceItems = [], noGudang 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            await router.post(`/pembelian/invoice-masuk/${invoice?.no_doc}`, {
-                no_receipt: header.no_receipt,
-                ref_po: header.ref_po,
-                doc_rec: header.date_doc,
-                inv_d: header.date_receipt,
-                p_term: header.payment_terms,
-                nm_vdr: header.vendor,
-                kd_vdr: header.kd_vdr,
-                ppn: header.ppn,
-                a_idr: subTotal,
-                tax: pricePpn,
-                total: grandTotal,
-                no_gudang: header.no_gudang,
-                items: materials.map((item) => ({
-                    kd_mat: item.kd_mat,
-                    material: item.material,
-                    qty: item.qty,
-                    unit: item.unit,
-                    price: item.price,
-                    total_price: item.total_price ?? item.price,
-                })),
-            }, {
-                preserveScroll: true,
-            });
+            await router.post(
+                `/pembelian/invoice-masuk/${invoice?.no_doc}`,
+                {
+                    no_receipt: header.no_receipt,
+                    ref_po: header.ref_po,
+                    doc_rec: header.date_doc,
+                    inv_d: header.date_receipt,
+                    p_term: header.payment_terms,
+                    nm_vdr: header.vendor,
+                    kd_vdr: header.kd_vdr,
+                    ppn: header.ppn,
+                    a_idr: subTotal,
+                    tax: pricePpn,
+                    total: grandTotal,
+                    no_gudang: header.no_gudang,
+                    items: materials.map((item) => ({
+                        kd_mat: item.kd_mat,
+                        material: item.material,
+                        qty: item.qty,
+                        unit: item.unit,
+                        price: item.price,
+                        total_price: item.total_price ?? item.price,
+                    })),
+                },
+                {
+                    preserveScroll: true,
+                },
+            );
         } catch (err) {
             // handled by flash
         }
     };
 
     return (
-        <AppLayout breadcrumbs={[
-            { title: 'Dashboard', href: '/dashboard' },
-            { title: 'Invoice Masuk', href: '/pembelian/invoice-masuk' },
-            { title: 'Edit FI', href: `/pembelian/invoice-masuk/${invoice?.no_doc}/edit` },
-        ]}>
+        <>
             <Head title="Edit Invoice Masuk" />
-            <div className="p-4 space-y-4">
+            <div className="space-y-4 p-4">
                 {step === 1 && (
                     <Card>
                         <CardHeader>
@@ -174,7 +196,10 @@ export default function InvoiceMasukEdit({ invoice, invoiceItems = [], noGudang 
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Payment Terms</Label>
-                                    <Input value={header.payment_terms} disabled />
+                                    <Input
+                                        value={header.payment_terms}
+                                        disabled
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>PPN</Label>
@@ -182,22 +207,52 @@ export default function InvoiceMasukEdit({ invoice, invoiceItems = [], noGudang 
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Date Receipt</Label>
-                                    <Input type="date" value={header.date_receipt} onChange={(e) => setHeader({ ...header, date_receipt: e.target.value })} />
+                                    <Input
+                                        type="date"
+                                        value={header.date_receipt}
+                                        onChange={(e) =>
+                                            setHeader({
+                                                ...header,
+                                                date_receipt: e.target.value,
+                                            })
+                                        }
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Date</Label>
-                                    <Input type="date" value={header.date_doc} onChange={(e) => setHeader({ ...header, date_doc: e.target.value })} />
+                                    <Input
+                                        type="date"
+                                        value={header.date_doc}
+                                        onChange={(e) =>
+                                            setHeader({
+                                                ...header,
+                                                date_doc: e.target.value,
+                                            })
+                                        }
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>No Receipt (FI)</Label>
-                                    <Input value={header.no_receipt} onChange={(e) => setHeader({ ...header, no_receipt: e.target.value })} />
+                                    <Input
+                                        value={header.no_receipt}
+                                        onChange={(e) =>
+                                            setHeader({
+                                                ...header,
+                                                no_receipt: e.target.value,
+                                            })
+                                        }
+                                    />
                                 </div>
                             </div>
                             <div className="flex justify-end">
                                 <Button
                                     variant="default"
                                     onClick={() => setStep(2)}
-                                    disabled={!header.no_gudang || !header.ref_po || !header.no_receipt}
+                                    disabled={
+                                        !header.no_gudang ||
+                                        !header.ref_po ||
+                                        !header.no_receipt
+                                    }
                                 >
                                     Lanjut
                                 </Button>
@@ -213,21 +268,37 @@ export default function InvoiceMasukEdit({ invoice, invoiceItems = [], noGudang 
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="flex flex-wrap gap-3">
-                                <Select value={String(materialPageSize === Infinity ? 'all' : materialPageSize)} onValueChange={(val) => {
-                                    setMaterialPage(1);
-                                    setMaterialPageSize(val === 'all' ? Infinity : Number(val));
-                                }}>
+                                <Select
+                                    value={String(
+                                        materialPageSize === Infinity
+                                            ? 'all'
+                                            : materialPageSize,
+                                    )}
+                                    onValueChange={(val) => {
+                                        setMaterialPage(1);
+                                        setMaterialPageSize(
+                                            val === 'all'
+                                                ? Infinity
+                                                : Number(val),
+                                        );
+                                    }}
+                                >
                                     <SelectTrigger className="w-32">
                                         <SelectValue placeholder="Tampilkan" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {PAGE_OPTIONS.map((opt) => (
-                                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                            <SelectItem
+                                                key={opt.value}
+                                                value={opt.value}
+                                            >
+                                                {opt.label}
+                                            </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="overflow-x-auto max-h-[65vh] overflow-y-auto">
+                            <div className="max-h-[65vh] overflow-x-auto overflow-y-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -236,76 +307,156 @@ export default function InvoiceMasukEdit({ invoice, invoiceItems = [], noGudang 
                                             <TableHead>Material</TableHead>
                                             <TableHead>Qty</TableHead>
                                             <TableHead>Satuan</TableHead>
-                                            <TableHead className="text-right">Price</TableHead>
-                                            <TableHead className="text-right">Total Price</TableHead>
+                                            <TableHead className="text-right">
+                                                Price
+                                            </TableHead>
+                                            <TableHead className="text-right">
+                                                Total Price
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {displayedMaterials.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={7} className="text-center text-muted-foreground">
+                                                <TableCell
+                                                    colSpan={7}
+                                                    className="text-center text-muted-foreground"
+                                                >
                                                     Tidak ada data material.
                                                 </TableCell>
                                             </TableRow>
                                         )}
                                         {displayedMaterials.map((row, idx) => (
-                                            <TableRow key={`${row.kd_mat}-${idx}`}>
-                                                <TableCell>{(materialPage - 1) * (materialPageSize === Infinity ? displayedMaterials.length : materialPageSize) + idx + 1}</TableCell>
-                                                <TableCell>{row.kd_mat}</TableCell>
-                                                <TableCell>{row.material}</TableCell>
+                                            <TableRow
+                                                key={`${row.kd_mat}-${idx}`}
+                                            >
+                                                <TableCell>
+                                                    {(materialPage - 1) *
+                                                        (materialPageSize ===
+                                                        Infinity
+                                                            ? displayedMaterials.length
+                                                            : materialPageSize) +
+                                                        idx +
+                                                        1}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {row.kd_mat}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {row.material}
+                                                </TableCell>
                                                 <TableCell>{row.qty}</TableCell>
-                                                <TableCell>{row.unit}</TableCell>
-                                                <TableCell className="text-right">Rp {formatDbMoney(row.price)}</TableCell>
-                                                <TableCell className="text-right">Rp {formatNumber(row.total_price ?? row.price)}</TableCell>
+                                                <TableCell>
+                                                    {row.unit}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    Rp{' '}
+                                                    {formatDbMoney(row.price)}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    Rp{' '}
+                                                    {formatNumber(
+                                                        row.total_price ??
+                                                            row.price,
+                                                    )}
+                                                </TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
                                 </Table>
                             </div>
-                            {materialPageSize !== Infinity && materials.length > 0 && (
-                                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                                    <div>
-                                        Menampilkan {(materialPage - 1) * materialPageSize + 1} - {Math.min(materialPage * materialPageSize, materials.length)} dari {materials.length} data
+                            {materialPageSize !== Infinity &&
+                                materials.length > 0 && (
+                                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                        <div>
+                                            Menampilkan{' '}
+                                            {(materialPage - 1) *
+                                                materialPageSize +
+                                                1}{' '}
+                                            -{' '}
+                                            {Math.min(
+                                                materialPage * materialPageSize,
+                                                materials.length,
+                                            )}{' '}
+                                            dari {materials.length} data
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    setMaterialPage((p) =>
+                                                        Math.max(1, p - 1),
+                                                    )
+                                                }
+                                                disabled={materialPage === 1}
+                                            >
+                                                Sebelumnya
+                                            </Button>
+                                            <span>
+                                                Halaman {materialPage} /{' '}
+                                                {materialTotalPages}
+                                            </span>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    setMaterialPage((p) =>
+                                                        Math.min(
+                                                            materialTotalPages,
+                                                            p + 1,
+                                                        ),
+                                                    )
+                                                }
+                                                disabled={
+                                                    materialPage ===
+                                                    materialTotalPages
+                                                }
+                                            >
+                                                Berikutnya
+                                            </Button>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setMaterialPage((p) => Math.max(1, p - 1))}
-                                            disabled={materialPage === 1}
-                                        >
-                                            Sebelumnya
-                                        </Button>
-                                        <span>Halaman {materialPage} / {materialTotalPages}</span>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setMaterialPage((p) => Math.min(materialTotalPages, p + 1))}
-                                            disabled={materialPage === materialTotalPages}
-                                        >
-                                            Berikutnya
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
+                                )}
 
                             <div className="grid gap-4 md:grid-cols-3">
                                 <div className="space-y-2">
                                     <Label>Sub total</Label>
-                                    <Input value={`Rp ${formatDbMoney(subTotal)}`} disabled />
+                                    <Input
+                                        value={`Rp ${formatDbMoney(subTotal)}`}
+                                        disabled
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Price PPN</Label>
-                                    <Input value={`Rp ${formatMoney(pricePpn)}`} disabled />
+                                    <Input
+                                        value={`Rp ${formatMoney(pricePpn)}`}
+                                        disabled
+                                    />
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Grand Total</Label>
-                                    <Input value={`Rp ${formatNumber(grandTotal)}`} disabled />
+                                    <Input
+                                        value={`Rp ${formatNumber(grandTotal)}`}
+                                        disabled
+                                    />
                                 </div>
                             </div>
                             <div className="flex justify-between">
-                                <Button variant="outline" onClick={() => setStep(1)}>Kembali</Button>
-                                <Button onClick={handleSubmit} disabled={!header.no_gudang || materials.length === 0 || !header.no_receipt}>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setStep(1)}
+                                >
+                                    Kembali
+                                </Button>
+                                <Button
+                                    onClick={handleSubmit}
+                                    disabled={
+                                        !header.no_gudang ||
+                                        materials.length === 0 ||
+                                        !header.no_receipt
+                                    }
+                                >
                                     Simpan data
                                 </Button>
                             </div>
@@ -313,7 +464,23 @@ export default function InvoiceMasukEdit({ invoice, invoiceItems = [], noGudang 
                     </Card>
                 )}
             </div>
-
-        </AppLayout>
+        </>
     );
 }
+
+InvoiceMasukEdit.layout = (page) => {
+    const { invoice } = page.props;
+    return (
+        <AppLayout
+            children={page}
+            breadcrumbs={[
+                { title: 'Dashboard', href: '/dashboard' },
+                { title: 'Invoice Masuk', href: '/pembelian/invoice-masuk' },
+                {
+                    title: 'Edit FI',
+                    href: `/pembelian/invoice-masuk/${invoice?.no_doc}/edit`,
+                },
+            ]}
+        />
+    );
+};

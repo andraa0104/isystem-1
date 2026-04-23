@@ -1,8 +1,8 @@
-import AppLayout from '@/layouts/app-layout';
-import { Head, router } from '@inertiajs/react';
-import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
+import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -18,9 +18,9 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
+import AppLayout from '@/layouts/app-layout';
+import { Head, router } from '@inertiajs/react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -56,7 +56,10 @@ const getPeriodLabel = (periodType, period) => {
     const y = Number(period.slice(0, 4));
     const m = Number(period.slice(4, 6));
     const d = new Date(y, Math.max(0, m - 1), 1);
-    return new Intl.DateTimeFormat('id-ID', { month: 'short', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('id-ID', {
+        month: 'short',
+        year: 'numeric',
+    }).format(d);
 };
 
 export default function KeuanganPenyesuaianIndex({
@@ -67,16 +70,24 @@ export default function KeuanganPenyesuaianIndex({
     defaultYear = '',
     bootstrapError = '',
 }) {
-    const [periodType, setPeriodType] = useState(initialQuery?.periodType ?? 'month');
+    const [periodType, setPeriodType] = useState(
+        initialQuery?.periodType ?? 'month',
+    );
     const [period, setPeriod] = useState(
         initialQuery?.period ??
-            (periodType === 'year' ? defaultYear ?? '' : defaultPeriod ?? ''),
+            (periodType === 'year'
+                ? (defaultYear ?? '')
+                : (defaultPeriod ?? '')),
     );
     const [balance, setBalance] = useState(initialQuery?.balance ?? 'all'); // all|balanced|unbalanced
     const [search, setSearch] = useState(initialQuery?.search ?? '');
-    const [debouncedSearch, setDebouncedSearch] = useState(initialQuery?.search ?? '');
+    const [debouncedSearch, setDebouncedSearch] = useState(
+        initialQuery?.search ?? '',
+    );
     const [sortBy, setSortBy] = useState(initialQuery?.sortBy ?? 'Periode');
-    const [sortDir, setSortDir] = useState((initialQuery?.sortDir ?? 'desc').toLowerCase());
+    const [sortDir, setSortDir] = useState(
+        (initialQuery?.sortDir ?? 'desc').toLowerCase(),
+    );
     const [pageSize, setPageSize] = useState(
         initialQuery?.pageSize === 'all'
             ? 'all'
@@ -109,7 +120,15 @@ export default function KeuanganPenyesuaianIndex({
 
     useEffect(() => {
         setPage(1);
-    }, [debouncedSearch, pageSize, sortBy, sortDir, period, periodType, balance]);
+    }, [
+        debouncedSearch,
+        pageSize,
+        sortBy,
+        sortDir,
+        period,
+        periodType,
+        balance,
+    ]);
 
     const totalPages = useMemo(() => {
         if (pageSize === 'all') return 1;
@@ -129,11 +148,17 @@ export default function KeuanganPenyesuaianIndex({
             params.set('sortBy', sortBy);
             params.set('sortDir', sortDir);
             params.set('page', String(page));
-            params.set('pageSize', pageSize === 'all' ? 'all' : String(pageSize));
+            params.set(
+                'pageSize',
+                pageSize === 'all' ? 'all' : String(pageSize),
+            );
 
-            const res = await fetch(`/keuangan/penyesuaian/rows?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/keuangan/penyesuaian/rows?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             const data = await res.json();
             if (!res.ok) {
                 const msg = String(data?.error ?? 'Gagal memuat data.');
@@ -168,7 +193,16 @@ export default function KeuanganPenyesuaianIndex({
         if (bootstrapError) return;
         fetchRows();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [periodType, period, balance, debouncedSearch, pageSize, page, sortBy, sortDir]);
+    }, [
+        periodType,
+        period,
+        balance,
+        debouncedSearch,
+        pageSize,
+        page,
+        sortBy,
+        sortDir,
+    ]);
 
     const loadDetailsIfNeeded = async ({ kodeJurnal, periodeDoc }) => {
         const docKey = `${kodeJurnal}|${periodeDoc}`;
@@ -180,15 +214,22 @@ export default function KeuanganPenyesuaianIndex({
             const params = new URLSearchParams();
             params.set('kodeJurnal', kodeJurnal);
             params.set('periode', periodeDoc);
-            const res = await fetch(`/keuangan/penyesuaian/details?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/keuangan/penyesuaian/details?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             const data = await res.json();
-            if (!res.ok) throw new Error(String(data?.error ?? 'Gagal memuat detail.'));
+            if (!res.ok)
+                throw new Error(String(data?.error ?? 'Gagal memuat detail.'));
 
             setDetailMap((s) => ({ ...s, [docKey]: data }));
         } catch (e) {
-            setDetailError((s) => ({ ...s, [docKey]: String(e?.message ?? 'Gagal memuat detail.') }));
+            setDetailError((s) => ({
+                ...s,
+                [docKey]: String(e?.message ?? 'Gagal memuat detail.'),
+            }));
         } finally {
             setDetailLoading((s) => ({ ...s, [docKey]: false }));
         }
@@ -211,19 +252,24 @@ export default function KeuanganPenyesuaianIndex({
         if (unbalanced > 0) {
             return {
                 label: `${new Intl.NumberFormat('id-ID').format(balanced)} seimbang • ${new Intl.NumberFormat('id-ID').format(unbalanced)} tidak`,
-                className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20',
+                className:
+                    'bg-rose-500/10 text-rose-700 dark:text-rose-300 ring-rose-500/20',
             };
         }
         return {
             label: `${new Intl.NumberFormat('id-ID').format(balanced)} seimbang`,
-            className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20',
+            className:
+                'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 ring-emerald-500/20',
         };
     }, [summary]);
 
-    const periodLabel = useMemo(() => getPeriodLabel(periodType, period), [periodType, period]);
+    const periodLabel = useMemo(
+        () => getPeriodLabel(periodType, period),
+        [periodType, period],
+    );
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Penyesuaian - Keuangan" />
 
             <div className="space-y-4 p-4">
@@ -231,20 +277,34 @@ export default function KeuanganPenyesuaianIndex({
                     <CardHeader className="space-y-1">
                         <div className="flex items-start justify-between gap-3">
                             <div>
-                                <CardTitle>Penyesuaian (Jurnal Penyesuaian)</CardTitle>
+                                <CardTitle>
+                                    Penyesuaian (Jurnal Penyesuaian)
+                                </CardTitle>
                                 <div className="mt-1 text-xs text-muted-foreground">
-                                    Sumber data: <span className="font-mono">tb_jurnalpenyesuaian</span>. Periode: {periodLabel}.
+                                    Sumber data:{' '}
+                                    <span className="font-mono">
+                                        tb_jurnalpenyesuaian
+                                    </span>
+                                    . Periode: {periodLabel}.
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    onClick={() => router.visit('/keuangan/penyesuaian/create')}
+                                    onClick={() =>
+                                        router.visit(
+                                            '/keuangan/penyesuaian/create',
+                                        )
+                                    }
                                 >
                                     Penyesuaian Baru
                                 </Button>
-                                <Button type="button" onClick={fetchRows} disabled={loading || !!bootstrapError}>
+                                <Button
+                                    type="button"
+                                    onClick={fetchRows}
+                                    disabled={loading || !!bootstrapError}
+                                >
                                     Refresh
                                 </Button>
                             </div>
@@ -266,7 +326,10 @@ export default function KeuanganPenyesuaianIndex({
                                 />
                             </div>
 
-                            <Select value={periodType} onValueChange={setPeriodType}>
+                            <Select
+                                value={periodType}
+                                onValueChange={setPeriodType}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="Mode periode" />
                                 </SelectTrigger>
@@ -277,7 +340,10 @@ export default function KeuanganPenyesuaianIndex({
                             </Select>
 
                             {periodType === 'year' ? (
-                                <Select value={period} onValueChange={setPeriod}>
+                                <Select
+                                    value={period}
+                                    onValueChange={setPeriod}
+                                >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Tahun" />
                                     </SelectTrigger>
@@ -290,7 +356,10 @@ export default function KeuanganPenyesuaianIndex({
                                     </SelectContent>
                                 </Select>
                             ) : (
-                                <Select value={period} onValueChange={setPeriod}>
+                                <Select
+                                    value={period}
+                                    onValueChange={setPeriod}
+                                >
                                     <SelectTrigger>
                                         <SelectValue placeholder="Periode" />
                                     </SelectTrigger>
@@ -305,14 +374,23 @@ export default function KeuanganPenyesuaianIndex({
                             )}
 
                             <div className="flex items-center justify-between gap-2">
-                                <Select value={balance} onValueChange={setBalance}>
+                                <Select
+                                    value={balance}
+                                    onValueChange={setBalance}
+                                >
                                     <SelectTrigger className="w-full">
                                         <SelectValue placeholder="Balance" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">Semua</SelectItem>
-                                        <SelectItem value="balanced">Seimbang</SelectItem>
-                                        <SelectItem value="unbalanced">Tidak seimbang</SelectItem>
+                                        <SelectItem value="all">
+                                            Semua
+                                        </SelectItem>
+                                        <SelectItem value="balanced">
+                                            Seimbang
+                                        </SelectItem>
+                                        <SelectItem value="unbalanced">
+                                            Tidak seimbang
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -320,23 +398,39 @@ export default function KeuanganPenyesuaianIndex({
 
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                             <div className="rounded-xl border bg-card p-3">
-                                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Total Dokumen</div>
+                                <div className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                                    Total Dokumen
+                                </div>
                                 <div className="mt-1 text-lg font-semibold">
-                                    {new Intl.NumberFormat('id-ID').format(summary.total_dokumen ?? 0)}
+                                    {new Intl.NumberFormat('id-ID').format(
+                                        summary.total_dokumen ?? 0,
+                                    )}
                                 </div>
                             </div>
                             <div className="rounded-xl border bg-card p-3">
-                                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Total Debit</div>
-                                <div className="mt-1 text-lg font-semibold">{formatRupiah(summary.sum_debit ?? 0)}</div>
+                                <div className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                                    Total Debit
+                                </div>
+                                <div className="mt-1 text-lg font-semibold">
+                                    {formatRupiah(summary.sum_debit ?? 0)}
+                                </div>
                             </div>
                             <div className="rounded-xl border bg-card p-3">
-                                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Total Kredit</div>
-                                <div className="mt-1 text-lg font-semibold">{formatRupiah(summary.sum_kredit ?? 0)}</div>
+                                <div className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                                    Total Kredit
+                                </div>
+                                <div className="mt-1 text-lg font-semibold">
+                                    {formatRupiah(summary.sum_kredit ?? 0)}
+                                </div>
                             </div>
                             <div className="rounded-xl border bg-card p-3">
-                                <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Status</div>
+                                <div className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                                    Status
+                                </div>
                                 <div className="mt-2 inline-flex items-center rounded-full px-2 py-1 text-xs ring-1 ring-inset">
-                                    <span className={balanceChip.className}>{balanceChip.label}</span>
+                                    <span className={balanceChip.className}>
+                                        {balanceChip.label}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -355,10 +449,18 @@ export default function KeuanganPenyesuaianIndex({
                                         <TableHead>Kode Jurnal</TableHead>
                                         <TableHead>Periode</TableHead>
                                         <TableHead>Posting</TableHead>
-                                        <TableHead className="min-w-[420px]">Remark</TableHead>
-                                        <TableHead className="text-right">Total Debit</TableHead>
-                                        <TableHead className="text-right">Total Kredit</TableHead>
-                                        <TableHead className="text-right">Lines</TableHead>
+                                        <TableHead className="min-w-[420px]">
+                                            Remark
+                                        </TableHead>
+                                        <TableHead className="text-right">
+                                            Total Debit
+                                        </TableHead>
+                                        <TableHead className="text-right">
+                                            Total Kredit
+                                        </TableHead>
+                                        <TableHead className="text-right">
+                                            Lines
+                                        </TableHead>
                                         <TableHead>Status</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -368,7 +470,11 @@ export default function KeuanganPenyesuaianIndex({
                                         loading={loading}
                                         error={error}
                                         onRetry={fetchRows}
-                                        isEmpty={!loading && !error && rows.length === 0}
+                                        isEmpty={
+                                            !loading &&
+                                            !error &&
+                                            rows.length === 0
+                                        }
                                         emptyTitle="Belum ada data."
                                         emptyDescription='Klik "Penyesuaian Baru" untuk membuat jurnal penyesuaian.'
                                     />
@@ -376,20 +482,31 @@ export default function KeuanganPenyesuaianIndex({
                                     {!loading &&
                                         !error &&
                                         rows.map((row) => {
-                                            const kodeJurnal = String(row?.Kode_Jurnal ?? '');
-                                            const periodeDoc = String(row?.Periode ?? '');
+                                            const kodeJurnal = String(
+                                                row?.Kode_Jurnal ?? '',
+                                            );
+                                            const periodeDoc = String(
+                                                row?.Periode ?? '',
+                                            );
                                             const docKey = `${kodeJurnal}|${periodeDoc}`;
-                                            const isOpen = Boolean(openMap[docKey]);
-                                            const isBalanced = Boolean(row?.is_balanced);
+                                            const isOpen = Boolean(
+                                                openMap[docKey],
+                                            );
+                                            const isBalanced = Boolean(
+                                                row?.is_balanced,
+                                            );
                                             const detail = detailMap[docKey];
                                             const dErr = detailError[docKey];
-                                            const dLoading = detailLoading[docKey];
+                                            const dLoading =
+                                                detailLoading[docKey];
 
                                             return (
                                                 <Fragment key={docKey}>
                                                     <TableRow
                                                         className="cursor-pointer"
-                                                        onClick={() => onToggleRow(row)}
+                                                        onClick={() =>
+                                                            onToggleRow(row)
+                                                        }
                                                     >
                                                         <TableCell className="text-xs text-muted-foreground">
                                                             {isOpen ? '−' : '+'}
@@ -398,36 +515,69 @@ export default function KeuanganPenyesuaianIndex({
                                                             {kodeJurnal}
                                                         </TableCell>
                                                         <TableCell className="whitespace-nowrap">
-                                                            {formatDate(periodeDoc)}
+                                                            {formatDate(
+                                                                periodeDoc,
+                                                            )}
                                                         </TableCell>
                                                         <TableCell className="whitespace-nowrap">
-                                                            {row?.Posting_Date ? formatDate(row.Posting_Date) : '-'}
+                                                            {row?.Posting_Date
+                                                                ? formatDate(
+                                                                      row.Posting_Date,
+                                                                  )
+                                                                : '-'}
                                                         </TableCell>
                                                         <TableCell className="text-sm break-words whitespace-normal">
-                                                            {String(row?.Remark ?? '') || '-'}
+                                                            {String(
+                                                                row?.Remark ??
+                                                                    '',
+                                                            ) || '-'}
                                                         </TableCell>
                                                         <TableCell className="text-right whitespace-nowrap">
-                                                            {formatRupiah(row?.total_debit ?? 0)}
+                                                            {formatRupiah(
+                                                                row?.total_debit ??
+                                                                    0,
+                                                            )}
                                                         </TableCell>
                                                         <TableCell className="text-right whitespace-nowrap">
-                                                            {formatRupiah(row?.total_kredit ?? 0)}
+                                                            {formatRupiah(
+                                                                row?.total_kredit ??
+                                                                    0,
+                                                            )}
                                                         </TableCell>
                                                         <TableCell className="text-right whitespace-nowrap">
-                                                            {new Intl.NumberFormat('id-ID').format(row?.lines ?? 0)}
+                                                            {new Intl.NumberFormat(
+                                                                'id-ID',
+                                                            ).format(
+                                                                row?.lines ?? 0,
+                                                            )}
                                                         </TableCell>
                                                         <TableCell className="whitespace-nowrap">
-                                                            <Badge variant={isBalanced ? 'default' : 'destructive'}>
-                                                                {isBalanced ? 'Seimbang' : 'Tidak'}
+                                                            <Badge
+                                                                variant={
+                                                                    isBalanced
+                                                                        ? 'default'
+                                                                        : 'destructive'
+                                                                }
+                                                            >
+                                                                {isBalanced
+                                                                    ? 'Seimbang'
+                                                                    : 'Tidak'}
                                                             </Badge>
                                                         </TableCell>
                                                     </TableRow>
 
                                                     {isOpen ? (
-                                                        <TableRow key={`${docKey}:detail`}>
-                                                            <TableCell colSpan={9} className="bg-muted/20">
+                                                        <TableRow
+                                                            key={`${docKey}:detail`}
+                                                        >
+                                                            <TableCell
+                                                                colSpan={9}
+                                                                className="bg-muted/20"
+                                                            >
                                                                 {dLoading ? (
                                                                     <div className="p-3 text-sm text-muted-foreground">
-                                                                        Memuat detail...
+                                                                        Memuat
+                                                                        detail...
                                                                     </div>
                                                                 ) : dErr ? (
                                                                     <div className="p-3 text-sm text-destructive">
@@ -438,18 +588,30 @@ export default function KeuanganPenyesuaianIndex({
                                                                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                                                                             <div className="rounded-lg border bg-background p-3">
                                                                                 <div className="text-xs text-muted-foreground">
-                                                                                    Total Debit
+                                                                                    Total
+                                                                                    Debit
                                                                                 </div>
                                                                                 <div className="mt-1 text-base font-semibold">
-                                                                                    {formatRupiah(detail?.totals?.total_debit ?? 0)}
+                                                                                    {formatRupiah(
+                                                                                        detail
+                                                                                            ?.totals
+                                                                                            ?.total_debit ??
+                                                                                            0,
+                                                                                    )}
                                                                                 </div>
                                                                             </div>
                                                                             <div className="rounded-lg border bg-background p-3">
                                                                                 <div className="text-xs text-muted-foreground">
-                                                                                    Total Kredit
+                                                                                    Total
+                                                                                    Kredit
                                                                                 </div>
                                                                                 <div className="mt-1 text-base font-semibold">
-                                                                                    {formatRupiah(detail?.totals?.total_kredit ?? 0)}
+                                                                                    {formatRupiah(
+                                                                                        detail
+                                                                                            ?.totals
+                                                                                            ?.total_kredit ??
+                                                                                            0,
+                                                                                    )}
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -458,7 +620,9 @@ export default function KeuanganPenyesuaianIndex({
                                                                             <Table>
                                                                                 <TableHeader>
                                                                                     <TableRow>
-                                                                                        <TableHead>Akun</TableHead>
+                                                                                        <TableHead>
+                                                                                            Akun
+                                                                                        </TableHead>
                                                                                         <TableHead className="text-right">
                                                                                             Debit
                                                                                         </TableHead>
@@ -468,24 +632,46 @@ export default function KeuanganPenyesuaianIndex({
                                                                                     </TableRow>
                                                                                 </TableHeader>
                                                                                 <TableBody>
-                                                                                    {(detail?.details ?? []).map((d, i) => (
-                                                                                        <TableRow key={`${docKey}:d:${i}`}>
-                                                                                            <TableCell className="text-sm">
-                                                                                                <div className="font-mono text-xs">
-                                                                                                    {String(d?.Kode_Akun ?? '')}
-                                                                                                </div>
-                                                                                                <div className="text-xs text-muted-foreground">
-                                                                                                    {String(d?.Nama_Akun ?? '')}
-                                                                                                </div>
-                                                                                            </TableCell>
-                                                                                            <TableCell className="text-right whitespace-nowrap">
-                                                                                                {formatRupiah(d?.Debit ?? 0)}
-                                                                                            </TableCell>
-                                                                                            <TableCell className="text-right whitespace-nowrap">
-                                                                                                {formatRupiah(d?.Kredit ?? 0)}
-                                                                                            </TableCell>
-                                                                                        </TableRow>
-                                                                                    ))}
+                                                                                    {(
+                                                                                        detail?.details ??
+                                                                                        []
+                                                                                    ).map(
+                                                                                        (
+                                                                                            d,
+                                                                                            i,
+                                                                                        ) => (
+                                                                                            <TableRow
+                                                                                                key={`${docKey}:d:${i}`}
+                                                                                            >
+                                                                                                <TableCell className="text-sm">
+                                                                                                    <div className="font-mono text-xs">
+                                                                                                        {String(
+                                                                                                            d?.Kode_Akun ??
+                                                                                                                '',
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                    <div className="text-xs text-muted-foreground">
+                                                                                                        {String(
+                                                                                                            d?.Nama_Akun ??
+                                                                                                                '',
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </TableCell>
+                                                                                                <TableCell className="text-right whitespace-nowrap">
+                                                                                                    {formatRupiah(
+                                                                                                        d?.Debit ??
+                                                                                                            0,
+                                                                                                    )}
+                                                                                                </TableCell>
+                                                                                                <TableCell className="text-right whitespace-nowrap">
+                                                                                                    {formatRupiah(
+                                                                                                        d?.Kredit ??
+                                                                                                            0,
+                                                                                                    )}
+                                                                                                </TableCell>
+                                                                                            </TableRow>
+                                                                                        ),
+                                                                                    )}
                                                                                 </TableBody>
                                                                             </Table>
                                                                         </div>
@@ -503,13 +689,20 @@ export default function KeuanganPenyesuaianIndex({
 
                         <div className="flex items-center justify-between gap-3">
                             <div className="text-sm text-muted-foreground">
-                                Total data: {new Intl.NumberFormat('id-ID').format(total)}
+                                Total data:{' '}
+                                {new Intl.NumberFormat('id-ID').format(total)}
                             </div>
                             <div className="flex items-center gap-2">
                                 <Select
-                                    value={pageSize === 'all' ? 'all' : String(pageSize)}
+                                    value={
+                                        pageSize === 'all'
+                                            ? 'all'
+                                            : String(pageSize)
+                                    }
                                     onValueChange={(v) => {
-                                        setPageSize(v === 'all' ? 'all' : Number(v));
+                                        setPageSize(
+                                            v === 'all' ? 'all' : Number(v),
+                                        );
                                         setPage(1);
                                     }}
                                 >
@@ -520,14 +713,18 @@ export default function KeuanganPenyesuaianIndex({
                                         <SelectItem value="10">10</SelectItem>
                                         <SelectItem value="25">25</SelectItem>
                                         <SelectItem value="50">50</SelectItem>
-                                        <SelectItem value="all">Semua</SelectItem>
+                                        <SelectItem value="all">
+                                            Semua
+                                        </SelectItem>
                                     </SelectContent>
                                 </Select>
                                 <Button
                                     type="button"
                                     variant="outline"
                                     disabled={page <= 1 || pageSize === 'all'}
-                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    onClick={() =>
+                                        setPage((p) => Math.max(1, p - 1))
+                                    }
                                 >
                                     Prev
                                 </Button>
@@ -537,8 +734,14 @@ export default function KeuanganPenyesuaianIndex({
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    disabled={page >= totalPages || pageSize === 'all'}
-                                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                    disabled={
+                                        page >= totalPages || pageSize === 'all'
+                                    }
+                                    onClick={() =>
+                                        setPage((p) =>
+                                            Math.min(totalPages, p + 1),
+                                        )
+                                    }
                                 >
                                     Next
                                 </Button>
@@ -547,6 +750,10 @@ export default function KeuanganPenyesuaianIndex({
                     </CardContent>
                 </Card>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+KeuanganPenyesuaianIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

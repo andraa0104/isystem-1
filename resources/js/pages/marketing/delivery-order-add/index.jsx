@@ -1,10 +1,5 @@
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 import {
     Card,
     CardContent,
@@ -12,12 +7,17 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
-import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -127,7 +127,9 @@ export default function DeliveryOrderAddIndex({
                 if (!term) return true;
                 const values = [item.no_dob, item.ref_do, item.nm_cs];
                 return values.some((v) =>
-                    String(v ?? '').toLowerCase().includes(term),
+                    String(v ?? '')
+                        .toLowerCase()
+                        .includes(term),
                 );
             })
             .sort((a, b) =>
@@ -163,17 +165,12 @@ export default function DeliveryOrderAddIndex({
         if (realizedPageSize === Infinity) {
             return realizedDeliveryOrders;
         }
-        const startIndex =
-            (realizedCurrentPage - 1) * realizedPageSize;
+        const startIndex = (realizedCurrentPage - 1) * realizedPageSize;
         return realizedDeliveryOrders.slice(
             startIndex,
             startIndex + realizedPageSize,
         );
-    }, [
-        realizedCurrentPage,
-        realizedDeliveryOrders,
-        realizedPageSize,
-    ]);
+    }, [realizedCurrentPage, realizedDeliveryOrders, realizedPageSize]);
 
     const filteredDetailItems = useMemo(() => {
         const term = detailSearchTerm.trim().toLowerCase();
@@ -220,13 +217,18 @@ export default function DeliveryOrderAddIndex({
         return outstandingList
             .map((item) => ({
                 ...item,
-                _total: Number(item.total ?? item.g_total ?? item.total_price ?? 0) || 0,
+                _total:
+                    Number(
+                        item.total ?? item.g_total ?? item.total_price ?? 0,
+                    ) || 0,
             }))
             .filter((item) => {
                 if (!term) return true;
                 const values = [item.no_dob, item.ref_do, item.nm_cs];
                 return values.some((v) =>
-                    String(v ?? '').toLowerCase().includes(term),
+                    String(v ?? '')
+                        .toLowerCase()
+                        .includes(term),
                 );
             });
     }, [outstandingList, outstandingSearchTerm]);
@@ -243,15 +245,8 @@ export default function DeliveryOrderAddIndex({
     const displayedOutstanding = useMemo(() => {
         if (outstandingPageSize === Infinity) return filteredOutstanding;
         const start = (outstandingCurrentPage - 1) * outstandingPageSize;
-        return filteredOutstanding.slice(
-            start,
-            start + outstandingPageSize,
-        );
-    }, [
-        filteredOutstanding,
-        outstandingCurrentPage,
-        outstandingPageSize,
-    ]);
+        return filteredOutstanding.slice(start, start + outstandingPageSize);
+    }, [filteredOutstanding, outstandingCurrentPage, outstandingPageSize]);
 
     useEffect(() => {
         setOutstandingCurrentPage(1);
@@ -326,8 +321,9 @@ export default function DeliveryOrderAddIndex({
                 const sumTotal = list.reduce(
                     (sum, row) =>
                         sum +
-                        (Number(row.total ?? row.g_total ?? row.total_price ?? 0) ||
-                            0),
+                        (Number(
+                            row.total ?? row.g_total ?? row.total_price ?? 0,
+                        ) || 0),
                     0,
                 );
                 setOutstandingTotalState(sumTotal);
@@ -343,7 +339,11 @@ export default function DeliveryOrderAddIndex({
     const loadRealized = (customPeriod, force = false) => {
         const targetPeriod = customPeriod ?? periodFilter;
         if (realizedLoading) return;
-        if (!force && realizedList.length > 0 && periodFilter === targetPeriod) {
+        if (
+            !force &&
+            realizedList.length > 0 &&
+            periodFilter === targetPeriod
+        ) {
             return;
         }
         setIsRealizedLoading(true);
@@ -388,32 +388,33 @@ export default function DeliveryOrderAddIndex({
         }).then((result) => {
             if (!result.isConfirmed) return;
             setIsDeletingDob(true);
-                    router.delete(
-                        `/marketing/delivery-order-add/${encodeURIComponent(
-                            item.no_dob,
-                        )}`,
-                        {
-                            preserveScroll: true,
-                            preserveState: true,
-                            onSuccess: () => {
-                                setOutstandingList((prev) =>
-                                    prev.filter((row) => row.no_dob !== item.no_dob),
-                                );
-                                setOutstandingCountState((prev) =>
-                                    Math.max(0, (prev ?? 0) - 1),
-                                );
-                                setOutstandingTotalState((prev) =>
-                                    Math.max(
-                                        0,
-                                        prev -
-                                            (Number(item.total ?? item.g_total ?? 0) || 0),
-                                    ),
-                                );
-                            },
-                            onError: (errors) => {
-                                const message =
-                                    errors?.message ||
-                                    (errors &&
+            router.delete(
+                `/marketing/delivery-order-add/${encodeURIComponent(
+                    item.no_dob,
+                )}`,
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    onSuccess: () => {
+                        setOutstandingList((prev) =>
+                            prev.filter((row) => row.no_dob !== item.no_dob),
+                        );
+                        setOutstandingCountState((prev) =>
+                            Math.max(0, (prev ?? 0) - 1),
+                        );
+                        setOutstandingTotalState((prev) =>
+                            Math.max(
+                                0,
+                                prev -
+                                    (Number(item.total ?? item.g_total ?? 0) ||
+                                        0),
+                            ),
+                        );
+                    },
+                    onError: (errors) => {
+                        const message =
+                            errors?.message ||
+                            (errors &&
                                 typeof errors === 'object' &&
                                 Object.values(errors)[0]) ||
                             'Gagal menghapus DOT.';
@@ -463,11 +464,13 @@ export default function DeliveryOrderAddIndex({
     }, [realizedCurrentPage, realizedTotalPages]);
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Delivery Order Add" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div>
-                    <h1 className="text-xl font-semibold">Delivery Order Add</h1>
+                    <h1 className="text-xl font-semibold">
+                        Delivery Order Add
+                    </h1>
                     <p className="text-sm text-muted-foreground">
                         Ringkasan dan daftar Delivery Order Bantu
                     </p>
@@ -496,28 +499,32 @@ export default function DeliveryOrderAddIndex({
                             }
                         }}
                     >
-                            <CardHeader>
-                                <CardTitle>DOT Belum Dibebankan</CardTitle>
-                                <CardDescription>
-                                    Jumlah DO bantu outstanding
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-semibold">
+                        <CardHeader>
+                            <CardTitle>DOT Belum Dibebankan</CardTitle>
+                            <CardDescription>
+                                Jumlah DO bantu outstanding
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-semibold">
                                 {outstandingCountState}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
+                            </div>
+                            <div className="text-sm text-muted-foreground">
                                 Rp {formatNumber(outstandingTotalState)}
-                                </div>
-                            </CardContent>
-                        </Card>
+                            </div>
+                        </CardContent>
+                    </Card>
                     <Card className="transition hover:border-primary/60 hover:shadow-md">
                         <CardHeader className="pb-2">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
-                                    <CardDescription>DOT Sudah Dibebankan</CardDescription>
+                                    <CardDescription>
+                                        DOT Sudah Dibebankan
+                                    </CardDescription>
                                     <CardTitle className="text-2xl">
-                                        {isRealizedLoading ? '...' : realizedCountState}
+                                        {isRealizedLoading
+                                            ? '...'
+                                            : realizedCountState}
                                     </CardTitle>
                                     <div className="text-sm text-muted-foreground">
                                         {isRealizedLoading
@@ -536,9 +543,15 @@ export default function DeliveryOrderAddIndex({
                                         }}
                                     >
                                         <option value="today">Hari Ini</option>
-                                        <option value="this_week">Minggu Ini</option>
-                                        <option value="this_month">Bulan Ini</option>
-                                        <option value="this_year">Tahun Ini</option>
+                                        <option value="this_week">
+                                            Minggu Ini
+                                        </option>
+                                        <option value="this_month">
+                                            Bulan Ini
+                                        </option>
+                                        <option value="this_year">
+                                            Tahun Ini
+                                        </option>
                                     </select>
                                     <Button
                                         variant="ghost"
@@ -708,7 +721,11 @@ export default function DeliveryOrderAddIndex({
                                         (currentPage - 1) * pageSize + 1,
                                         totalItems,
                                     )}
-                                    -{Math.min(currentPage * pageSize, totalItems)}{' '}
+                                    -
+                                    {Math.min(
+                                        currentPage * pageSize,
+                                        totalItems,
+                                    )}{' '}
                                     dari {totalItems} data
                                 </span>
                                 <div className="flex items-center gap-2">
@@ -746,8 +763,11 @@ export default function DeliveryOrderAddIndex({
                 </Card>
             </div>
 
-            <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none flex flex-col">
+            <Dialog
+                open={isDetailModalOpen}
+                onOpenChange={setIsDetailModalOpen}
+            >
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Detail Delivery Order Bantu</DialogTitle>
                     </DialogHeader>
@@ -762,7 +782,9 @@ export default function DeliveryOrderAddIndex({
                                 </div>
                             </div>
                             <div>
-                                <div className="text-muted-foreground">Date</div>
+                                <div className="text-muted-foreground">
+                                    Date
+                                </div>
                                 <div className="font-semibold">
                                     {renderValue(detailHeader?.date)}
                                 </div>
@@ -875,101 +897,111 @@ export default function DeliveryOrderAddIndex({
                                         loading={detailLoading}
                                         columns={6}
                                         rows={5}
-                                        isEmpty={!detailLoading && displayedDetailItems.length === 0}
-                                        emptyMessage={detailError || 'Tidak ada data material.'}
+                                        isEmpty={
+                                            !detailLoading &&
+                                            displayedDetailItems.length === 0
+                                        }
+                                        emptyMessage={
+                                            detailError ||
+                                            'Tidak ada data material.'
+                                        }
                                     />
-                                    {!detailLoading ? (
-                                        displayedDetailItems.map((item, index) => (
-                                            <tr
-                                                key={`${item.no_dob}-${index}`}
-                                                className="border-t border-sidebar-border/70"
-                                            >
-                                                <td className="px-4 py-3">
-                                                    {index +
-                                                        1 +
-                                                        (detailCurrentPage -
-                                                            1) *
-                                                            (detailPageSize ===
-                                                            Infinity
-                                                                ? 0
-                                                                : detailPageSize)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.mat}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.qty}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.harga}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.total}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.remark}
-                                                </td>
-                                            </tr>
-                                        ))
-                                    ) : null}
+                                    {!detailLoading
+                                        ? displayedDetailItems.map(
+                                              (item, index) => (
+                                                  <tr
+                                                      key={`${item.no_dob}-${index}`}
+                                                      className="border-t border-sidebar-border/70"
+                                                  >
+                                                      <td className="px-4 py-3">
+                                                          {index +
+                                                              1 +
+                                                              (detailCurrentPage -
+                                                                  1) *
+                                                                  (detailPageSize ===
+                                                                  Infinity
+                                                                      ? 0
+                                                                      : detailPageSize)}
+                                                      </td>
+                                                      <td className="px-4 py-3">
+                                                          {item.mat}
+                                                      </td>
+                                                      <td className="px-4 py-3">
+                                                          {item.qty}
+                                                      </td>
+                                                      <td className="px-4 py-3">
+                                                          {item.harga}
+                                                      </td>
+                                                      <td className="px-4 py-3">
+                                                          {item.total}
+                                                      </td>
+                                                      <td className="px-4 py-3">
+                                                          {item.remark}
+                                                      </td>
+                                                  </tr>
+                                              ),
+                                          )
+                                        : null}
                                 </tbody>
                             </table>
                         </div>
 
-                        {detailPageSize !== Infinity && detailTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (detailCurrentPage - 1) *
-                                            detailPageSize +
-                                            1,
-                                        detailTotalItems,
-                                    )}
-                                    -
-                                    {Math.min(
-                                        detailCurrentPage * detailPageSize,
-                                        detailTotalItems,
-                                    )}{' '}
-                                    dari {detailTotalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setDetailCurrentPage((page) =>
-                                                Math.max(1, page - 1),
-                                            )
-                                        }
-                                        disabled={detailCurrentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span className="text-sm text-muted-foreground">
-                                        Halaman {detailCurrentPage} dari{' '}
-                                        {detailTotalPages}
+                        {detailPageSize !== Infinity &&
+                            detailTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                    <span>
+                                        Menampilkan{' '}
+                                        {Math.min(
+                                            (detailCurrentPage - 1) *
+                                                detailPageSize +
+                                                1,
+                                            detailTotalItems,
+                                        )}
+                                        -
+                                        {Math.min(
+                                            detailCurrentPage * detailPageSize,
+                                            detailTotalItems,
+                                        )}{' '}
+                                        dari {detailTotalItems} data
                                     </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setDetailCurrentPage((page) =>
-                                                Math.min(
-                                                    detailTotalPages,
-                                                    page + 1,
-                                                ),
-                                            )
-                                        }
-                                        disabled={
-                                            detailCurrentPage === detailTotalPages
-                                        }
-                                    >
-                                        Selanjutnya
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setDetailCurrentPage((page) =>
+                                                    Math.max(1, page - 1),
+                                                )
+                                            }
+                                            disabled={detailCurrentPage === 1}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground">
+                                            Halaman {detailCurrentPage} dari{' '}
+                                            {detailTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setDetailCurrentPage((page) =>
+                                                    Math.min(
+                                                        detailTotalPages,
+                                                        page + 1,
+                                                    ),
+                                                )
+                                            }
+                                            disabled={
+                                                detailCurrentPage ===
+                                                detailTotalPages
+                                            }
+                                        >
+                                            Selanjutnya
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
 
                         <div className="flex items-center justify-end text-sm font-semibold">
                             Grand Total: Rp {formatNumber(detailGrandTotal)}
@@ -977,7 +1009,7 @@ export default function DeliveryOrderAddIndex({
                     </div>
                     {outstandingPageSize !== Infinity &&
                         outstandingTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground mt-3">
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                 <span>
                                     Menampilkan{' '}
                                     {Math.min(
@@ -1039,7 +1071,7 @@ export default function DeliveryOrderAddIndex({
                 open={isRealizedModalOpen}
                 onOpenChange={setIsRealizedModalOpen}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none flex flex-col">
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col !rounded-none">
                     <DialogHeader>
                         <DialogTitle>DOT Terealisasi</DialogTitle>
                     </DialogHeader>
@@ -1090,12 +1122,24 @@ export default function DeliveryOrderAddIndex({
                         <table className="w-full text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 text-left">No DOT</th>
-                                    <th className="px-4 py-3 text-left">Date</th>
-                                    <th className="px-4 py-3 text-left">Ref DO</th>
-                                    <th className="px-4 py-3 text-left">Customer</th>
-                                    <th className="px-4 py-3 text-left">Total</th>
-                                    <th className="px-4 py-3 text-left">Action</th>
+                                    <th className="px-4 py-3 text-left">
+                                        No DOT
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Date
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Ref DO
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Customer
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Total
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Action
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1105,51 +1149,66 @@ export default function DeliveryOrderAddIndex({
                                     rows={5}
                                     isEmpty={
                                         !realizedLoading &&
-                                        displayedRealizedDeliveryOrders.length === 0
+                                        displayedRealizedDeliveryOrders.length ===
+                                            0
                                     }
-                                    emptyMessage={realizedError || 'Tidak ada DOT terealisasi.'}
+                                    emptyMessage={
+                                        realizedError ||
+                                        'Tidak ada DOT terealisasi.'
+                                    }
                                 />
-                                {!realizedLoading ? (
-                                    displayedRealizedDeliveryOrders.map((item) => (
-                                        <tr
-                                            key={`realized-${item.no_dob}`}
-                                            className="border-t border-sidebar-border/70"
-                                        >
-                                            <td className="px-4 py-3">
-                                                {item.no_dob}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.date}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.ref_do}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.nm_cs}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {formatNumber(item.total ?? item.g_total ?? 0)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <button
-                                                    type="button"
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    aria-label="Lihat"
-                                                    title="Lihat"
-                                                    onClick={() => {
-                                                        setIsRealizedModalOpen(false);
-                                                        handleOpenDetailModal(
-                                                            { ...item, no_dob: item.no_dob },
-                                                            true,
-                                                        );
-                                                    }}
-                                                >
-                                                    <Eye className="size-4" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : null}
+                                {!realizedLoading
+                                    ? displayedRealizedDeliveryOrders.map(
+                                          (item) => (
+                                              <tr
+                                                  key={`realized-${item.no_dob}`}
+                                                  className="border-t border-sidebar-border/70"
+                                              >
+                                                  <td className="px-4 py-3">
+                                                      {item.no_dob}
+                                                  </td>
+                                                  <td className="px-4 py-3">
+                                                      {item.date}
+                                                  </td>
+                                                  <td className="px-4 py-3">
+                                                      {item.ref_do}
+                                                  </td>
+                                                  <td className="px-4 py-3">
+                                                      {item.nm_cs}
+                                                  </td>
+                                                  <td className="px-4 py-3">
+                                                      {formatNumber(
+                                                          item.total ??
+                                                              item.g_total ??
+                                                              0,
+                                                      )}
+                                                  </td>
+                                                  <td className="px-4 py-3">
+                                                      <button
+                                                          type="button"
+                                                          className="text-muted-foreground transition hover:text-foreground"
+                                                          aria-label="Lihat"
+                                                          title="Lihat"
+                                                          onClick={() => {
+                                                              setIsRealizedModalOpen(
+                                                                  false,
+                                                              );
+                                                              handleOpenDetailModal(
+                                                                  {
+                                                                      ...item,
+                                                                      no_dob: item.no_dob,
+                                                                  },
+                                                                  true,
+                                                              );
+                                                          }}
+                                                      >
+                                                          <Eye className="size-4" />
+                                                      </button>
+                                                  </td>
+                                              </tr>
+                                          ),
+                                      )
+                                    : null}
                             </tbody>
                         </table>
                     </div>
@@ -1217,12 +1276,12 @@ export default function DeliveryOrderAddIndex({
                 open={isOutstandingModalOpen}
                 onOpenChange={setIsOutstandingModalOpen}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none flex flex-col">
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col !rounded-none">
                     <DialogHeader>
                         <DialogTitle>DOT Belum Dibebankan</DialogTitle>
                     </DialogHeader>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground px-1">
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-1 text-sm text-muted-foreground">
                         <label>
                             Tampilkan
                             <select
@@ -1235,7 +1294,9 @@ export default function DeliveryOrderAddIndex({
                                 onChange={(event) => {
                                     const value = event.target.value;
                                     setOutstandingPageSize(
-                                        value === 'all' ? Infinity : Number(value),
+                                        value === 'all'
+                                            ? Infinity
+                                            : Number(value),
                                     );
                                     setOutstandingCurrentPage(1);
                                 }}
@@ -1255,7 +1316,9 @@ export default function DeliveryOrderAddIndex({
                                 placeholder="Cari no DOT, ref DO, customer..."
                                 value={outstandingSearchTerm}
                                 onChange={(event) => {
-                                    setOutstandingSearchTerm(event.target.value);
+                                    setOutstandingSearchTerm(
+                                        event.target.value,
+                                    );
                                     setOutstandingCurrentPage(1);
                                 }}
                             />
@@ -1284,56 +1347,73 @@ export default function DeliveryOrderAddIndex({
                                     loading={outstandingLoading}
                                     columns={4}
                                     rows={5}
-                                    isEmpty={!outstandingLoading && displayedOutstanding.length === 0}
-                                    emptyMessage={outstandingError || 'Tidak ada data.'}
+                                    isEmpty={
+                                        !outstandingLoading &&
+                                        displayedOutstanding.length === 0
+                                    }
+                                    emptyMessage={
+                                        outstandingError || 'Tidak ada data.'
+                                    }
                                 />
-                                {!outstandingLoading ? (
-                                    displayedOutstanding.map((item) => (
-                                        <tr
-                                            key={`outstanding-${item.no_dob}`}
-                                            className="border-t border-sidebar-border/70"
-                                        >
-                                            <td className="px-4 py-3">
-                                                {item.no_dob}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.ref_do}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.nm_cs}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Link
-                                                        href={`/marketing/delivery-order-add/${encodeURIComponent(
-                                                            item.no_dob,
-                                                        )}/edit`}
-                                                        className="text-muted-foreground transition hover:text-foreground"
-                                                        aria-label="Edit"
-                                                        title="Edit"
-                                                        onClick={() => setIsOutstandingModalOpen(false)}
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Link>
-                                                    <button
-                                                        type="button"
-                                                        className="text-destructive transition hover:text-red-600"
-                                                        aria-label="Hapus"
-                                                        title="Hapus"
-                                                        onClick={() => handleDeleteDob(item)}
-                                                    >
-                                                        <Trash2 className="size-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : null}
+                                {!outstandingLoading
+                                    ? displayedOutstanding.map((item) => (
+                                          <tr
+                                              key={`outstanding-${item.no_dob}`}
+                                              className="border-t border-sidebar-border/70"
+                                          >
+                                              <td className="px-4 py-3">
+                                                  {item.no_dob}
+                                              </td>
+                                              <td className="px-4 py-3">
+                                                  {item.ref_do}
+                                              </td>
+                                              <td className="px-4 py-3">
+                                                  {item.nm_cs}
+                                              </td>
+                                              <td className="px-4 py-3">
+                                                  <div className="flex items-center gap-2">
+                                                      <Link
+                                                          href={`/marketing/delivery-order-add/${encodeURIComponent(
+                                                              item.no_dob,
+                                                          )}/edit`}
+                                                          className="text-muted-foreground transition hover:text-foreground"
+                                                          aria-label="Edit"
+                                                          title="Edit"
+                                                          onClick={() =>
+                                                              setIsOutstandingModalOpen(
+                                                                  false,
+                                                              )
+                                                          }
+                                                      >
+                                                          <Pencil className="size-4" />
+                                                      </Link>
+                                                      <button
+                                                          type="button"
+                                                          className="text-destructive transition hover:text-red-600"
+                                                          aria-label="Hapus"
+                                                          title="Hapus"
+                                                          onClick={() =>
+                                                              handleDeleteDob(
+                                                                  item,
+                                                              )
+                                                          }
+                                                      >
+                                                          <Trash2 className="size-4" />
+                                                      </button>
+                                                  </div>
+                                              </td>
+                                          </tr>
+                                      ))
+                                    : null}
                             </tbody>
                         </table>
                     </div>
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+DeliveryOrderAddIndex.layout = (page) => (
+    <AppLayout children={page} breadcrumbs={breadcrumbs} />
+);

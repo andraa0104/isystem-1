@@ -1,8 +1,5 @@
-import AppLayout from '@/layouts/app-layout';
-import { Head, Link, usePage } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     Select,
     SelectContent,
@@ -10,6 +7,17 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import AppLayout from '@/layouts/app-layout';
+import {
+    buildRecommendations,
+    buildTopFindings,
+    contextualizeFindings,
+    contextualizeRecommendations,
+    findingLevelMeta,
+    runFuzzyAhpTopsis,
+} from '@/lib/dss-fahp-topsis';
+import { buildBukuBesarUrl } from '@/lib/report-links';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     Landmark,
     Loader2,
@@ -19,15 +27,7 @@ import {
     TrendingDown,
     TrendingUp,
 } from 'lucide-react';
-import { buildBukuBesarUrl } from '@/lib/report-links';
-import {
-    buildTopFindings,
-    buildRecommendations,
-    contextualizeFindings,
-    contextualizeRecommendations,
-    findingLevelMeta,
-    runFuzzyAhpTopsis,
-} from '@/lib/dss-fahp-topsis';
+import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -45,7 +45,9 @@ const formatRupiah = (value) => {
 const formatNumber = (value) => {
     const n = Number(value);
     if (!Number.isFinite(n)) return '0';
-    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
+    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        n,
+    );
 };
 
 const getPeriodLabel = (periodType, period) => {
@@ -58,7 +60,10 @@ const getPeriodLabel = (periodType, period) => {
     const y = Number(period.slice(0, 4));
     const m = Number(period.slice(4, 6));
     const d = new Date(y, Math.max(0, m - 1), 1);
-    return new Intl.DateTimeFormat('id-ID', { month: 'short', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('id-ID', {
+        month: 'short',
+        year: 'numeric',
+    }).format(d);
 };
 
 const buildPrintUrl = (query) => {
@@ -86,10 +91,14 @@ function StatCard({ label, value, accent = 'default', icon: Icon }) {
         <div className="rounded-2xl border border-border bg-card p-4">
             <div className="flex items-start justify-between gap-3">
                 <div>
-                    <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <div className="text-[11px] tracking-wide text-muted-foreground uppercase">
                         {label}
                     </div>
-                    <div className={`mt-2 text-xl font-semibold ${accentClass}`}>{value}</div>
+                    <div
+                        className={`mt-2 text-xl font-semibold ${accentClass}`}
+                    >
+                        {value}
+                    </div>
                 </div>
                 {Icon ? (
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
@@ -106,11 +115,13 @@ function SectionHeaderRow({ title, subtitle }) {
         <tr className="bg-muted/30 dark:bg-white/5">
             <td colSpan={3} className="px-3 py-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+                    <div className="text-xs font-semibold tracking-wide text-foreground/80 uppercase">
                         {title}
                     </div>
                     {subtitle ? (
-                        <div className="text-xs text-muted-foreground">{subtitle}</div>
+                        <div className="text-xs text-muted-foreground">
+                            {subtitle}
+                        </div>
                     ) : null}
                 </div>
             </td>
@@ -121,10 +132,15 @@ function SectionHeaderRow({ title, subtitle }) {
 function TotalRow({ label, value, emphasis = false }) {
     return (
         <tr className="border-t border-border bg-muted/30 dark:bg-black/20">
-            <td className={`px-3 py-2 ${emphasis ? 'font-semibold' : 'text-muted-foreground'}`} colSpan={2}>
+            <td
+                className={`px-3 py-2 ${emphasis ? 'font-semibold' : 'text-muted-foreground'}`}
+                colSpan={2}
+            >
                 {label}
             </td>
-            <td className={`px-3 py-2 text-right ${emphasis ? 'font-semibold text-foreground' : 'text-foreground/80'}`}>
+            <td
+                className={`px-3 py-2 text-right ${emphasis ? 'font-semibold text-foreground' : 'text-foreground/80'}`}
+            >
                 {value}
             </td>
         </tr>
@@ -151,14 +167,23 @@ export default function NeracaAkhirIndex() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const [periodType, setPeriodType] = useState(initialQuery?.periodType ?? 'month');
+    const [periodType, setPeriodType] = useState(
+        initialQuery?.periodType ?? 'month',
+    );
     const [period, setPeriod] = useState(
-        initialQuery?.period ?? (periodType === 'year' ? defaultYear ?? '' : defaultPeriod ?? ''),
+        initialQuery?.period ??
+            (periodType === 'year'
+                ? (defaultYear ?? '')
+                : (defaultPeriod ?? '')),
     );
     const [search, setSearch] = useState(initialQuery?.search ?? '');
-    const [debouncedSearch, setDebouncedSearch] = useState(initialQuery?.search ?? '');
+    const [debouncedSearch, setDebouncedSearch] = useState(
+        initialQuery?.search ?? '',
+    );
     const [sortBy, setSortBy] = useState(initialQuery?.sortBy ?? 'Kode_Akun');
-    const [sortDir, setSortDir] = useState((initialQuery?.sortDir ?? 'asc').toLowerCase());
+    const [sortDir, setSortDir] = useState(
+        (initialQuery?.sortDir ?? 'asc').toLowerCase(),
+    );
     const [pageSize, setPageSize] = useState(
         initialQuery?.pageSize === 'all'
             ? 'all'
@@ -170,7 +195,9 @@ export default function NeracaAkhirIndex() {
 
     const latestMonthForYear = (year) => {
         if (!year || !/^\d{4}$/.test(year)) return '';
-        const hit = periodOptions.find((p) => String(p).startsWith(String(year)));
+        const hit = periodOptions.find((p) =>
+            String(p).startsWith(String(year)),
+        );
         return hit ? String(hit) : '';
     };
 
@@ -194,11 +221,17 @@ export default function NeracaAkhirIndex() {
             params.set('sortBy', sortBy);
             params.set('sortDir', sortDir);
             params.set('page', String(page));
-            params.set('pageSize', pageSize === 'all' ? 'all' : String(pageSize));
+            params.set(
+                'pageSize',
+                pageSize === 'all' ? 'all' : String(pageSize),
+            );
 
-            const res = await fetch(`/laporan/neraca-akhir/rows?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const res = await fetch(
+                `/laporan/neraca-akhir/rows?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             const data = await res.json();
             if (!res.ok) {
                 const msg = String(data?.error ?? 'Gagal memuat data.');
@@ -219,7 +252,12 @@ export default function NeracaAkhirIndex() {
         } catch {
             setRows([]);
             setTotal(0);
-            setSummary({ total_aset: 0, total_liabilitas: 0, total_ekuitas: 0, selisih: 0 });
+            setSummary({
+                total_aset: 0,
+                total_liabilitas: 0,
+                total_ekuitas: 0,
+                selisih: 0,
+            });
             setEffectivePeriod('');
             setEffectivePeriodLabel('');
         } finally {
@@ -238,7 +276,13 @@ export default function NeracaAkhirIndex() {
         return Math.max(1, Math.ceil(total / size));
     }, [pageSize, total]);
 
-    const printUrl = buildPrintUrl({ periodType, period, search: debouncedSearch, sortBy, sortDir });
+    const printUrl = buildPrintUrl({
+        periodType,
+        period,
+        search: debouncedSearch,
+        sortBy,
+        sortDir,
+    });
 
     const selisihAccent = summary.selisih === 0 ? 'positive' : 'negative';
 
@@ -275,7 +319,7 @@ export default function NeracaAkhirIndex() {
     );
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Neraca Akhir" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -284,32 +328,47 @@ export default function NeracaAkhirIndex() {
                             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/30 dark:bg-white/5">
                                 <Landmark className="h-5 w-5 text-foreground/80" />
                             </div>
-                            <h1 className="text-xl font-semibold">Neraca Akhir</h1>
+                            <h1 className="text-xl font-semibold">
+                                Neraca Akhir
+                            </h1>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Posisi aset, liabilitas, dan ekuitas pada akhir periode (periodik)
+                            Posisi aset, liabilitas, dan ekuitas pada akhir
+                            periode (periodik)
                         </p>
-                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 dark:bg-white/5 px-3 py-1 text-xs text-muted-foreground">
+                        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-border bg-muted/30 px-3 py-1 text-xs text-muted-foreground dark:bg-white/5">
                             Periode:{' '}
-                            <span className="text-foreground/80">{getPeriodLabel(periodType, period)}</span>
+                            <span className="text-foreground/80">
+                                {getPeriodLabel(periodType, period)}
+                            </span>
                             {periodType === 'month' && period ? (
-                                <span className="text-muted-foreground">({period})</span>
+                                <span className="text-muted-foreground">
+                                    ({period})
+                                </span>
                             ) : periodType === 'month' ? (
-                                <span className="text-muted-foreground">(-)</span>
+                                <span className="text-muted-foreground">
+                                    (-)
+                                </span>
                             ) : null}
                             {periodType === 'year' && period ? (
-                                <span className="text-muted-foreground">({period})</span>
+                                <span className="text-muted-foreground">
+                                    ({period})
+                                </span>
                             ) : null}
                             {periodType === 'year' && effectivePeriod ? (
                                 <span className="text-muted-foreground">
-                                    • Posisi: {effectivePeriodLabel || effectivePeriod} ({effectivePeriod})
+                                    • Posisi:{' '}
+                                    {effectivePeriodLabel || effectivePeriod} (
+                                    {effectivePeriod})
                                 </span>
                             ) : null}
                         </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm text-muted-foreground">Mode</span>
+                        <span className="text-sm text-muted-foreground">
+                            Mode
+                        </span>
                         <Select
                             value={periodType}
                             onValueChange={(val) => {
@@ -320,7 +379,10 @@ export default function NeracaAkhirIndex() {
                                         ? String(period).slice(0, 4)
                                         : /^\d{4}$/.test(String(period))
                                           ? String(period)
-                                          : String(defaultYear || '').slice(0, 4);
+                                          : String(defaultYear || '').slice(
+                                                0,
+                                                4,
+                                            );
                                     setPeriod(y || defaultYear || '');
                                 } else {
                                     const y = /^\d{4}$/.test(String(period))
@@ -328,7 +390,10 @@ export default function NeracaAkhirIndex() {
                                         : /^\d{6}$/.test(String(period))
                                           ? String(period).slice(0, 4)
                                           : '';
-                                    const p = latestMonthForYear(y) || defaultPeriod || '';
+                                    const p =
+                                        latestMonthForYear(y) ||
+                                        defaultPeriod ||
+                                        '';
                                     setPeriod(p);
                                 }
                             }}
@@ -342,7 +407,9 @@ export default function NeracaAkhirIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Periode</span>
+                        <span className="text-sm text-muted-foreground">
+                            Periode
+                        </span>
                         <Select value={period} onValueChange={setPeriod}>
                             <SelectTrigger className="w-44">
                                 <SelectValue />
@@ -350,7 +417,9 @@ export default function NeracaAkhirIndex() {
                             <SelectContent>
                                 {periodType === 'year' ? (
                                     yearOptions.length === 0 ? (
-                                        <SelectItem value={period || ''}>{period || '-'}</SelectItem>
+                                        <SelectItem value={period || ''}>
+                                            {period || '-'}
+                                        </SelectItem>
                                     ) : (
                                         yearOptions.map((y) => (
                                             <SelectItem key={y} value={y}>
@@ -359,7 +428,9 @@ export default function NeracaAkhirIndex() {
                                         ))
                                     )
                                 ) : periodOptions.length === 0 ? (
-                                    <SelectItem value={period || ''}>{period || '-'}</SelectItem>
+                                    <SelectItem value={period || ''}>
+                                        {period || '-'}
+                                    </SelectItem>
                                 ) : (
                                     periodOptions.map((p) => (
                                         <SelectItem key={p} value={p}>
@@ -377,14 +448,20 @@ export default function NeracaAkhirIndex() {
                             </a>
                         </Button>
 
-                        <span className="text-sm text-muted-foreground">Urut</span>
+                        <span className="text-sm text-muted-foreground">
+                            Urut
+                        </span>
                         <Select value={sortBy} onValueChange={setSortBy}>
                             <SelectTrigger className="w-44">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="Kode_Akun">Kode Akun</SelectItem>
-                                <SelectItem value="Nama_Akun">Nama Akun</SelectItem>
+                                <SelectItem value="Kode_Akun">
+                                    Kode Akun
+                                </SelectItem>
+                                <SelectItem value="Nama_Akun">
+                                    Nama Akun
+                                </SelectItem>
                                 <SelectItem value="Amount">Amount</SelectItem>
                             </SelectContent>
                         </Select>
@@ -398,10 +475,14 @@ export default function NeracaAkhirIndex() {
                             </SelectContent>
                         </Select>
 
-                        <span className="text-sm text-muted-foreground">Tampil</span>
+                        <span className="text-sm text-muted-foreground">
+                            Tampil
+                        </span>
                         <Select
                             value={String(pageSize)}
-                            onValueChange={(val) => setPageSize(val === 'all' ? 'all' : Number(val))}
+                            onValueChange={(val) =>
+                                setPageSize(val === 'all' ? 'all' : Number(val))
+                            }
                         >
                             <SelectTrigger className="w-24">
                                 <SelectValue />
@@ -424,10 +505,26 @@ export default function NeracaAkhirIndex() {
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                    <StatCard label="Total Aset" value={formatRupiah(summary.total_aset)} icon={Scale} />
-                    <StatCard label="Total Liabilitas" value={formatRupiah(summary.total_liabilitas)} icon={TrendingDown} />
-                    <StatCard label="Total Ekuitas" value={formatRupiah(summary.total_ekuitas)} icon={TrendingUp} />
-                    <StatCard label="Selisih (Aset - (L+E))" value={formatRupiah(summary.selisih)} accent={selisihAccent} />
+                    <StatCard
+                        label="Total Aset"
+                        value={formatRupiah(summary.total_aset)}
+                        icon={Scale}
+                    />
+                    <StatCard
+                        label="Total Liabilitas"
+                        value={formatRupiah(summary.total_liabilitas)}
+                        icon={TrendingDown}
+                    />
+                    <StatCard
+                        label="Total Ekuitas"
+                        value={formatRupiah(summary.total_ekuitas)}
+                        icon={TrendingUp}
+                    />
+                    <StatCard
+                        label="Selisih (Aset - (L+E))"
+                        value={formatRupiah(summary.selisih)}
+                        accent={selisihAccent}
+                    />
                 </div>
 
                 <div className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -438,9 +535,12 @@ export default function NeracaAkhirIndex() {
                                     <Sparkles className="h-5 w-5 text-foreground/80" />
                                 </div>
                                 <div>
-                                    <div className="text-sm font-semibold">Rekomendasi DSS (Fuzzy AHP-TOPSIS)</div>
+                                    <div className="text-sm font-semibold">
+                                        Rekomendasi DSS (Fuzzy AHP-TOPSIS)
+                                    </div>
                                     <div className="mt-0.5 text-xs text-muted-foreground">
-                                        Saran prioritas untuk meningkatkan kualitas neraca akhir periode aktif.
+                                        Saran prioritas untuk meningkatkan
+                                        kualitas neraca akhir periode aktif.
                                     </div>
                                 </div>
                             </div>
@@ -450,14 +550,20 @@ export default function NeracaAkhirIndex() {
                     <div className="p-4">
                         {dssFindings.length ? (
                             <div className="mt-3 space-y-2">
-                                <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+                                <div className="text-xs font-semibold tracking-wide text-foreground/80 uppercase">
                                     Temuan DSS (Top 5)
                                 </div>
                                 <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
                                     {dssFindings.map((item, idx) => (
                                         <li key={`finding-${idx}`}>
-                                            <span className={`mr-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${findingLevelMeta(item?.level).className}`}>
-                                                {findingLevelMeta(item?.level).label}
+                                            <span
+                                                className={`mr-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${findingLevelMeta(item?.level).className}`}
+                                            >
+                                                {
+                                                    findingLevelMeta(
+                                                        item?.level,
+                                                    ).label
+                                                }
                                             </span>
                                             {item.finding}
                                         </li>
@@ -468,7 +574,7 @@ export default function NeracaAkhirIndex() {
 
                         {dssTips.length ? (
                             <div className="mt-3 space-y-2">
-                                <div className="text-xs font-semibold uppercase tracking-wide text-foreground/80">
+                                <div className="text-xs font-semibold tracking-wide text-foreground/80 uppercase">
                                     Saran / Rekomendasi (Top 5)
                                 </div>
                                 <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">
@@ -481,7 +587,8 @@ export default function NeracaAkhirIndex() {
 
                         {!dssTips.length && !dssFindings.length ? (
                             <div className="mt-3 text-xs text-muted-foreground">
-                                Tidak ada rekomendasi DSS untuk kondisi saat ini.
+                                Tidak ada rekomendasi DSS untuk kondisi saat
+                                ini.
                             </div>
                         ) : null}
                     </div>
@@ -492,22 +599,25 @@ export default function NeracaAkhirIndex() {
                         <div className="font-semibold">Gagal memuat data</div>
                         <div className="mt-1 opacity-90">{error}</div>
                         <div className="mt-2 text-xs text-rose-700 dark:text-rose-300/80">
-                            Sumber data menggunakan `tb_nabbrekap` (saldo akhir per akun per periode). Nama akun diambil dari `tb_nabb.Nama_Akun` bila tersedia.
+                            Sumber data menggunakan `tb_nabbrekap` (saldo akhir
+                            per akun per periode). Nama akun diambil dari
+                            `tb_nabb.Nama_Akun` bila tersedia.
                         </div>
                     </div>
                 ) : null}
 
                 <div className="relative overflow-x-auto rounded-2xl border border-border bg-card">
                     {loading && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 dark:bg-black/30 backdrop-blur-[1px]">
-                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 dark:bg-black/40 px-3 py-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" /> Memuat...
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 backdrop-blur-[1px] dark:bg-black/30">
+                            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground dark:bg-black/40">
+                                <Loader2 className="h-4 w-4 animate-spin" />{' '}
+                                Memuat...
                             </div>
                         </div>
                     )}
 
-                    <table className="min-w-full text-sm text-left">
-                        <thead className="bg-muted/30 dark:bg-white/5 text-muted-foreground uppercase text-[11px] tracking-wide">
+                    <table className="min-w-full text-left text-sm">
+                        <thead className="bg-muted/30 text-[11px] tracking-wide text-muted-foreground uppercase dark:bg-white/5">
                             <tr>
                                 <th className="px-3 py-3">Kode Akun</th>
                                 <th className="px-3 py-3">Nama Akun</th>
@@ -517,13 +627,19 @@ export default function NeracaAkhirIndex() {
                         <tbody>
                             {rows.length === 0 && !loading ? (
                                 <tr>
-                                    <td colSpan={3} className="px-3 py-10 text-center text-muted-foreground">
+                                    <td
+                                        colSpan={3}
+                                        className="px-3 py-10 text-center text-muted-foreground"
+                                    >
                                         Tidak ada data.
                                     </td>
                                 </tr>
                             ) : null}
 
-                            <SectionHeaderRow title="Aset" subtitle="Prefix kode akun 1 (saldo normal debit)" />
+                            <SectionHeaderRow
+                                title="Aset"
+                                subtitle="Prefix kode akun 1 (saldo normal debit)"
+                            />
                             {sections.aset.map((r, idx) => {
                                 const kodeAkun = String(r?.Kode_Akun ?? '');
                                 const has00 = kodeAkun.includes('00');
@@ -536,45 +652,62 @@ export default function NeracaAkhirIndex() {
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
-                                        <td className={`px-3 py-2 font-medium ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 font-medium ${cellClass}`}
+                                        >
                                             <div className="flex items-center gap-2">
                                                 {has00 ? (
                                                     <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                                 ) : null}
                                                 <Link
-                                                    href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
+                                                    href={buildBukuBesarUrl({
+                                                        kodeAkun,
+                                                        periodType,
+                                                        period,
+                                                    })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 ring-1 ring-amber-500/30 hover:underline dark:text-amber-300'
+                                                            : 'text-amber-700 hover:underline dark:text-amber-300'
                                                     }
                                                 >
                                                     {kodeAkun}
                                                 </Link>
                                             </div>
                                         </td>
-                                        <td className={`px-3 py-2 ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 ${cellClass}`}
+                                        >
                                             {r?.Nama_Akun}
                                             {r?.is_other ? (
-                                                <span className="ml-2 rounded-full bg-muted/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border dark:bg-white/10 dark:ring-white/10">
+                                                <span className="ml-2 rounded-full bg-muted/30 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase ring-1 ring-border dark:bg-white/10 dark:ring-white/10">
                                                     lainnya
                                                 </span>
                                             ) : null}
                                             {r?.is_anomaly ? (
-                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/30">
+                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-rose-700 uppercase ring-1 ring-rose-500/30 dark:text-rose-300">
                                                     anomali
                                                 </span>
                                             ) : null}
                                         </td>
-                                        <td className={`px-3 py-2 text-right font-semibold ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 text-right font-semibold ${cellClass}`}
+                                        >
                                             {formatRupiah(r?.amount_display)}
                                         </td>
                                     </tr>
                                 );
                             })}
-                            <TotalRow label="Total Aset" value={formatRupiah(summary.total_aset)} emphasis />
+                            <TotalRow
+                                label="Total Aset"
+                                value={formatRupiah(summary.total_aset)}
+                                emphasis
+                            />
 
-                            <SectionHeaderRow title="Liabilitas" subtitle="Prefix kode akun 2 (saldo normal kredit)" />
+                            <SectionHeaderRow
+                                title="Liabilitas"
+                                subtitle="Prefix kode akun 2 (saldo normal kredit)"
+                            />
                             {sections.liabilitas.map((r, idx) => {
                                 const kodeAkun = String(r?.Kode_Akun ?? '');
                                 const has00 = kodeAkun.includes('00');
@@ -587,45 +720,62 @@ export default function NeracaAkhirIndex() {
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
-                                        <td className={`px-3 py-2 font-medium ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 font-medium ${cellClass}`}
+                                        >
                                             <div className="flex items-center gap-2">
                                                 {has00 ? (
                                                     <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                                 ) : null}
                                                 <Link
-                                                    href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
+                                                    href={buildBukuBesarUrl({
+                                                        kodeAkun,
+                                                        periodType,
+                                                        period,
+                                                    })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 ring-1 ring-amber-500/30 hover:underline dark:text-amber-300'
+                                                            : 'text-amber-700 hover:underline dark:text-amber-300'
                                                     }
                                                 >
                                                     {kodeAkun}
                                                 </Link>
                                             </div>
                                         </td>
-                                        <td className={`px-3 py-2 ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 ${cellClass}`}
+                                        >
                                             {r?.Nama_Akun}
                                             {r?.is_other ? (
-                                                <span className="ml-2 rounded-full bg-muted/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border dark:bg-white/10 dark:ring-white/10">
+                                                <span className="ml-2 rounded-full bg-muted/30 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase ring-1 ring-border dark:bg-white/10 dark:ring-white/10">
                                                     lainnya
                                                 </span>
                                             ) : null}
                                             {r?.is_anomaly ? (
-                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/30">
+                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-rose-700 uppercase ring-1 ring-rose-500/30 dark:text-rose-300">
                                                     anomali
                                                 </span>
                                             ) : null}
                                         </td>
-                                        <td className={`px-3 py-2 text-right font-semibold ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 text-right font-semibold ${cellClass}`}
+                                        >
                                             {formatRupiah(r?.amount_display)}
                                         </td>
                                     </tr>
                                 );
                             })}
-                            <TotalRow label="Total Liabilitas" value={formatRupiah(summary.total_liabilitas)} emphasis />
+                            <TotalRow
+                                label="Total Liabilitas"
+                                value={formatRupiah(summary.total_liabilitas)}
+                                emphasis
+                            />
 
-                            <SectionHeaderRow title="Ekuitas" subtitle="Prefix kode akun 3 (saldo normal kredit)" />
+                            <SectionHeaderRow
+                                title="Ekuitas"
+                                subtitle="Prefix kode akun 3 (saldo normal kredit)"
+                            />
                             {sections.ekuitas.map((r, idx) => {
                                 const kodeAkun = String(r?.Kode_Akun ?? '');
                                 const has00 = kodeAkun.includes('00');
@@ -638,44 +788,62 @@ export default function NeracaAkhirIndex() {
                                             has00 ? markedRowClass : '',
                                         ].join(' ')}
                                     >
-                                        <td className={`px-3 py-2 font-medium ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 font-medium ${cellClass}`}
+                                        >
                                             <div className="flex items-center gap-2">
                                                 {has00 ? (
                                                     <span className="h-2 w-2 rounded-full bg-amber-400 ring-2 ring-amber-500/30" />
                                                 ) : null}
                                                 <Link
-                                                    href={buildBukuBesarUrl({ kodeAkun, periodType, period })}
+                                                    href={buildBukuBesarUrl({
+                                                        kodeAkun,
+                                                        periodType,
+                                                        period,
+                                                    })}
                                                     className={
                                                         has00
-                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30 hover:underline'
-                                                            : 'text-amber-700 dark:text-amber-300 hover:underline'
+                                                            ? 'rounded-md bg-amber-500/15 px-2 py-0.5 text-amber-700 ring-1 ring-amber-500/30 hover:underline dark:text-amber-300'
+                                                            : 'text-amber-700 hover:underline dark:text-amber-300'
                                                     }
                                                 >
                                                     {kodeAkun}
                                                 </Link>
                                             </div>
                                         </td>
-                                        <td className={`px-3 py-2 ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 ${cellClass}`}
+                                        >
                                             {r?.Nama_Akun}
                                             {r?.is_other ? (
-                                                <span className="ml-2 rounded-full bg-muted/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground ring-1 ring-border dark:bg-white/10 dark:ring-white/10">
+                                                <span className="ml-2 rounded-full bg-muted/30 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase ring-1 ring-border dark:bg-white/10 dark:ring-white/10">
                                                     lainnya
                                                 </span>
                                             ) : null}
                                             {r?.is_anomaly ? (
-                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:text-rose-300 ring-1 ring-rose-500/30">
+                                                <span className="ml-2 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-rose-700 uppercase ring-1 ring-rose-500/30 dark:text-rose-300">
                                                     anomali
                                                 </span>
                                             ) : null}
                                         </td>
-                                        <td className={`px-3 py-2 text-right font-semibold ${cellClass}`}>
+                                        <td
+                                            className={`px-3 py-2 text-right font-semibold ${cellClass}`}
+                                        >
                                             {formatRupiah(r?.amount_display)}
                                         </td>
                                     </tr>
                                 );
                             })}
-                            <TotalRow label="Total Ekuitas" value={formatRupiah(summary.total_ekuitas)} emphasis />
-                            <TotalRow label="Selisih (Aset - (Liabilitas + Ekuitas))" value={formatRupiah(summary.selisih)} emphasis />
+                            <TotalRow
+                                label="Total Ekuitas"
+                                value={formatRupiah(summary.total_ekuitas)}
+                                emphasis
+                            />
+                            <TotalRow
+                                label="Selisih (Aset - (Liabilitas + Ekuitas))"
+                                value={formatRupiah(summary.selisih)}
+                                emphasis
+                            />
                         </tbody>
                     </table>
                 </div>
@@ -686,7 +854,9 @@ export default function NeracaAkhirIndex() {
                         <Button
                             size="sm"
                             variant="outline"
-                            disabled={page === 1 || loading || pageSize === 'all'}
+                            disabled={
+                                page === 1 || loading || pageSize === 'all'
+                            }
                             onClick={() => setPage((p) => Math.max(1, p - 1))}
                         >
                             Sebelumnya
@@ -697,14 +867,24 @@ export default function NeracaAkhirIndex() {
                         <Button
                             size="sm"
                             variant="outline"
-                            disabled={page >= totalPages || loading || pageSize === 'all'}
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            disabled={
+                                page >= totalPages ||
+                                loading ||
+                                pageSize === 'all'
+                            }
+                            onClick={() =>
+                                setPage((p) => Math.min(totalPages, p + 1))
+                            }
                         >
                             Berikutnya
                         </Button>
                     </div>
                 </div>
             </div>
-        </AppLayout>
+        </>
     );
 }
+
+NeracaAkhirIndex.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

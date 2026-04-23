@@ -1,3 +1,5 @@
+import { ActionIconButton } from '@/components/action-icon-button';
+import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -18,13 +20,11 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
+import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { Head, router } from '@inertiajs/react';
 import { ArrowLeft, ArrowRight, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
-import { readApiError, normalizeApiError } from '@/lib/api-error';
-import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
-import { ActionIconButton } from '@/components/action-icon-button';
 
 const formatDate = (date) => {
     if (!date) return '';
@@ -51,9 +51,7 @@ const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
 const getCsrfToken = () =>
-    document
-        .querySelector('meta[name="csrf-token"]')
-        ?.getAttribute('content');
+    document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
 const showToast = (icon, title) => {
     Swal.fire({
@@ -150,7 +148,9 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                 setMaterialTotalPages(data?.last_page ?? 1);
             })
             .catch((error) => {
-                setMaterialError(normalizeApiError(error, 'Gagal memuat data material.'));
+                setMaterialError(
+                    normalizeApiError(error, 'Gagal memuat data material.'),
+                );
                 setMaterialList([]);
             })
             .finally(() => {
@@ -392,18 +392,12 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
     );
 
     return (
-                <AppLayout
-                    breadcrumbs={[
-                        { title: 'Dashboard', href: '/dashboard' },
-                        { title: 'Pembelian', href: '/pembelian/delivery-order-cost' },
-                        { title: 'Edit DO Biaya', href: '#' },
-                    ]}
-                >
-                    <Head title="Edit Delivery Order Cost" />
+        <>
+            <Head title="Edit Delivery Order Cost" />
             <div className="flex-1 p-4">
                 <div className="mb-6 flex items-center justify-between">
                     <h1 className="text-2xl font-bold">
-                            Edit Delivery Order Cost
+                        Edit Delivery Order Cost
                     </h1>
                     <div className="text-sm text-muted-foreground">
                         Step {step} of 2
@@ -539,7 +533,10 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Satuan</Label>
-                                        <Input readOnly value={inputItem.unit} />
+                                        <Input
+                                            readOnly
+                                            value={inputItem.unit}
+                                        />
                                     </div>
                                     <div className="space-y-2 lg:col-span-2">
                                         <Label>Remark</Label>
@@ -558,9 +555,12 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Total Price</Label>
-                                        <Input readOnly value={inputItem.total} />
+                                        <Input
+                                            readOnly
+                                            value={inputItem.total}
+                                        />
                                     </div>
-                                    <div className="flex items-end justify-end lg:col-span-4 gap-2">
+                                    <div className="flex items-end justify-end gap-2 lg:col-span-4">
                                         <Button
                                             onClick={handleAddItem}
                                             disabled={
@@ -608,64 +608,74 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                                     </TableHead>
                                                     <TableHead>Price</TableHead>
                                                     <TableHead>Total</TableHead>
-                                                    <TableHead>Remark</TableHead>
+                                                    <TableHead>
+                                                        Remark
+                                                    </TableHead>
                                                     <TableHead className="w-[70px]">
                                                         Aksi
                                                     </TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {formData.items.map((item, i) => (
-                                                    <TableRow
-                                                        key={i}
-                                                        className="cursor-pointer hover:bg-muted/50"
-                                                        onClick={() =>
-                                                            handleSelectItem(
-                                                                item,
-                                                            )
-                                                        }
-                                                    >
-                                                        <TableCell>
-                                                            {item.no ?? i + 1}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.kd_mat}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.mat}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.qty}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.unit}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.harga}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.total}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {renderValue(
-                                                                item.remark,
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <ActionIconButton
-                                                                label="Hapus"
-                                                                variant="destructive"
-                                                                onClick={(event) => {
-                                                                    event.stopPropagation();
-                                                                    handleDeleteItem(item);
-                                                                }}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </ActionIconButton>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                                {formData.items.length === 0 && (
+                                                {formData.items.map(
+                                                    (item, i) => (
+                                                        <TableRow
+                                                            key={i}
+                                                            className="cursor-pointer hover:bg-muted/50"
+                                                            onClick={() =>
+                                                                handleSelectItem(
+                                                                    item,
+                                                                )
+                                                            }
+                                                        >
+                                                            <TableCell>
+                                                                {item.no ??
+                                                                    i + 1}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.kd_mat}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.mat}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.qty}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.unit}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.harga}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {item.total}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {renderValue(
+                                                                    item.remark,
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <ActionIconButton
+                                                                    label="Hapus"
+                                                                    variant="destructive"
+                                                                    onClick={(
+                                                                        event,
+                                                                    ) => {
+                                                                        event.stopPropagation();
+                                                                        handleDeleteItem(
+                                                                            item,
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </ActionIconButton>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ),
+                                                )}
+                                                {formData.items.length ===
+                                                    0 && (
                                                     <TableRow>
                                                         <TableCell
                                                             colSpan={9}
@@ -692,9 +702,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                 onClick={handleSubmit}
                                 disabled={isSubmitting}
                             >
-                                {isSubmitting
-                                    ? 'Menyimpan...'
-                                    : 'Simpan Data'}
+                                {isSubmitting ? 'Menyimpan...' : 'Simpan Data'}
                             </Button>
                         </div>
                     </div>
@@ -705,7 +713,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                 open={isMaterialModalOpen}
                 onOpenChange={setIsMaterialModalOpen}
             >
-                <DialogContent className="!left-0 !top-0 !h-screen !w-screen !translate-x-0 !translate-y-0 !max-w-none !rounded-none flex flex-col">
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col !rounded-none">
                     <DialogHeader>
                         <DialogTitle>Cari Material</DialogTitle>
                         <DialogDescription>
@@ -767,11 +775,19 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                     columns={4}
                                     loading={materialLoading}
                                     error={materialError}
-                                    onRetry={() => fetchMaterials(materialPage || 1)}
-                                    isEmpty={!materialLoading && !materialError && materialList.length === 0}
+                                    onRetry={() =>
+                                        fetchMaterials(materialPage || 1)
+                                    }
+                                    isEmpty={
+                                        !materialLoading &&
+                                        !materialError &&
+                                        materialList.length === 0
+                                    }
                                     emptyTitle="Tidak ada data material."
                                 />
-                                {!materialLoading && !materialError && materialList.map((item) => (
+                                {!materialLoading &&
+                                    !materialError &&
+                                    materialList.map((item) => (
                                         <TableRow key={item.kd_material}>
                                             <TableCell>
                                                 {item.material}
@@ -796,35 +812,49 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                         </Table>
                     </div>
 
-                    {materialPageSize !== Infinity && materialList.length > 0 && (
-                        <div className="flex items-center justify-between pt-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    fetchMaterials(materialPage - 1)
-                                }
-                                disabled={materialPage <= 1}
-                            >
-                                Prev
-                            </Button>
-                            <span className="text-sm text-muted-foreground">
-                                {materialPaginationText}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    fetchMaterials(materialPage + 1)
-                                }
-                                disabled={materialPage >= materialTotalPages}
-                            >
-                                Next
-                            </Button>
-                        </div>
-                    )}
+                    {materialPageSize !== Infinity &&
+                        materialList.length > 0 && (
+                            <div className="flex items-center justify-between pt-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        fetchMaterials(materialPage - 1)
+                                    }
+                                    disabled={materialPage <= 1}
+                                >
+                                    Prev
+                                </Button>
+                                <span className="text-sm text-muted-foreground">
+                                    {materialPaginationText}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        fetchMaterials(materialPage + 1)
+                                    }
+                                    disabled={
+                                        materialPage >= materialTotalPages
+                                    }
+                                >
+                                    Next
+                                </Button>
+                            </div>
+                        )}
                 </DialogContent>
             </Dialog>
-        </AppLayout>
+        </>
     );
 }
+
+DeliveryOrderCostEdit.layout = (page) => (
+    <AppLayout
+        children={page}
+        breadcrumbs={[
+            { title: 'Dashboard', href: '/dashboard' },
+            { title: 'Pembelian', href: '/pembelian/delivery-order-cost' },
+            { title: 'Edit DO Biaya', href: '#' },
+        ]}
+    />
+);
