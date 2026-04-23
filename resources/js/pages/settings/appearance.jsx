@@ -11,7 +11,7 @@ const breadcrumbs = [
     },
 ];
 export default function Appearance() {
-    return (<AppLayout breadcrumbs={breadcrumbs}>
+    return (<>
             <Head title="Appearance settings"/>
 
             <h1 className="sr-only">Appearance Settings</h1>
@@ -22,5 +22,8 @@ export default function Appearance() {
                     <AppearanceTabs />
                 </div>
             </SettingsLayout>
-        </AppLayout>);
+        </>);
 }
+Appearance.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

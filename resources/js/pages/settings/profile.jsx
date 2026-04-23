@@ -18,7 +18,7 @@ const breadcrumbs = [
 export default function Profile({ mustVerifyEmail, status, }) {
     const { auth } = usePage().props;
     const profileUpdateForm = { action: '/settings/profile', method: 'patch' };
-    return (<AppLayout breadcrumbs={breadcrumbs}>
+    return (<>
             <Head title="Profile settings"/>
 
             <h1 className="sr-only">Profile Settings</h1>
@@ -77,5 +77,8 @@ export default function Profile({ mustVerifyEmail, status, }) {
 
                 <DeleteUser />
             </SettingsLayout>
-        </AppLayout>);
+        </>);
 }
+Profile.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

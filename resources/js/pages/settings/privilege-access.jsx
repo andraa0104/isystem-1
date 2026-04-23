@@ -155,7 +155,7 @@ export default function PrivilegeAccess() {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Privilege access" />
 
             <h1 className="sr-only">Privilege Access</h1>
@@ -439,6 +439,9 @@ export default function PrivilegeAccess() {
                     </form>
                 </div>
             </SettingsLayout>
-        </AppLayout>
+        </>
     );
 }
+PrivilegeAccess.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

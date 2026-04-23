@@ -82,7 +82,7 @@ export default function AddUser() {
     }, [currentPage, totalPages]);
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <>
             <Head title="Manage user" />
 
             <h1 className="sr-only">Manage User</h1>
@@ -396,6 +396,9 @@ export default function AddUser() {
                     </DialogContent>
                 </Dialog>
             )}
-        </AppLayout>
+        </>
     );
 }
+AddUser.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};

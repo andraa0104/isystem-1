@@ -19,7 +19,7 @@ export default function Password() {
     const passwordInput = useRef(null);
     const currentPasswordInput = useRef(null);
     const passwordUpdateForm = { action: '/settings/password', method: 'put' };
-    return (<AppLayout breadcrumbs={breadcrumbs}>
+    return (<>
             <Head title="Password settings"/>
 
             <h1 className="sr-only">Password Settings</h1>
@@ -78,5 +78,8 @@ export default function Password() {
                     </Form>
                 </div>
             </SettingsLayout>
-        </AppLayout>);
+        </>);
 }
+Password.layout = (page) => {
+    return <AppLayout children={page} breadcrumbs={breadcrumbs} />;
+};
