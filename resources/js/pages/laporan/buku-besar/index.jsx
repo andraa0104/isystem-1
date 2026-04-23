@@ -108,7 +108,7 @@ function StatCard({ label, value, helper, accent = 'default' }) {
     );
 }
 
-export default function BukuBesarLedgerIndex() {
+export default function BukuBesarIndex() {
     const {
         initialQuery = {},
         periodOptions = [],

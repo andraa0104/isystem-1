@@ -266,9 +266,42 @@ class BiayaKirimPenjualanController
 
         $search = $request->query('search');
         $status = $request->query('status', 'all');
+        $period = $request->query('period', 'today');
+        $startDate = $request->query('startDate');
+        $endDate = $request->query('endDate');
 
         $query = DB::table($table);
         $summaryQuery = DB::table($table);
+
+        // Period Filtering
+        $applyPeriod = function ($q) use ($period, $startDate, $endDate) {
+            switch ($period) {
+                case 'today':
+                    $q->whereDate('tanggal', Carbon::today());
+                    break;
+                case 'this_week':
+                    $q->whereBetween('tanggal', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
+                    break;
+                case 'this_month':
+                    $q->whereMonth('tanggal', Carbon::now()->month)
+                        ->whereYear('tanggal', Carbon::now()->year);
+                    break;
+                case 'this_year':
+                    $q->whereYear('tanggal', Carbon::now()->year);
+                    break;
+                case 'custom':
+                    if ($startDate && $endDate) {
+                        $q->whereBetween('tanggal', [$startDate, $endDate]);
+                    }
+                    break;
+                case 'all':
+                default:
+                    break;
+            }
+        };
+
+        $applyPeriod($query);
+        $applyPeriod($summaryQuery);
 
         if ($search) {
             $term = '%'.trim($search).'%';

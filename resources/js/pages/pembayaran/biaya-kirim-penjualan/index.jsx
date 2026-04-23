@@ -32,6 +32,15 @@ const STATUS_OPTIONS = [
     { value: 'belum_dijurnal', label: 'Invoice belum di jurnal' },
 ];
 
+const PERIOD_OPTIONS = [
+    { value: 'today', label: 'Hari Ini' },
+    { value: 'this_week', label: 'Minggu Ini' },
+    { value: 'this_month', label: 'Bulan Ini' },
+    { value: 'this_year', label: 'Tahun Ini' },
+    { value: 'custom', label: 'Range Tanggal' },
+    { value: 'all', label: 'Semua Data' },
+];
+
 const PAGE_SIZE_OPTIONS = [
     { value: '5', label: '5' },
     { value: '10', label: '10' },
@@ -74,6 +83,13 @@ export default function BiayaKirimPenjualanIndex({
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
     const [pageSize, setPageSize] = useState(filters.pageSize || 5);
+    const [period, setPeriod] = useState('today');
+    const [startDate, setStartDate] = useState(
+        new Date().toISOString().split('T')[0],
+    );
+    const [endDate, setEndDate] = useState(
+        new Date().toISOString().split('T')[0],
+    );
     const [currentPage, setCurrentPage] = useState(1);
     const [remoteItems, setRemoteItems] = useState(items);
     const [remoteSummary, setRemoteSummary] = useState(summary);
@@ -113,6 +129,9 @@ export default function BiayaKirimPenjualanIndex({
             const params = new URLSearchParams({
                 search: searchTerm,
                 status: statusFilter,
+                period,
+                startDate,
+                endDate,
             });
             const res = await fetch(
                 `/pembayaran/biaya-kirim-penjualan/data?${params.toString()}`,
@@ -140,7 +159,7 @@ export default function BiayaKirimPenjualanIndex({
         fetchItems();
         setCurrentPage(1);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchTerm, statusFilter]);
+    }, [searchTerm, statusFilter, period, startDate, endDate]);
 
     const sortedItems = useMemo(() => {
         return [...remoteItems].sort((a, b) =>
@@ -530,6 +549,46 @@ export default function BiayaKirimPenjualanIndex({
                                     ))}
                                 </SelectContent>
                             </Select>
+                            <Select value={period} onValueChange={setPeriod}>
+                                <SelectTrigger className="w-full max-w-[180px]">
+                                    <SelectValue placeholder="Pilih Periode" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {PERIOD_OPTIONS.map((opt) => (
+                                        <SelectItem
+                                            key={opt.value}
+                                            value={opt.value}
+                                        >
+                                            {opt.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+
+                            {period === 'custom' && (
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) =>
+                                            setStartDate(e.target.value)
+                                        }
+                                        className="w-full max-w-[150px]"
+                                    />
+                                    <span className="text-muted-foreground">
+                                        s/d
+                                    </span>
+                                    <Input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) =>
+                                            setEndDate(e.target.value)
+                                        }
+                                        className="w-full max-w-[150px]"
+                                    />
+                                </div>
+                            )}
+
                             <Select
                                 value={
                                     pageSize === Infinity
@@ -1921,6 +1980,15 @@ export default function BiayaKirimPenjualanIndex({
         </>
     );
 }
+
+const breadcrumbs = [
+    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'Pembayaran', href: '#' },
+    {
+        title: 'Biaya Kirim Penjualan',
+        href: '/pembayaran/biaya-kirim-penjualan',
+    },
+];
 
 BiayaKirimPenjualanIndex.layout = (page) => {
     return <AppLayout children={page} breadcrumbs={breadcrumbs} />;

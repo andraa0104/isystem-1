@@ -192,11 +192,39 @@ class PermintaanDanaBiayaController
         $search = trim((string) $request->query('search', ''));
         $pageSizeRaw = $request->query('pageSize', 5);
         $pageRaw = $request->query('page', 1);
+        $period = $request->query('period', 'today');
+        $startDate = $request->query('startDate');
+        $endDate = $request->query('endDate');
 
         $page = max(1, (int) $pageRaw);
         $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
 
         $query = DB::table('tb_kdpdb');
+
+        // Period Filtering
+        switch ($period) {
+            case 'today':
+                $query->whereDate('Tgl_Buat', Carbon::today());
+                break;
+            case 'this_week':
+                $query->whereBetween('Tgl_Buat', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
+                break;
+            case 'this_month':
+                $query->whereMonth('Tgl_Buat', Carbon::now()->month)
+                    ->whereYear('Tgl_Buat', Carbon::now()->year);
+                break;
+            case 'this_year':
+                $query->whereYear('Tgl_Buat', Carbon::now()->year);
+                break;
+            case 'custom':
+                if ($startDate && $endDate) {
+                    $query->whereBetween('Tgl_Buat', [$startDate, $endDate]);
+                }
+                break;
+            case 'all':
+            default:
+                break;
+        }
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {

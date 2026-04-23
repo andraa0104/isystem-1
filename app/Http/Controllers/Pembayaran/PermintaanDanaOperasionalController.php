@@ -29,11 +29,39 @@ class PermintaanDanaOperasionalController
         $search = trim((string) $request->query('search', ''));
         $pageSizeRaw = $request->query('pageSize', 5);
         $pageRaw = $request->query('page', 1);
+        $period = $request->query('period', 'today');
+        $startDate = $request->query('startDate');
+        $endDate = $request->query('endDate');
 
         $page = max(1, (int) $pageRaw);
         $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
 
         $query = DB::table('tb_kdpdo');
+
+        // Period Filtering
+        $dateCol = DB::raw("STR_TO_DATE(posting_date, '%d.%m.%Y')");
+        switch ($period) {
+            case 'today':
+                $query->whereRaw("STR_TO_DATE(posting_date, '%d.%m.%Y') = ?", [Carbon::today()->toDateString()]);
+                break;
+            case 'this_week':
+                $query->whereBetween($dateCol, [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
+                break;
+            case 'this_month':
+                $query->whereRaw("MONTH(STR_TO_DATE(posting_date, '%d.%m.%Y')) = ? AND YEAR(STR_TO_DATE(posting_date, '%d.%m.%Y')) = ?", [Carbon::now()->month, Carbon::now()->year]);
+                break;
+            case 'this_year':
+                $query->whereRaw("YEAR(STR_TO_DATE(posting_date, '%d.%m.%Y')) = ?", [Carbon::now()->year]);
+                break;
+            case 'custom':
+                if ($startDate && $endDate) {
+                    $query->whereBetween($dateCol, [$startDate, $endDate]);
+                }
+                break;
+            case 'all':
+            default:
+                break;
+        }
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {

@@ -38,6 +38,15 @@ const breadcrumbs = [
     },
 ];
 
+const PERIOD_OPTIONS = [
+    { value: 'today', label: 'Hari Ini' },
+    { value: 'this_week', label: 'Minggu Ini' },
+    { value: 'this_month', label: 'Bulan Ini' },
+    { value: 'this_year', label: 'Tahun Ini' },
+    { value: 'custom', label: 'Range Tanggal' },
+    { value: 'all', label: 'Semua Data' },
+];
+
 const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : String(value);
 
@@ -80,6 +89,13 @@ export default function PermintaanDanaBiayaIndex() {
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [pageSize, setPageSize] = useState(5);
+    const [period, setPeriod] = useState('today');
+    const [startDate, setStartDate] = useState(
+        new Date().toISOString().split('T')[0],
+    );
+    const [endDate, setEndDate] = useState(
+        new Date().toISOString().split('T')[0],
+    );
     const [page, setPage] = useState(1);
 
     const [rows, setRows] = useState([]);
@@ -117,7 +133,7 @@ export default function PermintaanDanaBiayaIndex() {
 
     useEffect(() => {
         setPage(1);
-    }, [debouncedSearch, pageSize]);
+    }, [debouncedSearch, pageSize, period, startDate, endDate]);
 
     const totalPages = useMemo(() => {
         if (pageSize === 'all') return 1;
@@ -136,6 +152,9 @@ export default function PermintaanDanaBiayaIndex() {
                 'pageSize',
                 pageSize === 'all' ? 'all' : String(pageSize),
             );
+            params.set('period', period);
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
             const res = await fetch(
                 `/pembayaran/permintaan-dana-biaya/rows?${params.toString()}`,
                 {
@@ -158,7 +177,7 @@ export default function PermintaanDanaBiayaIndex() {
     useEffect(() => {
         loadRows();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [debouncedSearch, pageSize, page]);
+    }, [debouncedSearch, pageSize, page, period, startDate, endDate]);
 
     const detailTotalPages = useMemo(() => {
         if (detailPageSize === 'all') return 1;
@@ -316,6 +335,46 @@ export default function PermintaanDanaBiayaIndex() {
                                     className="h-9 w-64"
                                 />
                             </div>
+                            <Select value={period} onValueChange={setPeriod}>
+                                <SelectTrigger className="h-9 w-[160px]">
+                                    <SelectValue placeholder="Pilih Periode" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {PERIOD_OPTIONS.map((opt) => (
+                                        <SelectItem
+                                            key={opt.value}
+                                            value={opt.value}
+                                        >
+                                            {opt.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+
+                            {period === 'custom' && (
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) =>
+                                            setStartDate(e.target.value)
+                                        }
+                                        className="h-9 w-[150px]"
+                                    />
+                                    <span className="text-sm text-muted-foreground">
+                                        s/d
+                                    </span>
+                                    <Input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) =>
+                                            setEndDate(e.target.value)
+                                        }
+                                        className="h-9 w-[150px]"
+                                    />
+                                </div>
+                            )}
+
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 Tampil
                                 <Select

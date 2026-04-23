@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Marketing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 
 class KwitansiPenjualanController
@@ -14,12 +15,40 @@ class KwitansiPenjualanController
         return Inertia::render('penjualan/kwitansi/index');
     }
 
-    public function listKwitansi()
+    public function listKwitansi(Request $request)
     {
-        $kwitansi = DB::table('tb_kwitansi')
-            ->select('no_kwitansi', 'ref_faktur', 'tgl', 'cs', 'ttl_faktur')
-            ->orderBy('no_kwitansi', 'desc')
-            ->get();
+        $period = $request->query('period', 'today');
+        $startDate = $request->query('startDate');
+        $endDate = $request->query('endDate');
+
+        $query = DB::table('tb_kwitansi')
+            ->select('no_kwitansi', 'ref_faktur', 'tgl', 'cs', 'ttl_faktur');
+
+        switch ($period) {
+            case 'today':
+                $query->whereDate('tgl', Carbon::today());
+                break;
+            case 'this_week':
+                $query->whereBetween('tgl', [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
+                break;
+            case 'this_month':
+                $query->whereMonth('tgl', Carbon::now()->month)
+                    ->whereYear('tgl', Carbon::now()->year);
+                break;
+            case 'this_year':
+                $query->whereYear('tgl', Carbon::now()->year);
+                break;
+            case 'custom':
+                if ($startDate && $endDate) {
+                    $query->whereBetween('tgl', [$startDate, $endDate]);
+                }
+                break;
+            case 'all':
+            default:
+                break;
+        }
+
+        $kwitansi = $query->orderBy('no_kwitansi', 'desc')->get();
 
         return response()->json([
             'data' => $kwitansi,

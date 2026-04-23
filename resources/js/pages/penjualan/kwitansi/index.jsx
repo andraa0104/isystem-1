@@ -10,6 +10,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import {
     Table,
     TableBody,
     TableCell,
@@ -29,6 +36,15 @@ const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Penjualan', href: '/penjualan/faktur-penjualan' },
     { title: 'Kwitansi', href: '/penjualan/faktur-penjualan/kwitansi' },
+];
+
+const PERIOD_OPTIONS = [
+    { value: 'today', label: 'Hari Ini' },
+    { value: 'this_week', label: 'Minggu Ini' },
+    { value: 'this_month', label: 'Bulan Ini' },
+    { value: 'this_year', label: 'Tahun Ini' },
+    { value: 'custom', label: 'Range Tanggal' },
+    { value: 'all', label: 'Semua Data' },
 ];
 
 const toNumber = (value) => {
@@ -59,6 +75,13 @@ export default function KwitansiIndex() {
     const [kwitansiData, setKwitansiData] = useState([]);
     const [kwitansiLoading, setKwitansiLoading] = useState(false);
     const [kwitansiError, setKwitansiError] = useState(null);
+    const [period, setPeriod] = useState('today');
+    const [startDate, setStartDate] = useState(
+        new Date().toISOString().split('T')[0],
+    );
+    const [endDate, setEndDate] = useState(
+        new Date().toISOString().split('T')[0],
+    );
 
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -90,9 +113,18 @@ export default function KwitansiIndex() {
         let isMounted = true;
         setKwitansiLoading(true);
         setKwitansiError(null);
-        fetch('/penjualan/faktur-penjualan/kwitansi/data', {
-            headers: { Accept: 'application/json' },
-        })
+
+        const params = new URLSearchParams();
+        params.set('period', period);
+        params.set('startDate', startDate);
+        params.set('endDate', endDate);
+
+        fetch(
+            `/penjualan/faktur-penjualan/kwitansi/data?${params.toString()}`,
+            {
+                headers: { Accept: 'application/json' },
+            },
+        )
             .then((response) => {
                 if (!response.ok)
                     return readApiError(response).then((err) =>
@@ -117,7 +149,7 @@ export default function KwitansiIndex() {
         return () => {
             isMounted = false;
         };
-    }, []);
+    }, [period, startDate, endDate]);
 
     const filteredKwitansi = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -428,6 +460,40 @@ export default function KwitansiIndex() {
                         <option value={100}>100</option>
                         <option value="all">Semua data</option>
                     </select>
+
+                    <Select value={period} onValueChange={setPeriod}>
+                        <SelectTrigger className="w-full md:w-[180px]">
+                            <SelectValue placeholder="Pilih Periode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {PERIOD_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    {period === 'custom' && (
+                        <div className="flex items-center gap-2">
+                            <Input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="w-full md:w-[150px]"
+                            />
+                            <span className="text-sm text-muted-foreground">
+                                s/d
+                            </span>
+                            <Input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full md:w-[150px]"
+                            />
+                        </div>
+                    )}
+
                     <Input
                         className="min-w-[240px]"
                         placeholder="Cari no kwitansi, invoice, customer..."
