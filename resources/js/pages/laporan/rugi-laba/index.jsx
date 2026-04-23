@@ -350,7 +350,6 @@ export default function RugiLabaIndex() {
     const drivers = useMemo(() => summary?.drivers ?? {}, [summary]);
 
     return (
-    return (
         <>
             <Head title="Rugi Laba" />
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
