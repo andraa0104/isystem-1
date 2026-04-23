@@ -17,7 +17,7 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { formatDateId } from '@/lib/formatters';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { Eye, Pencil, Printer } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
@@ -315,9 +315,9 @@ export default function DeliveryOrderCostIndex({
                         </p>
                     </div>
                     <Button asChild type="button">
-                        <a href="/pembelian/delivery-order-cost/create">
+                        <Link href="/pembelian/delivery-order-cost/create">
                             Tambah DO Biaya
-                        </a>
+                        </Link>
                     </Button>
                 </div>
 
@@ -915,13 +915,13 @@ export default function DeliveryOrderCostIndex({
                                                     label="Edit"
                                                     asChild
                                                 >
-                                                    <a
+                                                    <Link
                                                         href={`/pembelian/delivery-order-cost/${encodeURIComponent(
                                                             item.no_alokasi,
                                                         )}/edit`}
                                                     >
                                                         <Pencil className="size-4" />
-                                                    </a>
+                                                    </Link>
                                                 </ActionIconButton>
                                             </td>
                                         </tr>
