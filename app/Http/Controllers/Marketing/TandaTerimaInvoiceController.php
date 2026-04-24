@@ -40,6 +40,7 @@ class TandaTerimaInvoiceController
                 'no_ttinv',
                 DB::raw("max(tgl_doc) as tgl_doc"),
                 DB::raw('count(no_inv) as qty_invoice'),
+                DB::raw("max(nm_cs) as nm_cs"),
                 DB::raw("max(coalesce(nm_penerima, '')) as nm_penerima")
             )
             ->groupBy('no_ttinv')

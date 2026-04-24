@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { PlaceholderPattern } from '@/components/ui/placeholder-pattern';
+import UserNote from '@/components/user-note';
 import useCachedRequest from '@/hooks/use-cached-request';
 import useInView from '@/hooks/use-in-view';
 import AppLayout from '@/layouts/app-layout';
@@ -1753,8 +1753,8 @@ export default function Dashboard({
                     </div>
                 </div>
 
-                <div className="relative min-h-[220px] overflow-hidden rounded-xl border border-sidebar-border/70 sm:min-h-[260px] md:min-h-[320px] lg:min-h-[360px] dark:border-sidebar-border">
-                    <PlaceholderPattern className="absolute inset-0 size-full stroke-neutral-900/20 dark:stroke-neutral-100/20" />
+                <div className="mt-4">
+                    <UserNote />
                 </div>
             </div>
         </>

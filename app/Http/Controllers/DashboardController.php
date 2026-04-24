@@ -6,6 +6,8 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -120,6 +122,47 @@ class DashboardController
     public function deliveryStats()
     {
         return response()->json($this->buildDeliveryStats());
+    }
+
+    public function getUserNote(Request $request)
+    {
+        $userId = $request->user()->id;
+        $path = storage_path('app/user_notes.json');
+        
+        $notes = [];
+        if (file_exists($path)) {
+            $notes = json_decode(file_get_contents($path), true) ?: [];
+        }
+        
+        return response()->json([
+            'content' => $notes[$userId] ?? '',
+        ]);
+    }
+
+    public function saveUserNote(Request $request)
+    {
+        $userId = $request->user()->id;
+        $content = $request->input('content');
+        $path = storage_path('app/user_notes.json');
+
+        // Logging for audit
+        Log::info("UserNote SAVE: User ID $userId, Length " . strlen($content));
+
+        $notes = [];
+        if (file_exists($path)) {
+            $notes = json_decode(file_get_contents($path), true) ?: [];
+        }
+
+        $notes[$userId] = $content;
+        
+        try {
+            file_put_contents($path, json_encode($notes, JSON_PRETTY_PRINT));
+            chmod($path, 0777); // Ensure it stays writable
+            return response()->json(['message' => 'Catatan berhasil disimpan.']);
+        } catch (\Exception $e) {
+            Log::error("UserNote SAVE ERROR: " . $e->getMessage());
+            return response()->json(['message' => 'Gagal menyimpan catatan: ' . $e->getMessage()], 500);
+        }
     }
 
     private function buildQuotationStats(int $months = 12, string $group = 'week'): array

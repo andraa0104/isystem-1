@@ -21,7 +21,7 @@ import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { formatDateId } from '@/lib/formatters';
 import { Head, Link } from '@inertiajs/react';
-import { Eye, Printer } from 'lucide-react';
+import { Check, Edit, Eye, Printer } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -76,11 +76,6 @@ export default function TandaTerimaInvoiceIndex() {
     const [detailSearch, setDetailSearch] = useState('');
     const [detailPageSize, setDetailPageSize] = useState(5);
     const [detailCurrentPage, setDetailCurrentPage] = useState(1);
-
-    const [isPendingOpen, setIsPendingOpen] = useState(false);
-    const [pendingSearch, setPendingSearch] = useState('');
-    const [pendingPageSize, setPendingPageSize] = useState(5);
-    const [pendingCurrentPage, setPendingCurrentPage] = useState(1);
 
     const [isReceiveOpen, setIsReceiveOpen] = useState(false);
     const [receiveLoading, setReceiveLoading] = useState(false);
@@ -159,45 +154,6 @@ export default function TandaTerimaInvoiceIndex() {
             setDetailCurrentPage(detailTotalPages);
         }
     }, [detailCurrentPage, detailTotalPages]);
-
-    const pendingRows = useMemo(() => {
-        return rows.filter((row) => isBlank(row.nm_penerima));
-    }, [rows]);
-
-    const filteredPendingRows = useMemo(() => {
-        const term = pendingSearch.trim().toLowerCase();
-        if (!term) return pendingRows;
-        return pendingRows.filter((row) =>
-            String(row.no_ttinv || '')
-                .toLowerCase()
-                .includes(term),
-        );
-    }, [pendingRows, pendingSearch]);
-
-    const pendingTotalItems = filteredPendingRows.length;
-    const pendingTotalPages = useMemo(() => {
-        if (pendingPageSize === Infinity) return 1;
-        return Math.max(1, Math.ceil(pendingTotalItems / pendingPageSize));
-    }, [pendingPageSize, pendingTotalItems]);
-
-    const displayedPendingRows = useMemo(() => {
-        if (pendingPageSize === Infinity) return filteredPendingRows;
-        const startIndex = (pendingCurrentPage - 1) * pendingPageSize;
-        return filteredPendingRows.slice(
-            startIndex,
-            startIndex + pendingPageSize,
-        );
-    }, [filteredPendingRows, pendingCurrentPage, pendingPageSize]);
-
-    useEffect(() => {
-        setPendingCurrentPage(1);
-    }, [pendingPageSize, pendingSearch]);
-
-    useEffect(() => {
-        if (pendingCurrentPage > pendingTotalPages) {
-            setPendingCurrentPage(pendingTotalPages);
-        }
-    }, [pendingCurrentPage, pendingTotalPages]);
 
     const filteredRows = useMemo(() => {
         let filtered = rows;
@@ -388,31 +344,7 @@ export default function TandaTerimaInvoiceIndex() {
                     </Button>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                    <div
-                        className="cursor-pointer rounded-xl border border-border/60 bg-card p-4 transition hover:border-primary/60 hover:shadow-md"
-                        onClick={() => setIsPendingOpen(true)}
-                    >
-                        <div className="text-sm font-medium">
-                            Invoice Belum Diterima
-                        </div>
-                        <div className="mt-2 text-3xl font-semibold">
-                            {formatNumber(pendingCount)} Invoice
-                        </div>
-                    </div>
-                </div>
-
                 <div className="rounded-xl border border-border/60 bg-card">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
-                        <div>
-                            <div className="text-base font-semibold">
-                                Daftar Tanda Terima
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                                Data tanda terima invoice.
-                            </div>
-                        </div>
-                    </div>
                     <div className="flex flex-wrap items-center gap-3 px-4 py-3">
                         <select
                             className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
@@ -460,6 +392,7 @@ export default function TandaTerimaInvoiceIndex() {
                                                 Nomor Tanda Terima
                                             </TableHead>
                                             <TableHead>Date</TableHead>
+                                            <TableHead>Customer</TableHead>
                                             <TableHead className="text-right">
                                                 Qty Invoice
                                             </TableHead>
@@ -512,6 +445,9 @@ export default function TandaTerimaInvoiceIndex() {
                                                             row.tgl_doc,
                                                         )}
                                                     </TableCell>
+                                                    <TableCell>
+                                                        {row.nm_cs}
+                                                    </TableCell>
                                                     <TableCell className="text-right tabular-nums">
                                                         {formatNumber(
                                                             row.qty_invoice,
@@ -519,6 +455,37 @@ export default function TandaTerimaInvoiceIndex() {
                                                     </TableCell>
                                                     <TableCell className="sticky right-0 z-[1] bg-background/95 text-right">
                                                         <div className="inline-flex items-center justify-end gap-2">
+                                                            {isBlank(
+                                                                row.nm_penerima,
+                                                            ) && (
+                                                                <>
+                                                                    <ActionIconButton
+                                                                        label="Terima Invoice"
+                                                                        onClick={() =>
+                                                                            openReceive(
+                                                                                row.no_ttinv,
+                                                                            )
+                                                                        }
+                                                                        className="text-success hover:text-success"
+                                                                    >
+                                                                        <Check className="h-4 w-4" />
+                                                                    </ActionIconButton>
+                                                                    <ActionIconButton
+                                                                        label="Edit"
+                                                                        asChild
+                                                                        className="text-primary hover:text-primary"
+                                                                    >
+                                                                        <Link
+                                                                            href={`/penjualan/tanda-terima-invoice/edit?no_ttinv=${encodeURIComponent(
+                                                                                row.no_ttinv ??
+                                                                                    '',
+                                                                            )}`}
+                                                                        >
+                                                                            <Edit className="h-4 w-4" />
+                                                                        </Link>
+                                                                    </ActionIconButton>
+                                                                </>
+                                                            )}
                                                             <ActionIconButton
                                                                 label="Detail"
                                                                 onClick={() =>
@@ -825,160 +792,6 @@ export default function TandaTerimaInvoiceIndex() {
                     ) : (
                         <div className="py-6 text-sm text-muted-foreground">
                             Tidak ada data.
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={isPendingOpen} onOpenChange={setIsPendingOpen}>
-                <DialogContent className="h-[90vh] w-[95vw] max-w-[95vw] overflow-y-auto sm:h-[92vh] sm:w-[92vw] sm:max-w-[92vw]">
-                    <DialogHeader>
-                        <DialogTitle>Invoice Belum Diterima</DialogTitle>
-                        <DialogDescription>
-                            Daftar invoice yang belum diterima.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex flex-wrap items-center gap-3">
-                        <select
-                            className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
-                            value={
-                                pendingPageSize === Infinity
-                                    ? 'all'
-                                    : pendingPageSize
-                            }
-                            onChange={(event) => {
-                                const value = event.target.value;
-                                setPendingPageSize(
-                                    value === 'all' ? Infinity : Number(value),
-                                );
-                            }}
-                        >
-                            <option value={5}>5</option>
-                            <option value={10}>10</option>
-                            <option value={25}>25</option>
-                            <option value={50}>50</option>
-                            <option value="all">Semua</option>
-                        </select>
-                        <Input
-                            placeholder="Cari nomor tanda terima..."
-                            value={pendingSearch}
-                            onChange={(event) =>
-                                setPendingSearch(event.target.value)
-                            }
-                            className="min-w-[220px]"
-                        />
-                    </div>
-                    <div className="rounded-md border">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Nomor Tanda Terima</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Qty Invoice</TableHead>
-                                    <TableHead className="text-right">
-                                        Aksi
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {pendingTotalItems === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={5}>
-                                            Tidak ada data.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                                {displayedPendingRows.map((row, index) => (
-                                    <TableRow
-                                        key={`pending-${row.no_ttinv}-${row.tgl}-${row.nm_cs}-${index}`}
-                                    >
-                                        <TableCell>{row.no_ttinv}</TableCell>
-                                        <TableCell>{row.tgl_doc}</TableCell>
-                                        <TableCell>
-                                            {formatNumber(row.qty_invoice)}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="inline-flex items-center justify-end gap-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        openReceive(
-                                                            row.no_ttinv,
-                                                        )
-                                                    }
-                                                >
-                                                    Terima Invoice
-                                                </Button>
-                                                <Button
-                                                    asChild
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                >
-                                                    <Link
-                                                        href={`/penjualan/tanda-terima-invoice/edit?no_ttinv=${encodeURIComponent(
-                                                            row.no_ttinv ?? '',
-                                                        )}`}
-                                                    >
-                                                        Edit
-                                                    </Link>
-                                                </Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </div>
-                    {pendingPageSize !== Infinity && pendingTotalItems > 0 && (
-                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <span>
-                                Menampilkan{' '}
-                                {(pendingCurrentPage - 1) * pendingPageSize + 1}{' '}
-                                -{' '}
-                                {Math.min(
-                                    pendingCurrentPage * pendingPageSize,
-                                    pendingTotalItems,
-                                )}{' '}
-                                dari {pendingTotalItems} data
-                            </span>
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        setPendingCurrentPage((page) =>
-                                            Math.max(1, page - 1),
-                                        )
-                                    }
-                                    disabled={pendingCurrentPage === 1}
-                                >
-                                    Sebelumnya
-                                </Button>
-                                <span>
-                                    Halaman {pendingCurrentPage} dari{' '}
-                                    {pendingTotalPages}
-                                </span>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        setPendingCurrentPage((page) =>
-                                            Math.min(
-                                                pendingTotalPages,
-                                                page + 1,
-                                            ),
-                                        )
-                                    }
-                                    disabled={
-                                        pendingCurrentPage === pendingTotalPages
-                                    }
-                                >
-                                    Berikutnya
-                                </Button>
-                            </div>
                         </div>
                     )}
                 </DialogContent>

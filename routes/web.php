@@ -80,6 +80,10 @@ Route::get('dashboard/delivery-stats', [DashboardController::class, 'deliverySta
     ->name('dashboard.delivery-stats');
 Route::get('dashboard/sales-hpp-stats/{period?}', [DashboardController::class, 'getSalesHppStats'])
     ->name('dashboard.sales-hpp-stats');
+Route::get('dashboard/user-note', [DashboardController::class, 'getUserNote'])
+    ->name('dashboard.user-note');
+Route::post('dashboard/user-note', [DashboardController::class, 'saveUserNote'])
+    ->name('dashboard.user-note.save');
 
 Route::get('laporan/jurnal-umum', [JurnalUmumController::class, 'index'])
     ->name('laporan.jurnal-umum.index');

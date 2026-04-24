@@ -103,11 +103,23 @@ const parseInvoiceDate = (value) => {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const PERIOD_OPTIONS = [
+    { value: 'today', label: 'Hari Ini' },
+    { value: 'this_week', label: 'Minggu Ini' },
+    { value: 'this_month', label: 'Bulan Ini' },
+    { value: 'this_year', label: 'Tahun Ini' },
+    { value: 'custom', label: 'Range Tanggal' },
+    { value: 'all', label: 'Semua Data' },
+];
+
 export default function FakturPenjualanIndex({
     unpaidCount = 0,
     unpaidTotal = 0,
     noReceiptCount = 0,
     noReceiptTotal = 0,
+    dueCount = 0,
+    dueTotal = 0,
+    initialQuery = {},
 }) {
     const [invoicesData, setInvoicesData] = useState([]);
     const [invoicesLoading, setInvoicesLoading] = useState(false);
@@ -117,6 +129,23 @@ export default function FakturPenjualanIndex({
     const [currentPage, setCurrentPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState('unpaid');
     const [noReceiptRange, setNoReceiptRange] = useState('today');
+
+    const [period, setPeriod] = useState(initialQuery?.period || 'today');
+    const [startDate, setStartDate] = useState(
+        initialQuery?.startDate || new Date().toISOString().split('T')[0],
+    );
+    const [endDate, setEndDate] = useState(
+        initialQuery?.endDate || new Date().toISOString().split('T')[0],
+    );
+
+    const [counts, setCounts] = useState({
+        unpaidCount,
+        unpaidTotal,
+        noReceiptCount,
+        noReceiptTotal,
+        dueCount,
+        dueTotal,
+    });
 
     const [isDetailOpen, setIsDetailOpen] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -148,7 +177,15 @@ export default function FakturPenjualanIndex({
     const fetchInvoices = () => {
         setInvoicesLoading(true);
         setInvoicesError(null);
-        fetch('/penjualan/faktur-penjualan/data', {
+
+        const params = new URLSearchParams();
+        params.set('period', period);
+        if (period === 'custom') {
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
+        }
+
+        fetch(`/penjualan/faktur-penjualan/data?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
@@ -160,6 +197,9 @@ export default function FakturPenjualanIndex({
             })
             .then((data) => {
                 setInvoicesData(Array.isArray(data?.data) ? data.data : []);
+                if (data?.summary) {
+                    setCounts(data.summary);
+                }
             })
             .catch((err) => {
                 setInvoicesError(
@@ -216,7 +256,27 @@ export default function FakturPenjualanIndex({
 
     useEffect(() => {
         fetchInvoices();
-    }, []);
+    }, [period, startDate, endDate]);
+
+    const handlePeriodChange = (newPeriod) => {
+        setPeriod(newPeriod);
+        if (newPeriod !== 'custom') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('period', newPeriod);
+            url.searchParams.delete('startDate');
+            url.searchParams.delete('endDate');
+            window.history.replaceState({}, '', url.toString());
+        }
+    };
+
+    const handleApplyCustomRange = () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('period', 'custom');
+        url.searchParams.set('startDate', startDate);
+        url.searchParams.set('endDate', endDate);
+        window.history.replaceState({}, '', url.toString());
+        fetchInvoices();
+    };
 
     const filteredInvoices = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -731,10 +791,10 @@ export default function FakturPenjualanIndex({
                         </CardHeader>
                         <CardContent className="space-y-1 pt-2">
                             <p className="text-3xl font-semibold">
-                                {formatNumber(unpaidCount)} Invoice
+                                {formatNumber(counts.unpaidCount)} Invoice
                             </p>
                             <p className="text-sm text-muted-foreground">
-                                Grand Total: {formatRupiah(unpaidTotal)}
+                                Grand Total: {formatRupiah(counts.unpaidTotal)}
                             </p>
                         </CardContent>
                     </Card>
@@ -768,11 +828,11 @@ export default function FakturPenjualanIndex({
                         </CardHeader>
                         <CardContent className="space-y-1 pt-2">
                             <p className="text-3xl font-semibold">
-                                {formatNumber(noReceiptSummary.count)} Invoice
+                                {formatNumber(counts.noReceiptCount)} Invoice
                             </p>
                             <p className="text-sm text-muted-foreground">
                                 Grand Total:{' '}
-                                {formatRupiah(noReceiptSummary.total)}
+                                {formatRupiah(counts.noReceiptTotal)}
                             </p>
                         </CardContent>
                     </Card>
@@ -787,58 +847,143 @@ export default function FakturPenjualanIndex({
                                     Data faktur penjualan.
                                 </CardDescription>
                             </div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
+                                        Periode
+                                    </span>
+                                    <select
+                                        className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
+                                        value={period}
+                                        onChange={(e) =>
+                                            handlePeriodChange(e.target.value)
+                                        }
+                                    >
+                                        {PERIOD_OPTIONS.map((opt) => (
+                                            <option
+                                                key={opt.value}
+                                                value={opt.value}
+                                            >
+                                                {opt.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {period === 'custom' && (
+                                    <>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[10px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
+                                                Dari
+                                            </span>
+                                            <Input
+                                                type="date"
+                                                className="h-9 w-[150px]"
+                                                value={startDate}
+                                                onChange={(e) =>
+                                                    setStartDate(e.target.value)
+                                                }
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[10px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
+                                                Sampai
+                                            </span>
+                                            <Input
+                                                type="date"
+                                                className="h-9 w-[150px]"
+                                                value={endDate}
+                                                onChange={(e) =>
+                                                    setEndDate(e.target.value)
+                                                }
+                                            />
+                                        </div>
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            className="mt-5 h-9"
+                                            onClick={handleApplyCustomRange}
+                                        >
+                                            Terapkan
+                                        </Button>
+                                    </>
+                                )}
+                            </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <select
-                                className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
-                                value={pageSize === Infinity ? 'all' : pageSize}
-                                onChange={(event) => {
-                                    const value = event.target.value;
-                                    setPageSize(
-                                        value === 'all'
-                                            ? Infinity
-                                            : Number(value),
-                                    );
-                                }}
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value="all">Semua</option>
-                            </select>
-                            <select
-                                className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
-                                value={statusFilter}
-                                onChange={(event) =>
-                                    setStatusFilter(event.target.value)
-                                }
-                            >
-                                <option value="unpaid">
-                                    Invoice belum dibayar
-                                </option>
-                                <option value="not-received">
-                                    Invoice belum diterima user
-                                </option>
-                                <option value="no-receipt">
-                                    Invoice belum dibikin kwitansi
-                                </option>
-                                <option value="not-posted">
-                                    Invoice belum dibukukan
-                                </option>
-                                <option value="unpaid-balance">
-                                    Invoice belum lunas
-                                </option>
-                                <option value="all">Semua invoice</option>
-                            </select>
-                            <Input
-                                placeholder="Cari no invoice, ref po, customer..."
-                                value={searchTerm}
-                                onChange={(event) =>
-                                    setSearchTerm(event.target.value)
-                                }
-                                className="min-w-[220px]"
-                            />
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
+                                        Baris
+                                    </span>
+                                    <select
+                                        className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
+                                        value={
+                                            pageSize === Infinity
+                                                ? 'all'
+                                                : pageSize
+                                        }
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            setPageSize(
+                                                value === 'all'
+                                                    ? Infinity
+                                                    : Number(value),
+                                            );
+                                        }}
+                                    >
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                        <option value="all">Semua</option>
+                                    </select>
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-[10px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
+                                        Filter Status
+                                    </span>
+                                    <select
+                                        className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
+                                        value={statusFilter}
+                                        onChange={(event) =>
+                                            setStatusFilter(event.target.value)
+                                        }
+                                    >
+                                        <option value="unpaid">
+                                            Invoice belum dibayar
+                                        </option>
+                                        <option value="not-received">
+                                            Invoice belum diterima user
+                                        </option>
+                                        <option value="no-receipt">
+                                            Invoice belum dibikin kwitansi
+                                        </option>
+                                        <option value="not-posted">
+                                            Invoice belum dibukukan
+                                        </option>
+                                        <option value="unpaid-balance">
+                                            Invoice belum lunas
+                                        </option>
+                                        <option value="all">
+                                            Semua invoice
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex flex-1 flex-col gap-1">
+                                <span className="text-[10px] font-semibold tracking-wider text-muted-foreground/70 uppercase">
+                                    Cari
+                                </span>
+                                <Input
+                                    placeholder="Cari no invoice, ref po, customer..."
+                                    value={searchTerm}
+                                    onChange={(event) =>
+                                        setSearchTerm(event.target.value)
+                                    }
+                                    className="h-9 w-full"
+                                />
+                            </div>
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-4">

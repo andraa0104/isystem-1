@@ -11,55 +11,33 @@ use Carbon\Carbon;
 
 class FakturPenjualanController
 {
-    public function index()
+    public function index(Request $request)
     {
-        $unpaidCount = DB::table('tb_kdfakturpenjualan')
-            ->where('total_bayaran', 0)
-            ->count();
+        $period = $request->query('period', 'today');
+        $startDate = $request->query('startDate');
+        $endDate = $request->query('endDate');
 
-        $unpaidTotal = DB::table('tb_kdfakturpenjualan')
-            ->where('total_bayaran', 0)
-            ->sum(DB::raw('coalesce(cast(g_total as decimal(18,4)), 0)'));
+        $baseQuery = DB::table('tb_kdfakturpenjualan');
+        $this->applyDateFilter($baseQuery, $period, $startDate, $endDate);
 
-        $noReceiptCount = DB::table('tb_kdfakturpenjualan')
-            ->where(function ($query) {
-                $query->whereNull('no_kwitansi')
-                    ->orWhereRaw("ltrim(rtrim(coalesce(no_kwitansi, ''))) = ''")
-                    ->orWhereRaw("upper(ltrim(rtrim(coalesce(no_kwitansi, '')))) = 'NULL'");
-            })
-            ->count();
+        $summaries = $this->calculateSummaries($baseQuery);
 
-        $noReceiptTotal = DB::table('tb_kdfakturpenjualan')
-            ->where(function ($query) {
-                $query->whereNull('no_kwitansi')
-                    ->orWhereRaw("ltrim(rtrim(coalesce(no_kwitansi, ''))) = ''")
-                    ->orWhereRaw("upper(ltrim(rtrim(coalesce(no_kwitansi, '')))) = 'NULL'");
-            })
-            ->sum(DB::raw('coalesce(cast(g_total as decimal(18,4)), 0)'));
-
-        $dueCount = DB::table('tb_kdfakturpenjualan')
-            ->where('total_bayaran', 0)
-            ->whereDate('jth_tempo', '<=', now())
-            ->count();
-
-        $dueTotal = DB::table('tb_kdfakturpenjualan')
-            ->where('total_bayaran', 0)
-            ->whereDate('jth_tempo', '<=', now())
-            ->sum(DB::raw('coalesce(cast(g_total as decimal(18,4)), 0)'));
-
-        return Inertia::render('penjualan/faktur-penjualan/index', [
-            'unpaidCount' => $unpaidCount,
-            'unpaidTotal' => $unpaidTotal,
-            'noReceiptCount' => $noReceiptCount,
-            'noReceiptTotal' => $noReceiptTotal,
-            'dueCount' => $dueCount,
-            'dueTotal' => $dueTotal,
-        ]);
+        return Inertia::render('penjualan/faktur-penjualan/index', array_merge($summaries, [
+            'initialQuery' => [
+                'period' => $period,
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+            ],
+        ]));
     }
 
-    public function listInvoices()
+    public function listInvoices(Request $request)
     {
-        $invoices = DB::table('tb_kdfakturpenjualan')
+        $period = $request->query('period', 'today');
+        $startDate = $request->query('startDate');
+        $endDate = $request->query('endDate');
+
+        $query = DB::table('tb_kdfakturpenjualan')
             ->select(
                 'no_fakturpenjualan',
                 'tgl_doc',
@@ -72,13 +50,85 @@ class FakturPenjualanController
                 'no_kwitansi',
                 'jth_tempo',
                 'trx_jurnal',
-            )
-            ->orderBy('no_fakturpenjualan', 'desc')
+            );
+
+        $this->applyDateFilter($query, $period, $startDate, $endDate);
+
+        $invoices = $query->orderBy('no_fakturpenjualan', 'desc')
             ->get();
+
+        // Include summaries for partial reload
+        $baseQuery = DB::table('tb_kdfakturpenjualan');
+        $this->applyDateFilter($baseQuery, $period, $startDate, $endDate);
+        $summaries = $this->calculateSummaries($baseQuery);
 
         return response()->json([
             'data' => $invoices,
+            'summary' => $summaries,
         ]);
+    }
+
+    private function calculateSummaries($baseQuery)
+    {
+        $unpaidCount = (clone $baseQuery)
+            ->where('total_bayaran', 0)
+            ->count();
+
+        $unpaidTotal = (clone $baseQuery)
+            ->where('total_bayaran', 0)
+            ->sum(DB::raw('coalesce(cast(g_total as decimal(18,4)), 0)'));
+
+        $noReceiptQuery = (clone $baseQuery)
+            ->where(function ($query) {
+                $query->whereNull('no_kwitansi')
+                    ->orWhereRaw("ltrim(rtrim(coalesce(no_kwitansi, ''))) = ''")
+                    ->orWhereRaw("upper(ltrim(rtrim(coalesce(no_kwitansi, '')))) = 'NULL'");
+            });
+        $noReceiptCount = $noReceiptQuery->count();
+        $noReceiptTotal = $noReceiptQuery->sum(DB::raw('coalesce(cast(g_total as decimal(18,4)), 0)'));
+
+        $dueQuery = (clone $baseQuery)
+            ->where('total_bayaran', 0)
+            ->whereDate('jth_tempo', '<=', now());
+        $dueCount = $dueQuery->count();
+        $dueTotal = $dueQuery->sum(DB::raw('coalesce(cast(g_total as decimal(18,4)), 0)'));
+
+        return [
+            'unpaidCount' => $unpaidCount,
+            'unpaidTotal' => $unpaidTotal,
+            'noReceiptCount' => $noReceiptCount,
+            'noReceiptTotal' => $noReceiptTotal,
+            'dueCount' => $dueCount,
+            'dueTotal' => $dueTotal,
+        ];
+    }
+
+    private function applyDateFilter($query, $period, $startDate, $endDate, $dateColumn = 'tgl_doc')
+    {
+        switch ($period) {
+            case 'today':
+                $query->whereDate($dateColumn, Carbon::today());
+                break;
+            case 'this_week':
+                $query->whereBetween($dateColumn, [Carbon::now()->startOfWeek(), Carbon::now()->endOfWeek()]);
+                break;
+            case 'this_month':
+                $query->whereMonth($dateColumn, Carbon::now()->month)
+                    ->whereYear($dateColumn, Carbon::now()->year);
+                break;
+            case 'this_year':
+                $query->whereYear($dateColumn, Carbon::now()->year);
+                break;
+            case 'custom':
+                if ($startDate && $endDate) {
+                    $query->whereBetween($dateColumn, [$startDate, $endDate]);
+                }
+                break;
+            case 'all':
+            default:
+                break;
+        }
+        return $query;
     }
 
 
