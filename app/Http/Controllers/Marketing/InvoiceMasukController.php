@@ -381,7 +381,6 @@ class InvoiceMasukController
                 'no_doc' => $newCode,
                 't_doc' => $payload['no_receipt'],
                 'ref_po' => $payload['ref_po'],
-                'no_gudang' => $payload['no_gudang'],
                 'doc_rec' => $docRec,
                 'inv_d' => $invDate,
                 'post' => $postDate,
@@ -416,12 +415,12 @@ class InvoiceMasukController
                 $kdMatLower = strtolower($item['kd_mat']);
                 $prev = $poDetails->get($kdMatLower);
                 $idPo = $prev->id_po ?? 0;
+                $idMi = $prev->id ?? 0;
 
                 $items[] = [
                     'no_doc' => $newCode,
                     't_doc' => $payload['no_receipt'],
                     'ref_po' => $payload['ref_po'],
-                    'no_gudang' => $payload['no_gudang'],
                     'doc_rec' => $docRecDetail,
                     'inv_d' => $invDateDetail,
                     'p_term' => $payload['p_term'],
@@ -439,6 +438,7 @@ class InvoiceMasukController
                     'rest_po' => 0,
                     'post' => $postDateDetail,
                     'id_po' => $idPo,
+                    'id_mi' => $idMi,
                 ];
 
                 // Update tb_detailpo using pre-calculated values
@@ -456,6 +456,12 @@ class InvoiceMasukController
                         'end_fl' => $newEndFl,
                         'end_gr' => DB::raw("COALESCE(end_gr, 0) + " . (float)$item['total_price'])
                     ]);
+
+                // Update tb_mi inv status
+                DB::table('tb_mi')
+                    ->where('no_doc', $payload['no_gudang'])
+                    ->where('kd_mat', $item['kd_mat'])
+                    ->update(['inv' => 1]);
             }
 
             DB::table('tb_invin')->insert($items);
@@ -535,45 +541,44 @@ class InvoiceMasukController
                     ->value('ref_po');
             }
 
-            // update tb_detailpo dulu sebelum data invoice dihapus
-            if ($refPo) {
-                DB::table('tb_detailpo')
-                    ->where('no_po', $refPo)
-                    ->update([
-                        'end_fl' => 0,
-                    ]);
-            }
-
             $detailItems = DB::table('tb_invin')
                 ->where('no_doc', $noDoc)
-                ->select('kd_mat', 'qty_gr', 'ttl_harga')
+                ->select('kd_mat', 'qty_gr', 'ttl_harga', 'id_mi')
                 ->get();
 
             if ($refPo && count($detailItems) > 0) {
-                $noGudang = $header->no_gudang ?? null;
-                $kdMaterials = $detailItems->pluck('kd_mat')->unique()->toArray();
-
-                // Bulk fetch PO details
-                $poQuery = DB::table('tb_detailpo')
-                    ->where('no_po', $refPo)
-                    ->whereIn('kd_mat', $kdMaterials);
-                
-                if ($noGudang) {
-                    $poQuery->where('no_gudang', $noGudang);
-                }
-
-                $poDetails = $poQuery->get()->groupBy(fn($item) => strtolower($item->kd_mat));
-
                 foreach ($detailItems as $item) {
-                    $kdMatLower = strtolower($item->kd_mat);
-                    if ($poDetails->has($kdMatLower)) {
-                        DB::table('tb_detailpo')
+                    $miDetail = null;
+                    if (isset($item->id_mi) && $item->id_mi > 0) {
+                        $miDetail = DB::table('tb_detailpo')->where('id', $item->id_mi)->first();
+                    } else {
+                        $miDetail = DB::table('tb_detailpo')
                             ->where('no_po', $refPo)
                             ->where('kd_mat', $item->kd_mat)
-                            ->when($noGudang, fn($q) => $q->where('no_gudang', $noGudang))
-                            ->decrement('end_fl', (float)($item->qty_gr ?? 0), [
+                            ->first();
+                    }
+
+                    if ($miDetail) {
+                        // Revert ir_mat and ir_price
+                        // Base on store logic: new = input - old => old = input - new
+                        $restoredIrMat = (float)($item->qty_gr ?? 0) - (float)($miDetail->ir_mat ?? 0);
+                        $restoredIrPrice = (float)($item->ttl_harga ?? 0) - (float)($miDetail->ir_price ?? 0);
+
+                        // Update tb_detailpo
+                        DB::table('tb_detailpo')
+                            ->where('id', $miDetail->id)
+                            ->update([
+                                'ir_mat' => $restoredIrMat,
+                                'ir_price' => $restoredIrPrice,
+                                'end_fl' => DB::raw("COALESCE(end_fl, 0) - " . (float)($item->qty_gr ?? 0)),
                                 'end_gr' => DB::raw("COALESCE(end_gr, 0) - " . (float)($item->ttl_harga ?? 0))
                             ]);
+
+                        // Update tb_mi inv status
+                        DB::table('tb_mi')
+                            ->where('no_doc', $miDetail->no_gudang)
+                            ->where('kd_mat', $item->kd_mat)
+                            ->update(['inv' => 0]);
                     }
                 }
             }
