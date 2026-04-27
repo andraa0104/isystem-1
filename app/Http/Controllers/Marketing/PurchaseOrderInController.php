@@ -107,13 +107,14 @@ class PurchaseOrderInController
         $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
         $statusFilter = $request->query('status', 'outstanding');
         $page = max(1, (int) $request->query('page', 1));
+        $isPartial = $request->boolean('is_partial', false);
 
-        $data = $this->getPurchaseOrderInData($search, $perPage, $statusFilter, $page);
+        $data = $this->getPurchaseOrderInData($search, $perPage, $statusFilter, $page, $isPartial);
 
         return response()->json($data);
     }
 
-    private function getPurchaseOrderInData($search, $perPage, $statusFilter, $page)
+    private function getPurchaseOrderInData($search, $perPage, $statusFilter, $page, $isPartial = false)
     {
         $detailStats = DB::table('tb_detailpoin')
             ->select('kode_poin')
@@ -173,6 +174,18 @@ class PurchaseOrderInController
                 ->orderByDesc('p.id')
                 ->forPage($page, $perPage)
                 ->get();
+        }
+
+        if ($isPartial) {
+            return [
+                'purchaseOrderIns' => $rows,
+                'pagination' => [
+                    'total' => $total,
+                    'page' => $page,
+                    'per_page' => $perPage === null ? 'all' : $perPage,
+                    'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
+                ],
+            ];
         }
 
         $now = now();

@@ -24,7 +24,7 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 
 const breadcrumbs = [
@@ -170,6 +170,8 @@ export default function PurchaseOrderInIndex({
     const [purchaseOrderIns, setPurchaseOrderIns] = useState(
         initialPurchaseOrderIns,
     );
+    const [loading, setLoading] = useState(true);
+    const [tableLoading, setTableLoading] = useState(false);
     const [summary, setSummary] = useState(initialSummary);
     const [outstandingPurchaseOrderIns, setOutstandingPurchaseOrderIns] =
         useState(initialOutstandingPoIns);
@@ -180,7 +182,6 @@ export default function PurchaseOrderInIndex({
     const [allPurchaseOrderIns, setAllPurchaseOrderIns] =
         useState(initialAllPoIns);
     const [pagination, setPagination] = useState(initialPagination);
-    const [loading, setLoading] = useState(false);
 
     // Trigger lazy load for allPurchaseOrderIns when modal is opened
     useEffect(() => {
@@ -212,36 +213,34 @@ export default function PurchaseOrderInIndex({
     const [confirmDeleteKode, setConfirmDeleteKode] = useState('');
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
-    const [isTableLoading, setIsTableLoading] = useState(false);
 
-    useEffect(() => {
-        const removeStartListener = router.on('start', (event) => {
-            if (
-                event.detail.visit.url.pathname ===
-                '/marketing/purchase-order-in'
-            ) {
-                setIsTableLoading(true);
-            }
-        });
-        const removeFinishListener = router.on('finish', () => {
-            setIsTableLoading(false);
-        });
-
-        return () => {
-            removeStartListener();
-            removeFinishListener();
-        };
-    }, []);
+    const isFirstRender = useRef(true);
 
     const fetchPoInData = async (params = {}) => {
-        setLoading(true);
+        const isPartial = params.isPartial ?? false;
+
+        if (isPartial) {
+            setTableLoading(true);
+        } else {
+            setLoading(true);
+            setTableLoading(true);
+        }
+
         try {
             const queryParams = new URLSearchParams({
                 search: params.search ?? search,
                 per_page: params.per_page ?? perPage,
                 status: params.status ?? statusFilter,
-                page: params.page ?? pagination.page ?? 1,
+                page:
+                    params.page ??
+                    (params.isPartial
+                        ? pagination.page
+                        : (pagination.page ?? 1)),
             });
+
+            if (isPartial) {
+                queryParams.append('is_partial', '1');
+            }
 
             const response = await fetch(
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
@@ -252,28 +251,42 @@ export default function PurchaseOrderInIndex({
             const data = await response.json();
 
             setPurchaseOrderIns(data.purchaseOrderIns || []);
-            setSummary(data.summary || {});
-            setOutstandingPurchaseOrderIns(
-                data.outstandingPurchaseOrderIns || [],
-            );
-            setBelumPrPurchaseOrderIns(data.belumPrPurchaseOrderIns || []);
-            setRealizedPurchaseOrderIns(data.realizedPurchaseOrderIns || []);
-            setAllPurchaseOrderIns(data.allPurchaseOrderIns || []);
+
+            if (!isPartial) {
+                setSummary(data.summary || {});
+                setOutstandingPurchaseOrderIns(
+                    data.outstandingPurchaseOrderIns || [],
+                );
+                setBelumPrPurchaseOrderIns(data.belumPrPurchaseOrderIns || []);
+                setRealizedPurchaseOrderIns(
+                    data.realizedPurchaseOrderIns || [],
+                );
+                setAllPurchaseOrderIns(data.allPurchaseOrderIns || []);
+            }
+
             setPagination(data.pagination || {});
         } catch (error) {
             console.error('Error fetching PO In data:', error);
         } finally {
-            setLoading(false);
+            if (!isPartial) setLoading(false);
+            setTableLoading(false);
         }
     };
 
     useEffect(() => {
-        fetchPoInData();
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            fetchPoInData({ isPartial: false });
+        } else {
+            fetchPoInData({ isPartial: true });
+        }
     }, [perPage, statusFilter]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            fetchPoInData({ search, page: 1 });
+            if (!isFirstRender.current) {
+                fetchPoInData({ search, page: 1, isPartial: true });
+            }
         }, 400);
         return () => clearTimeout(timer);
     }, [search]);
@@ -777,7 +790,7 @@ export default function PurchaseOrderInIndex({
                             Total Data PO IN
                         </p>
                         <div className="mt-1 flex items-baseline gap-2">
-                            <p className="text-2xl font-bold">
+                            <div className="text-2xl font-bold">
                                 {loading ? (
                                     <Skeleton className="h-8 w-12" />
                                 ) : dataPoInPeriod === 'range' ? (
@@ -785,7 +798,7 @@ export default function PurchaseOrderInIndex({
                                 ) : (
                                     dataItemsByPeriod.length
                                 )}
-                            </p>
+                            </div>
                             <p
                                 className={cn(
                                     'text-sm font-semibold',
@@ -827,6 +840,7 @@ export default function PurchaseOrderInIndex({
                                 value={statusFilter}
                                 onChange={(event) => {
                                     setStatusFilter(event.target.value);
+                                    // The useEffect will handle the partial fetch
                                 }}
                             >
                                 <option value="all">Semua Data</option>
@@ -844,7 +858,7 @@ export default function PurchaseOrderInIndex({
                                 onChange={(event) => {
                                     const value = event.target.value;
                                     setPerPage(value);
-                                    fetchTable({ per_page: value, page: 1 });
+                                    // The useEffect will handle the partial fetch
                                 }}
                             >
                                 <option value="5">5 data</option>
@@ -882,18 +896,18 @@ export default function PurchaseOrderInIndex({
                             </thead>
                             <tbody>
                                 <PlainTableStateRows
-                                    loading={loading}
+                                    loading={tableLoading}
                                     columns={7}
                                     skeletonRows={
                                         perPage === 'all' ? 5 : Number(perPage)
                                     }
                                     isEmpty={
-                                        !loading &&
+                                        !tableLoading &&
                                         purchaseOrderIns.length === 0
                                     }
                                     emptyTitle="Belum ada data PO In."
                                 />
-                                {!loading &&
+                                {!tableLoading &&
                                     purchaseOrderIns.map((item, index) => (
                                         <tr
                                             key={item.id ?? item.no_poin}
@@ -991,13 +1005,14 @@ export default function PurchaseOrderInIndex({
                                             Number(pagination.page || 1) <= 1
                                         }
                                         onClick={() =>
-                                            fetchTable({
+                                            fetchPoInData({
                                                 page: Math.max(
                                                     1,
                                                     Number(
                                                         pagination.page || 1,
                                                     ) - 1,
                                                 ),
+                                                isPartial: true,
                                             })
                                         }
                                     >
@@ -1016,7 +1031,7 @@ export default function PurchaseOrderInIndex({
                                             Number(pagination.total_pages || 1)
                                         }
                                         onClick={() =>
-                                            fetchTable({
+                                            fetchPoInData({
                                                 page: Math.min(
                                                     Number(
                                                         pagination.total_pages ||
@@ -1026,6 +1041,7 @@ export default function PurchaseOrderInIndex({
                                                         pagination.page || 1,
                                                     ) + 1,
                                                 ),
+                                                isPartial: true,
                                             })
                                         }
                                     >
