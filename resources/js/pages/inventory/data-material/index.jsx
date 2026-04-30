@@ -40,6 +40,15 @@ const getCsrfToken = () => {
     return el?.getAttribute('content') || '';
 };
 
+const numericColumns = new Set([
+    'Qty',
+    'Price',
+    'Total Price',
+    'MIU',
+    'MIS',
+    'MIB',
+]);
+
 function SectionCollapse({ id, label }) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -228,7 +237,6 @@ function SectionCollapse({ id, label }) {
                 'No MIB',
                 'Material',
                 'Qty',
-                'Satuan',
                 'Price',
                 'Total Price',
                 'MIB',
@@ -241,7 +249,6 @@ function SectionCollapse({ id, label }) {
             'Ref PO',
             'Material',
             'Qty',
-            'Satuan',
             'Price',
             'Total Price',
             id === 'mis' ? 'MIS' : 'MIU',
@@ -394,7 +401,15 @@ function SectionCollapse({ id, label }) {
                                             {columns.map((col, i, arr) => (
                                                 <th
                                                     key={col}
-                                                    className={`border-b px-3 py-2 font-semibold ${i === 0 ? 'rounded-tl-xl' : ''} ${i === arr.length - 1 ? 'rounded-tr-xl' : ''} ${col === 'Aksi' ? 'sticky right-0 z-[2] w-16 bg-background/95 text-center shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.6)]' : 'text-left'}`}
+                                                    className={`border-b px-3 py-2 font-semibold ${i === 0 ? 'rounded-tl-xl' : ''} ${i === arr.length - 1 ? 'rounded-tr-xl' : ''} ${
+                                                        col === 'Aksi'
+                                                            ? 'sticky right-0 z-[2] w-16 bg-background/95 text-center shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.6)]'
+                                                            : numericColumns.has(
+                                                                    col,
+                                                                )
+                                                              ? 'text-right'
+                                                              : 'text-left'
+                                                    }`}
                                                 >
                                                     {col}
                                                 </th>
@@ -406,7 +421,7 @@ function SectionCollapse({ id, label }) {
                                             <tr>
                                                 <td
                                                     colSpan={columns.length}
-                                                    className="px-3 py-8 text-center text-muted-foreground"
+                                                    className="px-3 py-7 text-center text-muted-foreground"
                                                 >
                                                     {error ? (
                                                         <div className="mx-auto max-w-2xl">
@@ -437,10 +452,7 @@ function SectionCollapse({ id, label }) {
                                                         <td className="border-b px-3 py-2 text-right align-top whitespace-nowrap tabular-nums">
                                                             {formatNumber(
                                                                 row.qty,
-                                                            )}
-                                                        </td>
-                                                        <td className="border-b px-3 py-2 align-top whitespace-nowrap">
-                                                            {row.unit}
+                                                            )} {row.unit}
                                                         </td>
                                                         <td className="border-b px-3 py-2 text-right align-top whitespace-nowrap tabular-nums">
                                                             {formatNumber(
@@ -495,10 +507,7 @@ function SectionCollapse({ id, label }) {
                                                         <td className="border-b px-3 py-2 text-right align-top whitespace-nowrap tabular-nums">
                                                             {formatNumber(
                                                                 row.qty,
-                                                            )}
-                                                        </td>
-                                                        <td className="border-b px-3 py-2 align-top whitespace-nowrap">
-                                                            {row.unit}
+                                                            )} {row.unit}
                                                         </td>
                                                         <td className="border-b px-3 py-2 text-right align-top whitespace-nowrap tabular-nums">
                                                             {formatNumber(
