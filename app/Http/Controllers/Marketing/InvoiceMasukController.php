@@ -9,9 +9,69 @@ use Inertia\Inertia;
 
 class InvoiceMasukController
 {
+    private function normalizeDate(?string $value): ?string
+    {
+        if (!$value) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse($value)->toDateString();
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function applyDocRecDateFilter(
+        $query,
+        string $period = 'all',
+        ?string $dateFrom = null,
+        ?string $dateTo = null
+    ): void {
+        $today = Carbon::now();
+
+        switch ($period) {
+            case 'today':
+                $query->whereDate('doc_rec', $today->toDateString());
+                break;
+            case 'this_week':
+                $query->whereBetween('doc_rec', [
+                    $today->copy()->startOfWeek()->toDateString(),
+                    $today->copy()->endOfWeek()->toDateString(),
+                ]);
+                break;
+            case 'this_month':
+                $query->whereBetween('doc_rec', [
+                    $today->copy()->startOfMonth()->toDateString(),
+                    $today->copy()->endOfMonth()->toDateString(),
+                ]);
+                break;
+            case 'this_year':
+                $query->whereBetween('doc_rec', [
+                    $today->copy()->startOfYear()->toDateString(),
+                    $today->copy()->endOfYear()->toDateString(),
+                ]);
+                break;
+            case 'range':
+                $from = $this->normalizeDate($dateFrom);
+                $to = $this->normalizeDate($dateTo);
+                if ($from) {
+                    $query->whereDate('doc_rec', '>=', $from);
+                }
+                if ($to) {
+                    $query->whereDate('doc_rec', '<=', $to);
+                }
+                break;
+            case 'all':
+            default:
+                break;
+        }
+    }
+
     public function index(Request $request)
     {
         $unbilledQuery = DB::table('tb_kdinvin')->where('pembayaran', 0);
+        $this->applyDocRecDateFilter($unbilledQuery, 'today');
         $unbilledCount = (int) $unbilledQuery->count();
         $unbilledTotal = (float) $unbilledQuery->sum('sisa_bayar');
 
@@ -24,6 +84,9 @@ class InvoiceMasukController
             'filters' => [
                 'search' => null,
                 'status' => 'belum_dibayar',
+                'date_period' => 'today',
+                'date_from' => null,
+                'date_to' => null,
                 'pageSize' => 5,
             ],
         ]);
@@ -56,11 +119,20 @@ class InvoiceMasukController
     {
         $search = $request->query('search');
         $status = $request->query('status', 'belum_dibayar');
+        $datePeriod = $request->query('date_period', 'today');
+        $dateFrom = $request->query('date_from');
+        $dateTo = $request->query('date_to');
         // pageSize tetap dikirim dari frontend tapi pagination dilakukan di sisi klien
         // agar bisa menampilkan total data untuk kontrol pagination.
         $pageSize = $request->query('pageSize', 5);
 
         $baseQuery = DB::table('tb_kdinvin');
+        $this->applyDocRecDateFilter(
+            $baseQuery,
+            $datePeriod,
+            $dateFrom,
+            $dateTo
+        );
 
         if ($search) {
             $term = '%'.trim($search).'%';
@@ -97,6 +169,12 @@ class InvoiceMasukController
         $invoices = $baseQuery->get();
 
         $unbilledQuery = DB::table('tb_kdinvin')->where('pembayaran', 0);
+        $this->applyDocRecDateFilter(
+            $unbilledQuery,
+            $datePeriod,
+            $dateFrom,
+            $dateTo
+        );
         $unbilledCount = (int) $unbilledQuery->count();
         $unbilledTotal = (float) $unbilledQuery->sum('sisa_bayar');
 

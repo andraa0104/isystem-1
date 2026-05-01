@@ -30,7 +30,7 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { Head, Link, router } from '@inertiajs/react';
-import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -53,6 +53,15 @@ const PAGE_SIZE_OPTIONS = [
     { value: '25', label: '25' },
     { value: '50', label: '50' },
     { value: 'all', label: 'Semua data' },
+];
+
+const DATE_FILTER_OPTIONS = [
+    { value: 'all', label: 'Semua data' },
+    { value: 'today', label: 'Hari ini' },
+    { value: 'this_week', label: 'Minggu ini' },
+    { value: 'this_month', label: 'Bulan ini' },
+    { value: 'this_year', label: 'Tahun ini' },
+    { value: 'range', label: 'Range tanggal' },
 ];
 
 const formatDate = (value) => {
@@ -105,6 +114,11 @@ export default function InvoiceMasukIndex({
 }) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [statusFilter, setStatusFilter] = useState(filters.status || 'all');
+    const [dateFilter, setDateFilter] = useState(
+        filters.date_period || 'today',
+    );
+    const [dateFrom, setDateFrom] = useState(filters.date_from || '');
+    const [dateTo, setDateTo] = useState(filters.date_to || '');
     const [pageSize, setPageSize] = useState(5);
     const [poModalOpen, setPoModalOpen] = useState(false);
     const [poDetails, setPoDetails] = useState([]);
@@ -163,8 +177,13 @@ export default function InvoiceMasukIndex({
             const params = new URLSearchParams({
                 search: searchTerm,
                 status: statusFilter,
+                date_period: dateFilter,
                 pageSize: pageSize === Infinity ? 'all' : pageSize,
             });
+            if (dateFilter === 'range') {
+                if (dateFrom) params.set('date_from', dateFrom);
+                if (dateTo) params.set('date_to', dateTo);
+            }
             const res = await fetch(
                 `/pembelian/invoice-masuk/data?${params.toString()}`,
                 {
@@ -192,7 +211,7 @@ export default function InvoiceMasukIndex({
     useEffect(() => {
         fetchInvoices();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilter, pageSize, searchTerm]);
+    }, [statusFilter, pageSize, searchTerm, dateFilter, dateFrom, dateTo]);
 
     const fetchPaid = async (period, search = '') => {
         setPaidLoading(true);
@@ -609,12 +628,18 @@ export default function InvoiceMasukIndex({
                             <Input
                                 placeholder="Cari no_doc, ref_po, vendor..."
                                 value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
+                                onChange={(e) => {
+                                    setCurrentPage(1);
+                                    setSearchTerm(e.target.value);
+                                }}
                                 className="w-full max-w-xs"
                             />
                             <Select
                                 value={statusFilter}
-                                onValueChange={setStatusFilter}
+                                onValueChange={(val) => {
+                                    setCurrentPage(1);
+                                    setStatusFilter(val);
+                                }}
                             >
                                 <SelectTrigger className="w-full max-w-xs">
                                     <SelectValue placeholder="Filter status" />
@@ -630,6 +655,49 @@ export default function InvoiceMasukIndex({
                                     ))}
                                 </SelectContent>
                             </Select>
+                            <Select
+                                value={dateFilter}
+                                onValueChange={(val) => {
+                                    setCurrentPage(1);
+                                    setDateFilter(val);
+                                }}
+                            >
+                                <SelectTrigger className="w-full max-w-xs">
+                                    <SelectValue placeholder="Filter waktu" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {DATE_FILTER_OPTIONS.map((opt) => (
+                                        <SelectItem
+                                            key={opt.value}
+                                            value={opt.value}
+                                        >
+                                            {opt.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {dateFilter === 'range' && (
+                                <>
+                                    <Input
+                                        type="date"
+                                        value={dateFrom}
+                                        onChange={(e) => {
+                                            setCurrentPage(1);
+                                            setDateFrom(e.target.value);
+                                        }}
+                                        className="w-full max-w-[10.5rem]"
+                                    />
+                                    <Input
+                                        type="date"
+                                        value={dateTo}
+                                        onChange={(e) => {
+                                            setCurrentPage(1);
+                                            setDateTo(e.target.value);
+                                        }}
+                                        className="w-full max-w-[10.5rem]"
+                                    />
+                                </>
+                            )}
                             <Select
                                 value={
                                     pageSize === Infinity
@@ -664,7 +732,6 @@ export default function InvoiceMasukIndex({
                             <TableHeader className="sticky top-0 z-10 bg-background">
                                 <TableRow>
                                     <TableHead>No FI</TableHead>
-                                    <TableHead>Date</TableHead>
                                     <TableHead>Inv Date</TableHead>
                                     <TableHead>Ref PO</TableHead>
                                     <TableHead>Vendor</TableHead>
@@ -678,7 +745,7 @@ export default function InvoiceMasukIndex({
                             </TableHeader>
                             <TableBody>
                                 <ShadcnTableStateRows
-                                    columns={7}
+                                    columns={6}
                                     loading={loading}
                                     error={error}
                                     onRetry={fetchInvoices}
@@ -700,9 +767,6 @@ export default function InvoiceMasukIndex({
                                         >
                                             <TableCell>
                                                 {row.no_doc ?? '-'}
-                                            </TableCell>
-                                            <TableCell>
-                                                {formatDate(row.doc_rec)}
                                             </TableCell>
                                             <TableCell>
                                                 {formatDate(row.inv_d)}
@@ -743,13 +807,6 @@ export default function InvoiceMasukIndex({
                                                         }
                                                     >
                                                         <Eye className="h-4 w-4" />
-                                                    </ActionIconButton>
-                                                    <ActionIconButton
-                                                        label="Cetak (belum tersedia)"
-                                                        variant="outline"
-                                                        disabled
-                                                    >
-                                                        <Printer className="h-4 w-4" />
                                                     </ActionIconButton>
                                                 </div>
                                             </TableCell>
@@ -1134,7 +1191,6 @@ export default function InvoiceMasukIndex({
                                 <TableHeader className="sticky top-0 z-10 bg-background">
                                     <TableRow>
                                         <TableHead>No FI</TableHead>
-                                        <TableHead>Date</TableHead>
                                         <TableHead>Inv Date</TableHead>
                                         <TableHead>Ref PO</TableHead>
                                         <TableHead>Vendor</TableHead>
@@ -1148,7 +1204,7 @@ export default function InvoiceMasukIndex({
                                 </TableHeader>
                                 <TableBody>
                                     <ShadcnTableStateRows
-                                        columns={7}
+                                        columns={6}
                                         loading={false}
                                         error={null}
                                         isEmpty={
@@ -1163,9 +1219,6 @@ export default function InvoiceMasukIndex({
                                         >
                                             <TableCell>
                                                 {row.no_doc ?? '-'}
-                                            </TableCell>
-                                            <TableCell>
-                                                {formatDate(row.doc_rec)}
                                             </TableCell>
                                             <TableCell>
                                                 {formatDate(row.inv_d)}
@@ -1683,7 +1736,6 @@ export default function InvoiceMasukIndex({
                                     <TableRow>
                                         <TableHead>No FI</TableHead>
                                         <TableHead>Tgl Bayar</TableHead>
-                                        <TableHead>Date</TableHead>
                                         <TableHead>Inv Date</TableHead>
                                         <TableHead>Ref PO</TableHead>
                                         <TableHead>Vendor</TableHead>
@@ -1703,7 +1755,7 @@ export default function InvoiceMasukIndex({
                                 </TableHeader>
                                 <TableBody>
                                     <ShadcnTableStateRows
-                                        columns={10}
+                                        columns={9}
                                         loading={paidLoading}
                                         error={paidError}
                                         onRetry={() =>
@@ -1727,9 +1779,6 @@ export default function InvoiceMasukIndex({
                                                 </TableCell>
                                                 <TableCell>
                                                     {formatDate(row.tgl_bayar)}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {formatDate(row.doc_rec)}
                                                 </TableCell>
                                                 <TableCell>
                                                     {formatDate(row.inv_d)}

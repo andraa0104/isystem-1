@@ -799,9 +799,6 @@ export default function QuotationIndex({
                                                         Harga
                                                     </th>
                                                     <th className="px-4 py-3 text-left">
-                                                        Satuan
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
                                                         Harga Modal
                                                     </th>
                                                     <th className="px-4 py-3 text-left">
@@ -848,17 +845,14 @@ export default function QuotationIndex({
                                                             <td className="px-4 py-3">
                                                                 {renderValue(
                                                                     detail.Qty,
+                                                                )}  {renderValue(
+                                                                    detail.Satuan,
                                                                 )}
                                                             </td>
                                                             <td className="px-4 py-3">
                                                                 {formatRupiah(
                                                                     detail.Harga,
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {renderValue(
-                                                                    detail.Satuan,
-                                                                )}
+                                                                )} 
                                                             </td>
                                                             <td className="px-4 py-3">
                                                                 {formatRupiah(
@@ -868,7 +862,7 @@ export default function QuotationIndex({
                                                             <td className="px-4 py-3">
                                                                 {renderValue(
                                                                     detail.Margin,
-                                                                )}
+                                                                )}%
                                                             </td>
                                                             <td className="px-4 py-3">
                                                                 {renderValue(

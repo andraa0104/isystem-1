@@ -1223,9 +1223,6 @@ export default function PurchaseRequirementIndex({
                                                         Qty
                                                     </th>
                                                     <th className="px-4 py-3 text-left">
-                                                        Satuan
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
                                                         Sisa PR
                                                     </th>
                                                     <th className="px-4 py-3 text-left">
@@ -1282,10 +1279,7 @@ export default function PurchaseRequirementIndex({
                                                                         'quantity',
                                                                         'Quantity',
                                                                     ],
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {getValue(
+                                                                )}  {getValue(
                                                                     detail,
                                                                     [
                                                                         'satuan',
@@ -1293,7 +1287,8 @@ export default function PurchaseRequirementIndex({
                                                                         'unit',
                                                                         'Unit',
                                                                     ],
-                                                                )}
+                                                                    )}
+
                                                             </td>
                                                             <td className="px-4 py-3">
                                                                 {getValue(
