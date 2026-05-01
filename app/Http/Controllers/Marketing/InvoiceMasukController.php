@@ -71,7 +71,6 @@ class InvoiceMasukController
     public function index(Request $request)
     {
         $unbilledQuery = DB::table('tb_kdinvin')->where('pembayaran', 0);
-        $this->applyDocRecDateFilter($unbilledQuery, 'today');
         $unbilledCount = (int) $unbilledQuery->count();
         $unbilledTotal = (float) $unbilledQuery->sum('sisa_bayar');
 
@@ -168,18 +167,17 @@ class InvoiceMasukController
         // Ambil semua data sesuai filter; pagination dikerjakan di frontend.
         $invoices = $baseQuery->get();
 
-        $unbilledQuery = DB::table('tb_kdinvin')->where('pembayaran', 0);
-        $this->applyDocRecDateFilter(
-            $unbilledQuery,
-            $datePeriod,
-            $dateFrom,
-            $dateTo
-        );
-        $unbilledCount = (int) $unbilledQuery->count();
-        $unbilledTotal = (float) $unbilledQuery->sum('sisa_bayar');
+        $unbilledSummaryQuery = DB::table('tb_kdinvin')->where('pembayaran', 0);
+        $unbilledCount = (int) $unbilledSummaryQuery->count();
+        $unbilledTotal = (float) $unbilledSummaryQuery->sum('sisa_bayar');
+        $unbilledInvoices = DB::table('tb_kdinvin')
+            ->where('pembayaran', 0)
+            ->orderByDesc('no_doc')
+            ->get();
 
         return response()->json([
             'invoices' => $invoices,
+            'unbilled_invoices' => $unbilledInvoices,
             'summary' => [
                 'unbilled_count' => $unbilledCount,
                 'unbilled_total' => $unbilledTotal,

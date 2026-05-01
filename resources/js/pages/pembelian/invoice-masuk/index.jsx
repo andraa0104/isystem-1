@@ -143,6 +143,7 @@ export default function InvoiceMasukIndex({
     const [invoiceSearch, setInvoiceSearch] = useState('');
     const [remoteInvoices, setRemoteInvoices] = useState(invoices);
     const [remoteSummary, setRemoteSummary] = useState(summary);
+    const [remoteUnbilledInvoices, setRemoteUnbilledInvoices] = useState([]);
 
     const [paidPeriod, setPaidPeriod] = useState('today');
     const [paidSummary, setPaidSummary] = useState({
@@ -163,9 +164,7 @@ export default function InvoiceMasukIndex({
     const [error, setError] = useState(null);
 
     const openUnbilledModal = () => {
-        setUnbilledData(
-            remoteInvoices.filter((row) => Number(row.pembayaran) === 0),
-        );
+        setUnbilledData(remoteUnbilledInvoices);
         setUnbilledCurrentPage(1);
         setUnbilledModalOpen(true);
     };
@@ -198,11 +197,17 @@ export default function InvoiceMasukIndex({
             setRemoteSummary(
                 data?.summary ?? { unbilled_count: 0, unbilled_total: 0 },
             );
+            setRemoteUnbilledInvoices(
+                Array.isArray(data?.unbilled_invoices)
+                    ? data.unbilled_invoices
+                    : [],
+            );
             setInitialLoaded(true);
         } catch (err) {
             setError(normalizeApiError(err, 'Gagal memuat data invoice.'));
             setRemoteInvoices([]);
             setRemoteSummary({ unbilled_count: 0, unbilled_total: 0 });
+            setRemoteUnbilledInvoices([]);
             setInitialLoaded(false);
         } finally {
             setLoading(false);
