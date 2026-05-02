@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Marketing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Throwable;
 
@@ -108,13 +109,34 @@ class PurchaseOrderInController
         $statusFilter = $request->query('status', 'outstanding');
         $page = max(1, (int) $request->query('page', 1));
         $isPartial = $request->boolean('is_partial', false);
+        $dateFilter = (string) $request->query('date_filter', 'today');
+        $startDate = (string) $request->query('start_date', '');
+        $endDate = (string) $request->query('end_date', '');
 
-        $data = $this->getPurchaseOrderInData($search, $perPage, $statusFilter, $page, $isPartial);
+        $data = $this->getPurchaseOrderInData(
+            $search,
+            $perPage,
+            $statusFilter,
+            $page,
+            $isPartial,
+            $dateFilter,
+            $startDate,
+            $endDate
+        );
 
         return response()->json($data);
     }
 
-    private function getPurchaseOrderInData($search, $perPage, $statusFilter, $page, $isPartial = false)
+    private function getPurchaseOrderInData(
+        $search,
+        $perPage,
+        $statusFilter,
+        $page,
+        $isPartial = false,
+        $dateFilter = 'today',
+        $startDate = '',
+        $endDate = ''
+    )
     {
         $detailStats = DB::table('tb_detailpoin')
             ->select('kode_poin')
@@ -166,6 +188,38 @@ class PurchaseOrderInController
             $query->whereRaw('coalesce(ds.unrealized_items, 0) = 0');
         }
 
+        $now = now();
+        if ($dateFilter === 'today') {
+            $query->whereBetween('p.created_at', [
+                $now->copy()->startOfDay()->toDateTimeString(),
+                $now->copy()->endOfDay()->toDateTimeString(),
+            ]);
+        } elseif ($dateFilter === 'this_week') {
+            $query->whereBetween('p.created_at', [
+                $now->copy()->startOfWeek()->toDateTimeString(),
+                $now->copy()->endOfWeek()->toDateTimeString(),
+            ]);
+        } elseif ($dateFilter === 'this_month') {
+            $query->whereBetween('p.created_at', [
+                $now->copy()->startOfMonth()->toDateTimeString(),
+                $now->copy()->endOfMonth()->toDateTimeString(),
+            ]);
+        } elseif ($dateFilter === 'this_year') {
+            $query->whereBetween('p.created_at', [
+                $now->copy()->startOfYear()->toDateTimeString(),
+                $now->copy()->endOfYear()->toDateTimeString(),
+            ]);
+        } elseif ($dateFilter === 'range') {
+            if ($startDate !== '' && $endDate !== '') {
+                $query->whereBetween('p.created_at', [
+                    $startDate.' 00:00:00',
+                    $endDate.' 23:59:59',
+                ]);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
         $total = (clone $query)->count();
         if ($perPage === null) {
             $rows = (clone $query)->orderByDesc('p.id')->get();
@@ -188,7 +242,6 @@ class PurchaseOrderInController
             ];
         }
 
-        $now = now();
         $startToday = $now->copy()->startOfDay()->toDateTimeString();
         $startWeek = $now->copy()->startOfWeek()->toDateTimeString();
         $startMonth = $now->copy()->startOfMonth()->toDateTimeString();
@@ -631,8 +684,30 @@ class PurchaseOrderInController
             'materials.*.remark' => ['nullable', 'string'],
         ]);
 
+        $noPoin = trim((string) $validated['no_poin']);
+        $duplicateExists = DB::table('tb_poin')
+            ->whereRaw('lower(trim(no_poin)) = lower(trim(?))', [$noPoin])
+            ->exists();
+
+        if ($duplicateExists) {
+            throw ValidationException::withMessages([
+                'no_poin' => "No PO In {$noPoin} sudah ada di database.",
+            ]);
+        }
+
         try {
-            DB::transaction(function () use ($request, $validated) {
+            DB::transaction(function () use ($request, $validated, $noPoin) {
+                $duplicateExists = DB::table('tb_poin')
+                    ->whereRaw('lower(trim(no_poin)) = lower(trim(?))', [$noPoin])
+                    ->lockForUpdate()
+                    ->exists();
+
+                if ($duplicateExists) {
+                    throw ValidationException::withMessages([
+                        'no_poin' => "No PO In {$noPoin} sudah ada di database.",
+                    ]);
+                }
+
                 $nowGmt8 = now('Asia/Singapore');
                 $kodePoin = $this->generateKodePoin($request);
                 $datePoin = $this->parseDateOrNull($validated['date'] ?? null);
@@ -661,7 +736,7 @@ class PurchaseOrderInController
                 DB::table('tb_poin')->insert([
                     'id' => $headerId,
                     'kode_poin' => $kodePoin,
-                    'no_poin' => trim((string) $validated['no_poin']),
+                    'no_poin' => $noPoin,
                     'date_poin' => $datePoin,
                     'delivery_date' => $deliveryDate,
                     'kode_customer' => trim((string) ($validated['kd_customer'] ?? '')),

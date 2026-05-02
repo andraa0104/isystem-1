@@ -287,12 +287,21 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 'X-Skip-Loading-Overlay': '1',
             },
             onStart: () => setIsSubmitting(true),
-            onError: () => setIsSubmitting(false),
+            onError: (errors) => {
+                setIsSubmitting(false);
+                if (errors?.no_poin) {
+                    setValidationErrors((prev) => ({
+                        ...prev,
+                        noPoin: errors.no_poin,
+                    }));
+                }
+            },
             onSuccess: (page) => {
                 if (page?.props?.flash?.error) {
                     setIsSubmitting(false);
                 }
             },
+            onFinish: () => setIsSubmitting(false),
         });
     };
 

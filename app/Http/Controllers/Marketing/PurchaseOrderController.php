@@ -689,7 +689,7 @@ class PurchaseOrderController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Detail PO berhasil diperbarui.');
-            return inertia_location('/pembelian/purchase-order/' . $noPo . '/edit');
+            return redirect()->back();
         }
 
         return back()->with('success', 'Detail PO berhasil diperbarui.');
@@ -825,9 +825,202 @@ class PurchaseOrderController
 
     public function data(Request $request)
     {
-        $period = $request->query('period', 'today');
-        $data = $this->getPurchaseOrderListingData($period);
-        return response()->json($data);
+        $dateFilter = (string) $request->query('date_filter', 'today');
+        $status = (string) $request->query('status', 'all');
+        $search = trim((string) $request->query('search', ''));
+        $pageSizeRaw = $request->query('pageSize', '5');
+        $page = max(1, (int) $request->query('page', 1));
+        $poDateExpr = "coalesce(date(po.tgl), str_to_date(po.tgl, '%Y-%m-%d'), str_to_date(po.tgl, '%Y/%m/%d'), str_to_date(po.tgl, '%d/%m/%Y'), str_to_date(po.tgl, '%d-%m-%Y'), str_to_date(po.tgl, '%d.%m.%Y'))";
+
+        $statusSub = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->selectRaw("
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0
+                     and sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_partial
+            ")
+            ->groupBy('no_po');
+
+        $query = DB::table('tb_po as po')
+            ->leftJoinSub($statusSub, 's', 'po.no_po', '=', 's.no_po')
+            ->select(
+                'po.no_po',
+                'po.tgl',
+                'po.nm_vdr',
+                'po.g_total',
+                'po.ref_pr',
+                'po.ref_quota',
+                'po.ref_poin',
+                'po.ppn',
+                'po.s_total',
+                'po.h_ppn'
+            )
+            ->selectRaw('coalesce(s.is_outstanding, 0) as is_outstanding')
+            ->selectRaw('coalesce(s.is_partial, 0) as is_partial');
+
+        $now = now();
+        if ($dateFilter === 'today') {
+            $query->whereRaw("{$poDateExpr} = ?", [$now->toDateString()]);
+        } elseif ($dateFilter === 'this_week') {
+            $query->whereRaw("{$poDateExpr} between ? and ?", [
+                $now->copy()->startOfWeek()->toDateString(),
+                $now->copy()->endOfWeek()->toDateString(),
+            ]);
+        } elseif ($dateFilter === 'this_month') {
+            $query->whereRaw("year({$poDateExpr}) = ?", [$now->year])
+                ->whereRaw("month({$poDateExpr}) = ?", [$now->month]);
+        } elseif ($dateFilter === 'this_year') {
+            $query->whereRaw("year({$poDateExpr}) = ?", [$now->year]);
+        } elseif ($dateFilter === 'range') {
+            $startDate = (string) $request->query('start_date', '');
+            $endDate = (string) $request->query('end_date', '');
+            if ($startDate !== '' && $endDate !== '') {
+                $query->whereRaw("{$poDateExpr} between ? and ?", [$startDate, $endDate]);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        if ($status === 'outstanding') {
+            $query->whereRaw('coalesce(s.is_outstanding, 0) = 1');
+        } elseif ($status === 'partial') {
+            $query->whereRaw('coalesce(s.is_partial, 0) = 1');
+        } elseif ($status === 'realized') {
+            $query->whereRaw('coalesce(s.is_outstanding, 0) = 0')
+                ->whereRaw('coalesce(s.is_partial, 0) = 0');
+        }
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('po.no_po', 'like', "%{$search}%")
+                    ->orWhere('po.tgl', 'like', "%{$search}%")
+                    ->orWhere('po.nm_vdr', 'like', "%{$search}%")
+                    ->orWhere('po.ref_pr', 'like', "%{$search}%")
+                    ->orWhere('po.ref_quota', 'like', "%{$search}%")
+                    ->orWhere('po.ref_poin', 'like', "%{$search}%");
+            });
+        }
+
+        $total = (clone $query)->count();
+
+        $query->orderByRaw("{$poDateExpr} desc")
+            ->orderBy('po.no_po', 'desc');
+
+        if ($pageSizeRaw !== 'all') {
+            $pageSize = max(1, (int) $pageSizeRaw);
+            $query->forPage($page, $pageSize);
+        }
+
+        $purchaseOrders = $query->get();
+
+        $purchaseOrders->transform(function ($item) {
+            if ($item->tgl) {
+                try {
+                    $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
+                } catch (\Throwable $e) {
+                }
+            }
+            return $item;
+        });
+
+        $response = [
+            'purchaseOrders' => $purchaseOrders,
+            'total' => $total,
+            'filters' => [
+                'date_filter' => $dateFilter,
+                'status' => $status,
+            ],
+        ];
+
+        if ($request->boolean('include_summary')) {
+            $response['summary'] = $this->getPurchaseOrderSummaryData(
+                (string) $request->query('period', 'today')
+            );
+        }
+
+        return response()->json($response);
+    }
+
+    private function getPurchaseOrderSummaryData($period = 'today')
+    {
+        $outstandingIds = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->groupBy('no_po')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) = 0')
+            ->havingRaw('count(*) > 0')
+            ->pluck('no_po');
+
+        $outstandingStats = DB::table('tb_po')
+            ->whereIn('no_po', $outstandingIds)
+            ->selectRaw('count(*) as count, sum(g_total) as total')
+            ->first();
+
+        $partialIds = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->groupBy('no_po')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0')
+            ->pluck('no_po');
+
+        $partialStats = DB::table('tb_po')
+            ->whereIn('no_po', $partialIds)
+            ->selectRaw('count(*) as count, sum(g_total) as total')
+            ->first();
+
+        $docDateExpr = "coalesce(date(k.doc_tgl), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%d.%m.%Y'))";
+
+        $now = now();
+        $startDate = $now->copy()->startOfDay()->toDateString();
+        $endDate = $now->copy()->endOfDay()->toDateString();
+
+        if ($period === 'this_week') {
+            $startDate = $now->copy()->startOfWeek()->toDateString();
+            $endDate = $now->copy()->endOfWeek()->toDateString();
+        } elseif ($period === 'this_month') {
+            $startDate = $now->copy()->startOfMonth()->toDateString();
+            $endDate = $now->copy()->endOfMonth()->toDateString();
+        } elseif ($period === 'this_year') {
+            $startDate = $now->copy()->startOfYear()->toDateString();
+            $endDate = $now->copy()->endOfYear()->toDateString();
+        }
+
+        $poNumbersInPeriod = DB::table('tb_kdmi as k')
+            ->whereRaw("{$docDateExpr} >= ?", [$startDate])
+            ->whereRaw("{$docDateExpr} <= ?", [$endDate])
+            ->pluck('ref_pr')
+            ->unique()
+            ->filter()
+            ->all();
+
+        $realizedCount = 0;
+        $realizedTotal = 0;
+        if (!empty($poNumbersInPeriod)) {
+            $finishedPoNumbers = DB::table('tb_detailpo')
+                ->whereIn('no_po', $poNumbersInPeriod)
+                ->groupBy('no_po')
+                ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 then 1 else 0 end) = 0')
+                ->pluck('no_po')
+                ->all();
+
+            if (!empty($finishedPoNumbers)) {
+                $realizedQuery = DB::table('tb_po')
+                    ->whereIn('no_po', $finishedPoNumbers)
+                    ->selectRaw('count(*) as count, sum(g_total) as total')
+                    ->first();
+
+                $realizedCount = (int) ($realizedQuery->count ?? 0);
+                $realizedTotal = (float) ($realizedQuery->total ?? 0);
+            }
+        }
+
+        return [
+            'outstandingCount' => (int) ($outstandingStats->count ?? 0),
+            'outstandingTotal' => (float) ($outstandingStats->total ?? 0),
+            'partialCount' => (int) ($partialStats->count ?? 0),
+            'partialTotal' => (float) ($partialStats->total ?? 0),
+            'realizedCount' => $realizedCount,
+            'realizedTotal' => $realizedTotal,
+        ];
     }
 
     private function getPurchaseOrderListingData($period = 'today')
@@ -1036,6 +1229,23 @@ class PurchaseOrderController
             $query->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
         }
 
+        if ($request->boolean('summary')) {
+            $summaryQuery = (clone $query)
+                ->select('po.no_po', 'po.g_total')
+                ->distinct();
+
+            $summary = DB::query()
+                ->fromSub($summaryQuery, 'realized_po')
+                ->selectRaw('count(*) as count, coalesce(sum(g_total), 0) as total')
+                ->first();
+
+            return response()->json([
+                'realizedCount' => (int) ($summary->count ?? 0),
+                'realizedTotal' => (float) ($summary->total ?? 0),
+                'period' => $period,
+            ]);
+        }
+
         $realizedTotal = (clone $query)->sum('g_total');
 
         $purchaseOrders = $query
@@ -1140,7 +1350,8 @@ class PurchaseOrderController
             ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
             ->select(
                 'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn'
-            );
+            )
+            ->orderby('no_po', 'desc');
 
         if ($search !== '') {
             $query->where(function($q) use ($search) {

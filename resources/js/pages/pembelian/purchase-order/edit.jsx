@@ -330,6 +330,7 @@ export default function PurchaseOrderEdit({
                 preserveState: true,
                 onStart: () => setSavingMaterialId(editingMaterialId),
                 onSuccess: () => {
+                    setStep(3);
                     setMaterialItems((prev) =>
                         prev.map((item) =>
                             item.id === editingMaterialId

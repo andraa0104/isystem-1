@@ -20,7 +20,7 @@ import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { formatDateId } from '@/lib/formatters';
 import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Loader2, Pencil, Printer, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 
 const breadcrumbs = [
@@ -104,10 +104,17 @@ export default function PurchaseOrderIndex({
     const [poLoading, setPoLoading] = useState(false);
     const [poError, setPoError] = useState(null);
     const [statusFilter, setStatusFilter] = useState('outstanding');
+    const [tableDateFilter, setTableDateFilter] = useState('today');
+    const [tableStartDate, setTableStartDate] = useState('');
+    const [tableEndDate, setTableEndDate] = useState('');
+    const [tableTotalRows, setTableTotalRows] = useState(0);
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
     const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
     const [isRealizedLoading, setIsRealizedLoading] = useState(false);
+    const [summaryLoading, setSummaryLoading] = useState(true);
+    const shouldLoadSummaryRef = useRef(true);
     const [deletingId, setDeletingId] = useState(null);
     const [realizedList, setRealizedList] = useState([]);
     const [realizedSearchTerm, setRealizedSearchTerm] = useState('');
@@ -168,52 +175,14 @@ export default function PurchaseOrderIndex({
         return () => clearTimeout(handler);
     }, [partialSearchTerm]);
 
-    const filteredPurchaseOrders = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
-        const filtered = poData.filter((item) => {
-            if (statusFilter === 'outstanding' && !isOutstanding(item)) {
-                return false;
-            }
-            if (statusFilter === 'partial' && !isPartialStatus(item)) {
-                return false;
-            }
-            if (statusFilter === 'realized' && !isRealized(item)) {
-                return false;
-            }
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearchTerm(searchTerm);
+        }, 400);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
 
-            if (!term) {
-                return true;
-            }
-
-            const values = [
-                item.no_po,
-                item.tgl,
-                item.Tgl,
-                item.ref_pr,
-                item.refPR,
-                item.no_pr,
-                item.noPR,
-                item.for_cus,
-                item.for_cust,
-                item.For_cus,
-                item.For_cust,
-                item.nm_vdr,
-                item.Nm_vdr,
-            ];
-
-            return values.some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(term),
-            );
-        });
-
-        return filtered.sort((a, b) =>
-            String(b.no_po ?? '').localeCompare(String(a.no_po ?? '')),
-        );
-    }, [poData, searchTerm, statusFilter]);
-
-    const totalItems = filteredPurchaseOrders.length;
+    const totalItems = tableTotalRows;
     const totalPages = useMemo(() => {
         if (pageSize === Infinity) {
             return 1;
@@ -222,14 +191,7 @@ export default function PurchaseOrderIndex({
         return Math.max(1, Math.ceil(totalItems / pageSize));
     }, [pageSize, totalItems]);
 
-    const displayedPurchaseOrders = useMemo(() => {
-        if (pageSize === Infinity) {
-            return filteredPurchaseOrders;
-        }
-
-        const startIndex = (currentPage - 1) * pageSize;
-        return filteredPurchaseOrders.slice(startIndex, startIndex + pageSize);
-    }, [currentPage, filteredPurchaseOrders, pageSize]);
+    const displayedPurchaseOrders = poData;
 
     const outstandingTotalPages = useMemo(() => {
         if (outstandingPageSize === Infinity) return 1;
@@ -330,11 +292,26 @@ export default function PurchaseOrderIndex({
         return () => clearTimeout(handler);
     }, [detailSearch]);
 
-    const fetchPurchaseOrders = (p = periodFilter) => {
+    const fetchPurchaseOrders = () => {
         setPoLoading(true);
-        setIsRealizedLoading(true);
         setPoError(null);
-        const params = new URLSearchParams({ period: p });
+        const params = new URLSearchParams();
+        params.set('date_filter', tableDateFilter);
+        params.set('status', statusFilter);
+        params.set('search', debouncedSearchTerm);
+        params.set('page', String(currentPage));
+        params.set(
+            'pageSize',
+            pageSize === Infinity ? 'all' : String(pageSize),
+        );
+        if (shouldLoadSummaryRef.current) {
+            params.set('include_summary', '1');
+            setSummaryLoading(true);
+        }
+        if (tableDateFilter === 'range') {
+            params.set('start_date', tableStartDate);
+            params.set('end_date', tableEndDate);
+        }
         fetch(`/pembelian/purchase-order/data?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         })
@@ -350,12 +327,16 @@ export default function PurchaseOrderIndex({
                         ? data.purchaseOrders
                         : [],
                 );
-                setOutstandingCountState(data?.outstandingCount ?? 0);
-                setOutstandingTotalState(data?.outstandingTotal ?? 0);
-                setPartialCountState(data?.partialCount ?? 0);
-                setPartialTotalState(data?.partialTotal ?? 0);
-                setRealizedCountState(data?.realizedCount ?? 0);
-                setRealizedTotalState(data?.realizedTotal ?? 0);
+                setTableTotalRows(Number(data?.total ?? 0));
+                if (data?.summary) {
+                    setOutstandingCountState(data.summary.outstandingCount ?? 0);
+                    setOutstandingTotalState(data.summary.outstandingTotal ?? 0);
+                    setPartialCountState(data.summary.partialCount ?? 0);
+                    setPartialTotalState(data.summary.partialTotal ?? 0);
+                    setRealizedCountState(data.summary.realizedCount ?? 0);
+                    setRealizedTotalState(data.summary.realizedTotal ?? 0);
+                    shouldLoadSummaryRef.current = false;
+                }
             })
             .catch((error) => {
                 setPoError(
@@ -367,14 +348,63 @@ export default function PurchaseOrderIndex({
             })
             .finally(() => {
                 setPoLoading(false);
-                setIsRealizedLoading(false);
+                setSummaryLoading(false);
             });
     };
 
     useEffect(() => {
+        if (tableDateFilter === 'range' && (!tableStartDate || !tableEndDate)) {
+            setPoData([]);
+            setTableTotalRows(0);
+            return;
+        }
         fetchPurchaseOrders();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [
+        tableDateFilter,
+        tableStartDate,
+        tableEndDate,
+        statusFilter,
+        debouncedSearchTerm,
+        currentPage,
+        pageSize,
+    ]);
+
+    const fetchRealizedSummary = (p = periodFilter) => {
+        setIsRealizedLoading(true);
+        const params = new URLSearchParams({ period: p, summary: '1' });
+        fetch(`/pembelian/purchase-order/realized?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw await readApiError(response);
+                }
+                return response.json();
+            })
+            .then((data) => {
+                setRealizedCountState(data?.realizedCount ?? 0);
+                setRealizedTotalState(data?.realizedTotal ?? 0);
+                if (realizedListPeriod !== p) {
+                    setRealizedList([]);
+                    setRealizedListPeriod(p);
+                }
+                if (isRealizedModalOpen) {
+                    loadRealized(p, true);
+                }
+            })
+            .catch((error) => {
+                setRealizedError(
+                    normalizeApiError(
+                        error,
+                        'Gagal memuat ringkasan PO terealisasi.',
+                    ),
+                );
+            })
+            .finally(() => {
+                setIsRealizedLoading(false);
+            });
+    };
 
     const fetchPoDetails = () => {
         if (!selectedPo || !isModalOpen) {
@@ -669,7 +699,14 @@ export default function PurchaseOrderIndex({
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [pageSize, searchTerm, statusFilter]);
+    }, [
+        pageSize,
+        debouncedSearchTerm,
+        statusFilter,
+        tableDateFilter,
+        tableStartDate,
+        tableEndDate,
+    ]);
 
     useEffect(() => {
         setOutstandingCurrentPage(1);
@@ -706,14 +743,8 @@ export default function PurchaseOrderIndex({
     const handlePeriodChange = (event) => {
         const value = event.target.value;
         setPeriodFilter(value);
-        fetchPurchaseOrders(value);
+        fetchRealizedSummary(value);
     };
-
-    useEffect(() => {
-        // Initial load
-        fetchPurchaseOrders();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     const sumOutstandingTotal = (list) =>
         list.reduce((sum, item) => {
@@ -769,14 +800,14 @@ export default function PurchaseOrderIndex({
                                     PO Outstanding
                                 </CardDescription>
                                 <CardTitle className="text-2xl">
-                                    {poLoading ? (
+                                    {summaryLoading ? (
                                         <Skeleton className="h-8 w-16" />
                                     ) : (
                                         outstandingCountState
                                     )}
                                 </CardTitle>
                                 <div className="mt-1 text-sm text-muted-foreground">
-                                    {poLoading ? (
+                                    {summaryLoading ? (
                                         <Skeleton className="h-4 w-24" />
                                     ) : (
                                         formatRupiah(outstandingTotalState)
@@ -797,14 +828,14 @@ export default function PurchaseOrderIndex({
                             <CardHeader className="pb-2">
                                 <CardDescription>PO sisa GR</CardDescription>
                                 <CardTitle className="text-2xl">
-                                    {poLoading ? (
+                                    {summaryLoading ? (
                                         <Skeleton className="h-8 w-16" />
                                     ) : (
                                         partialCountState
                                     )}
                                 </CardTitle>
                                 <div className="mt-1 text-sm text-muted-foreground">
-                                    {poLoading ? (
+                                    {summaryLoading ? (
                                         <Skeleton className="h-4 w-24" />
                                     ) : (
                                         formatRupiah(partialTotalState)
@@ -821,14 +852,14 @@ export default function PurchaseOrderIndex({
                                         PO Terealisasi
                                     </CardDescription>
                                     <CardTitle className="text-2xl">
-                                        {poLoading ? (
+                                        {summaryLoading || isRealizedLoading ? (
                                             <Skeleton className="h-8 w-16" />
                                         ) : (
                                             realizedCountState
                                         )}
                                     </CardTitle>
                                     <div className="mt-1 text-sm text-muted-foreground">
-                                        {poLoading ? (
+                                        {summaryLoading || isRealizedLoading ? (
                                             <Skeleton className="h-4 w-24" />
                                         ) : (
                                             formatRupiah(realizedTotalState)
@@ -904,6 +935,51 @@ export default function PurchaseOrderIndex({
                                 <option value="all">Semua Data</option>
                             </select>
                         </label>
+                        <label className="text-sm text-muted-foreground">
+                            Tanggal
+                            <select
+                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                value={tableDateFilter}
+                                onChange={(event) =>
+                                    setTableDateFilter(event.target.value)
+                                }
+                            >
+                                <option value="today">Hari Ini</option>
+                                <option value="this_week">Minggu Ini</option>
+                                <option value="this_month">Bulan Ini</option>
+                                <option value="this_year">Tahun Ini</option>
+                                <option value="range">Range Tanggal</option>
+                                <option value="all">Semua Data</option>
+                            </select>
+                        </label>
+                        {tableDateFilter === 'range' && (
+                            <>
+                                <label className="text-sm text-muted-foreground">
+                                    Dari
+                                    <input
+                                        type="date"
+                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                        value={tableStartDate}
+                                        onChange={(event) =>
+                                            setTableStartDate(
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                </label>
+                                <label className="text-sm text-muted-foreground">
+                                    Sampai
+                                    <input
+                                        type="date"
+                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                        value={tableEndDate}
+                                        onChange={(event) =>
+                                            setTableEndDate(event.target.value)
+                                        }
+                                    />
+                                </label>
+                            </>
+                        )}
                     </div>
                     <label className="text-sm text-muted-foreground">
                         Cari

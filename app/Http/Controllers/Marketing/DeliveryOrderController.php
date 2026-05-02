@@ -13,6 +13,20 @@ class DeliveryOrderController
     {
         $period = $request->query('period', 'today');
 
+        return Inertia::render('marketing/delivery-order/index', [
+            'deliveryOrders' => [],
+            'outstandingCount' => 0,
+            'realizedCount' => 0,
+            'outstandingTotal' => 0,
+            'realizedTotal' => 0,
+            'period' => $period,
+        ]);
+    }
+
+    public function data(Request $request)
+    {
+        $period = $request->query('period', 'today');
+
         $deliveryOrders = DB::table('tb_do')
             ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
             ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
@@ -59,7 +73,7 @@ class DeliveryOrderController
             ->where('val_inv', 0)
             ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
 
-        return Inertia::render('marketing/delivery-order/index', [
+        return response()->json([
             'deliveryOrders' => $deliveryOrders,
             'outstandingCount' => $outstandingCount,
             'realizedCount' => $realizedCount,

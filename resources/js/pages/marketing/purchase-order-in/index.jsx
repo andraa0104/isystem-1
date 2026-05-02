@@ -161,6 +161,9 @@ export default function PurchaseOrderInIndex({
     const [search, setSearch] = useState(filters.search ?? '');
     const [perPage, setPerPage] = useState(String(filters.per_page ?? '5'));
     const [statusFilter, setStatusFilter] = useState(filters.status ?? 'all');
+    const [tableDateFilter, setTableDateFilter] = useState('today');
+    const [tableStartDate, setTableStartDate] = useState('');
+    const [tableEndDate, setTableEndDate] = useState('');
     const [realizedPeriod, setRealizedPeriod] = useState('today');
     const [dataPoInPeriod, setDataPoInPeriod] = useState('today');
     const [dataPoInStart, setDataPoInStart] = useState('');
@@ -231,6 +234,7 @@ export default function PurchaseOrderInIndex({
                 search: params.search ?? search,
                 per_page: params.per_page ?? perPage,
                 status: params.status ?? statusFilter,
+                date_filter: params.dateFilter ?? tableDateFilter,
                 page:
                     params.page ??
                     (params.isPartial
@@ -240,6 +244,13 @@ export default function PurchaseOrderInIndex({
 
             if (isPartial) {
                 queryParams.append('is_partial', '1');
+            }
+            if ((params.dateFilter ?? tableDateFilter) === 'range') {
+                queryParams.set(
+                    'start_date',
+                    params.startDate ?? tableStartDate,
+                );
+                queryParams.set('end_date', params.endDate ?? tableEndDate);
             }
 
             const response = await fetch(
@@ -278,9 +289,9 @@ export default function PurchaseOrderInIndex({
             isFirstRender.current = false;
             fetchPoInData({ isPartial: false });
         } else {
-            fetchPoInData({ isPartial: true });
+            fetchPoInData({ page: 1, isPartial: true });
         }
-    }, [perPage, statusFilter]);
+    }, [perPage, statusFilter, tableDateFilter, tableStartDate, tableEndDate]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -296,6 +307,8 @@ export default function PurchaseOrderInIndex({
         this_week: 'Minggu Ini',
         this_month: 'Bulan Ini',
         this_year: 'Tahun Ini',
+        range: 'Range Tanggal',
+        all: 'Semua Data',
     };
 
     const outstandingItems = useMemo(
@@ -852,6 +865,42 @@ export default function PurchaseOrderInIndex({
                                     PO IN Terealisasi
                                 </option>
                             </select>
+                            <select
+                                className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
+                                value={tableDateFilter}
+                                onChange={(event) =>
+                                    setTableDateFilter(event.target.value)
+                                }
+                            >
+                                <option value="today">Hari Ini</option>
+                                <option value="this_week">Minggu Ini</option>
+                                <option value="this_month">Bulan Ini</option>
+                                <option value="this_year">Tahun Ini</option>
+                                <option value="range">Range Tanggal</option>
+                                <option value="all">Semua Data</option>
+                            </select>
+                            {tableDateFilter === 'range' && (
+                                <>
+                                    <input
+                                        type="date"
+                                        className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
+                                        value={tableStartDate}
+                                        onChange={(event) =>
+                                            setTableStartDate(
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                    <input
+                                        type="date"
+                                        className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
+                                        value={tableEndDate}
+                                        onChange={(event) =>
+                                            setTableEndDate(event.target.value)
+                                        }
+                                    />
+                                </>
+                            )}
                             <select
                                 className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
                                 value={perPage}

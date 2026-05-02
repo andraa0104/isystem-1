@@ -50,6 +50,11 @@ export default function DeliveryOrderIndex({
     realizedTotal = 0,
     period = 'today',
 }) {
+    const [deliveryOrdersList, setDeliveryOrdersList] = useState(deliveryOrders);
+    const [outstandingCountState, setOutstandingCountState] =
+        useState(outstandingCount);
+    const [outstandingTotalState, setOutstandingTotalState] =
+        useState(outstandingTotal);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('outstanding');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
@@ -83,10 +88,12 @@ export default function DeliveryOrderIndex({
     const [realizedList, setRealizedList] = useState([]);
     const [realizedLoading, setRealizedLoading] = useState(false);
     const [realizedError, setRealizedError] = useState('');
+    const [tableLoading, setTableLoading] = useState(true);
+    const [tableError, setTableError] = useState('');
 
     const filteredDeliveryOrders = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
-        const filtered = deliveryOrders.filter((item) => {
+        const filtered = deliveryOrdersList.filter((item) => {
             const statusValue = getStatusValue(item);
             const isOutstanding = statusValue === 0;
             const isRealized = statusValue === 1;
@@ -119,7 +126,7 @@ export default function DeliveryOrderIndex({
             }
             return String(b.date ?? '').localeCompare(String(a.date ?? ''));
         });
-    }, [deliveryOrders, searchTerm, statusFilter]);
+    }, [deliveryOrdersList, searchTerm, statusFilter]);
 
     const totalItems = filteredDeliveryOrders.length;
     const totalPages = useMemo(() => {
@@ -358,6 +365,43 @@ export default function DeliveryOrderIndex({
             });
     };
 
+    const loadDeliveryOrderData = () => {
+        setTableLoading(true);
+        setTableError('');
+        const params = new URLSearchParams({ period: periodFilter });
+        fetch(`/marketing/delivery-order/data?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                return response.json();
+            })
+            .then((data) => {
+                setDeliveryOrdersList(
+                    Array.isArray(data?.deliveryOrders)
+                        ? data.deliveryOrders
+                        : [],
+                );
+                setOutstandingCountState(data?.outstandingCount ?? 0);
+                setOutstandingTotalState(data?.outstandingTotal ?? 0);
+                setRealizedCountState(data?.realizedCount ?? 0);
+                setRealizedTotalState(data?.realizedTotal ?? 0);
+            })
+            .catch(() => {
+                setTableError('Gagal memuat data DO.');
+            })
+            .finally(() => {
+                setTableLoading(false);
+            });
+    };
+
+    useEffect(() => {
+        loadDeliveryOrderData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const selectedGrandTotal = useMemo(
         () =>
             selectedDetails.reduce((total, detail) => {
@@ -480,13 +524,13 @@ export default function DeliveryOrderIndex({
                         setOutstandingList((prev) =>
                             prev.filter((row) => row.no_do !== item.no_do),
                         );
-                        setPurchaseRequirementsList((prev) =>
+                        setDeliveryOrdersList((prev) =>
                             prev.filter((row) => row.no_do !== item.no_do),
                         );
-                        setOutstandingCount((prev) =>
+                        setOutstandingCountState((prev) =>
                             Math.max(0, (prev ?? 0) - 1),
                         );
-                        setOutstandingTotal((prev) =>
+                        setOutstandingTotalState((prev) =>
                             Math.max(
                                 0,
                                 prev -
@@ -503,6 +547,7 @@ export default function DeliveryOrderIndex({
                             showConfirmButton: false,
                             timer: 1800,
                         });
+                        setIsDeletingDo(false);
                     },
                     onError: (errors) => {
                         setIsDeletingDo(false);
@@ -567,7 +612,7 @@ export default function DeliveryOrderIndex({
                                     DO Outstanding
                                 </CardDescription>
                                 <CardTitle className="text-2xl">
-                                    {outstandingCount}
+                                    {outstandingCountState}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
@@ -575,7 +620,7 @@ export default function DeliveryOrderIndex({
                                     Grand total outstanding
                                 </p>
                                 <p className="text-sm font-semibold">
-                                    Rp {formatNumber(outstandingTotal)}
+                                    Rp {formatNumber(outstandingTotalState)}
                                 </p>
                             </CardContent>
                         </Card>
@@ -705,54 +750,68 @@ export default function DeliveryOrderIndex({
                             </tr>
                         </thead>
                         <tbody>
-                            {displayedDeliveryOrders.length === 0 && (
-                                <tr>
-                                    <td
-                                        className="px-4 py-6 text-center text-muted-foreground"
-                                        colSpan={5}
+                            <PlainTableStateRows
+                                columns={5}
+                                loading={tableLoading}
+                                error={tableError}
+                                onRetry={loadDeliveryOrderData}
+                                isEmpty={
+                                    !tableLoading &&
+                                    !tableError &&
+                                    displayedDeliveryOrders.length === 0
+                                }
+                                emptyMessage="Belum ada data DO."
+                            />
+                            {!tableLoading &&
+                                !tableError &&
+                                displayedDeliveryOrders.map((item) => (
+                                    <tr
+                                        key={item.no_do}
+                                        className="border-t border-sidebar-border/70"
                                     >
-                                        Belum ada data DO.
-                                    </td>
-                                </tr>
-                            )}
-                            {displayedDeliveryOrders.map((item) => (
-                                <tr
-                                    key={item.no_do}
-                                    className="border-t border-sidebar-border/70"
-                                >
-                                    <td className="px-4 py-3">{item.no_do}</td>
-                                    <td className="px-4 py-3">{item.date}</td>
-                                    <td className="px-4 py-3">{item.ref_po}</td>
-                                    <td className="px-4 py-3">{item.nm_cs}</td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    handleOpenDetailModal(item)
-                                                }
-                                                className="text-muted-foreground transition hover:text-foreground"
-                                                aria-label="Lihat"
-                                                title="Lihat"
-                                            >
-                                                <Eye className="size-4" />
-                                            </button>
-                                            <a
-                                                href={`/marketing/delivery-order/${encodeURIComponent(
-                                                    item.no_do,
-                                                )}/print`}
-                                                className="text-muted-foreground transition hover:text-foreground"
-                                                aria-label="Cetak"
-                                                title="Cetak"
-                                                target="_blank"
-                                                rel="noreferrer"
-                                            >
-                                                <Printer className="size-4" />
-                                            </a>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
+                                        <td className="px-4 py-3">
+                                            {item.no_do}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.date}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.ref_po}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            {item.nm_cs}
+                                        </td>
+                                        <td className="px-4 py-3">
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleOpenDetailModal(
+                                                            item,
+                                                        )
+                                                    }
+                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                    aria-label="Lihat"
+                                                    title="Lihat"
+                                                >
+                                                    <Eye className="size-4" />
+                                                </button>
+                                                <a
+                                                    href={`/marketing/delivery-order/${encodeURIComponent(
+                                                        item.no_do,
+                                                    )}/print`}
+                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                    aria-label="Cetak"
+                                                    title="Cetak"
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    <Printer className="size-4" />
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                         </tbody>
                     </table>
                 </div>

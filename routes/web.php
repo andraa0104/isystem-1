@@ -342,6 +342,8 @@ Route::get('marketing/delivery-order/get-pr-details', [DeliveryOrderController::
     ->name('marketing.delivery-order.get-pr-details');
 Route::get('marketing/delivery-order/details', [DeliveryOrderController::class, 'details'])
     ->name('marketing.delivery-order.details');
+Route::get('marketing/delivery-order/data', [DeliveryOrderController::class, 'data'])
+    ->name('marketing.delivery-order.data');
 Route::get('marketing/delivery-order/outstanding', [DeliveryOrderController::class, 'outstanding'])
     ->name('marketing.delivery-order.outstanding');
 Route::get('marketing/delivery-order/realized', [DeliveryOrderController::class, 'realized'])

@@ -56,6 +56,87 @@ const formatRupiah = (value) => {
     return `Rp. ${new Intl.NumberFormat('id-ID').format(number)}`;
 };
 
+const parseFlexibleDate = (value) => {
+    const text = String(value ?? '').trim();
+    if (!text) return null;
+
+    const ymd = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (ymd) {
+        const date = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    const dmy = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
+    if (dmy) {
+        const year =
+            String(dmy[3]).length === 2 ? Number(`20${dmy[3]}`) : Number(dmy[3]);
+        const date = new Date(year, Number(dmy[2]) - 1, Number(dmy[1]));
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const isInDateFilter = (value, filter, startDate, endDate) => {
+    if (filter === 'all') return true;
+
+    const date = parseFlexibleDate(value);
+    if (!date) return false;
+
+    const normalized = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+    );
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (filter === 'today') {
+        return normalized.getTime() === today.getTime();
+    }
+
+    if (filter === 'this_week') {
+        const day = today.getDay();
+        const diffToMonday = day === 0 ? 6 : day - 1;
+        const start = new Date(today);
+        start.setDate(today.getDate() - diffToMonday);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        return normalized >= start && normalized <= end;
+    }
+
+    if (filter === 'this_month') {
+        return (
+            normalized.getMonth() === today.getMonth() &&
+            normalized.getFullYear() === today.getFullYear()
+        );
+    }
+
+    if (filter === 'this_year') {
+        return normalized.getFullYear() === today.getFullYear();
+    }
+
+    if (filter === 'range') {
+        const start = parseFlexibleDate(startDate);
+        const end = parseFlexibleDate(endDate);
+        if (!start || !end) return false;
+        const normalizedStart = new Date(
+            start.getFullYear(),
+            start.getMonth(),
+            start.getDate(),
+        );
+        const normalizedEnd = new Date(
+            end.getFullYear(),
+            end.getMonth(),
+            end.getDate(),
+        );
+        return normalized >= normalizedStart && normalized <= normalizedEnd;
+    }
+
+    return true;
+};
+
 export default function PurchaseRequirementIndex({
     purchaseRequirements = [],
     outstandingCount = 0,
@@ -71,6 +152,9 @@ export default function PurchaseRequirementIndex({
     const [purchaseRequirementsList, setPurchaseRequirementsList] =
         useState(purchaseRequirements);
     const [statusFilter, setStatusFilter] = useState('outstanding');
+    const [tableDateFilter, setTableDateFilter] = useState('today');
+    const [tableStartDate, setTableStartDate] = useState('');
+    const [tableEndDate, setTableEndDate] = useState('');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
     const [outstandingCountState, setOutstandingCountState] =
         useState(outstandingCount);
@@ -177,6 +261,17 @@ export default function PurchaseRequirementIndex({
     const filteredPurchaseRequirements = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
         const filtered = purchaseRequirementsList.filter((item) => {
+            if (
+                !isInDateFilter(
+                    item.date,
+                    tableDateFilter,
+                    tableStartDate,
+                    tableEndDate,
+                )
+            ) {
+                return false;
+            }
+
             const outstanding = Number(item.outstanding_count ?? 0) > 0;
             const sisaPoStatus = Number(item.sisa_po_count ?? 0) > 0;
             const realized = Number(item.realized_count ?? 0) > 0;
@@ -210,7 +305,14 @@ export default function PurchaseRequirementIndex({
         return filtered.sort((a, b) =>
             String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')),
         );
-    }, [purchaseRequirementsList, searchTerm, statusFilter]);
+    }, [
+        purchaseRequirementsList,
+        searchTerm,
+        statusFilter,
+        tableDateFilter,
+        tableStartDate,
+        tableEndDate,
+    ]);
 
     const totalItems = filteredPurchaseRequirements.length;
     const totalPages = useMemo(() => {
@@ -586,7 +688,14 @@ export default function PurchaseRequirementIndex({
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [pageSize, searchTerm, statusFilter]);
+    }, [
+        pageSize,
+        searchTerm,
+        statusFilter,
+        tableDateFilter,
+        tableStartDate,
+        tableEndDate,
+    ]);
 
     useEffect(() => {
         setOutstandingCurrentPage(1);
@@ -931,6 +1040,51 @@ export default function PurchaseRequirementIndex({
                                 <option value="realized">PR Terealisasi</option>
                             </select>
                         </label>
+                        <label className="text-sm text-muted-foreground">
+                            Tanggal
+                            <select
+                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                value={tableDateFilter}
+                                onChange={(event) =>
+                                    setTableDateFilter(event.target.value)
+                                }
+                            >
+                                <option value="today">Hari Ini</option>
+                                <option value="this_week">Minggu Ini</option>
+                                <option value="this_month">Bulan Ini</option>
+                                <option value="this_year">Tahun Ini</option>
+                                <option value="range">Range Tanggal</option>
+                                <option value="all">Semua Data</option>
+                            </select>
+                        </label>
+                        {tableDateFilter === 'range' && (
+                            <>
+                                <label className="text-sm text-muted-foreground">
+                                    Dari
+                                    <input
+                                        type="date"
+                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                        value={tableStartDate}
+                                        onChange={(event) =>
+                                            setTableStartDate(
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                </label>
+                                <label className="text-sm text-muted-foreground">
+                                    Sampai
+                                    <input
+                                        type="date"
+                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                        value={tableEndDate}
+                                        onChange={(event) =>
+                                            setTableEndDate(event.target.value)
+                                        }
+                                    />
+                                </label>
+                            </>
+                        )}
                     </div>
                     <label className="text-sm text-muted-foreground">
                         Cari
