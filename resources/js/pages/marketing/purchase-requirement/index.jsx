@@ -164,8 +164,12 @@ export default function PurchaseRequirementIndex({
     const [sisaPoTotalState, setSisaPoTotalState] = useState(sisaPoTotal);
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
     const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
+    
+    // --- DIPISAH: State loading untuk Card (Summary) dan Table ---
+    const [tableLoading, setTableLoading] = useState(true);
+    const [summaryLoading, setSummaryLoading] = useState(true);
+    
     const [isRealizedLoading, setIsRealizedLoading] = useState(false);
-    const [loading, setLoading] = useState(false);
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedPr, setSelectedPr] = useState(null);
@@ -200,11 +204,12 @@ export default function PurchaseRequirementIndex({
     const [isDeleting, setIsDeleting] = useState(false);
     const toastTimer = useRef(null);
 
-    const fetchPurchaseRequirementData = useCallback(async (newPeriod) => {
-        setLoading(true);
+    // --- DIPISAH: Fetch untuk Data Table Index Saja ---
+    const fetchTableData = useCallback(async (newPeriod) => {
+        setTableLoading(true);
         try {
             const response = await fetch(
-                `/marketing/purchase-requirement/data?period=${newPeriod}`,
+                `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=table`,
                 {
                     headers: {
                         Accept: 'application/json',
@@ -213,6 +218,26 @@ export default function PurchaseRequirementIndex({
             );
             const data = await response.json();
             setPurchaseRequirementsList(data.purchaseRequirements || []);
+        } catch (error) {
+            console.error('Error fetching PR Table data:', error);
+        } finally {
+            setTableLoading(false);
+        }
+    }, []);
+
+    // --- DIPISAH: Fetch untuk Data Card Summary Saja ---
+    const fetchSummaryData = useCallback(async (newPeriod) => {
+        setSummaryLoading(true);
+        try {
+            const response = await fetch(
+                `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=summary`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                },
+            );
+            const data = await response.json();
             setOutstandingCountState(data.outstandingCount || 0);
             setOutstandingTotalState(data.outstandingTotal || 0);
             setSisaPoCountState(data.sisaPoCount || 0);
@@ -220,9 +245,9 @@ export default function PurchaseRequirementIndex({
             setRealizedCountState(data.realizedCount || 0);
             setRealizedTotalState(data.realizedTotal || 0);
         } catch (error) {
-            console.error('Error fetching PR data:', error);
+            console.error('Error fetching PR Summary data:', error);
         } finally {
-            setLoading(false);
+            setSummaryLoading(false);
         }
     }, []);
 
@@ -231,11 +256,13 @@ export default function PurchaseRequirementIndex({
     useEffect(() => {
         if (isFirstRender.current) {
             isFirstRender.current = false;
-            fetchPurchaseRequirementData(periodFilter); // Trigger initial load since we sent empty data
+            fetchTableData(periodFilter);
+            fetchSummaryData(periodFilter);
             return;
         }
-        fetchPurchaseRequirementData(periodFilter);
-    }, [periodFilter, fetchPurchaseRequirementData]);
+        fetchTableData(periodFilter);
+        fetchSummaryData(periodFilter);
+    }, [periodFilter, fetchTableData, fetchSummaryData]);
 
     useEffect(() => {
         if (purchaseRequirements?.length > 0) {
@@ -549,6 +576,7 @@ export default function PurchaseRequirementIndex({
             startIndex + materialPageSize,
         );
     }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
+    
     const handleOpenModal = (item) => {
         setSelectedPr(item);
         setIsModalOpen(true);
@@ -556,7 +584,7 @@ export default function PurchaseRequirementIndex({
         setDetailError('');
         setDetailLoading(true);
         setMaterialSearchTerm('');
-        setMaterialPageSize(10);
+        setMaterialPageSize(5);
         setMaterialCurrentPage(1);
         const params = new URLSearchParams({ no_pr: item.no_pr });
         fetch(`/marketing/purchase-requirement/details?${params.toString()}`, {
@@ -748,7 +776,7 @@ export default function PurchaseRequirementIndex({
     useEffect(() => {
         if (isModalOpen) {
             setMaterialSearchTerm('');
-            setMaterialPageSize(10);
+            setMaterialPageSize(5); 
             setMaterialCurrentPage(1);
         }
     }, [isModalOpen, selectedPr]);
@@ -762,7 +790,6 @@ export default function PurchaseRequirementIndex({
     const handleDelete = (noPr) => {
         if (!noPr || isDeleting) return;
 
-        // Hindari fokus tertinggal di dalam dialog Radix saat SweetAlert muncul
         const activeEl = document.activeElement;
         if (activeEl instanceof HTMLElement) {
             activeEl.blur();
@@ -877,7 +904,7 @@ export default function PurchaseRequirementIndex({
                                     PR Outstanding
                                 </CardDescription>
                                 <CardTitle className="text-2xl font-semibold">
-                                    {loading ? (
+                                    {summaryLoading ? (
                                         <Skeleton className="h-8 w-16" />
                                     ) : (
                                         outstandingCountState
@@ -889,7 +916,7 @@ export default function PurchaseRequirementIndex({
                                     Belum ada material dibuat PO
                                 </p>
                                 <div className="mt-1 text-sm font-semibold">
-                                    {loading ? (
+                                    {summaryLoading ? (
                                         <Skeleton className="h-5 w-24" />
                                     ) : (
                                         formatRupiah(outstandingTotalState || 0)
@@ -916,7 +943,7 @@ export default function PurchaseRequirementIndex({
                                     PR Sisa PO
                                 </CardDescription>
                                 <CardTitle className="text-2xl font-semibold">
-                                    {loading ? (
+                                    {summaryLoading ? (
                                         <Skeleton className="h-8 w-16" />
                                     ) : (
                                         sisaPoCountState
@@ -928,7 +955,7 @@ export default function PurchaseRequirementIndex({
                                     Masih ada sisa material belum dibuat PO
                                 </p>
                                 <div className="mt-1 text-sm font-semibold">
-                                    {loading ? (
+                                    {summaryLoading ? (
                                         <Skeleton className="h-5 w-24" />
                                     ) : (
                                         formatRupiah(sisaPoTotalState || 0)
@@ -949,14 +976,14 @@ export default function PurchaseRequirementIndex({
                                         PR Terealisasi
                                     </CardDescription>
                                     <CardTitle className="text-2xl font-semibold">
-                                        {loading || isRealizedLoading ? (
+                                        {summaryLoading || isRealizedLoading ? (
                                             <Skeleton className="h-8 w-16" />
                                         ) : (
                                             realizedCountState
                                         )}
                                     </CardTitle>
                                     <div className="mt-1 text-sm font-semibold">
-                                        {loading || isRealizedLoading ? (
+                                        {summaryLoading || isRealizedLoading ? (
                                             <Skeleton className="h-5 w-24" />
                                         ) : (
                                             formatRupiah(realizedTotalState)
@@ -1116,14 +1143,14 @@ export default function PurchaseRequirementIndex({
                         <tbody>
                             <PlainTableStateRows
                                 columns={5}
-                                loading={loading}
+                                loading={tableLoading}
                                 isEmpty={
-                                    !loading &&
+                                    !tableLoading &&
                                     displayedPurchaseRequirements.length === 0
                                 }
                                 emptyMessage="Belum ada data PR."
                             />
-                            {!loading &&
+                            {!tableLoading &&
                                 displayedPurchaseRequirements.map((item) => (
                                     <tr
                                         key={item.no_pr}
@@ -1225,6 +1252,8 @@ export default function PurchaseRequirementIndex({
                             setSelectedDetails([]);
                             setDetailError('');
                             setDetailLoading(false);
+                            setMaterialPageSize(5); 
+                            setMaterialCurrentPage(1);
                         }
                     }}
                 >
@@ -1441,7 +1470,7 @@ export default function PurchaseRequirementIndex({
                                                                         'unit',
                                                                         'Unit',
                                                                     ],
-                                                                    )}
+                                                                )}
 
                                                             </td>
                                                             <td className="px-4 py-3">

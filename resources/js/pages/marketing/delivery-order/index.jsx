@@ -14,10 +14,11 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 
 const breadcrumbs = [
@@ -51,10 +52,8 @@ export default function DeliveryOrderIndex({
     period = 'today',
 }) {
     const [deliveryOrdersList, setDeliveryOrdersList] = useState(deliveryOrders);
-    const [outstandingCountState, setOutstandingCountState] =
-        useState(outstandingCount);
-    const [outstandingTotalState, setOutstandingTotalState] =
-        useState(outstandingTotal);
+    const [outstandingCountState, setOutstandingCountState] = useState(outstandingCount);
+    const [outstandingTotalState, setOutstandingTotalState] = useState(outstandingTotal);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('outstanding');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
@@ -88,8 +87,82 @@ export default function DeliveryOrderIndex({
     const [realizedList, setRealizedList] = useState([]);
     const [realizedLoading, setRealizedLoading] = useState(false);
     const [realizedError, setRealizedError] = useState('');
+    
+    // --- DIPISAH: State loading ---
     const [tableLoading, setTableLoading] = useState(true);
+    const [summaryLoading, setSummaryLoading] = useState(true);
     const [tableError, setTableError] = useState('');
+
+    const [tablePeriod, setTablePeriod] = useState('today'); // Default hari ini
+    const [tableDateRange, setTableDateRange] = useState({ start: '', end: '' });
+
+    // --- DIPISAH: Fetch untuk Data Table Index Saja ---
+    const fetchTableData = useCallback((selectedPeriod, range) => {
+        setTableLoading(true);
+        setTableError('');
+
+        const params = new URLSearchParams({ period: selectedPeriod, fetch_type: 'table' });
+        if (selectedPeriod === 'range' && range?.start && range?.end) {
+            params.append('start_date', range.start);
+            params.append('end_date', range.end);
+        }
+
+        fetch(`/marketing/delivery-order/data?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) throw new Error('Request failed');
+                return response.json();
+            })
+            .then((data) => {
+                setDeliveryOrdersList(
+                    Array.isArray(data?.deliveryOrders) ? data.deliveryOrders : []
+                );
+            })
+            .catch(() => {
+                setTableError('Gagal memuat data DO untuk tabel.');
+            })
+            .finally(() => {
+                setTableLoading(false);
+            });
+    }, []);
+
+    // --- DIPISAH: Fetch untuk Data Card Summary Saja ---
+    const fetchSummaryData = useCallback((selectedPeriod) => {
+        setSummaryLoading(true);
+        const params = new URLSearchParams({ period: selectedPeriod, fetch_type: 'summary' });
+        fetch(`/marketing/delivery-order/data?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) throw new Error('Request failed');
+                return response.json();
+            })
+            .then((data) => {
+                setOutstandingCountState(data?.outstandingCount ?? 0);
+                setOutstandingTotalState(data?.outstandingTotal ?? 0);
+                setRealizedCountState(data?.realizedCount ?? 0);
+                setRealizedTotalState(data?.realizedTotal ?? 0);
+            })
+            .catch(() => {
+                console.error('Gagal memuat data summary DO.');
+            })
+            .finally(() => {
+                setSummaryLoading(false);
+            });
+    }, []);
+
+    // Fetch awal dipisah agar tidak saling tunggu
+    const isFirstRender = useRef(true);
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            fetchTableData(tablePeriod, tableDateRange);
+            fetchSummaryData(periodFilter);
+            return;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchTableData, fetchSummaryData]);
 
     const filteredDeliveryOrders = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
@@ -365,43 +438,6 @@ export default function DeliveryOrderIndex({
             });
     };
 
-    const loadDeliveryOrderData = () => {
-        setTableLoading(true);
-        setTableError('');
-        const params = new URLSearchParams({ period: periodFilter });
-        fetch(`/marketing/delivery-order/data?${params.toString()}`, {
-            headers: { Accept: 'application/json' },
-        })
-            .then((response) => {
-                if (!response.ok) {
-                    throw new Error('Request failed');
-                }
-                return response.json();
-            })
-            .then((data) => {
-                setDeliveryOrdersList(
-                    Array.isArray(data?.deliveryOrders)
-                        ? data.deliveryOrders
-                        : [],
-                );
-                setOutstandingCountState(data?.outstandingCount ?? 0);
-                setOutstandingTotalState(data?.outstandingTotal ?? 0);
-                setRealizedCountState(data?.realizedCount ?? 0);
-                setRealizedTotalState(data?.realizedTotal ?? 0);
-            })
-            .catch(() => {
-                setTableError('Gagal memuat data DO.');
-            })
-            .finally(() => {
-                setTableLoading(false);
-            });
-    };
-
-    useEffect(() => {
-        loadDeliveryOrderData();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
     const selectedGrandTotal = useMemo(
         () =>
             selectedDetails.reduce((total, detail) => {
@@ -428,7 +464,7 @@ export default function DeliveryOrderIndex({
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [pageSize, searchTerm, statusFilter]);
+    }, [pageSize, searchTerm, statusFilter, tablePeriod]);
 
     useEffect(() => {
         setOutstandingCurrentPage(1);
@@ -612,16 +648,24 @@ export default function DeliveryOrderIndex({
                                     DO Outstanding
                                 </CardDescription>
                                 <CardTitle className="text-2xl">
-                                    {outstandingCountState}
+                                    {summaryLoading ? (
+                                        <Skeleton className="h-8 w-16" />
+                                    ) : (
+                                        outstandingCountState
+                                    )}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-xs text-muted-foreground">
                                     Grand total outstanding
                                 </p>
-                                <p className="text-sm font-semibold">
-                                    Rp {formatNumber(outstandingTotalState)}
-                                </p>
+                                <div className="mt-1 text-sm font-semibold">
+                                    {summaryLoading ? (
+                                        <Skeleton className="h-5 w-24" />
+                                    ) : (
+                                        `Rp ${formatNumber(outstandingTotalState)}`
+                                    )}
+                                </div>
                             </CardContent>
                         </Card>
                     </button>
@@ -633,14 +677,18 @@ export default function DeliveryOrderIndex({
                                         DO Terealisasi
                                     </CardDescription>
                                     <CardTitle className="text-2xl">
-                                        {isRealizedLoading
-                                            ? '...'
-                                            : realizedCountState}
+                                        {summaryLoading || isRealizedLoading ? (
+                                            <Skeleton className="h-8 w-16" />
+                                        ) : (
+                                            realizedCountState
+                                        )}
                                     </CardTitle>
-                                    <div className="text-sm text-muted-foreground">
-                                        {isRealizedLoading
-                                            ? '...'
-                                            : `Rp ${formatNumber(realizedTotalState)}`}
+                                    <div className="mt-1 text-sm font-semibold text-muted-foreground">
+                                        {summaryLoading || isRealizedLoading ? (
+                                            <Skeleton className="h-5 w-24" />
+                                        ) : (
+                                            `Rp ${formatNumber(realizedTotalState)}`
+                                        )}
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -721,6 +769,64 @@ export default function DeliveryOrderIndex({
                                 <option value="all">Semua Data</option>
                             </select>
                         </label>
+                        
+                        {/* --- FILTER WAKTU TABEL --- */}
+                        <label className="text-sm text-muted-foreground">
+                            Waktu
+                            <select
+                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                value={tablePeriod}
+                                onChange={(event) => {
+                                    const val = event.target.value;
+                                    setTablePeriod(val);
+                                    
+                                    if (val !== 'range') {
+                                        fetchTableData(val, tableDateRange);
+                                    } else if (tableDateRange.start && tableDateRange.end) {
+                                        fetchTableData(val, tableDateRange);
+                                    }
+                                }}
+                            >
+                                <option value="today">Hari Ini</option>
+                                <option value="this_week">Minggu Ini</option>
+                                <option value="this_month">Bulan Ini</option>
+                                <option value="this_year">Tahun Ini</option>
+                                <option value="all">Semua Data</option>
+                                <option value="range">Range Tanggal</option>
+                            </select>
+                        </label>
+
+                        {/* Input Range Tanggal */}
+                        {tablePeriod === 'range' && (
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="date"
+                                    className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs shadow-sm"
+                                    value={tableDateRange.start}
+                                    onChange={(e) => {
+                                        const newRange = { ...tableDateRange, start: e.target.value };
+                                        setTableDateRange(newRange);
+                                        if (newRange.start && newRange.end) {
+                                            fetchTableData('range', newRange);
+                                        }
+                                    }}
+                                />
+                                <span>-</span>
+                                <input
+                                    type="date"
+                                    className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs shadow-sm"
+                                    value={tableDateRange.end}
+                                    onChange={(e) => {
+                                        const newRange = { ...tableDateRange, end: e.target.value };
+                                        setTableDateRange(newRange);
+                                        if (newRange.start && newRange.end) {
+                                            fetchTableData('range', newRange);
+                                        }
+                                    }}
+                                />
+                            </div>
+                        )}
+                        {/* --- END FILTER WAKTU TABEL --- */}
                     </div>
                     <label className="text-sm text-muted-foreground">
                         Cari
@@ -754,7 +860,7 @@ export default function DeliveryOrderIndex({
                                 columns={5}
                                 loading={tableLoading}
                                 error={tableError}
-                                onRetry={loadDeliveryOrderData}
+                                onRetry={() => fetchTableData(tablePeriod, tableDateRange)}
                                 isEmpty={
                                     !tableLoading &&
                                     !tableError &&
@@ -869,6 +975,8 @@ export default function DeliveryOrderIndex({
                             setSelectedAddress('');
                             setDetailError('');
                             setDetailLoading(false);
+                            setDetailPageSize(5);
+                            setDetailCurrentPage(1);
                         }
                     }}
                 >

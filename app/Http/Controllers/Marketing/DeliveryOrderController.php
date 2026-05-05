@@ -27,19 +27,53 @@ class DeliveryOrderController
     {
         $period = $request->query('period', 'today');
 
-        $deliveryOrders = DB::table('tb_do')
+        // 1. Kueri Utama Tabel Delivery Order
+        $deliveryOrdersQuery = DB::table('tb_do')
             ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
             ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
             ->orderBy('no_do', 'desc')
-            ->orderBy('date', 'desc')
-            ->get();
+            ->orderBy('date', 'desc');
 
+        // Ekspresi untuk membaca string 'date' menjadi tipe DATE yang valid
+        $doDateExpr = "coalesce(date(tb_do.date), str_to_date(tb_do.date, '%Y-%m-%d'), str_to_date(tb_do.date, '%Y/%m/%d'), str_to_date(tb_do.date, '%d/%m/%Y'), str_to_date(tb_do.date, '%d-%m-%Y'), str_to_date(tb_do.date, '%d.%m.%Y'))";
+        $now = now();
+
+        if ($period === 'today') {
+            $deliveryOrdersQuery->whereRaw("{$doDateExpr} = ?", [$now->toDateString()]);
+        } elseif ($period === 'this_week') {
+            $deliveryOrdersQuery->whereRaw("{$doDateExpr} between ? and ?", [
+                $now->startOfWeek()->toDateString(),
+                $now->endOfWeek()->toDateString(),
+            ]);
+        } elseif ($period === 'this_month') {
+            $deliveryOrdersQuery->whereRaw("month({$doDateExpr}) = ?", [$now->month])
+                ->whereRaw("year({$doDateExpr}) = ?", [$now->year]);
+        } elseif ($period === 'this_year') {
+            $deliveryOrdersQuery->whereRaw("year({$doDateExpr}) = ?", [$now->year]);
+        } elseif ($period === 'range') {
+            $startDate = $request->query('start_date');
+            $endDate = $request->query('end_date');
+            if ($startDate && $endDate) {
+                $deliveryOrdersQuery->whereRaw("{$doDateExpr} between ? and ?", [
+                    $startDate,
+                    $endDate
+                ]);
+            }
+        }
+
+        $deliveryOrders = $deliveryOrdersQuery->get();
+
+        // 2. Kueri Outstanding Count & Total (Tetap seperti semula)
         $outstandingCount = DB::table('tb_do')
             ->where('val_inv', 0)
             ->distinct('no_do')
             ->count('no_do');
 
-        // Realized DO: tb_fakturpenjualan.no_do = tb_kddo.no_do, filter tgl_pos
+        $outstandingTotal = DB::table('tb_do')
+            ->where('val_inv', 0)
+            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
+
+        // 3. Kueri Realized Count & Total (Tetap seperti semula)
         $docDateExpr = "coalesce(date(f.tgl_pos), str_to_date(f.tgl_pos, '%Y-%m-%d'), str_to_date(f.tgl_pos, '%Y/%m/%d'), str_to_date(f.tgl_pos, '%d/%m/%Y'), str_to_date(f.tgl_pos, '%d-%m-%Y'), str_to_date(f.tgl_pos, '%d.%m.%Y'))";
 
         $realizedQuery = DB::table('tb_kddo as k')
@@ -47,7 +81,7 @@ class DeliveryOrderController
                 $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
             });
 
-        $now = now();
+        // Filter period untuk realized mengikuti yang diminta di query
         if ($period === 'today') {
             $realizedQuery->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
         } elseif ($period === 'this_week') {
@@ -64,13 +98,9 @@ class DeliveryOrderController
 
         $realizedNos = $realizedQuery->distinct('k.no_do')->pluck('k.no_do');
         $realizedCount = $realizedNos->count();
-        // total diambil dari tb_do.total untuk no_do yang terealisasi
+        
         $realizedTotal = DB::table('tb_do')
             ->whereIn(DB::raw('lower(trim(no_do))'), $realizedNos->map(fn ($n) => strtolower(trim($n))))
-            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
-
-        $outstandingTotal = DB::table('tb_do')
-            ->where('val_inv', 0)
             ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
 
         return response()->json([
