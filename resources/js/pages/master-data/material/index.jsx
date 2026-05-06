@@ -10,11 +10,13 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { Head, router, useForm } from '@inertiajs/react';
@@ -36,12 +38,19 @@ const compareCode = (a, b) =>
         sensitivity: 'base',
     });
 
-export default function MaterialIndex({ materials = [] }) {
+export default function MaterialIndex({ materials }) {
+    // --- States Utama ---
+    const [materialsList, setMaterialsList] = useState([]);
+    const [tableLoading, setTableLoading] = useState(true);
+
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [stockFilter, setStockFilter] = useState('all');
     const [codeOrder, setCodeOrder] = useState('asc');
+    
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState(null);
@@ -66,9 +75,37 @@ export default function MaterialIndex({ materials = [] }) {
         remark: '',
     });
 
+    // --- Pemisahan Frontend & Backend (Initial Fetch) ---
+    useEffect(() => {
+        // Jika data dari backend belum ada (karena Inertia::lazy)
+        if (!materials || materials.length === 0) {
+            setTableLoading(true);
+            router.reload({
+                only: ['materials'],
+                preserveState: true,
+                onSuccess: (page) => {
+                    setMaterialsList(page.props.materials || []);
+                },
+                onFinish: () => {
+                    setTableLoading(false);
+                },
+            });
+        } else {
+            setMaterialsList(materials);
+            setTableLoading(false);
+        }
+    }, [materials]);
+
+    // --- Debounce Input Pencarian (Optimasi Filter Tabel) ---
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    // --- Pemrosesan Data List ---
     const filteredMaterials = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
-        let items = [...materials];
+        const term = debouncedSearchTerm.trim().toLowerCase();
+        let items = [...materialsList];
 
         if (stockFilter === 'top') {
             items.sort((a, b) => Number(b.stok ?? 0) - Number(a.stok ?? 0));
@@ -95,7 +132,7 @@ export default function MaterialIndex({ materials = [] }) {
                 .toLowerCase()
                 .includes(term),
         );
-    }, [materials, searchTerm, stockFilter, codeOrder]);
+    }, [materialsList, debouncedSearchTerm, stockFilter, codeOrder]);
 
     const totalItems = filteredMaterials.length;
     const totalPages = useMemo(() => {
@@ -119,6 +156,7 @@ export default function MaterialIndex({ materials = [] }) {
         }
     }, [currentPage, totalPages]);
 
+    // --- Handlers ---
     const handleSubmit = (event) => {
         event.preventDefault();
         post('/master-data/material', {
@@ -131,6 +169,7 @@ export default function MaterialIndex({ materials = [] }) {
     };
 
     const handleEdit = (material) => {
+        // Form Edit langsung mengambil data dari props tabel, sehingga tidak butuh loading/fetch API
         setEditingMaterial(material);
         setEditData({
             material: material.material ?? '',
@@ -331,11 +370,21 @@ export default function MaterialIndex({ materials = [] }) {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {displayedMaterials.length === 0 && (
+                                        {tableLoading ? (
+                                            <tr>
+                                                <td className="px-4 py-4" colSpan={8}>
+                                                    <div className="flex flex-col gap-3">
+                                                        <Skeleton className="h-6 w-full opacity-60" />
+                                                        <Skeleton className="h-6 w-full opacity-60" />
+                                                        <Skeleton className="h-6 w-full opacity-60" />
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ) : displayedMaterials.length === 0 ? (
                                             <tr>
                                                 <td
                                                     className="px-4 py-6 text-center text-muted-foreground"
-                                                    colSpan={7}
+                                                    colSpan={8}
                                                 >
                                                     <div>
                                                         Data material belum
@@ -356,73 +405,74 @@ export default function MaterialIndex({ materials = [] }) {
                                                     </div>
                                                 </td>
                                             </tr>
-                                        )}
-                                        {displayedMaterials.map(
-                                            (item, index) => (
-                                                <tr
-                                                    key={`${item.kd_material}-${index}`}
-                                                    className="border-t border-sidebar-border/70"
-                                                >
-                                                    <td className="px-4 py-3">
-                                                        {(pageSize === Infinity
-                                                            ? index
-                                                            : (currentPage -
-                                                                  1) *
-                                                                  pageSize +
-                                                              index) + 1}
-                                                    </td>
-                                                    <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
-                                                        {renderValue(
-                                                            item.kd_material,
-                                                        )}
-                                                    </td>
-                                                    <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
-                                                        {renderValue(
-                                                            item.material,
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {renderValue(item.unit)}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right tabular-nums">
-                                                        {renderValue(item.stok)}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-right tabular-nums">
-                                                        {renderValue(
-                                                            item.harga,
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {renderValue(
-                                                            item.remark,
-                                                        )}
-                                                    </td>
-                                                    <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <ActionIconButton
-                                                                label="Edit"
-                                                                onClick={() =>
-                                                                    handleEdit(
-                                                                        item,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Pencil className="h-4 w-4" />
-                                                            </ActionIconButton>
-                                                            <ActionIconButton
-                                                                label="Hapus"
-                                                                onClick={() =>
-                                                                    handleDelete(
-                                                                        item,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                                            </ActionIconButton>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ),
+                                        ) : (
+                                            displayedMaterials.map(
+                                                (item, index) => (
+                                                    <tr
+                                                        key={`${item.kd_material}-${index}`}
+                                                        className="border-t border-sidebar-border/70"
+                                                    >
+                                                        <td className="px-4 py-3">
+                                                            {(pageSize === Infinity
+                                                                ? index
+                                                                : (currentPage -
+                                                                      1) *
+                                                                      pageSize +
+                                                                  index) + 1}
+                                                        </td>
+                                                        <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
+                                                            {renderValue(
+                                                                item.kd_material,
+                                                            )}
+                                                        </td>
+                                                        <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
+                                                            {renderValue(
+                                                                item.material,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(item.unit)}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right tabular-nums">
+                                                            {renderValue(item.stok)}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right tabular-nums">
+                                                            {renderValue(
+                                                                item.harga,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(
+                                                                item.remark,
+                                                            )}
+                                                        </td>
+                                                        <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <ActionIconButton
+                                                                    label="Edit"
+                                                                    onClick={() =>
+                                                                        handleEdit(
+                                                                            item,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Pencil className="h-4 w-4" />
+                                                                </ActionIconButton>
+                                                                <ActionIconButton
+                                                                    label="Hapus"
+                                                                    onClick={() =>
+                                                                        handleDelete(
+                                                                            item,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                                </ActionIconButton>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ),
+                                            )
                                         )}
                                     </tbody>
                                 </table>
@@ -492,6 +542,9 @@ export default function MaterialIndex({ materials = [] }) {
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>Tambah Material</DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Form untuk menambah material baru
+                            </DialogDescription>
                         </DialogHeader>
                         <form className="space-y-4" onSubmit={handleSubmit}>
                             <div className="space-y-2">
@@ -592,6 +645,9 @@ export default function MaterialIndex({ materials = [] }) {
                     <DialogContent>
                         <DialogHeader>
                             <DialogTitle>Edit Material</DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Form untuk mengubah data material
+                            </DialogDescription>
                         </DialogHeader>
                         <form className="space-y-4" onSubmit={handleUpdate}>
                             <div className="space-y-2">

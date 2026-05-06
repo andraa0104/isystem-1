@@ -11,11 +11,13 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { confirmDelete } from '@/lib/confirm-delete';
@@ -52,23 +54,37 @@ const initialFormState = {
     Attnd: '',
 };
 
-export default function CustomerIndex({ customers = [] }) {
+// Global cache untuk menyimpan data modal customer
+const customerDetailCache = {};
+
+export default function CustomerIndex({ customers }) {
+    // --- States Utama ---
+    const [customersList, setCustomersList] = useState([]);
+    const [tableLoading, setTableLoading] = useState(true);
+
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+    
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [codeOrder, setCodeOrder] = useState('asc');
+    
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    
     const [viewCustomer, setViewCustomer] = useState(null);
     const [viewLoading, setViewLoading] = useState(false);
     const [viewError, setViewError] = useState(null);
     const [viewTab, setViewTab] = useState('profil'); // profil | riwayat
+    
     const [editLoading, setEditLoading] = useState(false);
     const [editError, setEditError] = useState(null);
     const [editCustomerId, setEditCustomerId] = useState(null);
+    
     const [doHistory, setDoHistory] = useState([]);
     const [doSearchTerm, setDoSearchTerm] = useState('');
+    const [debouncedDoSearchTerm, setDebouncedDoSearchTerm] = useState('');
     const [doPageSize, setDoPageSize] = useState(5);
     const [doCurrentPage, setDoCurrentPage] = useState(1);
 
@@ -89,9 +105,42 @@ export default function CustomerIndex({ customers = [] }) {
         errors: editErrors,
     } = useForm(initialFormState);
 
+    // --- Pemisahan Frontend & Backend (Initial Fetch) ---
+    useEffect(() => {
+        // Jika data dari backend belum ada (karena Inertia::lazy)
+        if (!customers || customers.length === 0) {
+            setTableLoading(true);
+            router.reload({
+                only: ['customers'],
+                preserveState: true,
+                onSuccess: (page) => {
+                    setCustomersList(page.props.customers || []);
+                },
+                onFinish: () => {
+                    setTableLoading(false);
+                },
+            });
+        } else {
+            setCustomersList(customers);
+            setTableLoading(false);
+        }
+    }, [customers]);
+
+    // --- Debounce Input Pencarian (Optimasi Filter Tabel) ---
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedDoSearchTerm(doSearchTerm), 300);
+        return () => clearTimeout(timer);
+    }, [doSearchTerm]);
+
+    // --- Pemrosesan Data List Utama ---
     const filteredCustomers = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
-        let items = [...customers];
+        const term = debouncedSearchTerm.trim().toLowerCase();
+        let items = [...customersList];
         items.sort((a, b) =>
             codeOrder === 'desc'
                 ? compareCode(b.kd_cs, a.kd_cs)
@@ -105,7 +154,7 @@ export default function CustomerIndex({ customers = [] }) {
                 .toLowerCase()
                 .includes(term),
         );
-    }, [customers, searchTerm, codeOrder]);
+    }, [customersList, debouncedSearchTerm, codeOrder]);
 
     const totalItems = filteredCustomers.length;
     const totalPages = useMemo(() => {
@@ -129,8 +178,9 @@ export default function CustomerIndex({ customers = [] }) {
         }
     }, [currentPage, totalPages]);
 
+    // --- Pemrosesan Data List Riwayat DO Modal ---
     const filteredDoHistory = useMemo(() => {
-        const term = doSearchTerm.trim().toLowerCase();
+        const term = debouncedDoSearchTerm.trim().toLowerCase();
         if (!term) {
             return doHistory;
         }
@@ -139,7 +189,7 @@ export default function CustomerIndex({ customers = [] }) {
                 .toLowerCase()
                 .includes(term),
         );
-    }, [doHistory, doSearchTerm]);
+    }, [doHistory, debouncedDoSearchTerm]);
 
     const doTotalItems = filteredDoHistory.length;
     const doTotalPages = useMemo(() => {
@@ -163,6 +213,7 @@ export default function CustomerIndex({ customers = [] }) {
         }
     }, [doCurrentPage, doTotalPages]);
 
+    // --- Logika Fetching API Modal ---
     const fetchCustomerDetail = async (kdCustomer) => {
         const response = await fetch(
             `/master-data/customer/${encodeURIComponent(kdCustomer)}`,
@@ -173,19 +224,32 @@ export default function CustomerIndex({ customers = [] }) {
     };
 
     const handleView = async (customer) => {
-        if (!customer?.kd_cs) {
-            return;
-        }
+        if (!customer?.kd_cs) return;
+        
         setIsViewModalOpen(true);
-        setViewLoading(true);
         setViewError(null);
-        setViewCustomer(null);
-        setDoHistory([]);
+        setViewTab('profil');
         setDoSearchTerm('');
+        setDebouncedDoSearchTerm('');
         setDoPageSize(5);
         setDoCurrentPage(1);
+        
+        // Gunakan cache jika sudah ada agar loading instan saat dibuka kembali
+        if (customerDetailCache[customer.kd_cs]) {
+            const payload = customerDetailCache[customer.kd_cs];
+            setViewCustomer(payload.customer ?? null);
+            setDoHistory(payload.deliveryOrders ?? []);
+            setViewLoading(false);
+            return;
+        }
+
+        setViewLoading(true);
+        setViewCustomer(null);
+        setDoHistory([]);
+        
         try {
             const payload = await fetchCustomerDetail(customer.kd_cs);
+            customerDetailCache[customer.kd_cs] = payload; // Simpan ke cache
             setViewCustomer(payload.customer ?? null);
             setDoHistory(payload.deliveryOrders ?? []);
         } catch (error) {
@@ -198,15 +262,27 @@ export default function CustomerIndex({ customers = [] }) {
     };
 
     const handleEdit = async (customer) => {
-        if (!customer?.kd_cs) {
-            return;
-        }
+        if (!customer?.kd_cs) return;
+        
         setIsEditModalOpen(true);
-        setEditLoading(true);
         setEditError(null);
         setEditCustomerId(customer.kd_cs);
+        
+        // Gunakan cache jika sudah pernah diload
+        if (customerDetailCache[customer.kd_cs]) {
+            const payload = customerDetailCache[customer.kd_cs];
+            setEditData({
+                ...initialFormState,
+                ...payload.customer,
+            });
+            setEditLoading(false);
+            return;
+        }
+
+        setEditLoading(true);
         try {
             const payload = await fetchCustomerDetail(customer.kd_cs);
+            customerDetailCache[customer.kd_cs] = payload; // Simpan ke cache
             setEditData({
                 ...initialFormState,
                 ...payload.customer,
@@ -221,11 +297,15 @@ export default function CustomerIndex({ customers = [] }) {
     };
 
     const handleDelete = async (customer) => {
-        if (!customer?.kd_cs) {
-            return;
-        }
+        if (!customer?.kd_cs) return;
+        
         try {
-            const payload = await fetchCustomerDetail(customer.kd_cs);
+            let payload = customerDetailCache[customer.kd_cs];
+            if (!payload) {
+                payload = await fetchCustomerDetail(customer.kd_cs);
+                customerDetailCache[customer.kd_cs] = payload;
+            }
+
             const doCount = Array.isArray(payload?.deliveryOrders)
                 ? payload.deliveryOrders.length
                 : 0;
@@ -269,6 +349,9 @@ export default function CustomerIndex({ customers = [] }) {
             `/master-data/customer/${encodeURIComponent(customer.kd_cs)}`,
             {
                 preserveScroll: true,
+                onSuccess: () => {
+                    delete customerDetailCache[customer.kd_cs]; // Bersihkan cache
+                }
             },
         );
     };
@@ -286,12 +369,15 @@ export default function CustomerIndex({ customers = [] }) {
 
     const handleEditSubmit = (event) => {
         event.preventDefault();
-        if (!editCustomerId) {
-            return;
-        }
+        if (!editCustomerId) return;
+        
         put(`/master-data/customer/${encodeURIComponent(editCustomerId)}`, {
             preserveScroll: true,
             onSuccess: () => {
+                // Update Cache dengan data yang baru
+                if (customerDetailCache[editCustomerId]) {
+                    customerDetailCache[editCustomerId].customer = { ...editData };
+                }
                 resetEdit();
                 setEditCustomerId(null);
                 setIsEditModalOpen(false);
@@ -409,7 +495,17 @@ export default function CustomerIndex({ customers = [] }) {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {displayedCustomers.length === 0 && (
+                                        {tableLoading ? (
+                                            <tr>
+                                                <td className="px-4 py-4" colSpan={5}>
+                                                    <div className="flex flex-col gap-3">
+                                                        <Skeleton className="h-6 w-full opacity-60" />
+                                                        <Skeleton className="h-6 w-full opacity-60" />
+                                                        <Skeleton className="h-6 w-full opacity-60" />
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ) : displayedCustomers.length === 0 ? (
                                             <tr>
                                                 <td
                                                     className="px-4 py-6 text-center text-muted-foreground"
@@ -417,7 +513,7 @@ export default function CustomerIndex({ customers = [] }) {
                                                 >
                                                     <div>
                                                         Data customer belum
-                                                        tersedia.
+                                                        tersedia atau tidak ditemukan.
                                                     </div>
                                                     <div className="mt-3">
                                                         <Button
@@ -434,72 +530,73 @@ export default function CustomerIndex({ customers = [] }) {
                                                     </div>
                                                 </td>
                                             </tr>
-                                        )}
-                                        {displayedCustomers.map(
-                                            (item, index) => (
-                                                <tr
-                                                    key={`${item.kd_cs}-${index}`}
-                                                    className="border-t border-sidebar-border/70"
-                                                >
-                                                    <td className="px-4 py-3">
-                                                        {(pageSize === Infinity
-                                                            ? index
-                                                            : (currentPage -
-                                                                  1) *
-                                                                  pageSize +
-                                                              index) + 1}
-                                                    </td>
-                                                    <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
-                                                        {renderValue(
-                                                            item.kd_cs,
-                                                        )}
-                                                    </td>
-                                                    <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
-                                                        {renderValue(
-                                                            item.nm_cs,
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {renderValue(
-                                                            item.alamat_cs,
-                                                        )}
-                                                    </td>
-                                                    <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <ActionIconButton
-                                                                label="Detail"
-                                                                onClick={() =>
-                                                                    handleView(
-                                                                        item,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Eye className="h-4 w-4" />
-                                                            </ActionIconButton>
-                                                            <ActionIconButton
-                                                                label="Edit"
-                                                                onClick={() =>
-                                                                    handleEdit(
-                                                                        item,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Pencil className="h-4 w-4" />
-                                                            </ActionIconButton>
-                                                            <ActionIconButton
-                                                                label="Hapus"
-                                                                onClick={() =>
-                                                                    handleDelete(
-                                                                        item,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                                            </ActionIconButton>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ),
+                                        ) : (
+                                            displayedCustomers.map(
+                                                (item, index) => (
+                                                    <tr
+                                                        key={`${item.kd_cs}-${index}`}
+                                                        className="border-t border-sidebar-border/70"
+                                                    >
+                                                        <td className="px-4 py-3">
+                                                            {(pageSize === Infinity
+                                                                ? index
+                                                                : (currentPage -
+                                                                      1) *
+                                                                      pageSize +
+                                                                  index) + 1}
+                                                        </td>
+                                                        <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
+                                                            {renderValue(
+                                                                item.kd_cs,
+                                                            )}
+                                                        </td>
+                                                        <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
+                                                            {renderValue(
+                                                                item.nm_cs,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(
+                                                                item.alamat_cs,
+                                                            )}
+                                                        </td>
+                                                        <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <ActionIconButton
+                                                                    label="Detail"
+                                                                    onClick={() =>
+                                                                        handleView(
+                                                                            item,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Eye className="h-4 w-4" />
+                                                                </ActionIconButton>
+                                                                <ActionIconButton
+                                                                    label="Edit"
+                                                                    onClick={() =>
+                                                                        handleEdit(
+                                                                            item,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Pencil className="h-4 w-4" />
+                                                                </ActionIconButton>
+                                                                <ActionIconButton
+                                                                    label="Hapus"
+                                                                    onClick={() =>
+                                                                        handleDelete(
+                                                                            item,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                                </ActionIconButton>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ),
+                                            )
                                         )}
                                     </tbody>
                                 </table>
@@ -569,6 +666,9 @@ export default function CustomerIndex({ customers = [] }) {
                     <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Tambah Customer</DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Form untuk menambahkan customer baru
+                            </DialogDescription>
                         </DialogHeader>
                         <form
                             className="space-y-4"
@@ -735,6 +835,7 @@ export default function CustomerIndex({ customers = [] }) {
                             setViewTab('profil');
                             setDoHistory([]);
                             setDoSearchTerm('');
+                            setDebouncedDoSearchTerm('');
                             setDoPageSize(5);
                             setDoCurrentPage(1);
                         }
@@ -743,11 +844,17 @@ export default function CustomerIndex({ customers = [] }) {
                     <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Detail Customer</DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Detail informasi dan riwayat DO customer
+                            </DialogDescription>
                         </DialogHeader>
                         {viewLoading && (
-                            <p className="text-sm text-muted-foreground">
-                                Memuat data customer...
-                            </p>
+                            <div className="flex flex-col gap-4 py-4">
+                                <Skeleton className="h-4 w-[250px]" />
+                                <Skeleton className="h-10 w-full" />
+                                <Skeleton className="h-10 w-full" />
+                                <Skeleton className="h-10 w-full" />
+                            </div>
                         )}
                         {!viewLoading && viewError && (
                             <ErrorState error={viewError} />
@@ -785,90 +892,92 @@ export default function CustomerIndex({ customers = [] }) {
                                         Riwayat DO
                                     </Button>
                                 </div>
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Kode CS
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewCustomer.kd_cs)}
+                                {viewTab === 'profil' ? (
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Kode CS
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(viewCustomer.kd_cs)}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Nama CS
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(viewCustomer.nm_cs)}
+                                            </div>
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <span className="text-muted-foreground">
+                                                Alamat
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(
+                                                    viewCustomer.alamat_cs,
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Kota
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(viewCustomer.kota_cs)}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Telpon
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(viewCustomer.telp_cs)}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Fax
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(viewCustomer.fax_cs)}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                NPWP
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(viewCustomer.npwp_cs)}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Alamat NPWP 1
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(viewCustomer.npwp1_cs)}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Alamat NPWP 2
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(viewCustomer.npwp2_cs)}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="text-muted-foreground">
+                                                Attended
+                                            </span>
+                                            <div className="font-medium">
+                                                {renderValue(viewCustomer.Attnd)}
+                                            </div>
                                         </div>
                                     </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Nama CS
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewCustomer.nm_cs)}
-                                        </div>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <span className="text-muted-foreground">
-                                            Alamat
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(
-                                                viewCustomer.alamat_cs,
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Kota
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewCustomer.kota_cs)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Telpon
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewCustomer.telp_cs)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Fax
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewCustomer.fax_cs)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            NPWP
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewCustomer.npwp_cs)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Alamat NPWP 1
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewCustomer.npwp1_cs)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Alamat NPWP 2
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewCustomer.npwp2_cs)}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">
-                                            Attended
-                                        </span>
-                                        <div className="font-medium">
-                                            {renderValue(viewCustomer.Attnd)}
-                                        </div>
-                                    </div>
-                                </div>
+                                ) : null}
 
                                 {viewTab === 'riwayat' ? (
                                     <div className="space-y-3">
@@ -1095,11 +1204,17 @@ export default function CustomerIndex({ customers = [] }) {
                     <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
                             <DialogTitle>Edit Customer</DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Form untuk mengubah data customer
+                            </DialogDescription>
                         </DialogHeader>
                         {editLoading && (
-                            <p className="text-sm text-muted-foreground">
-                                Memuat data customer...
-                            </p>
+                            <div className="flex flex-col gap-4 py-4">
+                                <Skeleton className="h-4 w-[250px]" />
+                                <Skeleton className="h-10 w-full" />
+                                <Skeleton className="h-10 w-full" />
+                                <Skeleton className="h-10 w-full" />
+                            </div>
                         )}
                         {!editLoading && editError && (
                             <ErrorState error={editError} />

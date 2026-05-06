@@ -11,14 +11,15 @@ class VendorController
 {
     public function index()
     {
-        $vendors = DB::table('tb_vendor')
-            ->select('kd_vdr', 'nm_vdr', 'almt_vdr')
-            ->orderBy('kd_vdr')
-            ->get();
-
+        // Inertia::lazy() memastikan query ini HANYA berjalan jika secara spesifik diminta oleh frontend.
+        // Hal ini membuat loading awal halaman menjadi instan (memisahkan load UI dan Data).
         return Inertia::render('master-data/vendor/index', [
-            'vendors' => $vendors,
-            'vendorCount' => $vendors->count(),
+            'vendors' => Inertia::lazy(function () {
+                return DB::table('tb_vendor')
+                    ->select('kd_vdr', 'nm_vdr', 'almt_vdr')
+                    ->orderBy('kd_vdr')
+                    ->get();
+            }),
         ]);
     }
 

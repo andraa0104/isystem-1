@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { confirmDelete } from '@/lib/confirm-delete';
@@ -65,22 +66,36 @@ const initialFormState = {
     an2_vdr: '',
 };
 
+// Global cache untuk menyimpan data pre-fetch modal
+const vendorDetailCache = {};
+
 export default function VendorIndex({ vendors = [] }) {
+    // --- States ---
+    const [vendorsList, setVendorsList] = useState([]);
+    const [tableLoading, setTableLoading] = useState(true);
+
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [codeOrder, setCodeOrder] = useState('asc');
+    
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [createStep, setCreateStep] = useState(1);
+    
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [viewVendor, setViewVendor] = useState(null);
     const [viewLoading, setViewLoading] = useState(false);
     const [viewError, setViewError] = useState(null);
     const [viewTab, setViewTab] = useState('profil'); // profil | riwayat
+    
     const [poHistory, setPoHistory] = useState([]);
     const [poSearchTerm, setPoSearchTerm] = useState('');
+    const [debouncedPoSearchTerm, setDebouncedPoSearchTerm] = useState('');
     const [poPageSize, setPoPageSize] = useState(5);
     const [poCurrentPage, setPoCurrentPage] = useState(1);
+    
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editStep, setEditStep] = useState(1);
     const [editVendorId, setEditVendorId] = useState(null);
@@ -104,9 +119,45 @@ export default function VendorIndex({ vendors = [] }) {
         errors: editErrors,
     } = useForm(initialFormState);
 
+    // --- Pemisahan Frontend & Backend (Initial Fetch) ---
+    useEffect(() => {
+        // Melakukan reload background untuk mengambil data "vendors" saja
+        // Membiarkan UI frontend ter-render instan terlebih dahulu
+        setTableLoading(true);
+        router.reload({
+            only: ['vendors'],
+            preserveState: true,
+            onSuccess: (page) => {
+                setVendorsList(page.props.vendors || []);
+            },
+            onFinish: () => {
+                setTableLoading(false);
+            },
+        });
+    }, []);
+
+    // Sinkronisasi prop vendors jika terjadi mutasi/hapus/tambah dari luar
+    useEffect(() => {
+        if (vendors?.length > 0) {
+            setVendorsList(vendors);
+        }
+    }, [vendors]);
+
+    // --- Debounce untuk input pencarian (Optimasi Loading Filter) ---
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedPoSearchTerm(poSearchTerm), 300);
+        return () => clearTimeout(timer);
+    }, [poSearchTerm]);
+
+    // --- Pemrosesan Data List ---
     const filteredVendors = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
-        let items = [...vendors];
+        const term = debouncedSearchTerm.trim().toLowerCase();
+        let items = [...vendorsList];
         items.sort((a, b) =>
             codeOrder === 'desc'
                 ? compareCode(b.kd_vdr, a.kd_vdr)
@@ -120,7 +171,7 @@ export default function VendorIndex({ vendors = [] }) {
                 .toLowerCase()
                 .includes(term),
         );
-    }, [vendors, searchTerm, codeOrder]);
+    }, [vendorsList, debouncedSearchTerm, codeOrder]);
 
     const totalItems = filteredVendors.length;
     const totalPages = useMemo(() => {
@@ -145,7 +196,7 @@ export default function VendorIndex({ vendors = [] }) {
     }, [currentPage, totalPages]);
 
     const filteredPoHistory = useMemo(() => {
-        const term = poSearchTerm.trim().toLowerCase();
+        const term = debouncedPoSearchTerm.trim().toLowerCase();
         if (!term) {
             return poHistory;
         }
@@ -154,7 +205,7 @@ export default function VendorIndex({ vendors = [] }) {
                 .toLowerCase()
                 .includes(term),
         );
-    }, [poHistory, poSearchTerm]);
+    }, [poHistory, debouncedPoSearchTerm]);
 
     const poTotalItems = filteredPoHistory.length;
     const poTotalPages = useMemo(() => {
@@ -178,6 +229,7 @@ export default function VendorIndex({ vendors = [] }) {
         }
     }, [poCurrentPage, poTotalPages]);
 
+    // --- Logika Preload & Modal API ---
     const fetchVendorDetail = async (kdVendor) => {
         const response = await fetch(
             `/master-data/vendor/${encodeURIComponent(kdVendor)}`,
@@ -187,20 +239,44 @@ export default function VendorIndex({ vendors = [] }) {
         return response.json();
     };
 
+    // Preload akan dipanggil saat user meletakkan kursor (hover) di atas tombol Detail/Edit
+    const handlePreload = (kd_vdr) => {
+        if (!kd_vdr || vendorDetailCache[kd_vdr]) return;
+        
+        fetchVendorDetail(kd_vdr)
+            .then((data) => {
+                vendorDetailCache[kd_vdr] = data;
+            })
+            .catch(() => {}); // Abaikan error prefetch, biarkan ditangani saat diklik
+    };
+
     const handleView = async (vendor) => {
         if (!vendor?.kd_vdr) {
             return;
         }
         setIsViewModalOpen(true);
-        setViewLoading(true);
         setViewError(null);
-        setViewVendor(null);
-        setPoHistory([]);
+        setViewTab('profil');
         setPoSearchTerm('');
         setPoCurrentPage(1);
         setPoPageSize(5);
+        
+        // Cek Cache terlebih dahulu agar instan
+        if (vendorDetailCache[vendor.kd_vdr]) {
+            const payload = vendorDetailCache[vendor.kd_vdr];
+            setViewVendor(payload.vendor ?? null);
+            setPoHistory(payload.purchaseOrders ?? []);
+            setViewLoading(false);
+            return;
+        }
+
+        setViewLoading(true);
+        setPoHistory([]);
+        setViewVendor(null);
+        
         try {
             const payload = await fetchVendorDetail(vendor.kd_vdr);
+            vendorDetailCache[vendor.kd_vdr] = payload; // Simpan ke cache
             setViewVendor(payload.vendor ?? null);
             setPoHistory(payload.purchaseOrders ?? []);
         } catch (error) {
@@ -215,12 +291,25 @@ export default function VendorIndex({ vendors = [] }) {
             return;
         }
         setIsEditModalOpen(true);
-        setEditLoading(true);
         setEditError(null);
         setEditStep(1);
         setEditVendorId(vendor.kd_vdr);
+        
+        // Cek Cache terlebih dahulu agar instan
+        if (vendorDetailCache[vendor.kd_vdr]) {
+            const payload = vendorDetailCache[vendor.kd_vdr];
+            setEditData({
+                ...initialFormState,
+                ...payload.vendor,
+            });
+            setEditLoading(false);
+            return;
+        }
+
+        setEditLoading(true);
         try {
             const payload = await fetchVendorDetail(vendor.kd_vdr);
+            vendorDetailCache[vendor.kd_vdr] = payload; // Simpan ke cache
             setEditData({
                 ...initialFormState,
                 ...payload.vendor,
@@ -237,7 +326,13 @@ export default function VendorIndex({ vendors = [] }) {
             return;
         }
         try {
-            const payload = await fetchVendorDetail(vendor.kd_vdr);
+            // Gunakan Cache jika tersedia untuk pengecekan validasi hapus
+            let payload = vendorDetailCache[vendor.kd_vdr];
+            if (!payload) {
+                payload = await fetchVendorDetail(vendor.kd_vdr);
+                vendorDetailCache[vendor.kd_vdr] = payload;
+            }
+
             const poCount = Array.isArray(payload?.purchaseOrders)
                 ? payload.purchaseOrders.length
                 : 0;
@@ -281,6 +376,10 @@ export default function VendorIndex({ vendors = [] }) {
             `/master-data/vendor/${encodeURIComponent(vendor.kd_vdr)}`,
             {
                 preserveScroll: true,
+                onSuccess: () => {
+                    // Hapus data dari cache jika berhasil dihapus dari server
+                    delete vendorDetailCache[vendor.kd_vdr];
+                }
             },
         );
     };
@@ -309,6 +408,10 @@ export default function VendorIndex({ vendors = [] }) {
         put(`/master-data/vendor/${encodeURIComponent(editVendorId)}`, {
             preserveScroll: true,
             onSuccess: () => {
+                // Update cache dengan data baru
+                if (vendorDetailCache[editVendorId]) {
+                    vendorDetailCache[editVendorId].vendor = { ...editData };
+                }
                 resetEdit();
                 setEditVendorId(null);
                 setEditStep(1);
@@ -595,7 +698,17 @@ export default function VendorIndex({ vendors = [] }) {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {displayedVendors.length === 0 && (
+                                        {tableLoading ? (
+                                            <tr>
+                                                <td className="px-4 py-4" colSpan={5}>
+                                                    <div className="flex flex-col gap-3">
+                                                        <Skeleton className="h-6 w-full opacity-60" />
+                                                        <Skeleton className="h-6 w-full opacity-60" />
+                                                        <Skeleton className="h-6 w-full opacity-60" />
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ) : displayedVendors.length === 0 ? (
                                             <tr>
                                                 <td
                                                     className="px-4 py-6 text-center text-muted-foreground"
@@ -603,7 +716,7 @@ export default function VendorIndex({ vendors = [] }) {
                                                 >
                                                     <div>
                                                         Data vendor belum
-                                                        tersedia.
+                                                        tersedia atau tidak ditemukan.
                                                     </div>
                                                     <div className="mt-3">
                                                         <Button
@@ -620,60 +733,64 @@ export default function VendorIndex({ vendors = [] }) {
                                                     </div>
                                                 </td>
                                             </tr>
+                                        ) : (
+                                            displayedVendors.map((item, index) => (
+                                                <tr
+                                                    key={`${item.kd_vdr}-${index}`}
+                                                    className="border-t border-sidebar-border/70"
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        {(pageSize === Infinity
+                                                            ? index
+                                                            : (currentPage - 1) *
+                                                                  pageSize +
+                                                              index) + 1}
+                                                    </td>
+                                                    <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
+                                                        {renderValue(item.kd_vdr)}
+                                                    </td>
+                                                    <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
+                                                        {renderValue(item.nm_vdr)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(item.almt_vdr)}
+                                                    </td>
+                                                    <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <ActionIconButton
+                                                                label="Detail"
+                                                                onMouseEnter={() => handlePreload(item.kd_vdr)}
+                                                                onClick={() =>
+                                                                    handleView(item)
+                                                                }
+                                                            >
+                                                                <Eye className="h-4 w-4" />
+                                                            </ActionIconButton>
+                                                            <ActionIconButton
+                                                                label="Edit"
+                                                                onMouseEnter={() => handlePreload(item.kd_vdr)}
+                                                                onClick={() =>
+                                                                    handleEdit(item)
+                                                                }
+                                                            >
+                                                                <Pencil className="h-4 w-4" />
+                                                            </ActionIconButton>
+                                                            <ActionIconButton
+                                                                label="Hapus"
+                                                                onMouseEnter={() => handlePreload(item.kd_vdr)}
+                                                                onClick={() =>
+                                                                    handleDelete(
+                                                                        item,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                            </ActionIconButton>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
                                         )}
-                                        {displayedVendors.map((item, index) => (
-                                            <tr
-                                                key={`${item.kd_vdr}-${index}`}
-                                                className="border-t border-sidebar-border/70"
-                                            >
-                                                <td className="px-4 py-3">
-                                                    {(pageSize === Infinity
-                                                        ? index
-                                                        : (currentPage - 1) *
-                                                              pageSize +
-                                                          index) + 1}
-                                                </td>
-                                                <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
-                                                    {renderValue(item.kd_vdr)}
-                                                </td>
-                                                <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
-                                                    {renderValue(item.nm_vdr)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.almt_vdr)}
-                                                </td>
-                                                <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
-                                                    <div className="flex items-center justify-center gap-2">
-                                                        <ActionIconButton
-                                                            label="Detail"
-                                                            onClick={() =>
-                                                                handleView(item)
-                                                            }
-                                                        >
-                                                            <Eye className="h-4 w-4" />
-                                                        </ActionIconButton>
-                                                        <ActionIconButton
-                                                            label="Edit"
-                                                            onClick={() =>
-                                                                handleEdit(item)
-                                                            }
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                        </ActionIconButton>
-                                                        <ActionIconButton
-                                                            label="Hapus"
-                                                            onClick={() =>
-                                                                handleDelete(
-                                                                    item,
-                                                                )
-                                                            }
-                                                        >
-                                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                                        </ActionIconButton>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
                                     </tbody>
                                 </table>
                             </div>
@@ -811,6 +928,7 @@ export default function VendorIndex({ vendors = [] }) {
                             setViewTab('profil');
                             setPoHistory([]);
                             setPoSearchTerm('');
+                            setDebouncedPoSearchTerm('');
                             setPoCurrentPage(1);
                             setPoPageSize(5);
                         }
@@ -821,9 +939,12 @@ export default function VendorIndex({ vendors = [] }) {
                             <DialogTitle>Detail Vendor</DialogTitle>
                         </DialogHeader>
                         {viewLoading && (
-                            <p className="text-sm text-muted-foreground">
-                                Memuat data vendor...
-                            </p>
+                            <div className="flex flex-col gap-4 py-4">
+                                <Skeleton className="h-4 w-[250px]" />
+                                <Skeleton className="h-10 w-full" />
+                                <Skeleton className="h-10 w-full" />
+                                <Skeleton className="h-10 w-full" />
+                            </div>
                         )}
                         {!viewLoading && viewError && (
                             <ErrorState error={viewError} />
@@ -1096,7 +1217,7 @@ export default function VendorIndex({ vendors = [] }) {
                                                         <th className="px-4 py-3 text-right">
                                                             Grand Total
                                                         </th>
-                                                        <th className="px-4 py-3 text-left">
+                                                        <th className="px-4 py-3 text-center">
                                                             Aksi
                                                         </th>
                                                     </tr>
@@ -1110,7 +1231,7 @@ export default function VendorIndex({ vendors = [] }) {
                                                                 colSpan={5}
                                                             >
                                                                 Data PO belum
-                                                                tersedia.
+                                                                tersedia atau tidak ditemukan.
                                                             </td>
                                                         </tr>
                                                     )}
@@ -1141,20 +1262,22 @@ export default function VendorIndex({ vendors = [] }) {
                                                                     )}
                                                                 </td>
                                                                 <td className="px-4 py-3">
-                                                                    <ActionIconButton
-                                                                        label="Cetak"
-                                                                        asChild
-                                                                    >
-                                                                        <a
-                                                                            href={`/pembelian/purchase-order/${encodeURIComponent(
-                                                                                item.no_po,
-                                                                            )}/print`}
-                                                                            target="_blank"
-                                                                            rel="noreferrer"
+                                                                    <div className="flex items-center justify-center">
+                                                                        <ActionIconButton
+                                                                            label="Cetak"
+                                                                            asChild
                                                                         >
-                                                                            <Printer className="h-4 w-4" />
-                                                                        </a>
-                                                                    </ActionIconButton>
+                                                                            <a
+                                                                                href={`/pembelian/purchase-order/${encodeURIComponent(
+                                                                                    item.no_po,
+                                                                                )}/print`}
+                                                                                target="_blank"
+                                                                                rel="noreferrer"
+                                                                            >
+                                                                                <Printer className="h-4 w-4" />
+                                                                            </a>
+                                                                        </ActionIconButton>
+                                                                    </div>
                                                                 </td>
                                                             </tr>
                                                         ),
@@ -1258,9 +1381,12 @@ export default function VendorIndex({ vendors = [] }) {
                             <DialogTitle>Edit Vendor</DialogTitle>
                         </DialogHeader>
                         {editLoading && (
-                            <p className="text-sm text-muted-foreground">
-                                Memuat data vendor...
-                            </p>
+                            <div className="flex flex-col gap-4 py-4">
+                                <Skeleton className="h-4 w-[250px]" />
+                                <Skeleton className="h-10 w-full" />
+                                <Skeleton className="h-10 w-full" />
+                                <Skeleton className="h-10 w-full" />
+                            </div>
                         )}
                         {!editLoading && editError && (
                             <ErrorState error={editError} />

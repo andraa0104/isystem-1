@@ -56,7 +56,6 @@ const formatRupiah = (value) => {
     return `Rp. ${new Intl.NumberFormat('id-ID').format(number)}`;
 };
 
-// Optimasi: Fungsi ini sekarang hanya dipakai sekali saat fetch data.
 const parseFlexibleDate = (value) => {
     const text = String(value ?? '').trim();
     if (!text) return null;
@@ -79,6 +78,65 @@ const parseFlexibleDate = (value) => {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const isInDateFilter = (value, filter, startDate, endDate) => {
+    if (filter === 'all') return true;
+
+    const date = parseFlexibleDate(value);
+    if (!date) return false;
+
+    const normalized = new Date(
+        date.getFullYear(),
+        date.getMonth(),
+        date.getDate(),
+    );
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (filter === 'today') {
+        return normalized.getTime() === today.getTime();
+    }
+
+    if (filter === 'this_week') {
+        const day = today.getDay();
+        const diffToMonday = day === 0 ? 6 : day - 1;
+        const start = new Date(today);
+        start.setDate(today.getDate() - diffToMonday);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        return normalized >= start && normalized <= end;
+    }
+
+    if (filter === 'this_month') {
+        return (
+            normalized.getMonth() === today.getMonth() &&
+            normalized.getFullYear() === today.getFullYear()
+        );
+    }
+
+    if (filter === 'this_year') {
+        return normalized.getFullYear() === today.getFullYear();
+    }
+
+    if (filter === 'range') {
+        const start = parseFlexibleDate(startDate);
+        const end = parseFlexibleDate(endDate);
+        if (!start || !end) return false;
+        const normalizedStart = new Date(
+            start.getFullYear(),
+            start.getMonth(),
+            start.getDate(),
+        );
+        const normalizedEnd = new Date(
+            end.getFullYear(),
+            end.getMonth(),
+            end.getDate(),
+        );
+        return normalized >= normalizedStart && normalized <= normalizedEnd;
+    }
+
+    return true;
+};
+
 export default function PurchaseRequirementIndex({
     purchaseRequirements = [],
     outstandingCount = 0,
@@ -90,7 +148,6 @@ export default function PurchaseRequirementIndex({
     period = 'today',
     realizedDeferred = false,
 }) {
-    // --- States ---
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     
@@ -160,7 +217,6 @@ export default function PurchaseRequirementIndex({
     
     const [isDeleting, setIsDeleting] = useState(false);
 
-    // --- OPTIMASI 1: Menerapkan Debounce pada semua kolom Search ---
     useEffect(() => {
         const timer = setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
         return () => clearTimeout(timer);
@@ -186,7 +242,6 @@ export default function PurchaseRequirementIndex({
         return () => clearTimeout(timer);
     }, [materialSearchTerm]);
 
-    // --- Fetch Data ---
     const fetchTableData = useCallback(async (newPeriod) => {
         setTableLoading(true);
         try {
@@ -196,8 +251,6 @@ export default function PurchaseRequirementIndex({
             );
             const data = await response.json();
             
-            // --- OPTIMASI 2: Pre-parse Date ke Timestamp ---
-            // Hanya dilakukan satu kali saat data diterima, bukan saat proses filtering
             const rawList = data.purchaseRequirements || [];
             const optimizedList = rawList.map(item => {
                 const parsed = parseFlexibleDate(item.date);
@@ -236,18 +289,11 @@ export default function PurchaseRequirementIndex({
         }
     }, []);
 
-    const isFirstRender = useRef(true);
-
+    // --- PERBAIKAN: Hanya fetch sekali di awal, tidak di-trigger ulang oleh periodFilter dari card! ---
     useEffect(() => {
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
-            fetchTableData(periodFilter);
-            fetchSummaryData(periodFilter);
-            return;
-        }
-        fetchTableData(periodFilter);
-        fetchSummaryData(periodFilter);
-    }, [periodFilter, fetchTableData, fetchSummaryData]);
+        fetchTableData(period ?? 'today');
+        fetchSummaryData(period ?? 'today');
+    }, [fetchTableData, fetchSummaryData, period]);
 
     useEffect(() => {
         if (purchaseRequirements?.length > 0) {
@@ -260,13 +306,18 @@ export default function PurchaseRequirementIndex({
     }, [purchaseRequirements]);
 
     useEffect(() => {
+        setOutstandingCountState(outstandingCount);
+        setOutstandingTotalState(outstandingTotal);
+        setSisaPoCountState(sisaPoCount);
+        setSisaPoTotalState(sisaPoTotal);
+    }, [outstandingCount, outstandingTotal, sisaPoCount, sisaPoTotal]);
+
+    useEffect(() => {
         if (!realizedDeferred) return;
         loadRealized(periodFilter, true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [realizedDeferred]);
 
-    // --- OPTIMASI 3: Pre-Calculate Date Filter Bounds ---
-    // Hitung batas waktu awal & akhir (timestamp) hanya saat dropdown waktu berubah
     const dateFilterBounds = useMemo(() => {
         if (tableDateFilter === 'all') return null;
 
@@ -292,7 +343,7 @@ export default function PurchaseRequirementIndex({
         } else if (tableDateFilter === 'range') {
             const s = parseFlexibleDate(tableStartDate);
             const e = parseFlexibleDate(tableEndDate);
-            if (!s || !e) return { start: Infinity, end: -Infinity }; // Invalid range
+            if (!s || !e) return { start: Infinity, end: -Infinity };
             start = new Date(s.getFullYear(), s.getMonth(), s.getDate());
             end = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 23, 59, 59, 999);
         }
@@ -304,7 +355,6 @@ export default function PurchaseRequirementIndex({
         const term = debouncedSearchTerm.trim().toLowerCase();
         
         const filtered = purchaseRequirementsList.filter((item) => {
-            // Membandingkan integer (Timestamp) jauh lebih ringan dari regex string parsing
             if (dateFilterBounds) {
                 if (!item._parsedDateTs) return false;
                 if (item._parsedDateTs < dateFilterBounds.start || item._parsedDateTs > dateFilterBounds.end) {
@@ -341,7 +391,6 @@ export default function PurchaseRequirementIndex({
         return filteredPurchaseRequirements.slice(startIndex, startIndex + pageSize);
     }, [currentPage, filteredPurchaseRequirements, pageSize]);
 
-    // Modal Lists Filtering using Debounced Values
     const outstandingPurchaseRequirements = useMemo(() => {
         const term = debouncedOutstandingSearchTerm.trim().toLowerCase();
         return outstandingList
@@ -450,7 +499,6 @@ export default function PurchaseRequirementIndex({
         return filteredMaterialDetails.slice(startIndex, startIndex + materialPageSize);
     }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
 
-    // --- Loading Functions ---
     const handleOpenModal = (item) => {
         setSelectedPr(item);
         setIsModalOpen(true);
@@ -546,13 +594,11 @@ export default function PurchaseRequirementIndex({
             });
     };
 
-    // --- Pagination Resets ---
     useEffect(() => { setCurrentPage(1); }, [pageSize, searchTerm, statusFilter, tableDateFilter, tableStartDate, tableEndDate]);
     useEffect(() => { setOutstandingCurrentPage(1); }, [outstandingPageSize, outstandingSearchTerm]);
     useEffect(() => { setSisaPoCurrentPage(1); }, [sisaPoPageSize, sisaPoSearchTerm]);
     useEffect(() => { setRealizedCurrentPage(1); }, [realizedPageSize, realizedSearchTerm]);
     
-    // --- Pagination Bounds ---
     useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [currentPage, totalPages]);
     useEffect(() => { if (outstandingCurrentPage > outstandingTotalPages) setOutstandingCurrentPage(outstandingTotalPages); }, [outstandingCurrentPage, outstandingTotalPages]);
     useEffect(() => { if (sisaPoCurrentPage > sisaPoTotalPages) setSisaPoCurrentPage(sisaPoTotalPages); }, [sisaPoCurrentPage, sisaPoTotalPages]);
@@ -1524,7 +1570,7 @@ export default function PurchaseRequirementIndex({
                                         Sebelumnya
                                     </Button>
                                     <span className="text-sm text-muted-foreground">
-                                        Halaman {realizedCurrentPage} dari {realizedTotalPages}
+                                        Halaman {realizedCurrentPage} from {realizedTotalPages}
                                     </span>
                                     <Button
                                         variant="outline"

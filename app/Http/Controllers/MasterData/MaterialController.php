@@ -12,21 +12,25 @@ class MaterialController
 {
     public function index()
     {
-        $materials = DB::table('tb_material')
-            ->select(
-                'kd_material',
-                'material',
-                'unit',
-                'stok',
-                'harga',
-                'remark'
-            )
-            ->orderBy('kd_material')
-            ->get();
-
+        // Inertia::lazy() memastikan kerangka halaman (UI) dirender secara instan,
+        // sementara pengambilan data ribuan material dikerjakan menyusul di background.
         return Inertia::render('master-data/material/index', [
-            'materials' => $materials,
-            'materialCount' => $materials->count(),
+            'materials' => Inertia::lazy(function () {
+                return DB::table('tb_material')
+                    ->select(
+                        'kd_material',
+                        'material',
+                        'unit',
+                        'stok',
+                        'harga',
+                        'remark'
+                    )
+                    ->orderBy('kd_material')
+                    ->get();
+            }),
+            'materialCount' => Inertia::lazy(function () {
+                return DB::table('tb_material')->count();
+            }),
         ]);
     }
 

@@ -11,14 +11,18 @@ class CustomerController
 {
     public function index()
     {
-        $customers = DB::table('tb_cs')
-            ->select('kd_cs', 'nm_cs', 'alamat_cs')
-            ->orderBy('kd_cs')
-            ->get();
-
+        // Inertia::lazy() memastikan data hanya dimuat saat di-request parsial oleh frontend.
+        // Hal ini mempercepat pemuatan halaman (UI render instan).
         return Inertia::render('master-data/customer/index', [
-            'customers' => $customers,
-            'customerCount' => $customers->count(),
+            'customers' => Inertia::lazy(function () {
+                return DB::table('tb_cs')
+                    ->select('kd_cs', 'nm_cs', 'alamat_cs')
+                    ->orderBy('kd_cs')
+                    ->get();
+            }),
+            'customerCount' => Inertia::lazy(function () {
+                return DB::table('tb_cs')->count();
+            }),
         ]);
     }
 
