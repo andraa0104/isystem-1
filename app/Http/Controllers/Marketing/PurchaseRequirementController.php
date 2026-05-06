@@ -33,19 +33,27 @@ class PurchaseRequirementController
     public function data(Request $request)
     {
         $period = $request->query('period', 'today');
-        
-        $summary = $this->getPurchaseRequirementSummary($period);
-        $purchaseRequirements = $this->getPurchaseRequirementList($period);
+        $fetchType = $request->query('fetch_type'); // Menangkap parameter dari Frontend
 
-        return response()->json([
-            'purchaseRequirements' => $purchaseRequirements,
-            'outstandingCount' => $summary['outstandingCount'],
-            'outstandingTotal' => $summary['outstandingTotal'],
-            'sisaPoCount' => $summary['sisaPoCount'],
-            'sisaPoTotal' => $summary['sisaPoTotal'],
-            'realizedCount' => $summary['realizedCount'],
-            'realizedTotal' => $summary['realizedTotal'],
-        ]);
+        $response = [];
+
+        // OPTIMASI: Hanya jalankan query Summary jika diminta
+        if ($fetchType === 'summary' || !$fetchType) {
+            $summary = $this->getPurchaseRequirementSummary($period);
+            $response['outstandingCount'] = $summary['outstandingCount'];
+            $response['outstandingTotal'] = $summary['outstandingTotal'];
+            $response['sisaPoCount'] = $summary['sisaPoCount'];
+            $response['sisaPoTotal'] = $summary['sisaPoTotal'];
+            $response['realizedCount'] = $summary['realizedCount'];
+            $response['realizedTotal'] = $summary['realizedTotal'];
+        }
+
+        // OPTIMASI: Hanya jalankan query Table (List) jika diminta
+        if ($fetchType === 'table' || !$fetchType) {
+            $response['purchaseRequirements'] = $this->getPurchaseRequirementList($period);
+        }
+
+        return response()->json($response);
     }
 
     private function getCommonQueries($period)
@@ -825,7 +833,6 @@ class PurchaseRequirementController
                             ->increment('sisa_qtypr', $rev['qty']);
                     }
                 }
- Riverside: 
 
                 // 2. Update PR master
                 DB::table('tb_pr')
