@@ -123,8 +123,11 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     const datePickerRef = useRef(null);
     const deliveryDatePickerRef = useRef(null);
     const qtyRef = useRef(null);
+    
+    // States for Material Modal
     const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
-    const [materialSearchTerm, setMaterialSearchTerm] = useState('');
+    const [materialSearchInput, setMaterialSearchInput] = useState(''); // Local UI state
+    const [materialSearchTerm, setMaterialSearchTerm] = useState('');   // API trigger state
     const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
     const [materialList, setMaterialList] = useState([]);
@@ -142,8 +145,10 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     const [materialCreateErrors, setMaterialCreateErrors] = useState({});
     const [isMaterialCreating, setIsMaterialCreating] = useState(false);
 
+    // States for Customer Modal
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-    const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+    const [customerSearchInput, setCustomerSearchInput] = useState(''); // Local UI state
+    const [customerSearchTerm, setCustomerSearchTerm] = useState('');   // API trigger state
     const [customerPageSize, setCustomerPageSize] = useState(5);
     const [customerCurrentPage, setCustomerCurrentPage] = useState(1);
     const [customerList, setCustomerList] = useState([]);
@@ -165,6 +170,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     });
     const [customerCreateErrors, setCustomerCreateErrors] = useState({});
     const [isCustomerCreating, setIsCustomerCreating] = useState(false);
+
+    // Other states
     const [isPredicting, setIsPredicting] = useState(false);
     const [validationErrors, setValidationErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -192,6 +199,27 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     });
     const [items, setItems] = useState([]);
     const [editingItemId, setEditingItemId] = useState(null);
+
+    // DEBOUNCE EFFECTS
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(() => {
+            if (materialSearchTerm !== materialSearchInput) {
+                setMaterialSearchTerm(materialSearchInput);
+                setMaterialCurrentPage(1);
+            }
+        }, 500);
+        return () => clearTimeout(delayDebounceFn);
+    }, [materialSearchInput, materialSearchTerm]);
+
+    useEffect(() => {
+        const delayDebounceFn = setTimeout(() => {
+            if (customerSearchTerm !== customerSearchInput) {
+                setCustomerSearchTerm(customerSearchInput);
+                setCustomerCurrentPage(1);
+            }
+        }, 500);
+        return () => clearTimeout(delayDebounceFn);
+    }, [customerSearchInput, customerSearchTerm]);
 
     const handleAddItem = () => {
         if (!itemForm.material || !itemForm.qty) {
@@ -717,7 +745,6 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         <>
             <Head title="Tambah PO In" />
             <div className="flex h-full flex-1 flex-col gap-5 p-4">
-                {/* Header section with explicit hex background for maximum compatibility */}
                 <section
                     className="rounded-2xl border border-slate-700 bg-[#0f172a] p-5 text-white shadow-lg"
                     style={{ backgroundColor: '#0f172a' }}
@@ -979,12 +1006,11 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 type="button"
                                                 variant="outline"
                                                 onClick={() => {
-                                                    setIsCustomerModalOpen(
-                                                        true,
-                                                    );
+                                                    setCustomerSearchInput('');
                                                     setCustomerSearchTerm('');
                                                     setCustomerPageSize(5);
                                                     setCustomerCurrentPage(1);
+                                                    setIsCustomerModalOpen(true);
                                                 }}
                                             >
                                                 Cari Customer
@@ -1223,6 +1249,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         type="button"
                                         variant="outline"
                                         onClick={() => {
+                                            setMaterialSearchInput('');
+                                            setMaterialSearchTerm('');
                                             setIsMaterialModalOpen(true);
                                         }}
                                     >
@@ -1323,33 +1351,15 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             <table className="w-full text-sm">
                                 <thead className="bg-muted/40 text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 text-left">
-                                            No
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Kode Material
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Material
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Qty
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Satuan
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Price PO In
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Total Price PO In
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Remark
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Aksi
-                                        </th>
+                                        <th className="px-4 py-3 text-left">No</th>
+                                        <th className="px-4 py-3 text-left">Kode Material</th>
+                                        <th className="px-4 py-3 text-left">Material</th>
+                                        <th className="px-4 py-3 text-left">Qty</th>
+                                        <th className="px-4 py-3 text-left">Satuan</th>
+                                        <th className="px-4 py-3 text-left">Price PO In</th>
+                                        <th className="px-4 py-3 text-left">Total Price PO In</th>
+                                        <th className="px-4 py-3 text-left">Remark</th>
+                                        <th className="px-4 py-3 text-left">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1368,24 +1378,12 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             key={item.id}
                                             className="border-t border-sidebar-border/70"
                                         >
-                                            <td className="px-4 py-3">
-                                                {index + 1}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.kodeMaterial || '-'}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.material}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.qty}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.unit}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {formatRupiah(item.unitPrice)}
-                                            </td>
+                                            <td className="px-4 py-3">{index + 1}</td>
+                                            <td className="px-4 py-3">{item.kodeMaterial || '-'}</td>
+                                            <td className="px-4 py-3">{item.material}</td>
+                                            <td className="px-4 py-3">{item.qty}</td>
+                                            <td className="px-4 py-3">{item.unit}</td>
+                                            <td className="px-4 py-3">{formatRupiah(item.unitPrice)}</td>
                                             <td className="px-4 py-3">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
@@ -1394,9 +1392,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                         ),
                                                 )}
                                             </td>
-                                            <td className="px-4 py-3">
-                                                {item.note || '-'}
-                                            </td>
+                                            <td className="px-4 py-3">{item.note || '-'}</td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
                                                     <Button
@@ -1439,11 +1435,13 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 </div>
             </div>
 
+            {/* MODAL PILIH MATERIAL */}
             <Dialog
                 open={isMaterialModalOpen}
                 onOpenChange={(open) => {
                     setIsMaterialModalOpen(open);
                     if (!open) {
+                        setMaterialSearchInput('');
                         setMaterialSearchTerm('');
                         setMaterialPageSize(5);
                         setMaterialCurrentPage(1);
@@ -1495,10 +1493,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 type="search"
                                 className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
                                 placeholder="Cari kode/nama material..."
-                                value={materialSearchTerm}
+                                value={materialSearchInput}
                                 onChange={(event) => {
-                                    setMaterialSearchTerm(event.target.value);
-                                    setMaterialCurrentPage(1);
+                                    setMaterialSearchInput(event.target.value);
                                 }}
                             />
                         </label>
@@ -1508,21 +1505,11 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                         <table className="w-full text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 text-left">
-                                        Kode Material
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Nama Material
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Stok
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Satuan
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Action
-                                    </th>
+                                    <th className="px-4 py-3 text-left">Kode Material</th>
+                                    <th className="px-4 py-3 text-left">Nama Material</th>
+                                    <th className="px-4 py-3 text-left">Stok</th>
+                                    <th className="px-4 py-3 text-left">Satuan</th>
+                                    <th className="px-4 py-3 text-left">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1536,21 +1523,6 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 ? 'Memuat data material...'
                                                 : materialError ||
                                                   'Tidak ada data material.'}
-                                            {/* {!materialLoading && (
-                                                <div className="mt-3">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        onClick={() =>
-                                                            setIsMaterialCreateModalOpen(
-                                                                true,
-                                                            )
-                                                        }
-                                                    >
-                                                        Buat Material
-                                                    </Button>
-                                                </div>
-                                            )} */}
                                         </td>
                                     </tr>
                                 )}
@@ -1559,18 +1531,10 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         key={item.kd_material}
                                         className="border-t border-sidebar-border/70"
                                     >
-                                        <td className="px-4 py-3">
-                                            {item.kd_material ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.material ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.stok ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.unit ?? '-'}
-                                        </td>
+                                        <td className="px-4 py-3">{item.kd_material ?? '-'}</td>
+                                        <td className="px-4 py-3">{item.material ?? '-'}</td>
+                                        <td className="px-4 py-3">{item.stok ?? '-'}</td>
+                                        <td className="px-4 py-3">{item.unit ?? '-'}</td>
                                         <td className="px-4 py-3">
                                             <Button
                                                 size="sm"
@@ -1647,129 +1611,13 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 </DialogContent>
             </Dialog>
 
-            <Dialog
-                open={isMaterialCreateModalOpen}
-                onOpenChange={(open) => {
-                    setIsMaterialCreateModalOpen(open);
-                    if (!open) {
-                        setMaterialCreateErrors({});
-                    }
-                }}
-            >
-                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
-                    <DialogHeader>
-                        <DialogTitle>Tambah Material</DialogTitle>
-                        <DialogDescription className="sr-only">
-                            Form tambah material baru untuk PO In.
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <form className="space-y-4" onSubmit={handleCreateMaterial}>
-                        <div className="grid gap-4 md:grid-cols-2">
-                            <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="new_material">
-                                    Nama Material
-                                </Label>
-                                <Input
-                                    id="new_material"
-                                    value={materialCreateForm.material}
-                                    onChange={(event) =>
-                                        setMaterialCreateForm((prev) => ({
-                                            ...prev,
-                                            material: event.target.value,
-                                        }))
-                                    }
-                                />
-                                {materialCreateErrors.material && (
-                                    <p className="text-xs text-red-500">
-                                        {materialCreateErrors.material[0]}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="new_unit">Satuan</Label>
-                                <Input
-                                    id="new_unit"
-                                    value={materialCreateForm.unit}
-                                    onChange={(event) =>
-                                        setMaterialCreateForm((prev) => ({
-                                            ...prev,
-                                            unit: event.target.value,
-                                        }))
-                                    }
-                                />
-                                {materialCreateErrors.unit && (
-                                    <p className="text-xs text-red-500">
-                                        {materialCreateErrors.unit[0]}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="new_stok">Stok</Label>
-                                <Input
-                                    id="new_stok"
-                                    type="number"
-                                    min={0}
-                                    value={materialCreateForm.stok}
-                                    onChange={(event) =>
-                                        setMaterialCreateForm((prev) => ({
-                                            ...prev,
-                                            stok: event.target.value,
-                                        }))
-                                    }
-                                />
-                                {materialCreateErrors.stok && (
-                                    <p className="text-xs text-red-500">
-                                        {materialCreateErrors.stok[0]}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="new_material_remark">
-                                    Remark
-                                </Label>
-                                <Input
-                                    id="new_material_remark"
-                                    value={materialCreateForm.remark}
-                                    onChange={(event) =>
-                                        setMaterialCreateForm((prev) => ({
-                                            ...prev,
-                                            remark: event.target.value,
-                                        }))
-                                    }
-                                />
-                                {materialCreateErrors.remark && (
-                                    <p className="text-xs text-red-500">
-                                        {materialCreateErrors.remark[0]}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() =>
-                                    setIsMaterialCreateModalOpen(false)
-                                }
-                            >
-                                Batal
-                            </Button>
-                            <Button type="submit" disabled={isMaterialCreating}>
-                                {isMaterialCreating
-                                    ? 'Menyimpan...'
-                                    : 'Simpan Data'}
-                            </Button>
-                        </div>
-                    </form>
-                </DialogContent>
-            </Dialog>
-
+            {/* MODAL PILIH CUSTOMER */}
             <Dialog
                 open={isCustomerModalOpen}
                 onOpenChange={(open) => {
                     setIsCustomerModalOpen(open);
                     if (!open) {
+                        setCustomerSearchInput('');
                         setCustomerSearchTerm('');
                         setCustomerPageSize(5);
                         setCustomerCurrentPage(1);
@@ -1819,10 +1667,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 type="search"
                                 className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
                                 placeholder="Cari kode/nama/kota..."
-                                value={customerSearchTerm}
+                                value={customerSearchInput}
                                 onChange={(event) => {
-                                    setCustomerSearchTerm(event.target.value);
-                                    setCustomerCurrentPage(1);
+                                    setCustomerSearchInput(event.target.value);
                                 }}
                             />
                         </label>
@@ -1832,18 +1679,10 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                         <table className="w-full text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 text-left">
-                                        Kode CS
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Customer
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Kota
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Action
-                                    </th>
+                                    <th className="px-4 py-3 text-left">Kode CS</th>
+                                    <th className="px-4 py-3 text-left">Customer</th>
+                                    <th className="px-4 py-3 text-left">Kota</th>
+                                    <th className="px-4 py-3 text-left">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1857,21 +1696,6 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 ? 'Memuat data customer...'
                                                 : customerError ||
                                                   'Tidak ada data customer.'}
-                                            {/* {!customerLoading && (
-                                                <div className="mt-3">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        onClick={() =>
-                                                            setIsCustomerCreateModalOpen(
-                                                                true,
-                                                            )
-                                                        }
-                                                    >
-                                                        Buat Data Customer
-                                                    </Button>
-                                                </div>
-                                            )} */}
                                         </td>
                                     </tr>
                                 )}
@@ -1880,15 +1704,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         key={item.kd_cs}
                                         className="border-t border-sidebar-border/70"
                                     >
-                                        <td className="px-4 py-3">
-                                            {item.kd_cs ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.nm_cs ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.kota_cs ?? '-'}
-                                        </td>
+                                        <td className="px-4 py-3">{item.kd_cs ?? '-'}</td>
+                                        <td className="px-4 py-3">{item.nm_cs ?? '-'}</td>
+                                        <td className="px-4 py-3">{item.kota_cs ?? '-'}</td>
                                         <td className="px-4 py-3">
                                             <Button
                                                 size="sm"
@@ -1979,6 +1797,121 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* MODAL TAMBAH MATERIAL & CUSTOMER (TIDAK BERUBAH) */}
+            <Dialog
+                open={isMaterialCreateModalOpen}
+                onOpenChange={(open) => {
+                    setIsMaterialCreateModalOpen(open);
+                    if (!open) {
+                        setMaterialCreateErrors({});
+                    }
+                }}
+            >
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
+                    <DialogHeader>
+                        <DialogTitle>Tambah Material</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Form tambah material baru untuk PO In.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form className="space-y-4" onSubmit={handleCreateMaterial}>
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="new_material">Nama Material</Label>
+                                <Input
+                                    id="new_material"
+                                    value={materialCreateForm.material}
+                                    onChange={(event) =>
+                                        setMaterialCreateForm((prev) => ({
+                                            ...prev,
+                                            material: event.target.value,
+                                        }))
+                                    }
+                                />
+                                {materialCreateErrors.material && (
+                                    <p className="text-xs text-red-500">
+                                        {materialCreateErrors.material[0]}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="new_unit">Satuan</Label>
+                                <Input
+                                    id="new_unit"
+                                    value={materialCreateForm.unit}
+                                    onChange={(event) =>
+                                        setMaterialCreateForm((prev) => ({
+                                            ...prev,
+                                            unit: event.target.value,
+                                        }))
+                                    }
+                                />
+                                {materialCreateErrors.unit && (
+                                    <p className="text-xs text-red-500">
+                                        {materialCreateErrors.unit[0]}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="new_stok">Stok</Label>
+                                <Input
+                                    id="new_stok"
+                                    type="number"
+                                    min={0}
+                                    value={materialCreateForm.stok}
+                                    onChange={(event) =>
+                                        setMaterialCreateForm((prev) => ({
+                                            ...prev,
+                                            stok: event.target.value,
+                                        }))
+                                    }
+                                />
+                                {materialCreateErrors.stok && (
+                                    <p className="text-xs text-red-500">
+                                        {materialCreateErrors.stok[0]}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2 md:col-span-2">
+                                <Label htmlFor="new_material_remark">Remark</Label>
+                                <Input
+                                    id="new_material_remark"
+                                    value={materialCreateForm.remark}
+                                    onChange={(event) =>
+                                        setMaterialCreateForm((prev) => ({
+                                            ...prev,
+                                            remark: event.target.value,
+                                        }))
+                                    }
+                                />
+                                {materialCreateErrors.remark && (
+                                    <p className="text-xs text-red-500">
+                                        {materialCreateErrors.remark[0]}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() =>
+                                    setIsMaterialCreateModalOpen(false)
+                                }
+                            >
+                                Batal
+                            </Button>
+                            <Button type="submit" disabled={isMaterialCreating}>
+                                {isMaterialCreating
+                                    ? 'Menyimpan...'
+                                    : 'Simpan Data'}
+                            </Button>
+                        </div>
+                    </form>
                 </DialogContent>
             </Dialog>
 
@@ -2098,9 +2031,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 />
                             </div>
                             <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="new_npwp1_cs">
-                                    Alamat NPWP 1
-                                </Label>
+                                <Label htmlFor="new_npwp1_cs">Alamat NPWP 1</Label>
                                 <Input
                                     id="new_npwp1_cs"
                                     value={customerCreateForm.npwp1_cs}
@@ -2113,9 +2044,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 />
                             </div>
                             <div className="space-y-2 md:col-span-2">
-                                <Label htmlFor="new_npwp2_cs">
-                                    Alamat NPWP 2
-                                </Label>
+                                <Label htmlFor="new_npwp2_cs">Alamat NPWP 2</Label>
                                 <Input
                                     id="new_npwp2_cs"
                                     value={customerCreateForm.npwp2_cs}
@@ -2150,6 +2079,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         </>
     );
 }
+
 PurchaseOrderInCreate.layout = (page) => (
     <AppLayout children={page} breadcrumbs={breadcrumbs} />
 );
