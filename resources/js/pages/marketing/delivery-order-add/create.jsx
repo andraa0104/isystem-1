@@ -47,8 +47,6 @@ export default function DeliveryOrderAddCreate() {
         items: [],
     });
 
-    const [refPo, setRefPo] = useState('');
-
     const [isDoModalOpen, setIsDoModalOpen] = useState(false);
     const [doLoading, setDoLoading] = useState(false);
     const [doList, setDoList] = useState([]);
@@ -56,7 +54,14 @@ export default function DeliveryOrderAddCreate() {
     const [doPageSize, setDoPageSize] = useState(5);
     const [doCurrentPage, setDoCurrentPage] = useState(1);
 
-    const [sourceItems, setSourceItems] = useState([]);
+    const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
+    const [materialSearchTerm, setMaterialSearchTerm] = useState('');
+    const [materialPageSize, setMaterialPageSize] = useState(5);
+    const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
+    const [materialList, setMaterialList] = useState([]);
+    const [materialTotal, setMaterialTotal] = useState(0);
+    const [materialLoading, setMaterialLoading] = useState(false);
+    const [materialError, setMaterialError] = useState('');
     const [inputItem, setInputItem] = useState({
         kd_material: '',
         material: '',
@@ -64,11 +69,11 @@ export default function DeliveryOrderAddCreate() {
         unit: '',
         remark: '',
         price: '',
+        original_price: '',
         total: '',
         last_stock: 0,
         stock_now: 0,
     });
-    const [materialPrices, setMaterialPrices] = useState([]);
 
     const filteredDoList = useMemo(() => {
         const term = doSearchTerm.trim().toLowerCase();
@@ -105,6 +110,17 @@ export default function DeliveryOrderAddCreate() {
         const startIndex = (doCurrentPage - 1) * doPageSize;
         return filteredDoList.slice(startIndex, startIndex + doPageSize);
     }, [doCurrentPage, doPageSize, filteredDoList]);
+
+    const materialTotalItems = materialTotal;
+    const materialTotalPages = useMemo(() => {
+        if (materialPageSize === Infinity) {
+            return 1;
+        }
+
+        return Math.max(1, Math.ceil(materialTotalItems / materialPageSize));
+    }, [materialPageSize, materialTotalItems]);
+
+    const displayedMaterials = useMemo(() => materialList, [materialList]);
 
     const fetchOutstandingDo = () => {
         if (doLoading || doList.length > 0) {
@@ -151,6 +167,16 @@ export default function DeliveryOrderAddCreate() {
         }
     }, [doCurrentPage, doTotalPages]);
 
+    useEffect(() => {
+        setMaterialCurrentPage(1);
+    }, [materialPageSize, materialSearchTerm]);
+
+    useEffect(() => {
+        if (materialCurrentPage > materialTotalPages) {
+            setMaterialCurrentPage(materialTotalPages);
+        }
+    }, [materialCurrentPage, materialTotalPages]);
+
     const handleSelectDo = (item) => {
         setFormData((prev) => ({
             ...prev,
@@ -159,41 +185,24 @@ export default function DeliveryOrderAddCreate() {
             kd_cs: item.kd_cs ?? '',
             nm_cs: item.nm_cs ?? '',
         }));
-        setRefPo(item.ref_po ?? '');
         setIsDoModalOpen(false);
-        setSourceItems([]);
     };
 
-    const fetchMaterials = () => {
-        if (!refPo) {
-            setSourceItems([]);
-            return;
+    const loadMaterials = () => {
+        setMaterialLoading(true);
+        setMaterialError('');
+
+        const params = new URLSearchParams();
+        params.set(
+            'per_page',
+            materialPageSize === Infinity ? 'all' : String(materialPageSize),
+        );
+        params.set('page', String(materialCurrentPage));
+        if (materialSearchTerm.trim()) {
+            params.set('search', materialSearchTerm.trim());
         }
-        fetch(
-            `/marketing/delivery-order-add/pr-materials?ref_po=${encodeURIComponent(
-                refPo,
-            )}`,
-            {
-                headers: { Accept: 'application/json' },
-            },
-        )
-            .then((response) => {
-                if (!response.ok) {
-                    throw new Error('Request failed');
-                }
-                return response.json();
-            })
-            .then((data) => {
-                setSourceItems(Array.isArray(data?.items) ? data.items : []);
-            })
-            .catch(() => {
-                setSourceItems([]);
-            });
-    };
 
-    const loadMaterialPrices = () => {
-        if (materialPrices.length > 0) return;
-        fetch('/marketing/purchase-requirement/materials', {
+        fetch(`/marketing/purchase-requirement/materials?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
@@ -203,36 +212,39 @@ export default function DeliveryOrderAddCreate() {
                 return response.json();
             })
             .then((data) => {
-                setMaterialPrices(
+                setMaterialList(
                     Array.isArray(data?.materials) ? data.materials : [],
                 );
+                setMaterialTotal(Number(data?.total ?? 0));
             })
             .catch(() => {
-                setMaterialPrices([]);
+                setMaterialList([]);
+                setMaterialTotal(0);
+                setMaterialError('Gagal memuat data material.');
+            })
+            .finally(() => {
+                setMaterialLoading(false);
             });
     };
 
     useEffect(() => {
-        if (step === 2) {
-            fetchMaterials();
-            loadMaterialPrices();
+        if (!isMaterialModalOpen) {
+            return;
         }
-    }, [step, refPo]);
+        loadMaterials();
+    }, [
+        isMaterialModalOpen,
+        materialCurrentPage,
+        materialPageSize,
+        materialSearchTerm,
+    ]);
 
-    const getPriceByKd = (kd) => {
-        const found = materialPrices.find(
-            (m) => String(m.kd_material) === String(kd),
-        );
-        return found?.harga ?? '';
-    };
-
-    const handleSourceItemClick = (item) => {
-        const qty = item.sisa_pr ?? item.qty ?? '';
-        const priceRaw =
-            getPriceByKd(item.kd_material) ?? item.price_po ?? item.harga ?? 0;
+    const handleMaterialSelect = (item) => {
+        const qty = '';
+        const priceRaw = item.harga ?? item.price_po ?? 0;
         const price = Number(priceRaw || 0);
-        const lastStock = Number(item.last_stock || 0);
-        const stockNow = Number(qty || 0) - lastStock;
+        const lastStock = Number(item.stok ?? item.last_stock ?? 0);
+        const stockNow = '';
         const total = price * Number(qty || 0);
 
         setInputItem({
@@ -242,10 +254,12 @@ export default function DeliveryOrderAddCreate() {
             unit: item.unit ?? '',
             remark: item.remark ?? '',
             price: price,
+            original_price: price,
             total: total,
             last_stock: lastStock,
             stock_now: stockNow,
         });
+        setIsMaterialModalOpen(false);
     };
 
     const handleInputChange = (event) => {
@@ -254,8 +268,13 @@ export default function DeliveryOrderAddCreate() {
             const next = { ...prev, [name]: value };
             if (name === 'qty') {
                 const qtyVal = Number(value || 0);
-                next.stock_now = qtyVal - Number(prev.last_stock || 0);
-                next.total = Number(prev.price || 0) * qtyVal;
+                const lastStock = Number(prev.last_stock || 0);
+                const originalPrice = Number(prev.original_price || prev.price || 0);
+                const effectivePrice =
+                    qtyVal > 0 && qtyVal === lastStock ? 0 : originalPrice;
+                next.price = effectivePrice;
+                next.stock_now = lastStock - qtyVal;
+                next.total = effectivePrice * qtyVal;
             }
             return next;
         });
@@ -281,6 +300,7 @@ export default function DeliveryOrderAddCreate() {
             unit: '',
             remark: '',
             price: '',
+            original_price: '',
             total: '',
             last_stock: 0,
             stock_now: 0,
@@ -406,75 +426,9 @@ export default function DeliveryOrderAddCreate() {
                     <div className="space-y-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Data Material</CardTitle>
+                                <CardTitle>Cari Material</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-6">
-                                <div>
-                                    <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
-                                        List Material dari PR
-                                    </h3>
-                                    <div className="rounded-md border">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>No</TableHead>
-                                                    <TableHead>
-                                                        Material
-                                                    </TableHead>
-                                                    <TableHead className="w-[100px]">
-                                                        Qty
-                                                    </TableHead>
-                                                    <TableHead className="w-[120px]">
-                                                        Satuan
-                                                    </TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {sourceItems.map((item, i) => (
-                                                    <TableRow
-                                                        key={i}
-                                                        className="cursor-pointer hover:bg-muted/50"
-                                                        onClick={() =>
-                                                            handleSourceItemClick(
-                                                                item,
-                                                            )
-                                                        }
-                                                    >
-                                                        <TableCell>
-                                                            {renderValue(
-                                                                item.no ??
-                                                                    i + 1,
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.material}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {renderValue(
-                                                                item.sisa_pr,
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {item.unit}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                                {sourceItems.length === 0 && (
-                                                    <TableRow>
-                                                        <TableCell
-                                                            colSpan={4}
-                                                            className="text-center"
-                                                        >
-                                                            Tidak ada data
-                                                            material.
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                </div>
-
                                 <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-4">
                                     <div className="space-y-2 lg:col-span-4">
                                         <Label>Material</Label>
@@ -490,6 +444,21 @@ export default function DeliveryOrderAddCreate() {
                                                 placeholder="Nama Material"
                                                 value={inputItem.material}
                                             />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setMaterialSearchTerm('');
+                                                    setMaterialPageSize(5);
+                                                    setMaterialCurrentPage(1);
+                                                    setIsMaterialModalOpen(true);
+                                                }}
+                                                disabled={!formData.ref_do}
+                                                className="shrink-0"
+                                            >
+                                                <Search className="mr-2 h-4 w-4" />
+                                                Cari Material
+                                            </Button>
                                         </div>
                                     </div>
                                     <div className="space-y-2">
@@ -803,6 +772,197 @@ export default function DeliveryOrderAddCreate() {
                             </Button>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={isMaterialModalOpen}
+                onOpenChange={(open) => {
+                    setIsMaterialModalOpen(open);
+                    if (!open) {
+                        setMaterialSearchTerm('');
+                        setMaterialPageSize(5);
+                        setMaterialCurrentPage(1);
+                    }
+                }}
+            >
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col !rounded-none">
+                    <DialogHeader>
+                        <DialogTitle>Pilih Material</DialogTitle>
+                        <DialogDescription>
+                            Pilih data material untuk dimasukkan ke DOB.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 py-4">
+                        <label className="text-sm text-muted-foreground">
+                            Tampilkan
+                            <select
+                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                value={
+                                    materialPageSize === Infinity
+                                        ? 'all'
+                                        : materialPageSize
+                                }
+                                onChange={(event) => {
+                                    const value = event.target.value;
+                                    setMaterialPageSize(
+                                        value === 'all'
+                                            ? Infinity
+                                            : Number(value),
+                                    );
+                                }}
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value="all">Semua</option>
+                            </select>
+                        </label>
+                        <label className="flex flex-1 items-center gap-2 text-sm text-muted-foreground">
+                            Cari
+                            <Input
+                                placeholder="Cari kode/nama material..."
+                                value={materialSearchTerm}
+                                onChange={(event) =>
+                                    setMaterialSearchTerm(event.target.value)
+                                }
+                            />
+                        </label>
+                    </div>
+
+                    <div className="flex-1 overflow-auto rounded-md border">
+                        <Table>
+                            <TableHeader className="bg-muted">
+                                <TableRow>
+                                    <TableHead>No</TableHead>
+                                    <TableHead>Kode Material</TableHead>
+                                    <TableHead>Nama Material</TableHead>
+                                    <TableHead className="w-[120px]">
+                                        Satuan
+                                    </TableHead>
+                                    <TableHead>Stok</TableHead>
+                                    <TableHead>Action</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {displayedMaterials.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell
+                                            colSpan={6}
+                                            className="text-center"
+                                        >
+                                            {materialLoading
+                                                ? 'Memuat data material...'
+                                                : materialError ||
+                                                  'Tidak ada data material.'}
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    displayedMaterials.map((item, index) => (
+                                        <TableRow
+                                            key={`${item.kd_material ?? item.material}-${index}`}
+                                        >
+                                            <TableCell>
+                                                {materialPageSize === Infinity
+                                                    ? index + 1
+                                                    : (materialCurrentPage - 1) *
+                                                          materialPageSize +
+                                                      index +
+                                                      1}
+                                            </TableCell>
+                                            <TableCell>
+                                                {renderValue(item.kd_material)}
+                                            </TableCell>
+                                            <TableCell>
+                                                {renderValue(item.material)}
+                                            </TableCell>
+                                            <TableCell>
+                                                {renderValue(item.unit)}
+                                            </TableCell>
+                                            <TableCell>
+                                                {renderValue(
+                                                    item.stok ??
+                                                        item.last_stock,
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() =>
+                                                        handleMaterialSelect(
+                                                            item,
+                                                        )
+                                                    }
+                                                >
+                                                    Pilih
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+
+                    {materialPageSize !== Infinity &&
+                        materialTotalItems > 0 && (
+                            <div className="flex items-center justify-between pt-2">
+                                <span className="text-sm text-muted-foreground">
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (materialCurrentPage - 1) *
+                                            materialPageSize +
+                                            1,
+                                        materialTotalItems,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        materialCurrentPage * materialPageSize,
+                                        materialTotalItems,
+                                    )}{' '}
+                                    dari {materialTotalItems} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setMaterialCurrentPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
+                                        }
+                                        disabled={materialCurrentPage === 1}
+                                    >
+                                        Prev
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Page {materialCurrentPage} of{' '}
+                                        {materialTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setMaterialCurrentPage((page) =>
+                                                Math.min(
+                                                    materialTotalPages,
+                                                    page + 1,
+                                                ),
+                                            )
+                                        }
+                                        disabled={
+                                            materialCurrentPage ===
+                                            materialTotalPages
+                                        }
+                                    >
+                                        Next
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                 </DialogContent>
             </Dialog>
         </>

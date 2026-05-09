@@ -49,6 +49,7 @@ export default function DeliveryOrderCreate() {
     // Form Data
     const [formData, setFormData] = useState({
         date: formatDate(new Date()),
+        kode_poin: '',
         ref_po: '',
         kd_cs: '',
         nm_cs: '',
@@ -122,6 +123,7 @@ export default function DeliveryOrderCreate() {
 
             setFormData((prev) => ({
                 ...prev,
+                kode_poin: prData.kode_poin,
                 ref_po: prData.no_poin,
                 nm_cs: prData.customer_name,
                 kd_cs: kd_cs, // From tb_cs
@@ -201,10 +203,10 @@ export default function DeliveryOrderCreate() {
             '/marketing/delivery-order',
             {
                 date: formData.date,
+                kode_poin: formData.kode_poin,
                 ref_po: formData.ref_po,
                 kd_cs: formData.kd_cs,
                 nm_cs: formData.nm_cs,
-                ref_pr: selectedPrNo,
                 items: formData.items.map((item, index) => ({
                     no: index + 1,
                     kd_material: item.kd_material,
@@ -276,6 +278,13 @@ export default function DeliveryOrderCreate() {
                                     />
                                 </div>
                                 <div className="space-y-2">
+                                    <Label>Kode PO In</Label>
+                                    <Input
+                                        readOnly
+                                        value={formData.kode_poin}
+                                    />
+                                </div>
+                                <div className="space-y-2">
                                     <Label>Ref PO</Label>
                                     <Input
                                         value={formData.ref_po}
@@ -324,6 +333,9 @@ export default function DeliveryOrderCreate() {
                                         <Table>
                                             <TableHeader>
                                                 <TableRow>
+                                                    <TableHead className="w-[140px]">
+                                                        Kode Material
+                                                    </TableHead>
                                                     <TableHead>
                                                         Material
                                                     </TableHead>
@@ -350,6 +362,11 @@ export default function DeliveryOrderCreate() {
                                                         }
                                                     >
                                                         <TableCell>
+                                                            {renderValue(
+                                                                item.kd_material,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
                                                             {item.material}
                                                         </TableCell>
                                                         <TableCell>
@@ -369,7 +386,7 @@ export default function DeliveryOrderCreate() {
                                                 {sourceItems.length === 0 && (
                                                     <TableRow>
                                                         <TableCell
-                                                            colSpan={4}
+                                                            colSpan={5}
                                                             className="text-center"
                                                         >
                                                             Tidak ada data
@@ -460,6 +477,9 @@ export default function DeliveryOrderCreate() {
                                             <TableHeader>
                                                 <TableRow>
                                                     <TableHead>No</TableHead>
+                                                    <TableHead className="w-[140px]">
+                                                        Kode Material
+                                                    </TableHead>
                                                     <TableHead>
                                                         Material
                                                     </TableHead>
@@ -483,6 +503,11 @@ export default function DeliveryOrderCreate() {
                                                         <TableRow key={i}>
                                                             <TableCell>
                                                                 {i + 1}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {renderValue(
+                                                                    item.kd_material,
+                                                                )}
                                                             </TableCell>
                                                             <TableCell>
                                                                 {item.material}
@@ -516,7 +541,7 @@ export default function DeliveryOrderCreate() {
                                                     0 && (
                                                     <TableRow>
                                                         <TableCell
-                                                            colSpan={6}
+                                                            colSpan={7}
                                                             className="text-center"
                                                         >
                                                             Belum ada material

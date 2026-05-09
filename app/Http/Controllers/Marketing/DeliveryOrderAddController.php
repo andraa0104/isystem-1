@@ -195,15 +195,19 @@ class DeliveryOrderAddController
     public function prMaterials(Request $request)
     {
         $refPo = $request->query('ref_po');
+        $refDo = $request->query('ref_do');
         if (!$refPo) {
             return response()->json([
                 'items' => [],
             ]);
         }
 
-        $rawItems = DB::table('tb_detailpr')
-            ->where('ref_po', $refPo)
-            ->whereRaw('coalesce(cast(replace(sisa_pr, \',\', \'\') as decimal(18,4)), 0) > 0')
+        $rawItems = DB::table('tb_do')
+            ->when($refDo, function ($query) use ($refDo) {
+                $query->whereRaw('lower(trim(no_do)) = ?', [strtolower(trim((string) $refDo))]);
+            })
+            ->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim((string) $refPo))])
+            ->whereRaw('coalesce(cast(replace(qty, \',\', \'\') as decimal(18,4)), 0) > 0')
             ->orderBy('no')
             ->get();
 
@@ -224,10 +228,10 @@ class DeliveryOrderAddController
                 'kd_material' => $kdMaterial,
                 'material' => $item->material ?? $item->mat ?? $item->mtrl ?? null,
                 'qty' => $item->qty ?? null,
-                'sisa_pr' => $item->sisa_pr ?? $item->Sisa_pr ?? null,
+                'sisa_pr' => $item->qty ?? null,
                 'unit' => $item->unit ?? $item->satuan ?? $item->Unit ?? null,
                 'remark' => $item->renmark ?? $item->remark ?? null,
-                'price_po' => $item->price_po ?? null,
+                'price_po' => $item->harga ?? $item->price_po ?? null,
                 'last_stock' => (float) ($lastStock ?? 0),
             ];
         });
@@ -337,7 +341,6 @@ class DeliveryOrderAddController
         if (!is_array($items)) {
             $items = [];
         }
-        $refPo = $request->input('ref_po');
         $parseNumber = static function ($value) {
             if ($value === null) {
                 return 0.0;
@@ -350,7 +353,7 @@ class DeliveryOrderAddController
         };
 
         try {
-            DB::transaction(function () use ($request, $items, $noDob, $refPo, $parseNumber) {
+            DB::transaction(function () use ($request, $items, $noDob, $parseNumber) {
                 $dateInput = $request->input('date');
                 try {
                     $parsed = $dateInput ? \Carbon\Carbon::parse($dateInput) : null;
@@ -421,54 +424,34 @@ class DeliveryOrderAddController
                             : $item['remark'],
                     ]);
 
-                    if ($refPo) {
-                        $kdMat = $resolvedKdMat;
-                        $mat = $item['mat'] ?? null;
-                        if ($kdMat || $mat) {
-                            $detailPrQuery = DB::table('tb_detailpr')
-                                ->where('ref_po', $refPo);
-                            if ($kdMat) {
-                                $detailPrQuery->where('kd_material', $kdMat);
-                            } else {
-                                $detailPrQuery->where('material', $mat);
+                    $kdMat = $resolvedKdMat;
+                    if ($kdMat) {
+                        $materialRow = DB::table('tb_material')
+                            ->where('kd_material', $kdMat)
+                            ->first();
+                        if ($materialRow) {
+                            $currentStok = $parseNumber($materialRow->stok ?? 0);
+                            $currentRest = $parseNumber($materialRow->rest_stock ?? 0);
+                            $newStok = $currentStok - $qtyValue;
+                            $newRest = $currentRest - $qtyValue;
+                            if ($newStok < 0) {
+                                $newStok = 0;
+                            }
+                            if ($newRest < 0) {
+                                $newRest = 0;
                             }
 
-                            $detailPr = $detailPrQuery->first();
-                            if ($detailPr) {
-                                $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
-                                $newSisa = $currentSisa - $qtyValue;
-                                if ($newSisa < 0) {
-                                    $newSisa = 0;
-                                }
-                                $detailPrQuery->update([
-                                    'sisa_pr' => $newSisa,
-                                ]);
+                            $materialUpdate = [
+                                'stok' => $newStok,
+                                'rest_stock' => $newRest,
+                            ];
+                            if ($qtyValue > 0 && $qtyValue === $currentStok) {
+                                $materialUpdate['harga'] = 0;
                             }
 
-                            if ($kdMat) {
-                                $materialRow = DB::table('tb_material')
-                                    ->where('kd_material', $kdMat)
-                                    ->first();
-                                if ($materialRow) {
-                                    $currentStok = $parseNumber($materialRow->stok ?? 0);
-                                    $currentRest = $parseNumber($materialRow->rest_stock ?? 0);
-                                    $newStok = $currentStok - $qtyValue;
-                                    $newRest = $currentRest - $qtyValue;
-                                    if ($newStok < 0) {
-                                        $newStok = 0;
-                                    }
-                                    if ($newRest < 0) {
-                                        $newRest = 0;
-                                    }
-
-                                    DB::table('tb_material')
-                                        ->where('kd_material', $kdMat)
-                                        ->update([
-                                            'stok' => $newStok,
-                                            'rest_stock' => $newRest,
-                                        ]);
-                                }
-                            }
+                            DB::table('tb_material')
+                                ->where('kd_material', $kdMat)
+                                ->update($materialUpdate);
                         }
                     }
                 }
@@ -543,7 +526,6 @@ class DeliveryOrderAddController
         $oldQty = $parseNumber($row->qty ?? 0);
         $remarkInput = $request->input('remark');
         $remarkValue = $remarkInput === null ? ' ' : $remarkInput;
-        $refPo = $request->input('ref_po');
         $stockNowInput = $request->input('stock_now');
         $stockNowValue = $stockNowInput === null ? null : $parseNumber($stockNowInput);
         $newHarga = $parseNumber($request->input('harga', $row->harga ?? 0));
@@ -558,7 +540,6 @@ class DeliveryOrderAddController
                 $newHarga,
                 $newTotal,
                 $remarkValue,
-                $refPo,
                 $stockNowValue,
                 $oldQty,
                 $newQty,
@@ -574,63 +555,37 @@ class DeliveryOrderAddController
                         'total' => $newTotal,
                     ]);
 
-                if (!$refPo) {
-                    return;
-                }
-
                 $kdMat = $row->kd_mat ?? null;
-                $mat = $row->mat ?? null;
-                if (!$kdMat && !$mat) {
+                if (!$kdMat) {
                     return;
                 }
 
-                $detailPrQuery = DB::table('tb_detailpr')
-                    ->where('ref_po', $refPo);
-                if ($kdMat) {
-                    $detailPrQuery->where('kd_material', $kdMat);
-                } else {
-                    $detailPrQuery->where('material', $mat);
-                }
-                $detailPr = $detailPrQuery->first();
-                if ($detailPr) {
-                    $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
-                    $newSisa = $currentSisa + $oldQty - $newQty;
-                    if ($newSisa < 0) {
-                        $newSisa = 0;
-                    }
-                    $detailPrQuery->update([
-                        'sisa_pr' => $newSisa,
-                    ]);
-                }
-
-                if ($kdMat) {
-                    $materialRow = DB::table('tb_material')
-                        ->where('kd_material', $kdMat)
-                        ->first();
-                    if ($materialRow) {
-                        if ($stockNowValue !== null) {
-                            $newStok = $stockNowValue;
-                            $newRest = $stockNowValue;
-                        } else {
-                            $currentStok = $parseNumber($materialRow->stok ?? 0);
-                            $currentRest = $parseNumber($materialRow->rest_stock ?? 0);
-                            $newStok = $currentStok + $oldQty - $newQty;
-                            $newRest = $currentRest + $oldQty - $newQty;
-                            if ($newStok < 0) {
-                                $newStok = 0;
-                            }
-                            if ($newRest < 0) {
-                                $newRest = 0;
-                            }
+                $materialRow = DB::table('tb_material')
+                    ->where('kd_material', $kdMat)
+                    ->first();
+                if ($materialRow) {
+                    if ($stockNowValue !== null) {
+                        $newStok = $stockNowValue;
+                        $newRest = $stockNowValue;
+                    } else {
+                        $currentStok = $parseNumber($materialRow->stok ?? 0);
+                        $currentRest = $parseNumber($materialRow->rest_stock ?? 0);
+                        $newStok = $currentStok + $oldQty - $newQty;
+                        $newRest = $currentRest + $oldQty - $newQty;
+                        if ($newStok < 0) {
+                            $newStok = 0;
                         }
-
-                        DB::table('tb_material')
-                            ->where('kd_material', $kdMat)
-                            ->update([
-                                'stok' => $newStok,
-                                'rest_stock' => $newRest,
-                            ]);
+                        if ($newRest < 0) {
+                            $newRest = 0;
+                        }
                     }
+
+                    DB::table('tb_material')
+                        ->where('kd_material', $kdMat)
+                        ->update([
+                            'stok' => $newStok,
+                            'rest_stock' => $newRest,
+                        ]);
                 }
             });
         } catch (\Throwable $exception) {
@@ -729,8 +684,6 @@ class DeliveryOrderAddController
 
                 $qty = (float)($row->qty ?? 0);
                 $kdMat = $row->kd_mat ?? null;
-                $matName = $row->mat ?? null;
-                $refDo = $row->ref_do ?? null;
 
                 // 1. Restore tb_material.stok
                 if ($kdMat) {
@@ -739,26 +692,6 @@ class DeliveryOrderAddController
                         ->increment('stok', $qty);
                 }
 
-                // 2. Restore tb_detailpr.sisa_pr
-                $refPo = null;
-                if ($refDo) {
-                    $refPo = DB::table('tb_do')
-                        ->where('no_do', $refDo)
-                        ->value('ref_po');
-                }
-
-                if ($refPo) {
-                    $detailQuery = DB::table('tb_detailpr')
-                        ->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($refPo))]);
-                    if ($kdMat) {
-                        $detailQuery->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim($kdMat))]);
-                    } elseif ($matName) {
-                        $detailQuery->whereRaw('lower(trim(material)) = ?', [strtolower(trim($matName))]);
-                    }
-                    $detailQuery->increment('sisa_pr', $qty);
-                }
-
-                // 3. Delete from tb_dob
                 DB::table('tb_dob')
                     ->where('no_dob', $noDob)
                     ->where('no', $lineNo)
@@ -791,35 +724,47 @@ class DeliveryOrderAddController
 
         try {
             DB::transaction(function () use ($rows, $noDob) {
+                $parseNumber = static function ($value) {
+                    if ($value === null) {
+                        return 0.0;
+                    }
+                    if (is_numeric($value)) {
+                        return (float) $value;
+                    }
+                    $clean = str_replace(',', '', (string) $value);
+                    return is_numeric($clean) ? (float) $clean : 0.0;
+                };
+
                 foreach ($rows as $row) {
-                    $qty = (float) ($row->qty ?? 0);
-                    $kdMat = $row->kd_mat ?? null;
-                    $matName = $row->mat ?? null;
-                    $refDo = $row->ref_do ?? null;
+                    $qty = $parseNumber($row->qty ?? 0);
+                    $matName = trim((string) ($row->mat ?? ''));
 
-                    if ($kdMat) {
-                        DB::table('tb_material')
-                            ->where('kd_material', $kdMat)
-                            ->increment('stok', $qty);
+                    if ($matName === '') {
+                        continue;
                     }
 
-                    $refPo = null;
-                    if ($refDo) {
-                        $refPo = DB::table('tb_do')
-                            ->where('no_do', $refDo)
-                            ->value('ref_po');
+                    $materialRow = DB::table('tb_material')
+                        ->whereRaw('lower(trim(material)) = ?', [strtolower($matName)])
+                        ->first();
+
+                    if (!$materialRow) {
+                        continue;
                     }
 
-                    if ($refPo) {
-                        $detailQuery = DB::table('tb_detailpr')
-                            ->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($refPo))]);
-                        if ($kdMat) {
-                            $detailQuery->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim($kdMat))]);
-                        } elseif ($matName) {
-                            $detailQuery->whereRaw('lower(trim(material)) = ?', [strtolower(trim($matName))]);
-                        }
-                        $detailQuery->increment('sisa_pr', $qty);
+                    $materialUpdate = [
+                        'stok' => $parseNumber($materialRow->stok ?? 0) + $qty,
+                        'rest_stock' => $parseNumber($materialRow->rest_stock ?? 0) + $qty,
+                    ];
+
+                    $dobHarga = $parseNumber($row->harga ?? 0);
+                    $materialHarga = $parseNumber($materialRow->harga ?? 0);
+                    if ($dobHarga > $materialHarga) {
+                        $materialUpdate['harga'] = $dobHarga;
                     }
+
+                    DB::table('tb_material')
+                        ->where('kd_material', $materialRow->kd_material)
+                        ->update($materialUpdate);
                 }
 
                 DB::table('tb_dob')->where('no_dob', $noDob)->delete();

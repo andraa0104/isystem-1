@@ -1131,7 +1131,16 @@ export default function DeliveryOrderIndex({
                                                             </td>
                                                             <td className="px-4 py-3">
                                                                 {renderValue(
-                                                                    detail.qty,
+                                                                    [
+                                                                        detail.qty,
+                                                                        detail.unit,
+                                                                    ]
+                                                                        .filter(
+                                                                            Boolean,
+                                                                        )
+                                                                        .join(
+                                                                            ' ',
+                                                                        ),
                                                                 )}
                                                             </td>
                                                             <td className="px-4 py-3">
