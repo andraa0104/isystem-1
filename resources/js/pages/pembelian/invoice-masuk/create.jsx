@@ -109,7 +109,7 @@ export default function InvoiceMasukCreate() {
         let data = poData;
         if (term) {
             data = data.filter((row) =>
-                [row.no_doc, row.ref_pr, row.vdr]
+                [row.no_po, row.ref_poin, row.nm_vdr]
                     .map((v) => String(v ?? '').toLowerCase())
                     .some((v) => v.includes(term)),
             );
@@ -162,18 +162,18 @@ export default function InvoiceMasukCreate() {
         setPoError(null);
         try {
             const res = await fetch(
-                '/pembelian/invoice-masuk/mi-list?pageSize=all',
+                '/pembelian/invoice-masuk/po-list?pageSize=all',
                 { headers: { Accept: 'application/json' } },
             );
             if (!res.ok) throw await readApiError(res);
             const data = await res.json();
             const rows = Array.isArray(data?.data) ? data.data : [];
             rows.sort((a, b) =>
-                String(b.no_doc ?? '').localeCompare(String(a.no_doc ?? '')),
+                String(b.no_po ?? '').localeCompare(String(a.no_po ?? '')),
             );
             setPoData(rows);
         } catch (err) {
-            setPoError(normalizeApiError(err, 'Gagal memuat data MI.'));
+            setPoError(normalizeApiError(err, 'Gagal memuat data PO.'));
         } finally {
             setPoLoading(false);
         }
@@ -186,26 +186,29 @@ export default function InvoiceMasukCreate() {
         setPoError(null);
         try {
             const detailRes = await fetch(
-                `/pembelian/invoice-masuk/mi-detail?no_gudang=${encodeURIComponent(row.no_gudang)}`,
+                `/pembelian/invoice-masuk/po-detail?no_po=${encodeURIComponent(row.no_po)}`,
                 {
                     headers: { Accept: 'application/json' },
                 },
             );
             if (!detailRes.ok) throw await readApiError(detailRes);
             const detail = await detailRes.json();
+            
             setHeader((prev) => ({
                 ...prev,
-                no_gudang: detail?.header?.no_gudang ?? '',
-                ref_po: detail?.header?.ref_po ?? '',
-                vendor: detail?.header?.vendor ?? '',
+                no_gudang: detail?.header?.no_po ?? '',
+                ref_po: detail?.header?.no_po ?? '',
+                vendor: detail?.header?.nm_vdr ?? '',
                 kd_vdr: detail?.header?.kd_vdr ?? '',
                 customer: detail?.header?.customer ?? '',
                 payment_terms: detail?.header?.payment_terms ?? '',
                 ppn: detail?.header?.ppn ?? 0,
+                no_receipt: detail?.header?.ref_quota ?? '',
             }));
+            
 
             const matRes = await fetch(
-                `/pembelian/invoice-masuk/mi-materials?no_gudang=${encodeURIComponent(row.no_gudang)}`,
+                `/pembelian/invoice-masuk/po-materials?no_po=${encodeURIComponent(row.no_po)}`,
                 {
                     headers: { Accept: 'application/json' },
                 },
@@ -223,7 +226,7 @@ export default function InvoiceMasukCreate() {
             );
             setMaterialPage(1);
         } catch (err) {
-            setPoError(normalizeApiError(err, 'Gagal memuat detail MI.'));
+            setPoError(normalizeApiError(err, 'Gagal memuat detail PO.'));
             setMaterials([]);
         } finally {
             setPoLoading(false);
@@ -231,6 +234,16 @@ export default function InvoiceMasukCreate() {
         }
     };
 
+    const handleNoReceiptFocus = (e) => {
+        // Simpan referensi ke elemen target
+        const target = e.target;
+        
+        // Beri jeda sedikit agar efek klik bawaan browser selesai dulu
+        setTimeout(() => {
+            target.select();
+        }, 10);
+    };
+    
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -279,7 +292,7 @@ export default function InvoiceMasukCreate() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <Button variant="outline" onClick={openPoModal}>
-                                Cari MI
+                                Cari PO
                             </Button>
                             <div className="grid gap-4 md:grid-cols-2">
                                 <div className="space-y-2">
@@ -343,6 +356,7 @@ export default function InvoiceMasukCreate() {
                                     <Label>No Receipt (Invoice In)</Label>
                                     <Input
                                         value={header.no_receipt}
+                                        onFocus={handleNoReceiptFocus}
                                         onChange={(e) =>
                                             setHeader({
                                                 ...header,
@@ -590,12 +604,12 @@ export default function InvoiceMasukCreate() {
             <Dialog open={poModalOpen} onOpenChange={setPoModalOpen}>
                 <DialogContent className="!w-[95vw] !max-w-5xl md:!max-w-6xl">
                     <DialogHeader>
-                        <DialogTitle>Pilih MI</DialogTitle>
+                        <DialogTitle>Pilih PO</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-3">
                             <Input
-                                placeholder="Cari no_gudang, ref_po, vendor..."
+                                placeholder="Cari no_po, ref_poin, vendor..."
                                 value={poSearch}
                                 onChange={(e) => {
                                     setPoSearch(e.target.value);
@@ -635,10 +649,10 @@ export default function InvoiceMasukCreate() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>No MI</TableHead>
-                                        <TableHead>Ref PO</TableHead>
+                                        <TableHead>No PO</TableHead>
+                                        <TableHead>Tanggal</TableHead>
+                                        <TableHead>Ref Poin</TableHead>
                                         <TableHead>Vendor</TableHead>
-                                        <TableHead>Customer</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -658,21 +672,21 @@ export default function InvoiceMasukCreate() {
                                         !poError &&
                                         displayedPo.map((row) => (
                                             <TableRow
-                                                key={row.no_gudang}
+                                                key={row.no_po}
                                                 className="cursor-pointer hover:bg-muted/40"
                                                 onClick={() =>
                                                     handleSelectPo(row)
                                                 }
                                             >
                                                 <TableCell>
-                                                    {row.no_gudang}
+                                                    {row.no_po}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {row.ref_pr}
+                                                    {row.tgl}
                                                 </TableCell>
-                                                <TableCell>{row.vdr}</TableCell>
+                                                <TableCell>{row.ref_poin}</TableCell>
                                                 <TableCell>
-                                                    {row.posting_tgl}
+                                                    {row.nm_vdr}
                                                 </TableCell>
                                             </TableRow>
                                         ))}
