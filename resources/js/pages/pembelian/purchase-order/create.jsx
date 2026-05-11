@@ -341,6 +341,14 @@ export default function PurchaseOrderCreate({
                     ? data.purchaseRequirementDetails
                     : [],
             );
+            // --- TANGKAP HASIL AI DAN MASUKKAN KE NOTE 1 ---
+            if (data.autofill_note_1) {
+                setFormData((prev) => ({
+                    ...prev,
+                    note1: data.autofill_note_1,
+                }));
+            }
+            // -----------------------------------------------
         } catch (error) {
             setPrDetailError(
                 normalizeApiError(error, 'Gagal memuat detail PR.'),
