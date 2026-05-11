@@ -113,20 +113,17 @@ class PurchaseOrderController
             $query->where('no_pr', $noPr);
         }
         
-        // Eksekusi query cukup SEKALI saja
         $items = $query->get();
 
-        // --- MULAI LOGIKA AI CLUSTERING ---
+        // --- PENGIRIMAN DATA MENTAH KE PYTHON ---
         $dataForPython = [];
         foreach ($items as $idx => $item) {
-            // Cegah mengirim data renmark yang benar-benar kosong ke Python
-            $renmarkText = trim((string) ($item->renmark ?? ''));
-            if ($renmarkText !== '') {
-                $dataForPython[] = [
-                    'index' => $idx + 1,
-                    'renmark' => $renmarkText
-                ];
-            }
+            // Controller murni cuma passing data mentah ke Python
+            $dataForPython[] = [
+                'index'   => $idx + 1,
+                'renmark' => $item->renmark,
+                'sisa_pr' => $item->sisa_pr // Lempar sisa_pr untuk difilter oleh Python
+            ];
         }
 
         $autofillNote1 = '';
@@ -137,22 +134,19 @@ class PurchaseOrderController
             $pythonPath = 'python3'; 
             $scriptPath = base_path('app/Intelligence/RenmarkClustering.py');
 
-            // PERBAIKAN: Gunakan escapeshellarg untuk input JSON, hilangkan escapeshellcmd
-            // Tambahan 2>&1 berguna jika kita ingin melihat error asli dari Python
             $command = $pythonPath . " " . escapeshellarg($scriptPath) . " " . escapeshellarg($jsonInput) . " 2>&1";
             
             $output = trim(shell_exec($command));
 
-            // Jika tidak ada error log dari python, anggap itu hasil yang benar
-            if (!str_contains(strtolower($output), 'error') && !str_contains(strtolower($output), 'traceback')) {
+            if ($output && !str_contains(strtolower($output), 'error') && !str_contains(strtolower($output), 'traceback')) {
                 $autofillNote1 = $output;
             }
         }
-        // --- SELESAI LOGIKA AI CLUSTERING ---
+        // -----------------------------------------
 
         return response()->json([
-            'purchaseRequirementDetails' => $items, // Gunakan variabel $items
-            'autofill_note_1' => $autofillNote1     // PENTING: Baris ini WAJIB ada agar dikirim ke frontend!
+            'purchaseRequirementDetails' => $items,
+            'autofill_note_1' => $autofillNote1 
         ]);
     }
 
