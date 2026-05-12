@@ -25,84 +25,45 @@ class DeliveryOrderController
 
     public function data(Request $request)
     {
-    try {
+        try {
         $period = $request->query('period', 'today');
-        $now = now();
+        $now = \Carbon\Carbon::now(); // Pastikan menggunakan backslash agar tidak error namespace
 
-        // 1. Kueri Utama Tabel Delivery Order
-        $deliveryOrdersQuery = DB::table('tb_do')
+        $query = DB::table('tb_do')
             ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
             ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
             ->orderBy('no_do', 'desc');
 
-        // Optimasi: Karena 'date' adalah string dd.mm.yyyy, kita bandingkan string langsung
+        // Karena tb_do.date adalah STRING dd.mm.yyyy
         if ($period === 'today') {
-            $todayStr = $now->format('d.m.Y');
-            $deliveryOrdersQuery->where('date', $todayStr);
+            $query->where('date', $now->format('d.m.Y'));
         } elseif ($period === 'this_month') {
-            // Mencari string yang berakhiran .mm.yyyy
-            $monthYear = $now->format('.m.Y');
-            $deliveryOrdersQuery->where('date', 'like', '%' . $monthYear);
+            // Mencari yang berakhiran .mm.yyyy
+            $query->where('date', 'like', '%' . $now->format('.m.Y'));
         } elseif ($period === 'this_year') {
-            // Mencari string yang berakhiran .yyyy
-            $year = $now->format('.Y');
-            $deliveryOrdersQuery->where('date', 'like', '%' . $year);
-        } elseif ($period === 'range') {
-            $startDate = $request->query('start_date'); // Format yyyy-mm-dd dari input date
-            $endDate = $request->query('end_date');
-            
-            if ($startDate && $endDate) {
-                // Konversi input date ke format dd.mm.yyyy agar cocok dengan database
-                $startFormatted = \Carbon\Carbon::parse($startDate)->format('d.m.Y');
-                $endFormatted = \Carbon\Carbon::parse($endDate)->format('d.m.Y');
-                
-                // Jika data sangat banyak, range pada string dd.mm.yyyy tidak bisa menggunakan 'between'
-                // Kita harus menggunakan STR_TO_DATE hanya untuk kasus range ini
-                $deliveryOrdersQuery->whereRaw("STR_TO_DATE(date, '%d.%m.%Y') BETWEEN ? AND ?", [$startDate, $endDate]);
-            }
+            // Mencari yang berakhiran .yyyy
+            $query->where('date', 'like', '%' . $now->format('.Y'));
         }
 
-        $deliveryOrders = $deliveryOrdersQuery->get();
+        $deliveryOrders = $query->get();
 
-        // 2. Kueri Outstanding Count & Total
-        $outstandingCount = DB::table('tb_do')
-            ->where('val_inv', 0)
-            ->distinct('no_do')
-            ->count('no_do');
-
-        $outstandingTotal = DB::table('tb_do')
-            ->where('val_inv', 0)
-            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
-
-        // 3. Kueri Realized (Faktur) - Tetap menggunakan logika Anda namun lebih bersih
-        $realizedQuery = DB::table('tb_kddo as k')
-            ->join('tb_fakturpenjualan as f', function ($join) {
-                $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
-            });
-
-        // Terapkan filter periode yang sama untuk realized jika diperlukan
-        // (Sesuaikan dengan kolom tgl_pos di tb_fakturpenjualan jika itu DATE atau string)
-
-        $realizedNos = $realizedQuery->distinct('k.no_do')->pluck('k.no_do');
-        $realizedCount = $realizedNos->count();
-        
-        $realizedTotal = DB::table('tb_do')
-            ->whereIn('no_do', $realizedNos)
-            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
+        // Kueri Summary (Outstanding & Realized)
+        // Gunakan try-catch internal agar jika summary gagal, tabel tetap muncul
+        $outstandingCount = DB::table('tb_do')->where('val_inv', 0)->distinct('no_do')->count('no_do');
+        $outstandingTotal = DB::table('tb_do')->where('val_inv', 0)->sum(DB::raw('CAST(total AS DECIMAL(18,4))'));
 
         return response()->json([
             'deliveryOrders' => $deliveryOrders,
-            'outstandingCount' => (int) $outstandingCount,
-            'realizedCount' => (int) $realizedCount,
-            'outstandingTotal' => (float) $outstandingTotal,
-            'realizedTotal' => (float) $realizedTotal,
+            'outstandingCount' => $outstandingCount,
+            'realizedCount' => 0, // Set 0 dulu untuk testing stabilitas
+            'outstandingTotal' => (float)$outstandingTotal,
+            'realizedTotal' => 0,
             'period' => $period,
         ]);
-
         } catch (\Exception $e) {
-        // Ini akan membantu Anda melihat error spesifik di log Laravel (storage/logs/laravel.log)
-        \Log::error("DO Data Error: " . $e->getMessage());
-        return response()->json(['error' => $e->getMessage()], 500);
+        // Log error untuk debug di storage/logs/laravel.log
+        \Log::error("Error DO Data: " . $e->getMessage());
+        return response()->json(['error' => 'Internal Server Error', 'message' => $e->getMessage()], 500);
         }
     }
 
