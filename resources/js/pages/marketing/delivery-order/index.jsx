@@ -51,7 +51,7 @@ export default function DeliveryOrderIndex({
     realizedTotal = 0,
     period = 'today',
 }) {
-    const [deliveryOrdersList, setDeliveryOrdersList] = useState(deliveryOrders);
+    const [deliveryOrdersList, setDeliveryOrdersList] = useState(deliveryOrders?.data || deliveryOrders || []);
     const [outstandingCountState, setOutstandingCountState] = useState(outstandingCount);
     const [outstandingTotalState, setOutstandingTotalState] = useState(outstandingTotal);
     const [searchTerm, setSearchTerm] = useState('');
@@ -115,8 +115,9 @@ export default function DeliveryOrderIndex({
                 return response.json();
             })
             .then((data) => {
+                const list = data?.deliveryOrders?.data || data?.deliveryOrders;
                 setDeliveryOrdersList(
-                    Array.isArray(data?.deliveryOrders) ? data.deliveryOrders : []
+                    Array.isArray(list) ? list : []
                 );
             })
             .catch(() => {
@@ -223,9 +224,7 @@ export default function DeliveryOrderIndex({
         const term = outstandingSearchTerm.trim().toLowerCase();
         return outstandingList
             .filter((item) => {
-                if (getStatusValue(item) !== 0) {
-                    return false;
-                }
+                
 
                 if (!term) {
                     return true;
@@ -381,10 +380,9 @@ export default function DeliveryOrderIndex({
                 return response.json();
             })
             .then((data) => {
+                const list = data?.deliveryOrders?.data || data?.deliveryOrders;
                 setOutstandingList(
-                    Array.isArray(data?.deliveryOrders)
-                        ? data.deliveryOrders
-                        : [],
+                    Array.isArray(list) ? list : []
                 );
             })
             .catch(() => {
@@ -421,11 +419,14 @@ export default function DeliveryOrderIndex({
                 return response.json();
             })
             .then((data) => {
-                const list = Array.isArray(data?.deliveryOrders)
-                    ? data.deliveryOrders
-                    : [];
+                const rawData = data?.deliveryOrders?.data || data?.deliveryOrders;
+                const list = Array.isArray(rawData) ? rawData : [];
+                
                 setRealizedList(list);
-                setRealizedCountState(list.length);
+                // Catatan: length dari pagination adalah jumlah data per halaman. 
+                // Jika Anda ingin total keseluruhan, Anda bisa pakai data?.deliveryOrders?.total (jika pakai paginate biasa)
+                // Namun untuk simplePaginate, length per halaman sudah cukup untuk mencegah error array.
+                setRealizedCountState(list.length); 
                 setRealizedTotalState(data?.realizedTotal ?? 0);
                 setPeriodFilter(targetPeriod);
             })

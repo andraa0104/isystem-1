@@ -25,46 +25,93 @@ class DeliveryOrderController
 
     public function data(Request $request)
     {
-        try {
         $period = $request->query('period', 'today');
-        $now = \Carbon\Carbon::now(); // Pastikan menggunakan backslash agar tidak error namespace
+        $now = now();
+        $year = $now->format('Y');
+        $month = $now->format('m');
+        $todayDate = $now->format('Y-m-d');
+        $todayDot = $now->format('d.m.Y');
 
-        $query = DB::table('tb_do')
+        // Helper function untuk filter tanggal yang kebal error (Hybrid Check)
+        $applyDateFilter = function ($query, $column) use ($period, $now, $year, $month, $todayDate, $todayDot, $request) {
+            if ($period === 'today') {
+                $query->where(function($q) use ($column, $todayDate, $todayDot) {
+                    $q->whereDate($column, $todayDate)
+                      ->orWhere($column, $todayDot)
+                      ->orWhere($column, 'like', $todayDate . '%'); // Handle timestamp
+                });
+            } elseif ($period === 'this_month') {
+                $query->where(function($q) use ($column, $month, $year) {
+                    $q->whereYear($column, $year)->whereMonth($column, $month)
+                      ->orWhere($column, 'like', "%.{$month}.{$year}%")
+                      ->orWhere($column, 'like', "%-{$month}-{$year}%")
+                      ->orWhere($column, 'like', "%/{$month}/{$year}%");
+                });
+            } elseif ($period === 'this_year') {
+                $query->where(function($q) use ($column, $year) {
+                    $q->whereYear($column, $year)
+                      ->orWhere($column, 'like', "%.{$year}%")
+                      ->orWhere($column, 'like', "%-{$year}%")
+                      ->orWhere($column, 'like', "%/{$year}%");
+                });
+            } elseif ($period === 'this_week') {
+                $start = $now->startOfWeek()->toDateString();
+                $end = $now->endOfWeek()->toDateString();
+                $expr = "coalesce(date($column), str_to_date($column, '%d.%m.%Y'), str_to_date($column, '%d-%m-%Y'), str_to_date($column, '%d/%m/%Y'), str_to_date($column, '%Y-%m-%d'))";
+                $query->whereRaw("($expr) BETWEEN ? AND ?", [$start, $end]);
+            } elseif ($period === 'range') {
+                $startDate = $request->query('start_date');
+                $endDate = $request->query('end_date');
+                if ($startDate && $endDate) {
+                    $expr = "coalesce(date($column), str_to_date($column, '%d.%m.%Y'), str_to_date($column, '%d-%m-%Y'), str_to_date($column, '%d/%m/%Y'), str_to_date($column, '%Y-%m-%d'))";
+                    $query->whereRaw("($expr) BETWEEN ? AND ?", [$startDate, $endDate]);
+                }
+            }
+        };
+
+        // 1. Kueri Utama Tabel Delivery Order
+        $deliveryOrdersQuery = DB::table('tb_do')
             ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
             ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
-            ->orderBy('no_do', 'desc');
+            ->orderBy('no_do', 'desc')
+            ->orderBy('date', 'desc');
 
-        // Karena tb_do.date adalah STRING dd.mm.yyyy
-        if ($period === 'today') {
-            $query->where('date', $now->format('d.m.Y'));
-        } elseif ($period === 'this_month') {
-            // Mencari yang berakhiran .mm.yyyy
-            $query->where('date', 'like', '%' . $now->format('.m.Y'));
-        } elseif ($period === 'this_year') {
-            // Mencari yang berakhiran .yyyy
-            $query->where('date', 'like', '%' . $now->format('.Y'));
-        }
+        $applyDateFilter($deliveryOrdersQuery, 'tb_do.date');
+        $deliveryOrders = $deliveryOrdersQuery->get();
 
-        $deliveryOrders = $query->get();
+        // 2. Kueri Outstanding Count & Total
+        $outstandingCount = DB::table('tb_do')
+            ->where('val_inv', 0)
+            ->distinct('no_do')
+            ->count('no_do');
 
-        // Kueri Summary (Outstanding & Realized)
-        // Gunakan try-catch internal agar jika summary gagal, tabel tetap muncul
-        $outstandingCount = DB::table('tb_do')->where('val_inv', 0)->distinct('no_do')->count('no_do');
-        $outstandingTotal = DB::table('tb_do')->where('val_inv', 0)->sum(DB::raw('CAST(total AS DECIMAL(18,4))'));
+        $outstandingTotal = DB::table('tb_do')
+            ->where('val_inv', 0)
+            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
+
+        // 3. Kueri Realized Count & Total
+        $realizedQuery = DB::table('tb_kddo as k')
+            ->join('tb_fakturpenjualan as f', function ($join) {
+                $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
+            });
+
+        $applyDateFilter($realizedQuery, 'f.tgl_pos');
+
+        $realizedNos = $realizedQuery->distinct('k.no_do')->pluck('k.no_do');
+        $realizedCount = $realizedNos->count();
+        
+        $realizedTotal = DB::table('tb_do')
+            ->whereIn(DB::raw('lower(trim(no_do))'), $realizedNos->map(fn ($n) => strtolower(trim($n))))
+            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
 
         return response()->json([
             'deliveryOrders' => $deliveryOrders,
             'outstandingCount' => $outstandingCount,
-            'realizedCount' => 0, // Set 0 dulu untuk testing stabilitas
-            'outstandingTotal' => (float)$outstandingTotal,
-            'realizedTotal' => 0,
+            'realizedCount' => $realizedCount,
+            'outstandingTotal' => $outstandingTotal,
+            'realizedTotal' => (float) $realizedTotal,
             'period' => $period,
         ]);
-        } catch (\Exception $e) {
-        // Log error untuk debug di storage/logs/laravel.log
-        \Log::error("Error DO Data: " . $e->getMessage());
-        return response()->json(['error' => 'Internal Server Error', 'message' => $e->getMessage()], 500);
-        }
     }
 
     public function update(Request $request, $noDo)
@@ -132,13 +179,13 @@ class DeliveryOrderController
         }
 
         if ($request->boolean('realized_only')) {
-            $query->whereIn(
-                DB::raw('lower(trim(ref_po))'),
-                DB::table('tb_fakturpenjualan')
-                    ->selectRaw('lower(trim(ref_po))')
-                    ->whereRaw('lower(trim(no_do)) = ?', [strtolower(trim($noDo))])
-            );
-        }
+            $query->whereIn('ref_po', function($sub) use ($noDo) {
+                $sub->select('ref_po')
+                    ->from('tb_fakturpenjualan')
+                    ->where('no_do', $noDo);
+            });
+        } 
+        // Pastikan tidak ada tutup kurung kurawal ekstra '}' di area ini
 
         $deliveryOrderDetails = $query->orderBy('no_do')->get();
 
@@ -156,8 +203,9 @@ class DeliveryOrderController
         ]);
     }
 
-    public function outstanding()
+    public function outstanding(Request $request)
     {
+        // KEMBALIKAN KE get() AGAR MODAL TIDAK KOSONG
         $deliveryOrders = DB::table('tb_do')
             ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
             ->where('val_inv', 0)
@@ -174,8 +222,11 @@ class DeliveryOrderController
     public function realized(Request $request)
     {
         $period = $request->query('period', 'today');
-
-        $docDateExpr = "coalesce(date(f.tgl_pos), str_to_date(f.tgl_pos, '%Y-%m-%d'), str_to_date(f.tgl_pos, '%Y/%m/%d'), str_to_date(f.tgl_pos, '%d/%m/%Y'), str_to_date(f.tgl_pos, '%d-%m-%Y'), str_to_date(f.tgl_pos, '%d.%m.%Y'))";
+        $now = now();
+        $year = $now->format('Y');
+        $month = $now->format('m');
+        $todayDate = $now->format('Y-m-d');
+        $todayDot = $now->format('d.m.Y');
 
         $query = DB::table('tb_kddo as k')
             ->join('tb_fakturpenjualan as f', function ($join) {
@@ -189,19 +240,31 @@ class DeliveryOrderController
             )
             ->distinct();
 
-        $now = now();
         if ($period === 'today') {
-            $query->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
-        } elseif ($period === 'this_week') {
-            $query->whereRaw("{$docDateExpr} between ? and ?", [
-                $now->startOfWeek()->toDateString(),
-                $now->endOfWeek()->toDateString(),
-            ]);
+            $query->where(function($q) use ($todayDate, $todayDot) {
+                $q->whereDate('f.tgl_pos', $todayDate)
+                  ->orWhere('f.tgl_pos', $todayDot)
+                  ->orWhere('f.tgl_pos', 'like', $todayDate . '%');
+            });
         } elseif ($period === 'this_month') {
-            $query->whereRaw("month({$docDateExpr}) = ?", [$now->month])
-                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+            $query->where(function($q) use ($month, $year) {
+                $q->whereYear('f.tgl_pos', $year)->whereMonth('f.tgl_pos', $month)
+                  ->orWhere('f.tgl_pos', 'like', "%.{$month}.{$year}%")
+                  ->orWhere('f.tgl_pos', 'like', "%-{$month}-{$year}%")
+                  ->orWhere('f.tgl_pos', 'like', "%/{$month}/{$year}%");
+            });
         } elseif ($period === 'this_year') {
-            $query->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
+            $query->where(function($q) use ($year) {
+                $q->whereYear('f.tgl_pos', $year)
+                  ->orWhere('f.tgl_pos', 'like', "%.{$year}%")
+                  ->orWhere('f.tgl_pos', 'like', "%-{$year}%")
+                  ->orWhere('f.tgl_pos', 'like', "%/{$year}%");
+            });
+        } elseif ($period === 'this_week') {
+            $start = $now->startOfWeek()->toDateString();
+            $end = $now->endOfWeek()->toDateString();
+            $expr = "coalesce(date(f.tgl_pos), str_to_date(f.tgl_pos, '%d.%m.%Y'), str_to_date(f.tgl_pos, '%d-%m-%Y'), str_to_date(f.tgl_pos, '%d/%m/%Y'), str_to_date(f.tgl_pos, '%Y-%m-%d'))";
+            $query->whereRaw("($expr) BETWEEN ? AND ?", [$start, $end]);
         }
 
         $deliveryOrders = $query
@@ -348,14 +411,24 @@ class DeliveryOrderController
             });
         }
 
-        $mappedItems = $items->map(function ($item) {
+        // Ambil data stok terbaru untuk item yang sudah ada di DO
+        $kdMatsDO = $items->pluck('kd_mat')->filter()->unique()->all();
+        $materialsDO = DB::table('tb_material')
+            ->whereIn('kd_material', $kdMatsDO)
+            ->pluck('stok', 'kd_material');
+
+        $mappedItems = $items->map(function ($item) use ($materialsDO) {
+            $lastStock = $materialsDO->get($item->kd_mat) ?? 0;
             return [
                 'no' => $item->no,
                 'kd_material' => $item->kd_mat ?? null,
                 'material' => $item->mat ?? null,
                 'qty' => $item->qty ?? null,
+                'original_qty' => $item->qty ?? null, // Simpan qty awal sebelum diedit
                 'unit' => $item->unit ?? null,
                 'remark' => $item->remark ?? null,
+                'last_stock' => (float) $lastStock,
+                'stock_now' => (float) $lastStock, // Set stock_now default sama dengan last_stock
             ];
         });
 
@@ -544,9 +617,9 @@ class DeliveryOrderController
                 if (Schema::hasColumn('tb_detailpoin', 'sisa_qtydo')) {
                     foreach ($detailPoinUpdates as $up) {
                         $q = DB::table('tb_detailpoin')
-                            ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string)$up['kode_poin']))]);
+                            ->where('kode_poin', $up['kode_poin']);
                         if ($up['kd_material']) {
-                            $q->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim((string)$up['kd_material']))]);
+                            $q->where('kd_material', $up['kd_material']);
                         }
                         $q->update([
                             'sisa_qtydo' => DB::raw(sprintf(
@@ -885,11 +958,11 @@ class DeliveryOrderController
                 if ($hasSisaQtyDo) {
                     foreach ($detailPoinUpdates as $up) {
                         $q = DB::table('tb_detailpoin')
-                            ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string)$up['kode_poin']))]);
+                            ->where('kode_poin', $up['kode_poin']);
                         if ($up['kd_material']) {
-                            $q->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim((string)$up['kd_material']))]);
+                            $q->where('kd_material', $up['kd_material']);
                         } else {
-                            $q->whereRaw('lower(trim(material)) = ?', [strtolower(trim((string)$up['material']))]);
+                            $q->where('material', $up['material']);
                         }
                         $q->increment('sisa_qtydo', $up['qty']);
                     }
@@ -945,34 +1018,55 @@ class DeliveryOrderController
 
     public function getPrDetails(Request $request)
     {
-    $noPoin = $request->input('no_poin');
-    $poin = DB::table('tb_poin')->where('no_poin', $noPoin)->first();
+        $noPoin = $request->input('no_poin');
 
-    if (!$poin) return response()->json(['error' => 'PO In not found'], 404);
+        $poin = DB::table('tb_poin')->where('no_poin', $noPoin)->first();
 
-    $kdCs = DB::table('tb_cs')->where('nm_cs', $poin->customer_name)->value('kd_cs');
+        if (!$poin) {
+            return response()->json(['error' => 'PO In not found'], 404);
+        }
 
-    // OPTIMASI: Ambil detail tanpa whereRaw yang berat
-    $rawItems = DB::table('tb_detailpoin')
-        ->where('kode_poin', $poin->kode_poin)
-        ->where('sisa_qtydo', '>', 0)
-        ->get();
+        $kdCs = DB::table('tb_cs')
+            ->where('nm_cs', $poin->customer_name)
+            ->value('kd_cs');
 
-    $kdMats = $rawItems->pluck('kd_material')->filter()->unique()->all();
-    $stocks = DB::table('tb_material')->whereIn('kd_material', $kdMats)->pluck('stok', 'kd_material');
+        try {
+            $rawItems = DB::table('tb_detailpoin')
+                ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string) $poin->kode_poin))])
+                ->whereRaw('coalesce(cast(sisa_qtydo as decimal(18,4)), 0) <> 0')
+                ->get();
+        } catch (\Throwable $exception) {
+            return response()->json([
+                'error' => 'Gagal mengambil detail PO In.',
+                'message' => $exception->getMessage(),
+            ], 500);
+        }
 
-    $items = $rawItems->map(function ($item) use ($stocks) {
-        return (object) [
-            'kd_material' => $item->kd_material,
-            'material' => $item->material,
-            'qty' => $item->sisa_qtydo ?? $item->qty,
-            'unit' => $item->unit ?? '',
-            'remark' => $item->remark ?? '',
-            'sisa_qtydo' => $item->sisa_qtydo,
-            'last_stock' => (float) ($stocks->get($item->kd_material) ?? 0),
-        ];
-    });
+        // Kita tetap perlu pluck('stok') dari tb_material untuk kalkulasi stock_now di frontend
+        $kdMats = $rawItems->map(fn($item) => $item->kd_material)->filter()->unique()->all();
+        $stocks = DB::table('tb_material')
+            ->whereIn('kd_material', $kdMats)
+            ->pluck('stok', 'kd_material');
 
-    return response()->json(['pr' => $poin, 'kd_cs' => $kdCs, 'items' => $items]);
+        $items = $rawItems->map(function ($item) use ($stocks) {
+            // Prioritaskan mengambil kolom 'satuan', lalu 'unit' jika 'satuan' tidak ada
+            $unit = $item->satuan ?? $item->unit ?? $item->Unit ?? '';
+
+            return (object) [
+                'kd_material' => $item->kd_material ?? null,
+                'material' => $item->material ?? null,
+                'qty' => $item->sisa_qtydo ?? $item->qty ?? null,
+                'unit' => $unit, // Ini akan terisi dari tb_detailpoin.satuan
+                'remark' => $item->renmark ?? $item->remark ?? $item->keterangan ?? '',
+                'sisa_qtydo' => $item->sisa_qtydo ?? null,
+                'last_stock' => (float) ($stocks->get($item->kd_material ?? '') ?? 0),
+            ];
+        });
+
+        return response()->json([
+            'pr' => $poin,
+            'kd_cs' => $kdCs,
+            'items' => $items,
+        ]);
     }
 }

@@ -91,35 +91,48 @@ export default function DeliveryOrderEdit({
     }, [sourceItems]);
 
     const handleSelectItem = (item) => {
-        const source =
-            (item.kd_material && prLookup.get(`kd:${item.kd_material}`)) ||
-            (item.material && prLookup.get(`mat:${item.material}`));
-        const lastStock = Number(source?.last_stock ?? 0);
-        const originalQty = Number(item.qty ?? 0);
-        const stockNow = lastStock; // If NewQty == OriginalQty, StockNow = LastStock
+        const source =
+            (item.kd_material && prLookup.get(`kd:${item.kd_material}`)) ||
+            (item.material && prLookup.get(`mat:${item.material}`));
+        
+        // 1. Prioritaskan last_stock dari item backend, jika tidak ada baru cari di source PR
+        const lastStock = Number(item.last_stock ?? source?.last_stock ?? 0);
+        
+        // 2. Ambil original_qty dari backend, jika tidak ada, gunakan qty yang pertama kali di-klik
+        const originalQty = Number(item.original_qty ?? item.qty ?? 0);
+        
+        // 3. Stock Now awal harus persis sama dengan Last Stock
+        const stockNow = lastStock; 
 
-        setSelectedLineNo(item.no);
-        setInputItem({
-            no: item.no,
-            kd_material: item.kd_material ?? '',
-            material: item.material ?? '',
-            qty: item.qty ?? '',
-            unit: item.unit ?? '',
-            remark: item.remark ?? '',
-            last_stock: lastStock,
-            original_qty: originalQty,
-            stock_now: stockNow,
-        });
-    };
+        setSelectedLineNo(item.no);
+        setInputItem({
+            no: item.no,
+            kd_material: item.kd_material ?? '',
+            material: item.material ?? '',
+            qty: item.qty ?? '',
+            unit: item.unit ?? '',
+            remark: item.remark ?? '',
+            last_stock: lastStock,
+            original_qty: originalQty,
+            stock_now: stockNow,
+        });
+    };
 
-    const handleInputChange = (event) => {
-        const { name, value } = event.target;
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
         setInputItem((prev) => {
             const newValue = { ...prev, [name]: value };
+            
             if (name === 'qty') {
-                const qtyVal = Number(value || 0);
-                newValue.stock_now =
-                    prev.last_stock + prev.original_qty - qtyVal;
+                const newQty = Number(value || 0);
+                const oldQty = Number(prev.original_qty || 0); // Qty asli sebelum diedit
+                const lastStock = Number(prev.last_stock || 0);
+                
+                // KALKULASI DINAMIS:
+                // Jika newQty belum diubah (masih sama dengan oldQty), maka hasilnya lastStock + 0
+                // Jika newQty bertambah (misal 10 jadi 12), stok akan berkurang
+                // Jika newQty berkurang (misal 10 jadi 5), stok akan bertambah
+                newValue.stock_now = lastStock + (oldQty - newQty);
             }
             return newValue;
         });

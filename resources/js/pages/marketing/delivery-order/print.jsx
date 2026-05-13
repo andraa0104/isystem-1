@@ -229,16 +229,11 @@ export default function DeliveryOrderPrint({
                 @media print {
                     @page {
                         size: 8.5in 5.4in landscape;
-                        /*
-                         * Epson LX usually has a fairly large non-printable area,
-                         * especially on the right/top edge. Use a larger margin
-                         * to avoid clipped borders.
-                         */
                         margin: 8mm 6mm 8mm 3mm;
                     }
                     * {
-                        -webkit-print-color-adjust: economy;
-                        print-color-adjust: economy;
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
                     }
                     *, *::before, *::after {
                         box-sizing: border-box !important;
@@ -248,46 +243,24 @@ export default function DeliveryOrderPrint({
                         padding: 0 !important;
                         background: #fff !important;
                         color: #000 !important;
-                    }
-                    html, body, * {
-                        /* Prioritize clarity over alignment: use common sans fonts for sharper output. */
-                        font-family: Microsoft Sans Serif !important;
-                    }
-                    body {
-                        /* Slightly larger + heavier improves legibility on Epson LX. */
-                        font-size: 12pt !important;
-                        line-height: 1.2 !important;
-                        /* Avoid dot-matrix "bleeding" while staying readable. */
-                        font-weight: 500 !important;
-                        letter-spacing: 0 !important;
-                        -webkit-font-smoothing: antialiased;
-                        -moz-osx-font-smoothing: grayscale;
-                        text-rendering: optimizeLegibility;
-                    }
-                    .print-address {
-                        font-weight: 500 !important;
+                        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
                     }
                     .print-container {
                         max-width: none !important;
-                        /*
-                         * Keep some breathing room inside the page margin
-                         * so the right-most border doesn't get clipped.
-                         */
                         width: 95% !important;
                         padding: 0 2mm 0 0 !important;
                         overflow: visible !important;
                     }
                     .delivery-to {
-                        border: 0.5px solid #444 !important;
+                        border: 1px solid #000 !important;
                     }
                     table {
                         border-collapse: collapse !important;
-                        border: 0.35px solid #444 !important;
+                        border: 1px solid #000 !important;
                         width: 100% !important;
                     }
                     th, td {
-                        border: 0.35px solid #444 !important;
-                        font-weight: 500 !important;
+                        border: 1px solid #000 !important;
                     }
                     table.no-border,
                     table.no-border th,
@@ -299,8 +272,8 @@ export default function DeliveryOrderPrint({
                         border-bottom: 0 !important;
                     }
                     table.no-row-lines thead th {
-                        border-top: 0.35px solid #444 !important;
-                        border-bottom: 0.35px solid #444 !important;
+                        border-top: 1px solid #000 !important;
+                        border-bottom: 1px solid #000 !important;
                     }
                 }
             `}</style>
