@@ -29,4 +29,16 @@ class AIPredictionController extends Controller
 
         return response()->json($prediction);
     }
+
+    public function clusterRemarks(Request $request)
+    {
+        $request->validate([
+            'remarks' => 'required|array',
+        ]);
+
+        $remarks = $request->input('remarks');
+        $prediction = $this->aiService->clusterRemarks($remarks);
+
+        return response()->json($prediction);
+    }
 }

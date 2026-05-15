@@ -26,33 +26,37 @@ class DeliveryOrderController
     public function data(Request $request)
     {
         $period = $request->query('period', 'today');
+        // 1. TANGKAP FETCH TYPE DARI REACT
+        $fetchType = $request->query('fetch_type', 'all'); 
+        
         $now = now();
         $year = $now->format('Y');
         $month = $now->format('m');
         $todayDate = $now->format('Y-m-d');
         $todayDot = $now->format('d.m.Y');
 
-        // Helper function untuk filter tanggal yang kebal error (Hybrid Check)
+        // Helper function untuk filter tanggal
         $applyDateFilter = function ($query, $column) use ($period, $now, $year, $month, $todayDate, $todayDot, $request) {
             if ($period === 'today') {
                 $query->where(function($q) use ($column, $todayDate, $todayDot) {
                     $q->whereDate($column, $todayDate)
                       ->orWhere($column, $todayDot)
-                      ->orWhere($column, 'like', $todayDate . '%'); // Handle timestamp
+                      ->orWhere($column, 'like', $todayDate . '%'); 
                 });
             } elseif ($period === 'this_month') {
                 $query->where(function($q) use ($column, $month, $year) {
                     $q->whereYear($column, $year)->whereMonth($column, $month)
-                      ->orWhere($column, 'like', "%.{$month}.{$year}%")
-                      ->orWhere($column, 'like', "%-{$month}-{$year}%")
-                      ->orWhere($column, 'like', "%/{$month}/{$year}%");
+                      ->orWhere($column, 'like', "%.{$month}.{$year}") // Optimasi LIKE
+                      ->orWhere($column, 'like', "%-{$month}-{$year}")
+                      ->orWhere($column, 'like', "%/{$month}/{$year}");
                 });
             } elseif ($period === 'this_year') {
                 $query->where(function($q) use ($column, $year) {
                     $q->whereYear($column, $year)
-                      ->orWhere($column, 'like', "%.{$year}%")
-                      ->orWhere($column, 'like', "%-{$year}%")
-                      ->orWhere($column, 'like', "%/{$year}%");
+                      ->orWhere($column, 'like', "%." . $year) // Optimasi LIKE d.m.Y
+                      ->orWhere($column, 'like', "%-" . $year) // Optimasi LIKE d-m-Y
+                      ->orWhere($column, 'like', "%/" . $year) // Optimasi LIKE d/m/Y
+                      ->orWhere($column, 'like', $year . '-%'); // Optimasi LIKE Y-m-d
                 });
             } elseif ($period === 'this_week') {
                 $start = $now->startOfWeek()->toDateString();
@@ -69,49 +73,63 @@ class DeliveryOrderController
             }
         };
 
-        // 1. Kueri Utama Tabel Delivery Order
-        $deliveryOrdersQuery = DB::table('tb_do')
-            ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
-            ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
-            ->orderBy('no_do', 'desc')
-            ->orderBy('date', 'desc');
+        $response = ['period' => $period];
 
-        $applyDateFilter($deliveryOrdersQuery, 'tb_do.date');
-        $deliveryOrders = $deliveryOrdersQuery->get();
+        // 2. EKSEKUSI KUERI TABEL HANYA JIKA DIMINTA
+        if ($fetchType === 'table' || $fetchType === 'all') {
+            $deliveryOrdersQuery = DB::table('tb_do')
+                ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
+                ->distinct() // Menggunakan distinct lebih cepat dari groupBy text
+                ->orderBy('no_do', 'desc')
+                ->orderBy('date', 'desc');
 
-        // 2. Kueri Outstanding Count & Total
-        $outstandingCount = DB::table('tb_do')
-            ->where('val_inv', 0)
-            ->distinct('no_do')
-            ->count('no_do');
+            // Skip filter jika period adalah 'all'
+            if ($period !== 'all') {
+                $applyDateFilter($deliveryOrdersQuery, 'tb_do.date');
+            }
 
-        $outstandingTotal = DB::table('tb_do')
-            ->where('val_inv', 0)
-            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
+            // Opsional: Beri batas data jika 'all' agar memori tidak meledak jika record ratusan ribu.
+            if ($period === 'all') {
+                $deliveryOrdersQuery->limit(5000); 
+            }
 
-        // 3. Kueri Realized Count & Total
-        $realizedQuery = DB::table('tb_kddo as k')
-            ->join('tb_fakturpenjualan as f', function ($join) {
-                $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
-            });
+            $response['deliveryOrders'] = $deliveryOrdersQuery->get();
+        }
 
-        $applyDateFilter($realizedQuery, 'f.tgl_pos');
+        // 3. EKSEKUSI KUERI SUMMARY (YANG BERAT) HANYA JIKA DIMINTA
+        if ($fetchType === 'summary' || $fetchType === 'all') {
+            $response['outstandingCount'] = DB::table('tb_do')
+                ->where('val_inv', 0)
+                ->distinct('no_do')
+                ->count('no_do');
 
-        $realizedNos = $realizedQuery->distinct('k.no_do')->pluck('k.no_do');
-        $realizedCount = $realizedNos->count();
-        
-        $realizedTotal = DB::table('tb_do')
-            ->whereIn(DB::raw('lower(trim(no_do))'), $realizedNos->map(fn ($n) => strtolower(trim($n))))
-            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
+            $response['outstandingTotal'] = DB::table('tb_do')
+                ->where('val_inv', 0)
+                ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
 
-        return response()->json([
-            'deliveryOrders' => $deliveryOrders,
-            'outstandingCount' => $outstandingCount,
-            'realizedCount' => $realizedCount,
-            'outstandingTotal' => $outstandingTotal,
-            'realizedTotal' => (float) $realizedTotal,
-            'period' => $period,
-        ]);
+            $realizedQuery = DB::table('tb_kddo as k')
+                ->join('tb_fakturpenjualan as f', function ($join) {
+                    $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
+                });
+
+            // Filter period untuk summary realized
+            if ($period !== 'all') {
+                $applyDateFilter($realizedQuery, 'f.tgl_pos');
+            }
+
+            $realizedNos = $realizedQuery->distinct('k.no_do')->pluck('k.no_do');
+            $response['realizedCount'] = $realizedNos->count();
+            
+            if ($realizedNos->isEmpty()) {
+                $response['realizedTotal'] = 0;
+            } else {
+                $response['realizedTotal'] = (float) DB::table('tb_do')
+                    ->whereIn(DB::raw('lower(trim(no_do))'), $realizedNos->map(fn ($n) => strtolower(trim($n))))
+                    ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
+            }
+        }
+
+        return response()->json($response);
     }
 
     public function update(Request $request, $noDo)

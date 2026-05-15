@@ -57,4 +57,42 @@ class AIPredictionService
             'confidence' => 0
         ];
     }
+
+    public function clusterRemarks(array $remarks): array
+    {
+        // Jika tidak ada remark yang tersisa, kembalikan string kosong
+        if (empty($remarks)) {
+            return ['clustered_remark' => ''];
+        }
+
+        $payload = json_encode([
+            'remarks' => $remarks
+        ]);
+
+        $scriptPath = base_path('app/Intelligence/RenmarkClustering.py');
+        
+        $process = new Process(['python3', $scriptPath]);
+        $process->setInput($payload);
+        $process->run();
+
+        $output = trim($process->getOutput());
+
+        if (!$process->isSuccessful()) {
+            return [
+                'clustered_remark' => implode(', ', array_unique($remarks)),
+                'error' => $process->getErrorOutput()
+            ];
+        }
+
+        $result = json_decode($output, true);
+
+        // Jika output dari python bukan format JSON, tangkap string mentahnya
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return ['clustered_remark' => $output ?: implode(', ', array_unique($remarks))];
+        }
+
+        return $result ?? [
+            'clustered_remark' => implode(', ', array_unique($remarks))
+        ];
+    }
 }

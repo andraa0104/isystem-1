@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -105,6 +106,7 @@ export default function PurchaseOrderCreate({
         sisaQty: '',
         satuan: '',
         basePrice: '',
+        remark: '',
     });
 
     const [includePpn, setIncludePpn] = useState(false);
@@ -391,6 +393,7 @@ export default function PurchaseOrderCreate({
             qty: sisaQty ?? '',
             sisaQty: sisaQty ?? '',
             satuan: item.unit ?? '',
+            remark: item.renmark ?? item.remark ?? '',
         }));
     };
 
@@ -408,9 +411,13 @@ export default function PurchaseOrderCreate({
             price: priceWithPpn,
             ppn: ppnValue,
             totalPrice: totalPriceValue,
+            remark: materialForm.remark,
         };
 
-        setMaterialItems((prev) => [...prev, newItem]);
+        // Buat array baru berisi data lama + data yang baru ditambahkan
+        const updatedItems = [...materialItems, newItem];
+        
+        setMaterialItems(updatedItems);
         setMaterialForm({
             kodeMaterial: '',
             material: '',
@@ -418,8 +425,53 @@ export default function PurchaseOrderCreate({
             sisaQty: '',
             satuan: '',
             basePrice: '',
+            remark: '',
         });
         setIncludePpn(false);
+
+        // --- TRIGGER AUTOFILL AI DI SINI ---
+        // Jika material yang ditambahkan punya remark, jalankan AI Clustering
+        if (newItem.remark && newItem.remark.trim() !== '') {
+            processRemarksCluster(updatedItems);
+        }
+    };
+
+    const processRemarksCluster = async (items) => {
+        // Ambil semua remark yang tidak kosong dari keranjang saat ini
+        const remarksArray = items
+            .map((item) => item.remark)
+            .filter((rem) => rem && rem.trim() !== '');
+
+        if (remarksArray.length > 0) {
+            try {
+                const response = await axios.post('/pembelian/purchase-order/cluster-remarks', {
+                    remarks: remarksArray,
+                });
+                
+                setFormData((prev) => ({
+                    ...prev,
+                    note1: response.data.clustered_remark ?? prev.note1,
+                }));
+            } catch (error) {
+                console.error('Gagal memproses clustering remark:', error);
+            }
+        } else {
+            // Kosongkan note 1 jika keranjang sudah tidak memiliki material dengan remark
+            setFormData((prev) => ({ ...prev, note1: '' }));
+        }
+    };
+
+    const handleDeleteMaterial = async (idToRemove) => {
+        const itemToDelete = materialItems.find((item) => item.id === idToRemove);
+        const updatedItems = materialItems.filter((item) => item.id !== idToRemove);
+        
+        // Update tabel keranjang
+        setMaterialItems(updatedItems);
+
+        // Pengecekan AI Clustering: Hanya jalankan hitung ulang jika item yang dihapus memiliki remark
+        if (itemToDelete && itemToDelete.remark && itemToDelete.remark.trim() !== '') {
+            processRemarksCluster(updatedItems);
+        }
     };
 
     const totalPriceSum = materialItems.reduce(
@@ -1076,6 +1128,9 @@ export default function PurchaseOrderCreate({
                                             <th className="px-4 py-3 text-left">
                                                 Total Price
                                             </th>
+                                            <th className="px-4 py-3 text-left">
+                                                Action
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -1122,6 +1177,15 @@ export default function PurchaseOrderCreate({
                                                     {renderValue(
                                                         item.totalPrice,
                                                     )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleDeleteMaterial(item.id)}
+                                                        className="font-medium text-red-500 transition hover:text-red-700"
+                                                    >
+                                                        Hapus
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
