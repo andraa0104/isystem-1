@@ -250,7 +250,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         });
     };
 
-    const validateBeforeSave = () => {
+    const getValidationErrors = () => {
         const errors = {};
         if (!String(form.noPoin ?? '').trim()) {
             errors.noPoin = 'No PO In wajib diisi.';
@@ -274,12 +274,18 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         if (!Array.isArray(items) || items.length === 0) {
             errors.materials = 'Data material wajib diisi.';
         }
-        setValidationErrors(errors);
-        return Object.keys(errors).length === 0;
+        return errors;
     };
 
     const handleSavePoIn = () => {
-        if (!validateBeforeSave()) {
+        const localErrors = getValidationErrors();
+        if (Object.keys(localErrors).length > 0) {
+            setValidationErrors(localErrors);
+            const firstError = Object.values(localErrors)[0];
+            dispatchGlobalToast(
+                firstError || 'Lengkapi data PO In yang wajib diisi.',
+                'error',
+            );
             return;
         }
 
@@ -323,10 +329,19 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                         noPoin: errors.no_poin,
                     }));
                 }
+                const first = Object.values(errors ?? {})[0];
+                const msg = Array.isArray(first) ? first[0] : first;
+                dispatchGlobalToast(msg || 'Gagal menyimpan PO In.', 'error');
             },
             onSuccess: (page) => {
                 if (page?.props?.flash?.error) {
+                    dispatchGlobalToast(page.props.flash.error, 'error');
                     setIsSubmitting(false);
+                    return;
+                }
+
+                if (page?.props?.flash?.success) {
+                    dispatchGlobalToast(page.props.flash.success, 'success');
                 }
             },
             onFinish: () => setIsSubmitting(false),

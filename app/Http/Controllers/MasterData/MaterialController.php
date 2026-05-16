@@ -5,6 +5,7 @@ namespace App\Http\Controllers\MasterData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache; // Tambahkan facade Cache
 use Inertia\Inertia;
 use Throwable;
 
@@ -16,20 +17,27 @@ class MaterialController
         // sementara pengambilan data ribuan material dikerjakan menyusul di background.
         return Inertia::render('master-data/material/index', [
             'materials' => Inertia::lazy(function () {
-                return DB::table('tb_material')
-                    ->select(
-                        'kd_material',
-                        'material',
-                        'unit',
-                        'stok',
-                        'harga',
-                        'remark'
-                    )
-                    ->orderBy('kd_material')
-                    ->get();
+                // Terapkan Query Caching dengan Tag 'material_data'
+                // Cache akan disimpan selama 86400 detik (1 hari)
+                return Cache::tags(['material_data'])->remember('material_list_all', 86400, function () {
+                    return DB::table('tb_material')
+                        ->select(
+                            'kd_material',
+                            'material',
+                            'unit',
+                            'stok',
+                            'harga',
+                            'remark'
+                        )
+                        ->orderBy('kd_material')
+                        ->get();
+                });
             }),
             'materialCount' => Inertia::lazy(function () {
-                return DB::table('tb_material')->count();
+                // Cache juga untuk query count
+                return Cache::tags(['material_data'])->remember('material_count', 86400, function () {
+                    return DB::table('tb_material')->count();
+                });
             }),
         ]);
     }
@@ -48,6 +56,8 @@ class MaterialController
             ?? $request->cookie('login_user')
             ?? $request->cookie('login_user_name')
             ?? null;
+            
+        // Catatan: Query max() tidak di-cache untuk menghindari duplikasi ID saat input bersama-sama
         $lastKdMaterial = DB::table('tb_material')->max('kd_material');
         $nextKdMaterial = $lastKdMaterial
             ? (string) (((int) $lastKdMaterial) + 1)
@@ -64,10 +74,14 @@ class MaterialController
                 'stok' => $stok,
                 'harga' => 0,
                 'rest_stock' => $stok,
-                'remark' => $validated['remark'] ?? null,
+                'remark' => $validated['remark'] ?? '',
                 'tgl_buat' => Carbon::now()->toDateString(),
                 'pembuat' => $pembuat,
             ]);
+
+            // Flush (Hapus) cache material setelah insert berhasil
+            Cache::tags(['material_data'])->flush();
+
         } catch (Throwable $exception) {
             report($exception);
 
@@ -81,20 +95,23 @@ class MaterialController
 
     public function export()
     {
-        $materials = DB::table('tb_material')
-            ->select(
-                'kd_material',
-                'material',
-                'unit',
-                'stok',
-                'harga',
-                'remark',
-                'rest_stock',
-                'tgl_buat',
-                'pembuat'
-            )
-            ->orderBy('kd_material')
-            ->get();
+        // Cache juga untuk proses export karena query ini cukup berat jika datanya ribuan
+        $materials = Cache::tags(['material_data'])->remember('material_export_all', 86400, function () {
+            return DB::table('tb_material')
+                ->select(
+                    'kd_material',
+                    'material',
+                    'unit',
+                    'stok',
+                    'harga',
+                    'remark',
+                    'rest_stock',
+                    'tgl_buat',
+                    'pembuat'
+                )
+                ->orderBy('kd_material')
+                ->get();
+        });
 
         return response()->view('exports.material', [
             'materials' => $materials,
@@ -122,6 +139,10 @@ class MaterialController
                     'rest_stock' => $stok,
                     'remark' => $validated['remark'] ?? null,
                 ]);
+
+            // Flush (Hapus) cache material setelah update berhasil
+            Cache::tags(['material_data'])->flush();
+
         } catch (Throwable $exception) {
             report($exception);
 
@@ -139,6 +160,10 @@ class MaterialController
             DB::table('tb_material')
                 ->where('kd_material', $kdMaterial)
                 ->delete();
+
+            // Flush (Hapus) cache material setelah delete berhasil
+            Cache::tags(['material_data'])->flush();
+
         } catch (Throwable $exception) {
             report($exception);
 
