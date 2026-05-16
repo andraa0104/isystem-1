@@ -463,11 +463,10 @@ class PurchaseRequirementController
                 $subQuery->select(DB::raw(1))
                     ->from('tb_detailpoin as d')
                     ->whereRaw('lower(trim(d.kode_poin)) = lower(trim(tb_poin.kode_poin))')
-                    ->where(function ($q) {
-                        $q->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) <> 0')
-                          ->orWhereRaw('coalesce(cast(d.sisa_qtydo as decimal(18,4)), 0) <> 0');
-                    });
+                    // Memastikan hanya PO In yang memiliki sisa_qtypr lebih dari 0 yang ditampilkan
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
             });
+            
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $like = '%'.strtolower($search).'%';

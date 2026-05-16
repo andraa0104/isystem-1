@@ -189,9 +189,17 @@ export default function PurchaseRequirementCreate() {
             }
 
             const data = await response.json();
-            setCustomerList(
-                Array.isArray(data?.customers) ? data.customers : [],
-            );
+            let fetchedCustomers = Array.isArray(data?.customers) ? data.customers : [];
+
+            // PERBAIKAN STEP 1: Filter PO In secara lokal (opsional/fallback)
+            // Mengecek apakah properti sisa_qtypr dikirimkan oleh backend untuk header PO IN
+            if (fetchedCustomers.length > 0 && fetchedCustomers[0].sisa_qtypr !== undefined) {
+                fetchedCustomers = fetchedCustomers.filter(
+                    (c) => Number(c.sisa_qtypr) > 0
+                );
+            }
+
+            setCustomerList(fetchedCustomers);
             setCustomerTotal(Number(data?.total ?? 0));
         } catch {
             setCustomerError('Gagal memuat data PO In.');
@@ -291,17 +299,24 @@ export default function PurchaseRequirementCreate() {
             }
 
             const data = await response.json();
-            const items = Array.isArray(data?.items) ? data.items : [];
+            const rawItems = Array.isArray(data?.items) ? data.items : [];
+
+            // PERBAIKAN STEP 2: Filter hanya material yang sisa_qtypr > 0
+            // Jika backend tidak mengirim sisa_qtypr, akan fallback aman ke qty_po_in
+            const filteredItems = rawItems.filter(
+                (item) => Number(item.sisa_qtypr ?? item.qty_po_in ?? 0) > 0
+            );
 
             setMaterialItems(
-                items.map((item, index) => ({
+                filteredItems.map((item, index) => ({
                     id: item.id ?? `${Date.now()}-${index}`,
                     no: item.line_no ?? index + 1,
                     kodeMaterial: item.kd_material ?? '',
                     namaMaterial: item.material ?? '',
                     stok: item.stok ?? 0,
                     qtyPoIn: item.qty_po_in ?? 0,
-                    qtyPr: item.qty_pr ?? item.qty_po_in ?? 0,
+                    // Default PR yang diajukan langsung menggunakan angka sisa_qtypr
+                    qtyPr: item.sisa_qtypr ?? item.qty_po_in ?? 0,
                     satuan: item.satuan ?? '',
                     hargaPoIn: item.harga_po_in ?? 0,
                     hargaModal: item.harga_modal ?? '',
