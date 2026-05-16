@@ -1439,7 +1439,7 @@ export default function PurchaseOrderCreate({
                             loadVendors();
                         } else {
                             setVendorSearchTerm('');
-                            setVendorPageSize(10);
+                            setVendorPageSize(5);
                             setVendorCurrentPage(1);
                         }
                     }}

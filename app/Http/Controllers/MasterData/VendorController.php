@@ -3,41 +3,74 @@
 namespace App\Http\Controllers\MasterData;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Throwable;
 
 class VendorController
 {
+    private const VENDOR_CACHE_TAGS = ['vendor_data'];
+    private const VENDOR_CACHE_TTL = 86400;
+
+    private function tenantCachePrefix(?Request $request = null): string
+    {
+        $request ??= request();
+        $database = (string) (
+            $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database')
+            ?? config('database.connections.'.config('database.default').'.database')
+            ?? ''
+        );
+
+        return preg_replace('/[^A-Za-z0-9_.:-]/', '_', strtolower($database)) ?: 'default';
+    }
+
+    private function vendorCacheKey(string $scope, array $parts = [], ?Request $request = null): string
+    {
+        return 'vendor:' . $this->tenantCachePrefix($request) . ':' . $scope . ':' . md5(json_encode($parts));
+    }
+
+    private function flushVendorCache(): void
+    {
+        Cache::tags(self::VENDOR_CACHE_TAGS)->flush();
+    }
+
     public function index()
     {
         // Inertia::lazy() memastikan query ini HANYA berjalan jika secara spesifik diminta oleh frontend.
         // Hal ini membuat loading awal halaman menjadi instan (memisahkan load UI dan Data).
         return Inertia::render('master-data/vendor/index', [
             'vendors' => Inertia::lazy(function () {
-                return DB::table('tb_vendor')
-                    ->select('kd_vdr', 'nm_vdr', 'almt_vdr')
-                    ->orderBy('kd_vdr')
-                    ->get();
+                return Cache::tags(self::VENDOR_CACHE_TAGS)->remember($this->vendorCacheKey('index.vendors'), self::VENDOR_CACHE_TTL, function () {
+                    return DB::table('tb_vendor')
+                        ->select('kd_vdr', 'nm_vdr', 'almt_vdr')
+                        ->orderBy('kd_vdr')
+                        ->get();
+                });
             }),
         ]);
     }
 
     public function show(string $kdVendor)
     {
-        $vendor = DB::table('tb_vendor')
-            ->where('kd_vdr', $kdVendor)
-            ->first();
+        $vendor = Cache::tags(self::VENDOR_CACHE_TAGS)->remember($this->vendorCacheKey('show.vendor', [$kdVendor]), self::VENDOR_CACHE_TTL, function () use ($kdVendor) {
+            return DB::table('tb_vendor')
+                ->where('kd_vdr', $kdVendor)
+                ->first();
+        });
 
         if (!$vendor) {
             return response()->json(['message' => 'Vendor tidak ditemukan.'], 404);
         }
 
-        $purchaseOrders = DB::table('tb_po')
-            ->select('no_po', 's_total', 'h_ppn', 'g_total')
-            ->where('nm_vdr', $vendor->nm_vdr)
-            ->orderBy('no_po', 'desc')
-            ->get();
+        $purchaseOrders = Cache::tags(self::VENDOR_CACHE_TAGS)->remember($this->vendorCacheKey('show.purchase-orders', [$kdVendor, $vendor->nm_vdr]), self::VENDOR_CACHE_TTL, function () use ($vendor) {
+            return DB::table('tb_po')
+                ->select('no_po', 's_total', 'h_ppn', 'g_total')
+                ->where('nm_vdr', $vendor->nm_vdr)
+                ->orderBy('no_po', 'desc')
+                ->get();
+        });
 
         return response()->json([
             'vendor' => $vendor,
@@ -91,6 +124,8 @@ class VendorController
             return back()->with('error', 'Gagal menyimpan data vendor.');
         }
 
+        $this->flushVendorCache();
+
         return redirect()
             ->route('master-data.vendor.index')
             ->with('success', 'Data vendor berhasil disimpan.');
@@ -126,6 +161,8 @@ class VendorController
             return back()->with('error', 'Gagal memperbarui data vendor.');
         }
 
+        $this->flushVendorCache();
+
         return redirect()
             ->route('master-data.vendor.index')
             ->with('success', 'Data vendor berhasil diperbarui.');
@@ -142,6 +179,8 @@ class VendorController
 
             return back()->with('error', 'Gagal menghapus data vendor.');
         }
+
+        $this->flushVendorCache();
 
         return redirect()
             ->route('master-data.vendor.index')

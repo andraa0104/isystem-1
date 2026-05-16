@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Inventory;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -10,6 +11,33 @@ use Illuminate\Validation\ValidationException;
 
 class DataMaterialController
 {
+    private const DATA_MATERIAL_CACHE_TAGS = ['inventory_data'];
+    private const DATA_MATERIAL_RELATED_CACHE_TAGS = ['inventory_data', 'material_data', 'po_data', 'dashboard_data'];
+    private const DATA_MATERIAL_CACHE_TTL = 86400;
+
+    private function tenantCachePrefix(?Request $request = null): string
+    {
+        $request ??= request();
+        $database = (string) (
+            $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database')
+            ?? config('database.connections.'.config('database.default').'.database')
+            ?? ''
+        );
+
+        return preg_replace('/[^A-Za-z0-9_.:-]/', '_', strtolower($database)) ?: 'default';
+    }
+
+    private function dataMaterialCacheKey(string $scope, array $parts = [], ?Request $request = null): string
+    {
+        return 'data-material:' . $this->tenantCachePrefix($request) . ':' . $scope . ':' . md5(json_encode($parts));
+    }
+
+    private function flushDataMaterialCache(): void
+    {
+        Cache::tags(self::DATA_MATERIAL_RELATED_CACHE_TAGS)->flush();
+    }
+
     public function index()
     {
         return Inertia::render('inventory/data-material/index', [
@@ -44,111 +72,123 @@ class DataMaterialController
             return response()->json(['rows' => [], 'total' => 0]);
         }
 
-        $table = $map[$key];
-        $base = DB::table($table);
+        $cacheKey = $this->dataMaterialCacheKey('section-rows', [
+            'key' => $key,
+            'search' => $search,
+            'pageSize' => $pageSizeRaw,
+            'page' => $page,
+            'period' => $period,
+            'startDate' => $startDateParam,
+            'endDate' => $endDateParam,
+        ], $request);
 
-        if ($key === 'mi') {
-            $base->where('miu', '>', 0);
-        } elseif ($key === 'mis') {
-            $base->where('mis', '>', 0);
-        } elseif ($key === 'mib') {
-            $base->where('rest_mat', '>', 0);
-        }
+        $data = Cache::tags(self::DATA_MATERIAL_CACHE_TAGS)->remember($cacheKey, self::DATA_MATERIAL_CACHE_TTL, function () use ($key, $map, $search, $page, $pageSize, $period, $startDateParam, $endDateParam) {
+            $table = $map[$key];
+            $base = DB::table($table);
 
-        if ($search !== '') {
-            $base->where(function ($q) use ($key, $search) {
-                if ($key === 'mib') {
-                    // Search by No MIB (no_doc) or material
+            if ($key === 'mi') {
+                $base->where('miu', '>', 0);
+            } elseif ($key === 'mis') {
+                $base->where('mis', '>', 0);
+            } elseif ($key === 'mib') {
+                $base->where('rest_mat', '>', 0);
+            }
+
+            if ($search !== '') {
+                $base->where(function ($q) use ($key, $search) {
+                    if ($key === 'mib') {
+                        // Search by No MIB (no_doc) or material
+                        $q->where('no_doc', 'like', '%' . $search . '%')
+                            ->orWhere('material', 'like', '%' . $search . '%');
+                        return;
+                    }
+
+                    // MI / MIS: search by No MI (no_doc), Ref PO (ref_po), or material
                     $q->where('no_doc', 'like', '%' . $search . '%')
+                        ->orWhere('ref_po', 'like', '%' . $search . '%')
                         ->orWhere('material', 'like', '%' . $search . '%');
-                    return;
+                });
+            }
+
+            // Period Filtering (MI and MIS use tb_mi which has posting_tgl)
+            if (($key === 'mi' || $key === 'mis') && Schema::hasColumn($table, 'posting_tgl')) {
+                $dateExpr = "str_to_date(trim(posting_tgl), '%d.%m.%Y')";
+
+                $now = now();
+                $startDate = null;
+                $endDate = null;
+
+                if ($period === 'today') {
+                    $startDate = $now->copy()->startOfDay();
+                    $endDate = $now->copy()->endOfDay();
+                } elseif ($period === 'this_week') {
+                    $startDate = $now->copy()->startOfWeek();
+                    $endDate = $now->copy()->endOfWeek();
+                } elseif ($period === 'this_month') {
+                    $startDate = $now->copy()->startOfMonth();
+                    $endDate = $now->copy()->endOfMonth();
+                } elseif ($period === 'this_year') {
+                    $startDate = $now->copy()->startOfYear();
+                    $endDate = $now->copy()->endOfYear();
+                } elseif ($period === 'range' && $startDateParam && $endDateParam) {
+                    try {
+                        $startDate = \Carbon\Carbon::parse($startDateParam)->startOfDay();
+                        $endDate = \Carbon\Carbon::parse($endDateParam)->endOfDay();
+                    } catch (\Exception $e) {}
                 }
 
-                // MI / MIS: search by No MI (no_doc), Ref PO (ref_po), or material
-                $q->where('no_doc', 'like', '%' . $search . '%')
-                    ->orWhere('ref_po', 'like', '%' . $search . '%')
-                    ->orWhere('material', 'like', '%' . $search . '%');
-            });
-        }
-
-        // Period Filtering (MI and MIS use tb_mi which has posting_tgl)
-        if (($key === 'mi' || $key === 'mis') && Schema::hasColumn($table, 'posting_tgl')) {
-            $dateExpr = "str_to_date(trim(posting_tgl), '%d.%m.%Y')";
-            
-            $now = now();
-            $startDate = null;
-            $endDate = null;
-
-            if ($period === 'today') {
-                $startDate = $now->copy()->startOfDay();
-                $endDate = $now->copy()->endOfDay();
-            } elseif ($period === 'this_week') {
-                $startDate = $now->copy()->startOfWeek();
-                $endDate = $now->copy()->endOfWeek();
-            } elseif ($period === 'this_month') {
-                $startDate = $now->copy()->startOfMonth();
-                $endDate = $now->copy()->endOfMonth();
-            } elseif ($period === 'this_year') {
-                $startDate = $now->copy()->startOfYear();
-                $endDate = $now->copy()->endOfYear();
-            } elseif ($period === 'range' && $startDateParam && $endDateParam) {
-                try {
-                    $startDate = \Carbon\Carbon::parse($startDateParam)->startOfDay();
-                    $endDate = \Carbon\Carbon::parse($endDateParam)->endOfDay();
-                } catch (\Exception $e) {}
+                if ($startDate && $endDate) {
+                    $base->whereRaw("{$dateExpr} >= ?", [$startDate->toDateString()])
+                         ->whereRaw("{$dateExpr} <= ?", [$endDate->toDateString()]);
+                }
             }
 
-            if ($startDate && $endDate) {
-                $base->whereRaw("{$dateExpr} >= ?", [$startDate->toDateString()])
-                     ->whereRaw("{$dateExpr} <= ?", [$endDate->toDateString()]);
+            $total = (clone $base)->count();
+
+            if ($key === 'mi') {
+                $select = ['no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price', 'total_price', 'miu'];
+                if (Schema::hasColumn($table, 'inv')) {
+                    $select[] = 'inv';
+                }
+                if (Schema::hasColumn($table, 'id')) {
+                    array_unshift($select, 'id');
+                }
+                $base->select($select)->orderByDesc('no_doc');
+            } elseif ($key === 'mis') {
+                $select = ['no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price', DB::raw('harga_mis as total_price'), 'mis'];
+                if (Schema::hasColumn($table, 'id')) {
+                    array_unshift($select, 'id');
+                }
+                $base->select($select)->orderByDesc('no_doc');
+            } else { // mib
+                $select = ['no_doc', 'material', 'qty', 'unit', 'price', DB::raw('(price * qty) as total_price'), DB::raw('rest_mat as mib')];
+                if (Schema::hasColumn($table, 'id')) {
+                    array_unshift($select, 'id');
+                }
+                $base->select($select)->orderByDesc('no_doc');
             }
-        }
 
-        $total = (clone $base)->count();
+            $total = $base->count();
 
-        if ($key === 'mi') {
-            $select = ['no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price', 'total_price', 'miu'];
-            if (Schema::hasColumn($table, 'inv')) {
-                $select[] = 'inv';
+            if ($pageSize !== 'all') {
+                $base->forPage($page, $pageSize);
             }
-            if (Schema::hasColumn($table, 'id')) {
-                array_unshift($select, 'id');
-            }
-            $base->select($select)->orderByDesc('no_doc');
-        } elseif ($key === 'mis') {
-            $select = ['no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price', DB::raw('harga_mis as total_price'), 'mis'];
-            if (Schema::hasColumn($table, 'id')) {
-                array_unshift($select, 'id');
-            }
-            $base->select($select)->orderByDesc('no_doc');
-        } else { // mib
-            $select = ['no_doc', 'material', 'qty', 'unit', 'price', DB::raw('(price * qty) as total_price'), DB::raw('rest_mat as mib')];
-            if (Schema::hasColumn($table, 'id')) {
-                array_unshift($select, 'id');
-            }
-            $base->select($select)->orderByDesc('no_doc');
-        }
 
-        $total = $base->count();
+            \Illuminate\Support\Facades\Log::info('Inventory Filter Debug', [
+                'key' => $key,
+                'period' => $period,
+                'sql' => $base->toSql(),
+                'bindings' => $base->getBindings(),
+                'total' => $total
+            ]);
 
-        if ($pageSize !== 'all') {
-            $base->forPage($page, $pageSize);
-        }
+            return [
+                'rows' => $base->get(),
+                'total' => (int) $total,
+            ];
+        });
 
-        \Illuminate\Support\Facades\Log::info('Inventory Filter Debug', [
-            'key' => $key,
-            'period' => $period,
-            'sql' => $base->toSql(),
-            'bindings' => $base->getBindings(),
-            'total' => $total
-        ]);
-
-        $rows = $base->get();
-
-        return response()->json([
-            'rows' => $rows,
-            'total' => (int) $total,
-        ]);
+        return response()->json($data);
     }
 
     public function destroy(Request $request)
@@ -284,6 +324,8 @@ class DataMaterialController
         } catch (\Throwable $e) {
             throw ValidationException::withMessages(['general' => $e->getMessage()]);
         }
+
+        $this->flushDataMaterialCache();
 
         return response()->json([
             'success' => true,

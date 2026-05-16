@@ -13,6 +13,27 @@ use Inertia\Inertia;
 
 class DashboardController
 {
+    private const DASHBOARD_CACHE_TAGS = ['dashboard_data'];
+    private const DASHBOARD_CACHE_TTL = 300;
+
+    private function tenantCachePrefix(?Request $request = null): string
+    {
+        $request ??= request();
+        $database = (string) (
+            $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database')
+            ?? config('database.connections.'.config('database.default').'.database')
+            ?? ''
+        );
+
+        return preg_replace('/[^A-Za-z0-9_.:-]/', '_', strtolower($database)) ?: 'default';
+    }
+
+    private function dashboardCacheKey(string $scope, array $parts = [], ?Request $request = null): string
+    {
+        return 'dashboard:' . $this->tenantCachePrefix($request) . ':' . $scope . ':' . md5(json_encode($parts));
+    }
+
     private function hasKasBreakdownColumns(): array
     {
         if (!Schema::hasTable('tb_kas')) {
@@ -95,7 +116,12 @@ class DashboardController
     {
         $range = strtolower((string) $request->query('range', ''));
         if (in_array($range, ['1_week', '1_month', '3_months', '5_months', '1_year'], true)) {
-            return response()->json($this->buildQuotationStatsRange($range));
+            $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('quotation.range', [
+                'range' => $range,
+                'today' => Carbon::now()->toDateString(),
+            ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildQuotationStatsRange($range));
+
+            return response()->json($stats);
         }
 
         $months = (int) $request->query('months', 12);
@@ -106,22 +132,34 @@ class DashboardController
             $group = 'week';
         }
 
-        return response()->json($this->buildQuotationStats($months, $group));
+        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('quotation', [
+            'months' => $months,
+            'group' => $group,
+            'today' => Carbon::now()->toDateString(),
+        ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildQuotationStats($months, $group));
+
+        return response()->json($stats);
     }
 
-    public function saldoStats()
+    public function saldoStats(Request $request)
     {
-        return response()->json($this->buildSaldoStats());
+        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('saldo', [], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildSaldoStats());
+
+        return response()->json($stats);
     }
 
-    public function receivablePayableStats()
+    public function receivablePayableStats(Request $request)
     {
-        return response()->json($this->buildReceivablePayableStats());
+        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('receivable-payable', [], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildReceivablePayableStats());
+
+        return response()->json($stats);
     }
 
-    public function deliveryStats()
+    public function deliveryStats(Request $request)
     {
-        return response()->json($this->buildDeliveryStats());
+        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('delivery', [], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildDeliveryStats());
+
+        return response()->json($stats);
     }
 
     public function getUserNote(Request $request)
@@ -493,7 +531,13 @@ class DashboardController
             $group = 'month';
         }
 
-        return response()->json($this->getSalesHppStatsData($period, $group));
+        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('sales-hpp', [
+            'period' => $period,
+            'group' => $group,
+            'today' => Carbon::now()->toDateString(),
+        ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->getSalesHppStatsData($period, $group));
+
+        return response()->json($stats);
     }
 
     private function getSalesHppStatsData(string $period, string $group = 'week')

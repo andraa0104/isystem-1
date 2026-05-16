@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Inventory;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -10,6 +11,33 @@ use Illuminate\Validation\ValidationException;
 
 class PenerimaanMaterialController
 {
+    private const PENERIMAAN_MATERIAL_CACHE_TAGS = ['inventory_data', 'material_data', 'po_data'];
+    private const PENERIMAAN_MATERIAL_RELATED_CACHE_TAGS = ['inventory_data', 'material_data', 'po_data', 'dashboard_data'];
+    private const PENERIMAAN_MATERIAL_CACHE_TTL = 86400;
+
+    private function tenantCachePrefix(?Request $request = null): string
+    {
+        $request ??= request();
+        $database = (string) (
+            $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database')
+            ?? config('database.connections.'.config('database.default').'.database')
+            ?? ''
+        );
+
+        return preg_replace('/[^A-Za-z0-9_.:-]/', '_', strtolower($database)) ?: 'default';
+    }
+
+    private function penerimaanMaterialCacheKey(string $scope, array $parts = [], ?Request $request = null): string
+    {
+        return 'penerimaan-material:' . $this->tenantCachePrefix($request) . ':' . $scope . ':' . md5(json_encode($parts));
+    }
+
+    private function flushPenerimaanMaterialCache(): void
+    {
+        Cache::tags(self::PENERIMAAN_MATERIAL_RELATED_CACHE_TAGS)->flush();
+    }
+
     public function index()
     {
         return Inertia::render('inventory/penerimaan-material/index');
@@ -34,32 +62,43 @@ class PenerimaanMaterialController
         $page = max(1, (int) $pageRaw);
         $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
 
-        $base = DB::table('tb_detailpo')
-            ->where('gr_mat', '<>', 0);
+        $cacheKey = $this->penerimaanMaterialCacheKey('po-list', [
+            'search' => $search,
+            'pageSize' => $pageSizeRaw,
+            'page' => $page,
+        ], $request);
 
-        if ($search !== '') {
-            $base->where(function ($q) use ($search) {
-                $q->where('no_po', 'like', '%' . $search . '%')
-                    ->orWhere('ref_pr', 'like', '%' . $search . '%')
-                    ->orWhere('nm_vdr', 'like', '%' . $search . '%');
-            });
-        }
+        $data = Cache::tags(self::PENERIMAAN_MATERIAL_CACHE_TAGS)->remember($cacheKey, self::PENERIMAAN_MATERIAL_CACHE_TTL, function () use ($search, $pageSize, $page) {
+            $base = DB::table('tb_detailpo')
+                ->where('gr_mat', '<>', 0);
 
-        // Total distinct PO rows.
-        $total = (clone $base)->distinct('no_po')->count('no_po');
+            if ($search !== '') {
+                $base->where(function ($q) use ($search) {
+                    $q->where('no_po', 'like', '%' . $search . '%')
+                        ->orWhere('ref_pr', 'like', '%' . $search . '%')
+                        ->orWhere('nm_vdr', 'like', '%' . $search . '%');
+                });
+            }
 
-        $query = (clone $base)
-            ->select('no_po', 'ref_pr', 'nm_vdr')
-            ->groupBy('no_po', 'ref_pr', 'nm_vdr')
-            ->orderByDesc('no_po');
+            // Total distinct PO rows.
+            $total = (clone $base)->distinct('no_po')->count('no_po');
 
-        if ($pageSize !== 'all') {
-            $query->forPage($page, $pageSize);
-        }
+            $query = (clone $base)
+                ->select('no_po', 'ref_pr', 'nm_vdr')
+                ->groupBy('no_po', 'ref_pr', 'nm_vdr')
+                ->orderByDesc('no_po');
 
-        $rows = $query->get();
+            if ($pageSize !== 'all') {
+                $query->forPage($page, $pageSize);
+            }
 
-        return response()->json(['rows' => $rows, 'total' => $total]);
+            return [
+                'rows' => $query->get(),
+                'total' => $total,
+            ];
+        });
+
+        return response()->json($data);
     }
 
     public function poMaterials(Request $request)
@@ -73,26 +112,30 @@ class PenerimaanMaterialController
             return response()->json(['rows' => []]);
         }
 
-        $query = DB::table('tb_detailpo')
-            ->leftJoin('tb_material', 'tb_material.kd_material', '=', 'tb_detailpo.kd_mat')
-            ->where('tb_detailpo.no_po', $noPo)
-            ->where('tb_detailpo.gr_mat', '<>', 0)
-            ->select(
-                'tb_detailpo.kd_mat',
-                'tb_detailpo.material',
-                'tb_detailpo.qty',
-                'tb_detailpo.gr_mat',
-                'tb_detailpo.unit',
-                'tb_detailpo.price',
-                'tb_detailpo.no_gudang',
-                'tb_material.stok as last_stock',
-                'tb_material.harga as last_price'
-            )
-            ->orderBy('tb_detailpo.kd_mat');
+        $cacheKey = $this->penerimaanMaterialCacheKey('po-materials', [$noPo], $request);
 
-        $rows = $query->get();
+        $data = Cache::tags(self::PENERIMAAN_MATERIAL_CACHE_TAGS)->remember($cacheKey, self::PENERIMAAN_MATERIAL_CACHE_TTL, function () use ($noPo) {
+            $query = DB::table('tb_detailpo')
+                ->leftJoin('tb_material', 'tb_material.kd_material', '=', 'tb_detailpo.kd_mat')
+                ->where('tb_detailpo.no_po', $noPo)
+                ->where('tb_detailpo.gr_mat', '<>', 0)
+                ->select(
+                    'tb_detailpo.kd_mat',
+                    'tb_detailpo.material',
+                    'tb_detailpo.qty',
+                    'tb_detailpo.gr_mat',
+                    'tb_detailpo.unit',
+                    'tb_detailpo.price',
+                    'tb_detailpo.no_gudang',
+                    'tb_material.stok as last_stock',
+                    'tb_material.harga as last_price'
+                )
+                ->orderBy('tb_detailpo.kd_mat');
 
-        return response()->json(['rows' => $rows]);
+            return ['rows' => $query->get()];
+        });
+
+        return response()->json($data);
     }
 
     public function storeMi(Request $request)
@@ -371,6 +414,8 @@ class PenerimaanMaterialController
             ]);
         }
 
+        $this->flushPenerimaanMaterialCache();
+
         return redirect()
             ->route('inventory.penerimaan-material.index')
             ->with('success', 'Berhasil menyimpan data MI.');
@@ -636,6 +681,8 @@ class PenerimaanMaterialController
             ]);
         }
 
+        $this->flushPenerimaanMaterialCache();
+
         return redirect()
             ->route('inventory.penerimaan-material.index')
             ->with('success', 'Berhasil menyimpan data MIS.');
@@ -848,6 +895,8 @@ class PenerimaanMaterialController
                 'general' => $e->getMessage(),
             ]);
         }
+
+        $this->flushPenerimaanMaterialCache();
 
         return redirect()
             ->route('inventory.penerimaan-material.index')
