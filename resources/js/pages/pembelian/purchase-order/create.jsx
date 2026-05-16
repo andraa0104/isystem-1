@@ -813,62 +813,6 @@ export default function PurchaseOrderCreate({
                                     }
                                 />
                             </label>
-                            <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">
-                                    Note 1
-                                </span>
-                                <Input
-                                    value={formData.note1}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            note1: event.target.value,
-                                        }))
-                                    }
-                                />
-                            </label>
-                            <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">
-                                    Note 2
-                                </span>
-                                <Input
-                                    value={formData.note2}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            note2: event.target.value,
-                                        }))
-                                    }
-                                />
-                            </label>
-                            <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">
-                                    Note 3
-                                </span>
-                                <Input
-                                    value={formData.note3}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            note3: event.target.value,
-                                        }))
-                                    }
-                                />
-                            </label>
-                            <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">
-                                    Note 4
-                                </span>
-                                <Input
-                                    value={formData.note4}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            note4: event.target.value,
-                                        }))
-                                    }
-                                />
-                            </label>
                         </CardContent>
                         <div className="flex justify-between gap-2 px-6 pb-6">
                             <Button
@@ -1215,6 +1159,65 @@ export default function PurchaseOrderCreate({
                                         readOnly
                                     />
                                 </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ...">
+
+                                <label className="space-y-2 text-sm md:col-span-2">
+                                    <span className="text-muted-foreground">
+                                        Note 1
+                                    </span>
+                                    <Input
+                                        value={formData.note1}
+                                        onChange={(event) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                note1: event.target.value,
+                                            }))
+                                        }
+                                        />
+                                </label>
+                                <label className="space-y-2 text-sm md:col-span-2">
+                                    <span className="text-muted-foreground">
+                                        Note 2
+                                    </span>
+                                    <Input
+                                        value={formData.note2}
+                                        onChange={(event) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                note2: event.target.value,
+                                            }))
+                                        }
+                                    />
+                                </label>
+                                <label className="space-y-2 text-sm md:col-span-2">
+                                    <span className="text-muted-foreground">
+                                        Note 3
+                                    </span>
+                                    <Input
+                                        value={formData.note3}
+                                        onChange={(event) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                note3: event.target.value,
+                                            }))
+                                        }
+                                    />
+                                </label>
+                                <label className="space-y-2 text-sm md:col-span-2">
+                                    <span className="text-muted-foreground">
+                                        Note 4
+                                    </span>
+                                    <Input
+                                        value={formData.note4}
+                                        onChange={(event) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                note4: event.target.value,
+                                            }))
+                                        }
+                                        />
+                                </label>
                             </div>
                         </CardContent>
                         <div className="flex justify-between gap-2 px-6 pb-6">
