@@ -178,12 +178,9 @@ export default function FakturPenjualanIndex({
         setInvoicesLoading(true);
         setInvoicesError(null);
 
+        // Selalu minta semua data ke backend agar data context di frontend lengkap untuk seluruh card
         const params = new URLSearchParams();
-        params.set('period', period);
-        if (period === 'custom') {
-            params.set('startDate', startDate);
-            params.set('endDate', endDate);
-        }
+        params.set('period', 'all');
 
         fetch(`/penjualan/faktur-penjualan/data?${params.toString()}`, {
             headers: { Accept: 'application/json' },
@@ -278,9 +275,64 @@ export default function FakturPenjualanIndex({
         fetchInvoices();
     };
 
+    const unpaidSummary = useMemo(() => {
+        const unpaidItems = invoicesData.filter(
+            (item) => Number(item.total_bayaran ?? 0) === 0
+        );
+        return {
+            count: unpaidItems.length,
+            total: unpaidItems.reduce(
+                (sum, item) => sum + parseCurrency(item.g_total),
+                0
+            ),
+        };
+    }, [invoicesData]);
+
     const filteredInvoices = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
-        let filtered = invoicesData.filter((item) => {
+        
+        // 1. FILTER BERDASARKAN PERIODE UTAMA SECARA CLIENT-SIDE
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        const startOfDay = new Date(now);
+        const startOfWeek = new Date(now);
+        const dayIndex = (startOfWeek.getDay() + 6) % 7;
+        startOfWeek.setDate(startOfWeek.getDate() - dayIndex);
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+        const parseSettingDate = (dateStr) => {
+            if (!dateStr) return null;
+            const parts = dateStr.split('-');
+            if (parts.length === 3) {
+                return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+            }
+            return null;
+        };
+
+        let periodFiltered = invoicesData.filter((item) => {
+            if (period === 'all') return true;
+            if (!item.tgl_doc) return false;
+            const date = parseInvoiceDate(item.tgl_doc);
+            if (!date) return false;
+            date.setHours(0, 0, 0, 0);
+
+            if (period === 'today') return date >= startOfDay;
+            if (period === 'this_week') return date >= startOfWeek;
+            if (period === 'this_month') return date >= startOfMonth;
+            if (period === 'this_year') return date >= startOfYear;
+            if (period === 'custom') {
+                const start = parseSettingDate(startDate);
+                const end = parseSettingDate(endDate);
+                if (start && date < start) return false;
+                if (end && date > end) return false;
+                return true;
+            }
+            return true;
+        });
+
+        // 2. FILTER BERDASARKAN STATUS FILTER TABEL
+        let filtered = periodFiltered.filter((item) => {
             if (statusFilter === 'unpaid') {
                 return Number(item.total_bayaran ?? 0) === 0;
             }
@@ -342,7 +394,7 @@ export default function FakturPenjualanIndex({
         }
 
         return filtered;
-    }, [invoicesData, searchTerm, statusFilter]);
+    }, [invoicesData, searchTerm, statusFilter, period, startDate, endDate]);
 
     const totalItems = filteredInvoices.length;
     const totalPages = useMemo(() => {
@@ -791,10 +843,10 @@ export default function FakturPenjualanIndex({
                         </CardHeader>
                         <CardContent className="space-y-1 pt-2">
                             <p className="text-3xl font-semibold">
-                                {formatNumber(counts.unpaidCount)} Invoice
+                                {formatNumber(unpaidSummary.count)} Invoice
                             </p>
                             <p className="text-sm text-muted-foreground">
-                                Grand Total: {formatRupiah(counts.unpaidTotal)}
+                                Grand Total: {formatRupiah(unpaidSummary.total)}
                             </p>
                         </CardContent>
                     </Card>
@@ -828,11 +880,11 @@ export default function FakturPenjualanIndex({
                         </CardHeader>
                         <CardContent className="space-y-1 pt-2">
                             <p className="text-3xl font-semibold">
-                                {formatNumber(counts.noReceiptCount)} Invoice
+                                {formatNumber(noReceiptSummary.count)} Invoice
                             </p>
                             <p className="text-sm text-muted-foreground">
                                 Grand Total:{' '}
-                                {formatRupiah(counts.noReceiptTotal)}
+                                {formatRupiah(noReceiptSummary.total)}
                             </p>
                         </CardContent>
                     </Card>
