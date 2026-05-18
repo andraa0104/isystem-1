@@ -144,8 +144,21 @@ class QuotationController
     {
         $period = $request->query('period', 'today');
         
-        // [CACHE] Menyimpan list Quotation berdasarkan periode
-        $penawaran = Cache::tags(['quotation_data'])->remember('quotation_list_' . $period, 86400, function () use ($period) {
+        // [PERBAIKAN] Buat cache key yang dinamis berdasarkan tanggal aktual
+        $cacheKey = 'quotation_list_' . $period;
+        
+        if ($period === 'today') {
+            $cacheKey .= '_' . Carbon::today()->toDateString();
+        } elseif ($period === 'week') {
+            $cacheKey .= '_' . Carbon::now()->startOfWeek()->toDateString();
+        } elseif ($period === 'month') {
+            $cacheKey .= '_' . Carbon::now()->format('Y-m');
+        } elseif ($period === 'year') {
+            $cacheKey .= '_' . Carbon::now()->year;
+        }
+        
+        // [CACHE] Menyimpan list Quotation menggunakan cache key yang sudah dinamis
+        $penawaran = Cache::tags(['quotation_data'])->remember($cacheKey, 86400, function () use ($period) {
             return $this->getPenawaranQuery($period)->get();
         });
 

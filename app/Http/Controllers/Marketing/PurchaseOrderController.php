@@ -909,8 +909,21 @@ class PurchaseOrderController
         $page = max(1, (int) $request->query('page', 1));
         $poDateExpr = "coalesce(date(po.tgl), str_to_date(po.tgl, '%Y-%m-%d'), str_to_date(po.tgl, '%Y/%m/%d'), str_to_date(po.tgl, '%d/%m/%Y'), str_to_date(po.tgl, '%d-%m-%Y'), str_to_date(po.tgl, '%d.%m.%Y'))";
 
+        $now = \Carbon\Carbon::now();
+        $actualDateKey = $dateFilter;
+        if ($dateFilter === 'today') {
+            $actualDateKey = $now->toDateString();
+        } elseif ($dateFilter === 'this_week') {
+            $actualDateKey = $now->startOfWeek()->toDateString();
+        } elseif ($dateFilter === 'this_month') {
+            $actualDateKey = $now->format('Y-m');
+        } elseif ($dateFilter === 'this_year') {
+            $actualDateKey = $now->year;
+        }
+
         $cacheKey = $this->poCacheKey('data', [
             'date_filter' => $dateFilter,
+            'actual_date' => $actualDateKey, // <--- Kunci Tanggal Dinamis
             'status' => $status,
             'search' => $search,
             'pageSize' => $pageSizeRaw,
@@ -1284,8 +1297,22 @@ class PurchaseOrderController
     {
         $period = $request->query('period', 'today');
 
+        // [PERBAIKAN] Tambahkan identitas tanggal hari ini agar cache ter-refresh tiap hari berganti
+        $now = \Carbon\Carbon::now();
+        $actualDateKey = $period;
+        if ($period === 'today') {
+            $actualDateKey = $now->toDateString();
+        } elseif ($period === 'this_week') {
+            $actualDateKey = $now->startOfWeek()->toDateString();
+        } elseif ($period === 'this_month') {
+            $actualDateKey = $now->format('Y-m');
+        } elseif ($period === 'this_year') {
+            $actualDateKey = $now->year;
+        }
+
         $response = Cache::tags(self::PO_CACHE_TAGS)->remember($this->poCacheKey('realized', [
             'period' => $period,
+            'actual_date' => $actualDateKey, // <--- Kunci Tanggal Dinamis
             'summary' => $request->boolean('summary'),
         ], $request), self::PO_CACHE_TTL, function () use ($request, $period) {
 

@@ -12,7 +12,7 @@ class DeliveryOrderController
     public function index(Request $request)
     {
         $period = $request->query('period', 'today');
-
+        
         return Inertia::render('marketing/delivery-order/index', [
             'deliveryOrders' => [],
             'outstandingCount' => 0,
@@ -26,7 +26,6 @@ class DeliveryOrderController
     public function data(Request $request)
     {
         $period = $request->query('period', 'today');
-        // 1. TANGKAP FETCH TYPE DARI REACT
         $fetchType = $request->query('fetch_type', 'all'); 
         
         $now = now();
@@ -35,101 +34,115 @@ class DeliveryOrderController
         $todayDate = $now->format('Y-m-d');
         $todayDot = $now->format('d.m.Y');
 
-        // Helper function untuk filter tanggal
-        $applyDateFilter = function ($query, $column) use ($period, $now, $year, $month, $todayDate, $todayDot, $request) {
-            if ($period === 'today') {
-                $query->where(function($q) use ($column, $todayDate, $todayDot) {
-                    $q->whereDate($column, $todayDate)
-                      ->orWhere($column, $todayDot)
-                      ->orWhere($column, 'like', $todayDate . '%'); 
-                });
-            } elseif ($period === 'this_month') {
-                $query->where(function($q) use ($column, $month, $year) {
-                    $q->whereYear($column, $year)->whereMonth($column, $month)
-                      ->orWhere($column, 'like', "%.{$month}.{$year}") // Optimasi LIKE
-                      ->orWhere($column, 'like', "%-{$month}-{$year}")
-                      ->orWhere($column, 'like', "%/{$month}/{$year}");
-                });
-            } elseif ($period === 'this_year') {
-                $query->where(function($q) use ($column, $year) {
-                    $q->whereYear($column, $year)
-                      ->orWhere($column, 'like', "%." . $year) // Optimasi LIKE d.m.Y
-                      ->orWhere($column, 'like', "%-" . $year) // Optimasi LIKE d-m-Y
-                      ->orWhere($column, 'like', "%/" . $year) // Optimasi LIKE d/m/Y
-                      ->orWhere($column, 'like', $year . '-%'); // Optimasi LIKE Y-m-d
-                });
-            } elseif ($period === 'this_week') {
-                $start = $now->startOfWeek()->toDateString();
-                $end = $now->endOfWeek()->toDateString();
-                $expr = "coalesce(date($column), str_to_date($column, '%d.%m.%Y'), str_to_date($column, '%d-%m-%Y'), str_to_date($column, '%d/%m/%Y'), str_to_date($column, '%Y-%m-%d'))";
-                $query->whereRaw("($expr) BETWEEN ? AND ?", [$start, $end]);
-            } elseif ($period === 'range') {
-                $startDate = $request->query('start_date');
-                $endDate = $request->query('end_date');
-                if ($startDate && $endDate) {
+        // [PENERAPAN] Buat kunci cache dinamis berdasarkan tanggal
+        $cacheKey = 'do_data_' . $fetchType . '_' . $period;
+        if ($period === 'today') {
+            $cacheKey .= '_' . $todayDate;
+        } elseif ($period === 'this_month') {
+            $cacheKey .= '_' . $year . '_' . $month;
+        } elseif ($period === 'this_year') {
+            $cacheKey .= '_' . $year;
+        } elseif ($period === 'this_week') {
+            $cacheKey .= '_' . $now->startOfWeek()->toDateString();
+        } elseif ($period === 'range') {
+            $cacheKey .= '_' . md5($request->query('start_date') . $request->query('end_date'));
+        }
+
+        // [PENERAPAN] Simpan hasil ke dalam Valkey Cache
+        $cachedResponse = \Illuminate\Support\Facades\Cache::tags(['do_data'])->remember($cacheKey, 86400, function () use ($period, $fetchType, $now, $year, $month, $todayDate, $todayDot, $request) {
+            
+            $applyDateFilter = function ($query, $column) use ($period, $now, $year, $month, $todayDate, $todayDot, $request) {
+                if ($period === 'today') {
+                    $query->where(function($q) use ($column, $todayDate, $todayDot) {
+                        $q->whereDate($column, $todayDate)
+                          ->orWhere($column, $todayDot)
+                          ->orWhere($column, 'like', $todayDate . '%'); 
+                    });
+                } elseif ($period === 'this_month') {
+                    $query->where(function($q) use ($column, $month, $year) {
+                        $q->whereYear($column, $year)->whereMonth($column, $month)
+                          ->orWhere($column, 'like', "%.{$month}.{$year}")
+                          ->orWhere($column, 'like', "%-{$month}-{$year}")
+                          ->orWhere($column, 'like', "%/{$month}/{$year}");
+                    });
+                } elseif ($period === 'this_year') {
+                    $query->where(function($q) use ($column, $year) {
+                        $q->whereYear($column, $year)
+                          ->orWhere($column, 'like', "%." . $year)
+                          ->orWhere($column, 'like', "%-" . $year)
+                          ->orWhere($column, 'like', "%/" . $year)
+                          ->orWhere($column, 'like', $year . '-%');
+                    });
+                } elseif ($period === 'this_week') {
+                    $start = $now->startOfWeek()->toDateString();
+                    $end = $now->endOfWeek()->toDateString();
                     $expr = "coalesce(date($column), str_to_date($column, '%d.%m.%Y'), str_to_date($column, '%d-%m-%Y'), str_to_date($column, '%d/%m/%Y'), str_to_date($column, '%Y-%m-%d'))";
-                    $query->whereRaw("($expr) BETWEEN ? AND ?", [$startDate, $endDate]);
+                    $query->whereRaw("($expr) BETWEEN ? AND ?", [$start, $end]);
+                } elseif ($period === 'range') {
+                    $startDate = $request->query('start_date');
+                    $endDate = $request->query('end_date');
+                    if ($startDate && $endDate) {
+                        $expr = "coalesce(date($column), str_to_date($column, '%d.%m.%Y'), str_to_date($column, '%d-%m-%Y'), str_to_date($column, '%d/%m/%Y'), str_to_date($column, '%Y-%m-%d'))";
+                        $query->whereRaw("($expr) BETWEEN ? AND ?", [$startDate, $endDate]);
+                    }
+                }
+            };
+
+            $response = ['period' => $period];
+
+            if ($fetchType === 'table' || $fetchType === 'all') {
+                $deliveryOrdersQuery = DB::table('tb_do')
+                    ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
+                    ->distinct()
+                    ->orderBy('no_do', 'desc')
+                    ->orderBy('date', 'desc');
+
+                if ($period !== 'all') {
+                    $applyDateFilter($deliveryOrdersQuery, 'tb_do.date');
+                }
+
+                if ($period === 'all') {
+                    $deliveryOrdersQuery->limit(5000); 
+                }
+
+                $response['deliveryOrders'] = $deliveryOrdersQuery->get();
+            }
+
+            if ($fetchType === 'summary' || $fetchType === 'all') {
+                $response['outstandingCount'] = DB::table('tb_do')
+                    ->where('val_inv', 0)
+                    ->distinct('no_do')
+                    ->count('no_do');
+
+                $response['outstandingTotal'] = DB::table('tb_do')
+                    ->where('val_inv', 0)
+                    ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
+
+                $realizedQuery = DB::table('tb_kddo as k')
+                    ->join('tb_fakturpenjualan as f', function ($join) {
+                        $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
+                    });
+
+                if ($period !== 'all') {
+                    $applyDateFilter($realizedQuery, 'f.tgl_pos');
+                }
+
+                $realizedNos = $realizedQuery->distinct('k.no_do')->pluck('k.no_do');
+                $response['realizedCount'] = $realizedNos->count();
+                
+                if ($realizedNos->isEmpty()) {
+                    $response['realizedTotal'] = 0;
+                } else {
+                    $response['realizedTotal'] = (float) DB::table('tb_do')
+                        ->whereIn(DB::raw('lower(trim(no_do))'), $realizedNos->map(fn ($n) => strtolower(trim($n))))
+                        ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
                 }
             }
-        };
 
-        $response = ['period' => $period];
+            return $response;
+        });
 
-        // 2. EKSEKUSI KUERI TABEL HANYA JIKA DIMINTA
-        if ($fetchType === 'table' || $fetchType === 'all') {
-            $deliveryOrdersQuery = DB::table('tb_do')
-                ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
-                ->distinct() // Menggunakan distinct lebih cepat dari groupBy text
-                ->orderBy('no_do', 'desc')
-                ->orderBy('date', 'desc');
-
-            // Skip filter jika period adalah 'all'
-            if ($period !== 'all') {
-                $applyDateFilter($deliveryOrdersQuery, 'tb_do.date');
-            }
-
-            // Opsional: Beri batas data jika 'all' agar memori tidak meledak jika record ratusan ribu.
-            if ($period === 'all') {
-                $deliveryOrdersQuery->limit(5000); 
-            }
-
-            $response['deliveryOrders'] = $deliveryOrdersQuery->get();
-        }
-
-        // 3. EKSEKUSI KUERI SUMMARY (YANG BERAT) HANYA JIKA DIMINTA
-        if ($fetchType === 'summary' || $fetchType === 'all') {
-            $response['outstandingCount'] = DB::table('tb_do')
-                ->where('val_inv', 0)
-                ->distinct('no_do')
-                ->count('no_do');
-
-            $response['outstandingTotal'] = DB::table('tb_do')
-                ->where('val_inv', 0)
-                ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
-
-            $realizedQuery = DB::table('tb_kddo as k')
-                ->join('tb_fakturpenjualan as f', function ($join) {
-                    $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
-                });
-
-            // Filter period untuk summary realized
-            if ($period !== 'all') {
-                $applyDateFilter($realizedQuery, 'f.tgl_pos');
-            }
-
-            $realizedNos = $realizedQuery->distinct('k.no_do')->pluck('k.no_do');
-            $response['realizedCount'] = $realizedNos->count();
-            
-            if ($realizedNos->isEmpty()) {
-                $response['realizedTotal'] = 0;
-            } else {
-                $response['realizedTotal'] = (float) DB::table('tb_do')
-                    ->whereIn(DB::raw('lower(trim(no_do))'), $realizedNos->map(fn ($n) => strtolower(trim($n))))
-                    ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
-            }
-        }
-
-        return response()->json($response);
+        return response()->json($cachedResponse);
     }
 
     public function update(Request $request, $noDo)
@@ -246,58 +259,75 @@ class DeliveryOrderController
         $todayDate = $now->format('Y-m-d');
         $todayDot = $now->format('d.m.Y');
 
-        $query = DB::table('tb_kddo as k')
-            ->join('tb_fakturpenjualan as f', function ($join) {
-                $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
-            })
-            ->select(
-                'k.no_do',
-                'k.pos_tgl as date',
-                'k.ref_po',
-                'f.nm_cs'
-            )
-            ->distinct();
-
+        // [PENERAPAN] Buat kunci cache dinamis berdasarkan tanggal
+        $cacheKey = 'do_realized_' . $period;
         if ($period === 'today') {
-            $query->where(function($q) use ($todayDate, $todayDot) {
-                $q->whereDate('f.tgl_pos', $todayDate)
-                  ->orWhere('f.tgl_pos', $todayDot)
-                  ->orWhere('f.tgl_pos', 'like', $todayDate . '%');
-            });
+            $cacheKey .= '_' . $todayDate;
         } elseif ($period === 'this_month') {
-            $query->where(function($q) use ($month, $year) {
-                $q->whereYear('f.tgl_pos', $year)->whereMonth('f.tgl_pos', $month)
-                  ->orWhere('f.tgl_pos', 'like', "%.{$month}.{$year}%")
-                  ->orWhere('f.tgl_pos', 'like', "%-{$month}-{$year}%")
-                  ->orWhere('f.tgl_pos', 'like', "%/{$month}/{$year}%");
-            });
+            $cacheKey .= '_' . $year . '_' . $month;
         } elseif ($period === 'this_year') {
-            $query->where(function($q) use ($year) {
-                $q->whereYear('f.tgl_pos', $year)
-                  ->orWhere('f.tgl_pos', 'like', "%.{$year}%")
-                  ->orWhere('f.tgl_pos', 'like', "%-{$year}%")
-                  ->orWhere('f.tgl_pos', 'like', "%/{$year}%");
-            });
+            $cacheKey .= '_' . $year;
         } elseif ($period === 'this_week') {
-            $start = $now->startOfWeek()->toDateString();
-            $end = $now->endOfWeek()->toDateString();
-            $expr = "coalesce(date(f.tgl_pos), str_to_date(f.tgl_pos, '%d.%m.%Y'), str_to_date(f.tgl_pos, '%d-%m-%Y'), str_to_date(f.tgl_pos, '%d/%m/%Y'), str_to_date(f.tgl_pos, '%Y-%m-%d'))";
-            $query->whereRaw("($expr) BETWEEN ? AND ?", [$start, $end]);
+            $cacheKey .= '_' . $now->startOfWeek()->toDateString();
         }
 
-        $deliveryOrders = $query
-            ->orderBy('k.pos_tgl', 'desc')
-            ->orderBy('k.no_do', 'desc')
-            ->get();
+        // [PENERAPAN] Simpan hasil ke dalam Valkey Cache
+        $cachedData = \Illuminate\Support\Facades\Cache::tags(['do_data'])->remember($cacheKey, 86400, function () use ($period, $now, $year, $month, $todayDate, $todayDot) {
+            $query = DB::table('tb_kddo as k')
+                ->join('tb_fakturpenjualan as f', function ($join) {
+                    $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
+                })
+                ->select(
+                    'k.no_do',
+                    'k.pos_tgl as date',
+                    'k.ref_po',
+                    'f.nm_cs'
+                )
+                ->distinct();
 
-        $realizedTotal = DB::table('tb_do')
-            ->whereIn(DB::raw('lower(trim(no_do))'), $deliveryOrders->pluck('no_do')->map(fn ($n) => strtolower(trim($n))))
-            ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
+            if ($period === 'today') {
+                $query->where(function($q) use ($todayDate, $todayDot) {
+                    $q->whereDate('f.tgl_pos', $todayDate)
+                      ->orWhere('f.tgl_pos', $todayDot)
+                      ->orWhere('f.tgl_pos', 'like', $todayDate . '%');
+                });
+            } elseif ($period === 'this_month') {
+                $query->where(function($q) use ($month, $year) {
+                    $q->whereYear('f.tgl_pos', $year)->whereMonth('f.tgl_pos', $month)
+                      ->orWhere('f.tgl_pos', 'like', "%.{$month}.{$year}%")
+                      ->orWhere('f.tgl_pos', 'like', "%-{$month}-{$year}%")
+                      ->orWhere('f.tgl_pos', 'like', "%/{$month}/{$year}%");
+                });
+            } elseif ($period === 'this_year') {
+                $query->where(function($q) use ($year) {
+                    $q->whereYear('f.tgl_pos', $year)
+                      ->orWhere('f.tgl_pos', 'like', "%.{$year}%")
+                      ->orWhere('f.tgl_pos', 'like', "%-{$year}%")
+                      ->orWhere('f.tgl_pos', 'like', "%/{$year}%");
+                });
+            } elseif ($period === 'this_week') {
+                $start = $now->startOfWeek()->toDateString();
+                $end = $now->endOfWeek()->toDateString();
+                $expr = "coalesce(date(f.tgl_pos), str_to_date(f.tgl_pos, '%d.%m.%Y'), str_to_date(f.tgl_pos, '%d-%m-%Y'), str_to_date(f.tgl_pos, '%d/%m/%Y'), str_to_date(f.tgl_pos, '%Y-%m-%d'))";
+                $query->whereRaw("($expr) BETWEEN ? AND ?", [$start, $end]);
+            }
 
-        return response()->json([
-            'deliveryOrders' => $deliveryOrders,
-            'realizedTotal' => (float) $realizedTotal,
-        ]);
+            $deliveryOrders = $query
+                ->orderBy('k.pos_tgl', 'desc')
+                ->orderBy('k.no_do', 'desc')
+                ->get();
+
+            $realizedTotal = DB::table('tb_do')
+                ->whereIn(DB::raw('lower(trim(no_do))'), $deliveryOrders->pluck('no_do')->map(fn ($n) => strtolower(trim($n))))
+                ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
+
+            return [
+                'deliveryOrders' => $deliveryOrders,
+                'realizedTotal' => (float) $realizedTotal,
+            ];
+        });
+
+        return response()->json($cachedData);
     }
 
     public function print(Request $request, $noDo)

@@ -62,6 +62,19 @@ class DataMaterialController
         $startDateParam = $request->query('startDate');
         $endDateParam = $request->query('endDate');
 
+        // [PERBAIKAN] Tambahkan identitas tanggal hari ini agar cache ter-refresh tiap hari berganti
+        $now = \Carbon\Carbon::now();
+        $actualDateKey = $period;
+        if ($period === 'today') {
+            $actualDateKey = $now->toDateString();
+        } elseif ($period === 'this_week') {
+            $actualDateKey = $now->startOfWeek()->toDateString();
+        } elseif ($period === 'this_month') {
+            $actualDateKey = $now->format('Y-m');
+        } elseif ($period === 'this_year') {
+            $actualDateKey = $now->year;
+        }
+
         $map = [
             'mi' => 'tb_mi',
             'mis' => 'tb_mi',
@@ -78,6 +91,7 @@ class DataMaterialController
             'pageSize' => $pageSizeRaw,
             'page' => $page,
             'period' => $period,
+            'actual_date' => $actualDateKey, // <--- Kunci Tanggal Dinamis Disisipkan Disini
             'startDate' => $startDateParam,
             'endDate' => $endDateParam,
         ], $request);

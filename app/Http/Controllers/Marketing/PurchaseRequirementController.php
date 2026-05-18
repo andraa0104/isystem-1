@@ -104,8 +104,22 @@ class PurchaseRequirementController
 
     private function getPurchaseRequirementSummary($period)
     {
+        // [PERBAIKAN] Buat cache key yang dinamis
+        $cacheKey = 'pr_summary_' . $period;
+        $now = \Carbon\Carbon::now();
+        
+        if ($period === 'today') {
+            $cacheKey .= '_' . $now->toDateString();
+        } elseif ($period === 'this_week') {
+            $cacheKey .= '_' . $now->startOfWeek()->toDateString();
+        } elseif ($period === 'this_month') {
+            $cacheKey .= '_' . $now->format('Y-m');
+        } elseif ($period === 'this_year') {
+            $cacheKey .= '_' . $now->year;
+        }
+
         // [CACHE] Simpan ringkasan summary di memori
-        return Cache::tags(['pr_data'])->remember('pr_summary_' . $period, 86400, function () use ($period) {
+        return Cache::tags(['pr_data'])->remember($cacheKey, 86400, function () use ($period) {
             $common = $this->getCommonQueries($period);
             $detailAgg = $common['detailAgg'];
             $poAgg = $common['poAgg'];
@@ -137,8 +151,22 @@ class PurchaseRequirementController
 
     private function getPurchaseRequirementList($period)
     {
+        // [PERBAIKAN] Buat cache key yang dinamis
+        $cacheKey = 'pr_list_' . $period;
+        $now = \Carbon\Carbon::now();
+        
+        if ($period === 'today') {
+            $cacheKey .= '_' . $now->toDateString();
+        } elseif ($period === 'this_week') {
+            $cacheKey .= '_' . $now->startOfWeek()->toDateString();
+        } elseif ($period === 'this_month') {
+            $cacheKey .= '_' . $now->format('Y-m');
+        } elseif ($period === 'this_year') {
+            $cacheKey .= '_' . $now->year;
+        }
+
         // [CACHE] Simpan seluruh list PR
-        return Cache::tags(['pr_data'])->remember('pr_list_' . $period, 86400, function () use ($period) {
+        return Cache::tags(['pr_data'])->remember($cacheKey, 86400, function () use ($period) {
             $common = $this->getCommonQueries($period);
             $detailAgg = $common['detailAgg'];
             $poAgg = $common['poAgg'];
@@ -290,7 +318,21 @@ class PurchaseRequirementController
     {
         $period = $request->query('period', 'today');
 
-        $data = Cache::tags(['pr_data'])->remember('pr_realized_list_' . $period, 86400, function () use ($period) {
+        // [PERBAIKAN] Buat cache key yang dinamis
+        $cacheKey = 'pr_realized_list_' . $period;
+        $now = \Carbon\Carbon::now();
+        
+        if ($period === 'today') {
+            $cacheKey .= '_' . $now->toDateString();
+        } elseif ($period === 'this_week') {
+            $cacheKey .= '_' . $now->startOfWeek()->toDateString();
+        } elseif ($period === 'this_month') {
+            $cacheKey .= '_' . $now->format('Y-m');
+        } elseif ($period === 'this_year') {
+            $cacheKey .= '_' . $now->year;
+        }
+
+        $data = Cache::tags(['pr_data'])->remember($cacheKey, 86400, function () use ($period) {
             $docDateExpr = "coalesce(date(tgl), str_to_date(tgl, '%Y-%m-%d'), str_to_date(tgl, '%Y/%m/%d'), str_to_date(tgl, '%d/%m/%Y'), str_to_date(tgl, '%d-%m-%Y'), str_to_date(tgl, '%d.%m.%Y'))";
 
             $detailAgg = DB::table('tb_detailpr')
