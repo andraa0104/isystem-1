@@ -1096,7 +1096,7 @@ export default function DeliveryOrderIndex({
                                         <tbody>
                                             <PlainTableStateRows
                                                 loading={detailLoading}
-                                                columns={6}
+                                                columns={5}
                                                 rows={5}
                                                 isEmpty={
                                                     !detailLoading &&
@@ -1545,9 +1545,6 @@ export default function DeliveryOrderIndex({
                                             Customer
                                         </th>
                                         <th className="px-4 py-3 text-left">
-                                            Total
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
                                             Action
                                         </th>
                                     </tr>
@@ -1584,13 +1581,6 @@ export default function DeliveryOrderIndex({
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {item.nm_cs}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatNumber(
-                                                        item.g_total ??
-                                                            item.total ??
-                                                            0,
-                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <button

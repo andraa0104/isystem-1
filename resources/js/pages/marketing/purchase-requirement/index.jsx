@@ -151,7 +151,15 @@ export default function PurchaseRequirementIndex({
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     
-    const [purchaseRequirementsList, setPurchaseRequirementsList] = useState([]);
+    const [purchaseRequirementsList, setPurchaseRequirementsList] = useState(() => {
+        if (purchaseRequirements?.length > 0) {
+            return purchaseRequirements.map(item => {
+                const parsed = parseFlexibleDate(item.date);
+                return { ...item, _parsedDateTs: parsed ? parsed.getTime() : null };
+            });
+        }
+        return [];
+    });
     
     const [statusFilter, setStatusFilter] = useState('outstanding');
     const [tableDateFilter, setTableDateFilter] = useState('today');
@@ -290,7 +298,12 @@ export default function PurchaseRequirementIndex({
     }, []);
 
     // --- PERBAIKAN: Hanya fetch sekali di awal, tidak di-trigger ulang oleh periodFilter dari card! ---
+    const isFirstRender = useRef(true);
     useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return; 
+        }
         fetchTableData(period ?? 'today');
         fetchSummaryData(period ?? 'today');
     }, [fetchTableData, fetchSummaryData, period]);
