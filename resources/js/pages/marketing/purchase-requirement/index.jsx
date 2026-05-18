@@ -151,15 +151,7 @@ export default function PurchaseRequirementIndex({
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     
-    const [purchaseRequirementsList, setPurchaseRequirementsList] = useState(() => {
-        if (purchaseRequirements?.length > 0) {
-            return purchaseRequirements.map(item => {
-                const parsed = parseFlexibleDate(item.date);
-                return { ...item, _parsedDateTs: parsed ? parsed.getTime() : null };
-            });
-        }
-        return [];
-    });
+    const [purchaseRequirementsList, setPurchaseRequirementsList] = useState([]);
     
     const [statusFilter, setStatusFilter] = useState('outstanding');
     const [tableDateFilter, setTableDateFilter] = useState('today');
@@ -174,8 +166,8 @@ export default function PurchaseRequirementIndex({
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
     const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
     
-    const [tableLoading, setTableLoading] = useState(true);
-    const [summaryLoading, setSummaryLoading] = useState(true);
+    const [tableLoading, setTableLoading] = useState(false);
+    const [summaryLoading, setSummaryLoading] = useState(false);
     const [isRealizedLoading, setIsRealizedLoading] = useState(false);
     
     const [pageSize, setPageSize] = useState(5);
@@ -298,23 +290,42 @@ export default function PurchaseRequirementIndex({
     }, []);
 
     // --- PERBAIKAN: Hanya fetch sekali di awal, tidak di-trigger ulang oleh periodFilter dari card! ---
-    const isFirstRender = useRef(true);
+    const isInitialMount = useRef(true);
     useEffect(() => {
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
-            return; 
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            
+            // HANYA jika server backend (Inertia) gagal mengirim data props awal, baru kita paksa API berjalan
+            if (!purchaseRequirements || purchaseRequirements.length === 0) {
+                setTableLoading(true);
+                setSummaryLoading(true);
+                fetchTableData(period ?? 'today');
+                fetchSummaryData(period ?? 'today');
+            }
+            return;
         }
+
+        // Fetch ini hanya akan berjalan jika Anda mengganti periode filter nantinya
         fetchTableData(period ?? 'today');
         fetchSummaryData(period ?? 'today');
-    }, [fetchTableData, fetchSummaryData, period]);
+        
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [period, fetchTableData, fetchSummaryData]);
 
     useEffect(() => {
         if (purchaseRequirements?.length > 0) {
-            const optimizedList = purchaseRequirements.map(item => {
-                const parsed = parseFlexibleDate(item.date);
-                return { ...item, _parsedDateTs: parsed ? parsed.getTime() : null };
-            });
-            setPurchaseRequirementsList(optimizedList);
+            // Gunakan setTimeout agar UI dan Card bisa render duluan, 
+            // sehingga browser tidak hang meskipun data ada 10.000+ baris
+            const timer = setTimeout(() => {
+                const optimizedList = purchaseRequirements.map((item) => {
+                    const parsed = parseFlexibleDate(item.date);
+                    return { ...item, _parsedDateTs: parsed ? parsed.getTime() : null };
+                });
+                setPurchaseRequirementsList(optimizedList);
+            }, 10);
+            return () => clearTimeout(timer);
+        } else {
+            setPurchaseRequirementsList([]);
         }
     }, [purchaseRequirements]);
 
