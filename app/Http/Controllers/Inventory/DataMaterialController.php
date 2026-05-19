@@ -84,18 +84,7 @@ class DataMaterialController
         if (!isset($map[$key]) || !Schema::hasTable($map[$key])) {
             return response()->json(['rows' => [], 'total' => 0]);
         }
-
-        $cacheKey = $this->dataMaterialCacheKey('section-rows', [
-            'key' => $key,
-            'search' => $search,
-            'pageSize' => $pageSizeRaw,
-            'page' => $page,
-            'period' => $period,
-            'actual_date' => $actualDateKey, // <--- Kunci Tanggal Dinamis Disisipkan Disini
-            'startDate' => $startDateParam,
-            'endDate' => $endDateParam,
-        ], $request);
-
+        
         $data = Cache::tags(self::DATA_MATERIAL_CACHE_TAGS)->remember($cacheKey, self::DATA_MATERIAL_CACHE_TTL, function () use ($key, $map, $search, $page, $pageSize, $period, $startDateParam, $endDateParam) {
             $table = $map[$key];
             $base = DB::table($table);
