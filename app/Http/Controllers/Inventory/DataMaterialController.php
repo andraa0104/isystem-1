@@ -62,9 +62,20 @@ class DataMaterialController
         $startDateParam = $request->query('startDate');
         $endDateParam = $request->query('endDate');
 
-        // [PERBAIKAN] Tambahkan identitas tanggal hari ini agar cache ter-refresh tiap hari berganti
+        $map = [
+            'mi' => 'tb_mi',
+            'mis' => 'tb_mi',
+            'mib' => 'tb_mib',
+        ];
+
+        if (!isset($map[$key]) || !Schema::hasTable($map[$key])) {
+            return response()->json(['rows' => [], 'total' => 0]);
+        }
+
+        // [PERBAIKAN] Buat tanggal aktual kalender agar hash cache otomatis berubah setiap ganti hari
         $now = \Carbon\Carbon::now();
         $actualDateKey = $period;
+        
         if ($period === 'today') {
             $actualDateKey = $now->toDateString();
         } elseif ($period === 'this_week') {
@@ -75,16 +86,17 @@ class DataMaterialController
             $actualDateKey = $now->year;
         }
 
-        $map = [
-            'mi' => 'tb_mi',
-            'mis' => 'tb_mi',
-            'mib' => 'tb_mib',
-        ];
+        $cacheKey = $this->dataMaterialCacheKey('section-rows', [
+            'key' => $key,
+            'search' => $search,
+            'pageSize' => $pageSizeRaw,
+            'page' => $page,
+            'period' => $period,
+            'actual_date' => $actualDateKey, // <--- Kunci dinamis disisipkan di sini
+            'startDate' => $startDateParam,
+            'endDate' => $endDateParam,
+        ], $request);
 
-        if (!isset($map[$key]) || !Schema::hasTable($map[$key])) {
-            return response()->json(['rows' => [], 'total' => 0]);
-        }
-        
         $data = Cache::tags(self::DATA_MATERIAL_CACHE_TAGS)->remember($cacheKey, self::DATA_MATERIAL_CACHE_TTL, function () use ($key, $map, $search, $page, $pageSize, $period, $startDateParam, $endDateParam) {
             $table = $map[$key];
             $base = DB::table($table);
