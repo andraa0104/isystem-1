@@ -145,8 +145,28 @@ class PurchaseOrderInController
         $startDate = '',
         $endDate = ''
     ) {
-        // [CACHE KEY] Membuat ID unik berdasarkan semua filter pencarian dan halaman
-        $cacheKey = 'poin_data_' . md5(json_encode(func_get_args()));
+        // [PERBAIKAN] Tambahkan identitas tenant dan tanggal aktual kalender
+        $dbName = \Illuminate\Support\Facades\DB::connection()->getDatabaseName();
+        $now = \Carbon\Carbon::now();
+        $actualDateKey = $dateFilter;
+        
+        if ($dateFilter === 'today') {
+            $actualDateKey = $now->toDateString();
+        } elseif ($dateFilter === 'this_week') {
+            $actualDateKey = $now->startOfWeek()->toDateString();
+        } elseif ($dateFilter === 'this_month') {
+            $actualDateKey = $now->format('Y-m');
+        } elseif ($dateFilter === 'this_year') {
+            $actualDateKey = $now->year;
+        }
+
+        // Gabungkan argumen asli dengan dbName dan tanggal aktual agar hash (MD5) otomatis berubah saat ganti hari
+        $args = func_get_args();
+        $args['actual_date'] = $actualDateKey;
+        $args['tenant_db'] = $dbName;
+
+        // [CACHE KEY] Membuat ID unik berdasarkan filter, halaman, tenant, dan tanggal
+        $cacheKey = 'poin_data_' . md5(json_encode($args));
 
         return Cache::tags(['poin_data'])->remember($cacheKey, 86400, function () use ($search, $perPage, $statusFilter, $page, $isPartial, $dateFilter, $startDate, $endDate) {
             $detailStats = DB::table('tb_detailpoin')
