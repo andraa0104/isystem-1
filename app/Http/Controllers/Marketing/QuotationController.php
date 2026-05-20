@@ -144,7 +144,7 @@ class QuotationController
     {
         $period = $request->query('period', 'today');
         
-        // [PERBAIKAN] Tambahkan Identitas Database agar data tidak bocor antar-cabang/klien
+        // [PERBAIKAN] Tambahkan Identitas Database agar data tidak dibajak oleh database/klien lain
         $dbName = \Illuminate\Support\Facades\DB::connection()->getDatabaseName();
         $cacheKey = 'quotation_list_' . $dbName . '_' . $period;
         
@@ -159,7 +159,7 @@ class QuotationController
             $cacheKey .= '_' . $now->year;
         }
         
-        // [CACHE] Menyimpan list Quotation menggunakan cache key yang sudah dinamis & tenant-aware
+        // [CACHE] Menyimpan list Quotation. Akan otomatis ter-reset saat ada input baru (Opsi 1)
         $penawaran = Cache::tags(['quotation_data'])->remember($cacheKey, 86400, function () use ($period) {
             return $this->getPenawaranQuery($period)->get();
         });
@@ -197,7 +197,7 @@ class QuotationController
             $todayDate = $now->format('Y-m-d');
             $todayDot = $now->format('d.m.Y');
             
-            // [PERBAIKAN] Pencarian luas agar lolos dari spasi tak kasat mata / perbedaan kolom tanggal
+            // [PERBAIKAN] Pencarian luas untuk mencegah data bocor karena perbedaan format
             $query->where(function($q) use ($todayDate, $todayDot) {
                 $q->whereDate('p.Tgl_Posting', $todayDate)
                   ->orWhere('p.Tgl_Posting', 'like', $todayDate . '%')
