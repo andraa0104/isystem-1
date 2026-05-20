@@ -144,20 +144,22 @@ class QuotationController
     {
         $period = $request->query('period', 'today');
         
-        // [PERBAIKAN] Buat cache key yang dinamis berdasarkan tanggal aktual
-        $cacheKey = 'quotation_list_' . $period;
+        // [PERBAIKAN] Tambahkan Identitas Database agar data tidak bocor antar-cabang/klien
+        $dbName = \Illuminate\Support\Facades\DB::connection()->getDatabaseName();
+        $cacheKey = 'quotation_list_' . $dbName . '_' . $period;
         
+        $now = \Carbon\Carbon::now();
         if ($period === 'today') {
-            $cacheKey .= '_' . Carbon::today()->toDateString();
+            $cacheKey .= '_' . $now->toDateString();
         } elseif ($period === 'week') {
-            $cacheKey .= '_' . Carbon::now()->startOfWeek()->toDateString();
+            $cacheKey .= '_' . $now->startOfWeek()->toDateString();
         } elseif ($period === 'month') {
-            $cacheKey .= '_' . Carbon::now()->format('Y-m');
+            $cacheKey .= '_' . $now->format('Y-m');
         } elseif ($period === 'year') {
-            $cacheKey .= '_' . Carbon::now()->year;
+            $cacheKey .= '_' . $now->year;
         }
         
-        // [CACHE] Menyimpan list Quotation menggunakan cache key yang sudah dinamis
+        // [CACHE] Menyimpan list Quotation menggunakan cache key yang sudah dinamis & tenant-aware
         $penawaran = Cache::tags(['quotation_data'])->remember($cacheKey, 86400, function () use ($period) {
             return $this->getPenawaranQuery($period)->get();
         });
@@ -189,18 +191,29 @@ class QuotationController
                 DB::raw('1 as can_delete')
             );
 
+        $now = \Carbon\Carbon::now();
+
         if ($period === 'today') {
-            $query->whereDate('p.Tgl_Posting', Carbon::today()->toDateString());
+            $todayDate = $now->format('Y-m-d');
+            $todayDot = $now->format('d.m.Y');
+            
+            // [PERBAIKAN] Pencarian luas agar lolos dari spasi tak kasat mata / perbedaan kolom tanggal
+            $query->where(function($q) use ($todayDate, $todayDot) {
+                $q->whereDate('p.Tgl_Posting', $todayDate)
+                  ->orWhere('p.Tgl_Posting', 'like', $todayDate . '%')
+                  ->orWhere('p.Tgl_Posting', 'like', '%' . $todayDot . '%')
+                  ->orWhere('p.Tgl_penawaran', 'like', $todayDate . '%');
+            });
         } elseif ($period === 'week') {
             $query->whereBetween('p.Tgl_Posting', [
-                Carbon::now()->startOfWeek()->toDateString(),
-                Carbon::now()->endOfWeek()->toDateString()
+                $now->startOfWeek()->toDateString(),
+                $now->endOfWeek()->toDateString()
             ]);
         } elseif ($period === 'month') {
-            $query->whereMonth('p.Tgl_Posting', Carbon::now()->month)
-                  ->whereYear('p.Tgl_Posting', Carbon::now()->year);
+            $query->whereMonth('p.Tgl_Posting', $now->month)
+                  ->whereYear('p.Tgl_Posting', $now->year);
         } elseif ($period === 'year') {
-            $query->whereYear('p.Tgl_Posting', Carbon::now()->year);
+            $query->whereYear('p.Tgl_Posting', $now->year);
         }
 
         return $query->orderBy('p.Tgl_Posting', 'desc')
