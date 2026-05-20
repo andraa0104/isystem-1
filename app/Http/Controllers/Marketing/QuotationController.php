@@ -144,25 +144,8 @@ class QuotationController
     {
         $period = $request->query('period', 'today');
         
-        // [PERBAIKAN] Tambahkan Identitas Database agar data tidak dibajak oleh database/klien lain
-        $dbName = \Illuminate\Support\Facades\DB::connection()->getDatabaseName();
-        $cacheKey = 'quotation_list_' . $dbName . '_' . $period;
-        
-        $now = \Carbon\Carbon::now();
-        if ($period === 'today') {
-            $cacheKey .= '_' . $now->toDateString();
-        } elseif ($period === 'week') {
-            $cacheKey .= '_' . $now->startOfWeek()->toDateString();
-        } elseif ($period === 'month') {
-            $cacheKey .= '_' . $now->format('Y-m');
-        } elseif ($period === 'year') {
-            $cacheKey .= '_' . $now->year;
-        }
-        
-        // [CACHE] Menyimpan list Quotation. Akan otomatis ter-reset saat ada input baru (Opsi 1)
-        $penawaran = Cache::tags(['quotation_data'])->remember($cacheKey, 86400, function () use ($period) {
-            return $this->getPenawaranQuery($period)->get();
-        });
+        // [REAL-TIME] Langsung ambil data dari database tanpa perantara Valkey Cache
+        $penawaran = $this->getPenawaranQuery($period)->get();
 
         return response()->json([
             'penawaran' => $penawaran,
@@ -197,7 +180,7 @@ class QuotationController
             $todayDate = $now->format('Y-m-d');
             $todayDot = $now->format('d.m.Y');
             
-            // [PERBAIKAN] Pencarian luas untuk mencegah data bocor karena perbedaan format
+            // Perbaikan filter agar pencarian tanggal hari ini sangat akurat dan fleksibel
             $query->where(function($q) use ($todayDate, $todayDot) {
                 $q->whereDate('p.Tgl_Posting', $todayDate)
                   ->orWhere('p.Tgl_Posting', 'like', $todayDate . '%')
