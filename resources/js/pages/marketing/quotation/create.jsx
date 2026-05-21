@@ -245,16 +245,37 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }
     };
 
-    const handleSelectMaterial = (item) => {
-        const rawHarga = parseNumber(item.harga ?? item.Harga ?? 0);
-        const hargaModal = rawHarga > 0 ? String(rawHarga) : '1';
+    const handleSelectMaterial = async (item) => {
+    const materialName = renderValue(item.material);
+    
+    setMaterialForm((prev) => ({
+        ...prev,
+        nama: materialName,
+        satuan: renderValue(item.unit),
+        // Set sementara ke loading atau kosongkan
+        hargaModal: '...', 
+    }));
+    setMaterialModalOpen(false);
+
+    // Fetch harga terakhir dari backend
+        // Di dalam handleSelectMaterial
+    try {
+        const response = await fetch(
+            `/marketing/quotation/get-last-price?material=${encodeURIComponent(materialName)}`
+        );
+        
+        // Pastikan respon sukses
+        if (!response.ok) throw new Error('Network response was not ok');
+        
+        const data = await response.json();
+        
         setMaterialForm((prev) => ({
             ...prev,
-            nama: renderValue(item.material),
-            satuan: renderValue(item.unit),
-            hargaModal,
+            hargaModal: data.harga > 0 ? String(data.harga) : '1',
         }));
-        setMaterialModalOpen(false);
+        } catch (error) {
+            console.error('Gagal mengambil harga terakhir:', error);
+        }
     };
 
     const loadCustomers = async () => {

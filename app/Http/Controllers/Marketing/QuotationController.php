@@ -50,6 +50,31 @@ class QuotationController
         return '`'.str_replace('`', '``', $column).'`';
     }
 
+    public function getLastPrice(Request $request)
+    {
+        $materialName = $request->query('material');
+
+        if (!$materialName) {
+            return response()->json(['harga' => 0]);
+        }
+
+        try {
+            $lastRecord = DB::table('tb_invin')
+                ->where('mat', 'LIKE', '%' . $materialName . '%')
+                ->orderBy('id_invin', 'desc')
+                ->first();
+
+            return response()->json([
+                // Menambahkan fungsi round() di sini untuk membulatkan angka
+                'harga' => $lastRecord ? round($lastRecord->harga) : 0
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Gagal mengambil harga terakhir: ' . $e->getMessage());
+            
+            return response()->json(['harga' => 0, 'message' => 'Terjadi kesalahan pada database'], 500);
+        }
+    }
+    
     public function details($noPenawaran)
     {
         $detailNo = trim((string) $noPenawaran);

@@ -205,6 +205,8 @@ Route::get('marketing/quotation/data', [QuotationController::class, 'data'])
     ->name('marketing.quotation.data');
 Route::get('marketing/quotation/materials', [QuotationController::class, 'materials'])
     ->name('marketing.quotation.materials');
+Route::get('marketing/quotation/get-last-price', [QuotationController::class, 'getLastPrice'])
+    ->name('marketing.quotation.get-last-price');
 Route::get('marketing/quotation/create', [QuotationController::class, 'create'])
     ->name('marketing.quotation.create');
 Route::get('marketing/quotation/{noPenawaran}/edit', [QuotationController::class, 'edit'])
