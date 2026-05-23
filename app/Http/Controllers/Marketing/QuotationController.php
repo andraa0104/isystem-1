@@ -24,6 +24,61 @@ class QuotationController
         return $text === '' ? ' ' : $text;
     }
 
+    private function marginWithPercent(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $text = trim((string) $value);
+        if ($text === '') {
+            return null;
+        }
+
+        return str_ends_with($text, '%') ? $text : $text.'%';
+    }
+
+    private function quotationNumberLockName(string $prefix): string
+    {
+        $database = (string) (DB::connection()->getDatabaseName() ?: 'default');
+        $name = 'quotation_no:' . preg_replace('/[^A-Za-z0-9_.:-]/', '_', strtolower($database)) . ':' . $prefix;
+
+        return substr($name, 0, 64);
+    }
+
+    private function acquireDatabaseLock(string $name, int $timeout = 10): void
+    {
+        $row = DB::selectOne('SELECT GET_LOCK(?, ?) AS locked', [$name, $timeout]);
+
+        if ((int) ($row->locked ?? 0) !== 1) {
+            throw new \RuntimeException('Sistem sedang membuat nomor quotation lain. Silakan coba simpan kembali.');
+        }
+    }
+
+    private function releaseDatabaseLock(string $name): void
+    {
+        try {
+            DB::selectOne('SELECT RELEASE_LOCK(?) AS released', [$name]);
+        } catch (\Throwable $e) {
+            \Log::warning('Gagal melepas lock nomor quotation: '.$e->getMessage(), ['lock' => $name]);
+        }
+    }
+
+    private function isConcurrencyException(\Throwable $exception): bool
+    {
+        $message = strtolower($exception->getMessage());
+        $code = (string) $exception->getCode();
+
+        return str_contains($message, 'duplicate_no_penawaran')
+            || str_contains($message, 'deadlock')
+            || str_contains($message, 'lock wait timeout')
+            || str_contains($message, 'try restarting transaction')
+            || str_contains($message, 'duplicate')
+            || in_array($code, ['1205', '1213', '23000', '40001'], true)
+            || ($exception instanceof \Illuminate\Database\QueryException
+                && in_array((string) ($exception->errorInfo[1] ?? ''), ['1205', '1213', '1062'], true));
+    }
+
     private function resolveColumn(string $table, array $candidates, string $fallback): string
     {
         if (!isset($this->columnCache[$table])) {
@@ -447,7 +502,7 @@ class QuotationController
                         'Harga' => $item['harga_penawaran'] ?? null,
                         $hargaModalColumn => $item['harga_modal'] ?? null,
                         'Satuan' => $item['satuan'] ?? null,
-                        'Margin' => $item['margin'] ?? null,
+                        'Margin' => $this->marginWithPercent($item['margin'] ?? null),
                         'Remark' => $this->valueOrSpace($item['remark'] ?? null),
                     ];
                 }
@@ -495,7 +550,7 @@ class QuotationController
                 'Harga' => $request->input('harga_penawaran'),
                 $hargaModalColumn => $request->input('harga_modal'),
                 'Satuan' => $request->input('satuan'),
-                'Margin' => $request->input('margin'),
+                'Margin' => $this->marginWithPercent($request->input('margin')),
                 'Remark' => $this->valueOrSpace($request->input('remark')),
             ]);
 
@@ -550,14 +605,18 @@ class QuotationController
 
         $maxAttempts = 3;
         $attempt = 0;
+        $lockName = $this->quotationNumberLockName($prefix);
 
         while (true) {
+            $lockAcquired = false;
             try {
+                $this->acquireDatabaseLock($lockName);
+                $lockAcquired = true;
+
                 DB::transaction(function () use ($request, $materials, $prefix) {
                     $lastNumber = DB::table('tb_penawaran')
                         ->where('No_penawaran', 'like', $prefix.'%')
                         ->orderBy('No_penawaran', 'desc')
-                        ->lockForUpdate()
                         ->value('No_penawaran');
 
                     $sequence = 1;
@@ -603,7 +662,7 @@ class QuotationController
                             'Harga' => $item['harga_penawaran'] ?? null,
                             $hargaModalColumn => $item['harga_modal'] ?? null,
                             'Satuan' => $item['satuan'] ?? null,
-                            'Margin' => $item['margin'] ?? null,
+                            'Margin' => $this->marginWithPercent($item['margin'] ?? null),
                             'Remark' => $this->valueOrSpace($item['remark'] ?? null),
                         ];
                     }
@@ -614,17 +673,17 @@ class QuotationController
                 break;
             } catch (\Throwable $exception) {
                 $attempt++;
-                $message = strtolower($exception->getMessage());
-                $isDuplicate = str_contains($message, 'duplicate_no_penawaran')
-                    || str_contains($message, 'duplicate')
-                    || ($exception instanceof \Illuminate\Database\QueryException
-                        && $exception->getCode() === '23000');
 
-                if ($attempt < $maxAttempts && $isDuplicate) {
+                if ($attempt < $maxAttempts && $this->isConcurrencyException($exception)) {
+                    usleep(150000 * $attempt);
                     continue;
                 }
 
                 return back()->with('error', $exception->getMessage());
+            } finally {
+                if ($lockAcquired) {
+                    $this->releaseDatabaseLock($lockName);
+                }
             }
         }
 

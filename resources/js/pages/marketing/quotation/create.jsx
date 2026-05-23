@@ -28,6 +28,14 @@ const steps = [
 
 const renderValue = (value) => (value ?? '')?.toString();
 
+const formatPercent = (value) => {
+    const text = renderValue(value).trim();
+    if (!text) {
+        return '-';
+    }
+    return text.endsWith('%') ? text : `${text}%`;
+};
+
 const parseNumber = (value) => {
     const parsed = Number(String(value ?? '').replace(/[^\d.-]/g, ''));
     return Number.isNaN(parsed) ? 0 : parsed;
@@ -889,9 +897,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                     {item.hargaPenawaran}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {item.margin
-                                                        ? `${item.margin}%`
-                                                        : '-'}
+                                                    {formatPercent(item.margin)}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {item.remark || '-'}

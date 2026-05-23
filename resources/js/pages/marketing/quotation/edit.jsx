@@ -33,6 +33,14 @@ const steps = [
 
 const renderValue = (value) => (value ?? '')?.toString();
 
+const formatPercent = (value) => {
+    const text = renderValue(value).trim();
+    if (!text) {
+        return '-';
+    }
+    return text.endsWith('%') ? text : `${text}%`;
+};
+
 const parseNumber = (value) => {
     const parsed = Number(String(value ?? '').replace(/[^\d.-]/g, ''));
     return Number.isNaN(parsed) ? 0 : parsed;
@@ -1131,9 +1139,9 @@ export default function QuotationEdit({
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        {row?.margin
-                                                            ? `${row.margin}%`
-                                                            : '-'}
+                                                        {formatPercent(
+                                                            row?.margin,
+                                                        )}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {isEditing ? (
