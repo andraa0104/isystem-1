@@ -141,7 +141,7 @@ export default function QuotationEdit({
     const [materialForm, setMaterialForm] = useState({
         nama: '',
         satuan: '',
-        quantity: '',
+        quantity: '1',
         hargaModal: '',
         hargaPenawaran: '',
         remark: '',
@@ -417,7 +417,7 @@ export default function QuotationEdit({
         setMaterialForm({
             nama: '',
             satuan: '',
-            quantity: '',
+            quantity: '1',
             hargaModal: '',
             hargaPenawaran: '',
             remark: '',
@@ -1200,28 +1200,30 @@ export default function QuotationEdit({
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {isEditing ? (
-                                                            <Input
-                                                                type="text"
-                                                                value={formatRupiahInput(
-                                                                    row?.hargaPenawaran ??
-                                                                        '',
-                                                                )}
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    handleEditMaterialChange(
-                                                                        'hargaPenawaran',
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                            />
-                                                            <InputError
-                                                                message={
-                                                                    editingMaterialErrors.hargaPenawaran
-                                                                }
-                                                            />
+                                                            <>
+                                                                <Input
+                                                                    type="text"
+                                                                    value={formatRupiahInput(
+                                                                        row?.hargaPenawaran ??
+                                                                            '',
+                                                                    )}
+                                                                    onChange={(
+                                                                        event,
+                                                                    ) =>
+                                                                        handleEditMaterialChange(
+                                                                            'hargaPenawaran',
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                        )
+                                                                    }
+                                                                />
+                                                                <InputError
+                                                                    message={
+                                                                        editingMaterialErrors.hargaPenawaran
+                                                                    }
+                                                                />
+                                                            </>
                                                         ) : (
                                                             formatRupiahInput(
                                                                 item.hargaPenawaran,
