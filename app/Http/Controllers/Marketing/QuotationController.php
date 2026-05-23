@@ -171,19 +171,24 @@ class QuotationController
     // ==========================================
     public function getQuotationMaterialsDetails(Request $request)
     {
-        // Mengambil semua data material tanpa filter tanggal/periode
+        // Tanpa filter, ambil semua data dari detail dan join ke header
         $materials = DB::table('tb_penawarandetail as pd')
             ->join('tb_penawaran as p', DB::raw('TRIM(pd.No_penawaran)'), '=', DB::raw('TRIM(p.No_penawaran)'))
             ->select(
                 'pd.ID as id_detail',
-                'p.No_penawaran', 'p.Tgl_penawaran', 'p.Tgl_Posting', 'p.Customer', 
-                'p.Alamat', 'p.Telp', 'p.Fax', 'p.Email', 'p.Attend', 
-                'p.Payment', 'p.Validity', 'p.Delivery', 'p.Franco', 
-                'p.Note1', 'p.Note2', 'p.Note3',
-                'pd.Material', 'pd.Qty', 'pd.Satuan', 'pd.Harga', 
-                'pd.Harga_Modal as Harga_modal', 'pd.Margin', 'pd.Remark'
+                // Gunakan alias persis dengan yang Anda tulis di index.jsx (Case-Sensitive!)
+                'p.No_penawaran as No_Penawaran',
+                'p.Tgl_penawaran as Tgl_Penawaran',
+                'p.Customer',
+                'pd.Material',
+                'pd.Qty',
+                'pd.Satuan',
+                'pd.Harga',
+                'pd.Harga_Modal as Harga_modal',
+                'pd.Margin',
+                'pd.Remark'
             )
-            ->orderBy('p.Tgl_Posting', 'desc')
+            ->orderBy('p.Tgl_penawaran', 'desc')
             ->orderBy('pd.ID', 'desc')
             ->get();
 
