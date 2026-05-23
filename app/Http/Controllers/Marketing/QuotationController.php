@@ -24,61 +24,6 @@ class QuotationController
         return $text === '' ? ' ' : $text;
     }
 
-    private function marginWithPercent(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        $text = trim((string) $value);
-        if ($text === '') {
-            return null;
-        }
-
-        return str_ends_with($text, '%') ? $text : $text.'%';
-    }
-
-    private function quotationNumberLockName(string $prefix): string
-    {
-        $database = (string) (DB::connection()->getDatabaseName() ?: 'default');
-        $name = 'quotation_no:' . preg_replace('/[^A-Za-z0-9_.:-]/', '_', strtolower($database)) . ':' . $prefix;
-
-        return substr($name, 0, 64);
-    }
-
-    private function acquireDatabaseLock(string $name, int $timeout = 10): void
-    {
-        $row = DB::selectOne('SELECT GET_LOCK(?, ?) AS locked', [$name, $timeout]);
-
-        if ((int) ($row->locked ?? 0) !== 1) {
-            throw new \RuntimeException('Sistem sedang membuat nomor quotation lain. Silakan coba simpan kembali.');
-        }
-    }
-
-    private function releaseDatabaseLock(string $name): void
-    {
-        try {
-            DB::selectOne('SELECT RELEASE_LOCK(?) AS released', [$name]);
-        } catch (\Throwable $e) {
-            \Log::warning('Gagal melepas lock nomor quotation: '.$e->getMessage(), ['lock' => $name]);
-        }
-    }
-
-    private function isConcurrencyException(\Throwable $exception): bool
-    {
-        $message = strtolower($exception->getMessage());
-        $code = (string) $exception->getCode();
-
-        return str_contains($message, 'duplicate_no_penawaran')
-            || str_contains($message, 'deadlock')
-            || str_contains($message, 'lock wait timeout')
-            || str_contains($message, 'try restarting transaction')
-            || str_contains($message, 'duplicate')
-            || in_array($code, ['1205', '1213', '23000', '40001'], true)
-            || ($exception instanceof \Illuminate\Database\QueryException
-                && in_array((string) ($exception->errorInfo[1] ?? ''), ['1205', '1213', '1062'], true));
-    }
-
     private function resolveColumn(string $table, array $candidates, string $fallback): string
     {
         if (!isset($this->columnCache[$table])) {
@@ -120,7 +65,6 @@ class QuotationController
                 ->first();
 
             return response()->json([
-                // Menambahkan fungsi round() di sini untuk membulatkan angka
                 'harga' => $lastRecord ? round($lastRecord->harga) : 0
             ]);
         } catch (\Exception $e) {
@@ -134,39 +78,33 @@ class QuotationController
     {
         $detailNo = trim((string) $noPenawaran);
 
-        // [CACHE] Simpan detail penawaran API
         $details = Cache::tags(['quotation_data'])->remember('quotation_details_api_' . $detailNo, 86400, function () use ($detailNo) {
-            $noPenawaranColumn = $this->resolveColumn(
-                'tb_penawarandetail',
-                ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
-                'No_penawaran'
-            );
-            $hargaColumn = $this->resolveColumn(
-                'tb_penawarandetail',
-                ['Harga', 'harga'],
-                'Harga'
-            );
-            $hargaModalColumn = $this->resolveColumn(
-                'tb_penawarandetail',
-                ['Harga_Modal', 'Harga_modal', 'harga_modal'],
-                'Harga_Modal'
-            );
+            $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
+            $hargaColumn = $this->resolveColumn('tb_penawarandetail', ['Harga', 'harga'], 'Harga');
+            $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
 
             return DB::table('tb_penawarandetail')
                 ->selectRaw(
-                    'ID, '.
+                    'ID, ID as id, '.
                     $this->wrapColumn($noPenawaranColumn).' as No_penawaran, '.
-                    'Material, '.
+                    $this->wrapColumn($noPenawaranColumn).' as no_penawaran, '.
+                    'Material, Material as material, '.
                     'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
                     .' THEN '.$this->wrapColumn($hargaModalColumn)
                     .' ELSE '.$this->wrapColumn($hargaColumn).' END as Harga, '.
-                    'Qty, '.
-                    'Satuan, '.
+                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                    .' THEN '.$this->wrapColumn($hargaModalColumn)
+                    .' ELSE '.$this->wrapColumn($hargaColumn).' END as harga_penawaran, '.
+                    'Qty, Qty as quantity, '.
+                    'Satuan, Satuan as satuan, '.
                     'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
                     .' THEN '.$this->wrapColumn($hargaColumn)
                     .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as Harga_modal, '.
-                    'Margin, '.
-                    'Remark'
+                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                    .' THEN '.$this->wrapColumn($hargaColumn)
+                    .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as harga_modal, '.
+                    'Margin, Margin as margin, '.
+                    'Remark, Remark as remark'
                 )
                 ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [$detailNo])
                 ->orderBy('ID')
@@ -196,13 +134,10 @@ class QuotationController
                     ->delete();
             });
 
-            // [FLUSH] Bersihkan cache jika dihapus
             Cache::tags(['quotation_data'])->flush();
 
         } catch (\Throwable $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-            ], 500);
+            return response()->json(['message' => $e->getMessage()], 500);
         }
 
         return response()->json(['message' => 'Data quotation berhasil dihapus.']);
@@ -214,7 +149,7 @@ class QuotationController
 
         return Inertia::render('marketing/quotation/index', [
             'penawaran' => [],
-            'penawaranDetail' => collect(),
+            'penawaranDetail' => [],
             'detailNo' => null,
             'period' => $period,
         ]);
@@ -224,12 +159,35 @@ class QuotationController
     {
         $period = $request->query('period', 'today');
         
-        // [REAL-TIME] Langsung ambil data dari database tanpa perantara Valkey Cache
         $penawaran = $this->getPenawaranQuery($period)->get();
 
         return response()->json([
             'penawaran' => $penawaran,
         ]);
+    }
+
+    // ==========================================
+    // INI FUNGSI YANG SEBELUMNYA HILANG
+    // ==========================================
+    public function getQuotationMaterialsDetails(Request $request)
+    {
+        // Mengambil semua data material tanpa filter tanggal/periode
+        $materials = DB::table('tb_penawarandetail as pd')
+            ->join('tb_penawaran as p', DB::raw('TRIM(pd.No_penawaran)'), '=', DB::raw('TRIM(p.No_penawaran)'))
+            ->select(
+                'pd.ID as id_detail',
+                'p.No_penawaran', 'p.Tgl_penawaran', 'p.Tgl_Posting', 'p.Customer', 
+                'p.Alamat', 'p.Telp', 'p.Fax', 'p.Email', 'p.Attend', 
+                'p.Payment', 'p.Validity', 'p.Delivery', 'p.Franco', 
+                'p.Note1', 'p.Note2', 'p.Note3',
+                'pd.Material', 'pd.Qty', 'pd.Satuan', 'pd.Harga', 
+                'pd.Harga_Modal as Harga_modal', 'pd.Margin', 'pd.Remark'
+            )
+            ->orderBy('p.Tgl_Posting', 'desc')
+            ->orderBy('pd.ID', 'desc')
+            ->get();
+
+        return response()->json(['materials' => $materials]);
     }
 
     private function getPenawaranQuery($period)
@@ -260,7 +218,6 @@ class QuotationController
             $todayDate = $now->format('Y-m-d');
             $todayDot = $now->format('d.m.Y');
             
-            // Perbaikan filter agar pencarian tanggal hari ini sangat akurat dan fleksibel
             $query->where(function($q) use ($todayDate, $todayDot) {
                 $q->whereDate('p.Tgl_Posting', $todayDate)
                   ->orWhere('p.Tgl_Posting', 'like', $todayDate . '%')
@@ -293,7 +250,6 @@ class QuotationController
 
     public function customers()
     {
-        // [CACHE] Menggunakan tag customer_data (saling terhubung dengan modul lain)
         $customers = Cache::tags(['customer_data'])->remember('quotation_customers_all', 86400, function () {
             return DB::table('tb_cs')
                 ->select(
@@ -308,14 +264,11 @@ class QuotationController
                 ->get();
         });
 
-        return response()->json([
-            'customers' => $customers,
-        ]);
+        return response()->json(['customers' => $customers]);
     }
 
     public function materials()
     {
-        // [CACHE] Menggunakan tag material_data (saling terhubung dengan modul Master Data)
         $materials = Cache::tags(['material_data'])->remember('quotation_materials_all', 86400, function () {
             return DB::table('tb_material')
                 ->select(
@@ -328,14 +281,11 @@ class QuotationController
                 ->get();
         });
 
-        return response()->json([
-            'materials' => $materials,
-        ]);
+        return response()->json(['materials' => $materials]);
     }
 
     public function edit($noPenawaran)
     {
-        // [CACHE] Data header edit
         $quotation = Cache::tags(['quotation_data'])->remember('quotation_header_' . $noPenawaran, 86400, function () use ($noPenawaran) {
             return DB::table('tb_penawaran')
                 ->select(
@@ -353,21 +303,28 @@ class QuotationController
                 ->with('error', 'Data quotation tidak ditemukan.');
         }
 
-        // [CACHE] Data details edit
         $quotationDetails = Cache::tags(['quotation_data'])->remember('quotation_details_' . $noPenawaran, 86400, function () use ($noPenawaran) {
             $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
             $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
+            $hargaColumn = $this->resolveColumn('tb_penawarandetail', ['Harga', 'harga'], 'Harga');
 
             return DB::table('tb_penawarandetail')
-                ->select(
-                    'ID',
-                    DB::raw($this->wrapColumn($noPenawaranColumn).' as No_penawaran'),
-                    'Material', 'Harga', 'Qty', 'Satuan',
-                    DB::raw($this->wrapColumn($hargaModalColumn).' as Harga_modal'),
-                    'Margin', 'Remark'
+                ->selectRaw(
+                    'ID, ID as id, ' .
+                    $this->wrapColumn($noPenawaranColumn).' as No_penawaran, ' .
+                    $this->wrapColumn($noPenawaranColumn).' as no_penawaran, ' .
+                    'Material, Material as material, ' .
+                    $this->wrapColumn($hargaColumn).' as Harga, ' .
+                    $this->wrapColumn($hargaColumn).' as harga_penawaran, ' .
+                    'Qty, Qty as quantity, ' .
+                    'Satuan, Satuan as satuan, ' .
+                    $this->wrapColumn($hargaModalColumn).' as Harga_modal, ' .
+                    $this->wrapColumn($hargaModalColumn).' as harga_modal, ' .
+                    'Margin, Margin as margin, ' .
+                    'Remark, Remark as remark'
                 )
-                ->where($noPenawaranColumn, $noPenawaran)
-                ->orderBy($noPenawaranColumn)
+                ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
+                ->orderBy('ID')
                 ->get();
         });
 
@@ -381,7 +338,6 @@ class QuotationController
 
     public function print(Request $request, $noPenawaran)
     {
-        // [CACHE] Menyimpan satu blok utuh data print
         $data = Cache::tags(['quotation_data'])->remember('quotation_print_data_' . $noPenawaran, 86400, function () use ($noPenawaran) {
             $quotation = DB::table('tb_penawaran')
                 ->select(
@@ -399,20 +355,28 @@ class QuotationController
 
             $quotationDetails = DB::table('tb_penawarandetail')
                 ->selectRaw(
-                    'ID, '.
+                    'ID, ID as id, '.
                     $this->wrapColumn($noPenawaranColumn).' as No_penawaran, '.
-                    'Material, '.
+                    $this->wrapColumn($noPenawaranColumn).' as no_penawaran, '.
+                    'Material, Material as material, '.
                     'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
                     .' THEN '.$this->wrapColumn($hargaModalColumn)
                     .' ELSE '.$this->wrapColumn($hargaColumn).' END as Harga, '.
-                    'Qty, '.
-                    'Satuan, '.
+                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                    .' THEN '.$this->wrapColumn($hargaModalColumn)
+                    .' ELSE '.$this->wrapColumn($hargaColumn).' END as harga_penawaran, '.
+                    'Qty, Qty as quantity, '.
+                    'Satuan, Satuan as satuan, '.
                     'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
                     .' THEN '.$this->wrapColumn($hargaColumn)
                     .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as Harga_modal, '.
-                    'Remark'
+                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                    .' THEN '.$this->wrapColumn($hargaColumn)
+                    .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as harga_modal, '.
+                    'Margin, Margin as margin, '.
+                    'Remark, Remark as remark'
                 )
-                ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [$noPenawaran])
+                ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
                 ->orderBy('ID')
                 ->get();
 
@@ -488,8 +452,9 @@ class QuotationController
                     ]);
 
                 $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
+                
                 DB::table('tb_penawarandetail')
-                    ->where($noPenawaranColumn, $noPenawaran)
+                    ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
                     ->delete();
 
                 $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
@@ -502,7 +467,7 @@ class QuotationController
                         'Harga' => $item['harga_penawaran'] ?? null,
                         $hargaModalColumn => $item['harga_modal'] ?? null,
                         'Satuan' => $item['satuan'] ?? null,
-                        'Margin' => $this->marginWithPercent($item['margin'] ?? null),
+                        'Margin' => $item['margin'] ?? null,
                         'Remark' => $this->valueOrSpace($item['remark'] ?? null),
                     ];
                 }
@@ -511,7 +476,6 @@ class QuotationController
                 }
             });
 
-            // [FLUSH] Bersihkan cache jika update berhasil
             Cache::tags(['quotation_data'])->flush();
 
         } catch (\Throwable $exception) {
@@ -523,7 +487,6 @@ class QuotationController
             ->with('success', 'Data quotation berhasil diperbarui.');
     }
 
-
     public function updateDetail(Request $request, $noPenawaran, $detailId)
     {
         $noPenawaranColumn = $this->resolveColumn(
@@ -531,8 +494,9 @@ class QuotationController
             ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
             'No_penawaran'
         );
+        
         $exists = DB::table('tb_penawarandetail')
-            ->where($noPenawaranColumn, $noPenawaran)
+            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
             ->where('ID', $detailId)
             ->exists();
 
@@ -542,7 +506,7 @@ class QuotationController
 
         $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
         DB::table('tb_penawarandetail')
-            ->where($noPenawaranColumn, $noPenawaran)
+            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
             ->where('ID', $detailId)
             ->update([
                 'Material' => $request->input('material'),
@@ -550,11 +514,10 @@ class QuotationController
                 'Harga' => $request->input('harga_penawaran'),
                 $hargaModalColumn => $request->input('harga_modal'),
                 'Satuan' => $request->input('satuan'),
-                'Margin' => $this->marginWithPercent($request->input('margin')),
+                'Margin' => $request->input('margin'),
                 'Remark' => $this->valueOrSpace($request->input('remark')),
             ]);
 
-        // [FLUSH] Bersihkan cache
         Cache::tags(['quotation_data'])->flush();
 
         return back()->with('success', 'Detail quotation berhasil diperbarui.');
@@ -567,8 +530,9 @@ class QuotationController
             ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
             'No_penawaran'
         );
+        
         $deleted = DB::table('tb_penawarandetail')
-            ->where($noPenawaranColumn, $noPenawaran)
+            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
             ->where('ID', $detailId)
             ->delete();
 
@@ -576,7 +540,6 @@ class QuotationController
             return back()->with('error', 'Detail quotation tidak ditemukan.');
         }
 
-        // [FLUSH] Bersihkan cache
         Cache::tags(['quotation_data'])->flush();
 
         return back()->with('success', 'Detail quotation berhasil dihapus.');
@@ -605,18 +568,14 @@ class QuotationController
 
         $maxAttempts = 3;
         $attempt = 0;
-        $lockName = $this->quotationNumberLockName($prefix);
 
         while (true) {
-            $lockAcquired = false;
             try {
-                $this->acquireDatabaseLock($lockName);
-                $lockAcquired = true;
-
                 DB::transaction(function () use ($request, $materials, $prefix) {
                     $lastNumber = DB::table('tb_penawaran')
                         ->where('No_penawaran', 'like', $prefix.'%')
                         ->orderBy('No_penawaran', 'desc')
+                        ->lockForUpdate()
                         ->value('No_penawaran');
 
                     $sequence = 1;
@@ -662,7 +621,7 @@ class QuotationController
                             'Harga' => $item['harga_penawaran'] ?? null,
                             $hargaModalColumn => $item['harga_modal'] ?? null,
                             'Satuan' => $item['satuan'] ?? null,
-                            'Margin' => $this->marginWithPercent($item['margin'] ?? null),
+                            'Margin' => $item['margin'] ?? null,
                             'Remark' => $this->valueOrSpace($item['remark'] ?? null),
                         ];
                     }
@@ -673,21 +632,20 @@ class QuotationController
                 break;
             } catch (\Throwable $exception) {
                 $attempt++;
+                $message = strtolower($exception->getMessage());
+                $isDuplicate = str_contains($message, 'duplicate_no_penawaran')
+                    || str_contains($message, 'duplicate')
+                    || ($exception instanceof \Illuminate\Database\QueryException
+                        && $exception->getCode() === '23000');
 
-                if ($attempt < $maxAttempts && $this->isConcurrencyException($exception)) {
-                    usleep(150000 * $attempt);
+                if ($attempt < $maxAttempts && $isDuplicate) {
                     continue;
                 }
 
                 return back()->with('error', $exception->getMessage());
-            } finally {
-                if ($lockAcquired) {
-                    $this->releaseDatabaseLock($lockName);
-                }
             }
         }
 
-        // [FLUSH] Bersihkan cache jika insert baru berhasil
         Cache::tags(['quotation_data'])->flush();
 
         return redirect()
@@ -699,7 +657,6 @@ class QuotationController
     {
         $customerName = $request->query('customer');
         
-        // [CACHE] Cache hasil DSS Suggestion Franco per customer
         $franco = Cache::tags(['quotation_data'])->remember('quotation_dss_franco_' . md5($customerName), 86400, function () use ($customerName) {
             $dss = new \App\Services\Marketing\QuotationDss();
             return $dss->suggestFranco($customerName ?: '');

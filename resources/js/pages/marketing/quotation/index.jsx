@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
-import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Printer, Trash2, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -31,6 +31,7 @@ const formatRupiah = (value) => {
         return '-';
     }
 
+    // Perbaiki Intl.FormatNumber menjadi Intl.NumberFormat
     return `Rp. ${new Intl.NumberFormat('id-ID').format(number)}`;
 };
 
@@ -43,37 +44,57 @@ export default function QuotationIndex({
     detailNo = null,
     period = 'today',
 }) {
+    // State Tab 1 (Customer)
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState(period);
     const [remotePenawaran, setRemotePenawaran] = useState(penawaran);
+    
+    // STATE BARU: Menampung seluruh material details untuk Tab 2 dari backend
+    const [remoteMaterialDetails, setRemoteMaterialDetails] = useState([]);
+    
     const [loading, setLoading] = useState(false);
+    
+    // State Modal & Detail
     const [selectedPenawaran, setSelectedPenawaran] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [detailRows, setDetailRows] = useState([]);
     const [detailRowsNo, setDetailRowsNo] = useState(null);
     const [detailLoading, setDetailLoading] = useState(false);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
+    const [isDeleting, setIsDeleting] = useState(false);
+    
+    // State Navigasi Tab Utama
+    const [activeTab, setActiveTab] = useState('customer');
+
+    // State Tab 2 (Material)
+    const [materialSearch, setMaterialSearch] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
-    const [isDeleting, setIsDeleting] = useState(false);
 
+    // ========================================================
+    // FETCH DATA KEDUA TAB SECARA BERSAMAAN
+    // ========================================================
     const fetchQuotationData = useCallback(async (newPeriod) => {
         setLoading(true);
         try {
-            const response = await fetch(
-                `/marketing/quotation/data?period=${newPeriod}`,
-                {
-                    headers: {
-                        Accept: 'application/json',
-                    },
-                },
-            );
-            const data = await response.json();
-            setRemotePenawaran(data.penawaran || []);
+            // Fetch Tab 1 (Ada filter periode)
+            const resPenawaran = await fetch(`/marketing/quotation/data?period=${newPeriod}`, { 
+                headers: { Accept: 'application/json' } 
+            });
+            const dataPenawaran = await resPenawaran.json();
+            setRemotePenawaran(dataPenawaran.penawaran || []);
+
+            // Fetch Tab 2 (TIDAK ADA filter periode = selalu semua data)
+            const resMaterial = await fetch(`/marketing/quotation/materials-details`, { 
+                headers: { Accept: 'application/json' } 
+            });
+            const dataMaterial = await resMaterial.json();
+            setRemoteMaterialDetails(dataMaterial.materials || []);
+            
         } catch (error) {
-            console.error('Error fetching quotation data:', error);
+            console.error('Error fetching data:', error);
         } finally {
             setLoading(false);
         }
@@ -115,23 +136,15 @@ export default function QuotationIndex({
         });
     }, [remotePenawaran, searchTerm]);
 
-    const totalItems = useMemo(
-        () => filteredPenawaran.length,
-        [filteredPenawaran],
-    );
+    const totalItems = useMemo(() => filteredPenawaran.length, [filteredPenawaran]);
+    
     const totalPages = useMemo(() => {
-        if (pageSize === Infinity) {
-            return 1;
-        }
-
+        if (pageSize === Infinity) return 1;
         return Math.max(1, Math.ceil(totalItems / pageSize));
     }, [pageSize, totalItems]);
 
     const displayedPenawaran = useMemo(() => {
-        if (pageSize === Infinity) {
-            return filteredPenawaran;
-        }
-
+        if (pageSize === Infinity) return filteredPenawaran;
         const startIndex = (currentPage - 1) * pageSize;
         return filteredPenawaran.slice(startIndex, startIndex + pageSize);
     }, [currentPage, filteredPenawaran, pageSize]);
@@ -141,28 +154,86 @@ export default function QuotationIndex({
         setPageSize(value === 'all' ? Infinity : Number(value));
     };
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [pageSize, searchTerm]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
+
+
+    // ========================================================
+    // LOGIKA FILTER & PAGINASI TAB 2 (MATERIAL)
+    // ========================================================
+    const filteredQuotationMaterials = useMemo(() => {
+        const term = materialSearch.trim().toLowerCase();
+        const dataToFilter = remoteMaterialDetails || []; 
+        if (!term) {
+            return dataToFilter;
+        }
+
+        return dataToFilter.filter((item) => {
+            const values = [
+                item.No_penawaran, // Diubah menjadi huruf kecil (p)
+                item.Tgl_penawaran, // Diubah menjadi huruf kecil (p)
+                item.Customer,
+                item.Material,
+            ];
+
+            return values.some((value) =>
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
+            );
+        });
+    }, [remoteMaterialDetails, materialSearch]);
+
+    const tab2TotalItems = useMemo(() => filteredQuotationMaterials.length, [filteredQuotationMaterials]);
+
+    const tab2TotalPages = useMemo(() => {
+        if (materialPageSize === Infinity) return 1;
+        return Math.max(1, Math.ceil(tab2TotalItems / materialPageSize));
+    }, [materialPageSize, tab2TotalItems]);
+
+    const displayedMaterialList = useMemo(() => {
+        if (materialPageSize === Infinity) return filteredQuotationMaterials;
+        const startIndex = (materialCurrentPage - 1) * materialPageSize;
+        return filteredQuotationMaterials.slice(startIndex, startIndex + materialPageSize);
+    }, [materialCurrentPage, filteredQuotationMaterials, materialPageSize]);
+
+    const handleMaterialPageSizeChange = (event) => {
+        const value = event.target.value;
+        setMaterialPageSize(value === 'all' ? Infinity : Number(value));
+    };
+
+    useEffect(() => {
+        setMaterialCurrentPage(1);
+    }, [materialPageSize, materialSearch]);
+
+    useEffect(() => {
+        if (materialCurrentPage > tab2TotalPages) {
+            setMaterialCurrentPage(tab2TotalPages);
+        }
+    }, [materialCurrentPage, tab2TotalPages]);
+
+
+    // ========================================================
+    // LOGIKA MODAL DETAIL
+    // ========================================================
     const selectedDetails = useMemo(() => {
         if (!selectedPenawaran) {
             return [];
         }
 
         const selectedNo = String(selectedPenawaran.No_penawaran ?? '').trim();
-        const currentDetailNo = detailNo ? String(detailNo).trim() : '';
         if (detailRowsNo === selectedNo && detailRows.length > 0) {
             return detailRows;
         }
-        if (!selectedNo || currentDetailNo !== selectedNo) {
-            return [];
-        }
-
-        return penawaranDetail;
-    }, [
-        detailNo,
-        detailRows,
-        detailRowsNo,
-        penawaranDetail,
-        selectedPenawaran,
-    ]);
+        return [];
+    }, [detailRows, detailRowsNo, selectedPenawaran]);
 
     const filteredMaterialDetails = useMemo(() => {
         const term = materialSearchTerm.trim().toLowerCase();
@@ -182,32 +253,21 @@ export default function QuotationIndex({
             ];
 
             return values.some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(term),
+                String(value ?? '').toLowerCase().includes(term),
             );
         });
     }, [materialSearchTerm, selectedDetails]);
 
     const materialTotalItems = filteredMaterialDetails.length;
     const materialTotalPages = useMemo(() => {
-        if (materialPageSize === Infinity) {
-            return 1;
-        }
-
+        if (materialPageSize === Infinity) return 1;
         return Math.max(1, Math.ceil(materialTotalItems / materialPageSize));
     }, [materialPageSize, materialTotalItems]);
 
     const displayedMaterialDetails = useMemo(() => {
-        if (materialPageSize === Infinity) {
-            return filteredMaterialDetails;
-        }
-
+        if (materialPageSize === Infinity) return filteredMaterialDetails;
         const startIndex = (materialCurrentPage - 1) * materialPageSize;
-        return filteredMaterialDetails.slice(
-            startIndex,
-            startIndex + materialPageSize,
-        );
+        return filteredMaterialDetails.slice(startIndex, startIndex + materialPageSize);
     }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
 
     const handleOpenModal = (item) => {
@@ -215,37 +275,18 @@ export default function QuotationIndex({
         setIsModalOpen(true);
 
         const selectedNo = String(item.No_penawaran ?? '').trim();
-        const currentDetailNo = detailNo ? String(detailNo).trim() : '';
-        if (
-            selectedNo &&
-            (currentDetailNo !== selectedNo || penawaranDetail.length === 0)
-        ) {
-            router.get(
-                '/marketing/quotation',
-                { detail_no: selectedNo },
-                {
-                    preserveState: true,
-                    preserveScroll: true,
-                    only: ['penawaranDetail', 'detailNo'],
-                },
-            );
-        }
 
+        // Kita hanya mengambil detailnya lewat API Fetch murni agar tidak berbenturan
         if (selectedNo && detailRowsNo !== selectedNo) {
             setDetailLoading(true);
             setDetailRows([]);
             setDetailRowsNo(selectedNo);
-            fetch(
-                `/marketing/quotation/${encodeURIComponent(selectedNo)}/details`,
-                {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                },
-            )
+            fetch(`/marketing/quotation/${encodeURIComponent(selectedNo)}/details`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            })
                 .then((response) => (response.ok ? response.json() : null))
                 .then((data) => {
-                    const details = Array.isArray(data?.details)
-                        ? data.details
-                        : [];
+                    const details = Array.isArray(data?.details) ? data.details : [];
                     setDetailRows(details);
                 })
                 .catch(() => {
@@ -258,16 +299,6 @@ export default function QuotationIndex({
     };
 
     useEffect(() => {
-        setCurrentPage(1);
-    }, [pageSize, searchTerm]);
-
-    useEffect(() => {
-        if (currentPage > totalPages) {
-            setCurrentPage(totalPages);
-        }
-    }, [currentPage, totalPages]);
-
-    useEffect(() => {
         if (isModalOpen) {
             setMaterialSearchTerm('');
             setMaterialPageSize(5);
@@ -278,12 +309,6 @@ export default function QuotationIndex({
             setDetailLoading(false);
         }
     }, [isModalOpen, selectedPenawaran]);
-
-    useEffect(() => {
-        if (materialCurrentPage > materialTotalPages) {
-            setMaterialCurrentPage(materialTotalPages);
-        }
-    }, [materialCurrentPage, materialTotalPages]);
 
     const handleDelete = (noPenawaran) => {
         if (!noPenawaran || isDeleting) return;
@@ -304,18 +329,13 @@ export default function QuotationIndex({
                 method: 'DELETE',
                 headers: {
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN':
-                        document
-                            .querySelector('meta[name="csrf-token"]')
-                            ?.getAttribute('content') ?? '',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
                 },
             })
                 .then(async (response) => {
                     const data = await response.json().catch(() => ({}));
                     if (!response.ok) {
-                        throw new Error(
-                            data?.message || 'Gagal menghapus data.',
-                        );
+                        throw new Error(data?.message || 'Gagal menghapus data.');
                     }
                     return data;
                 })
@@ -327,7 +347,9 @@ export default function QuotationIndex({
                         timer: 1800,
                         showConfirmButton: false,
                     });
-                    router.reload({ only: ['penawaran'] });
+                    
+                    // Reload data tabel setelah berhasil delete
+                    fetchQuotationData(statusFilter);
                 })
                 .catch((error) => {
                     Swal.fire({
@@ -339,6 +361,7 @@ export default function QuotationIndex({
                 .finally(() => setIsDeleting(false));
         });
     };
+
     return (
         <>
             <Head title="Quotation" />
@@ -346,208 +369,332 @@ export default function QuotationIndex({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-xl font-semibold">Quotation</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Daftar penawaran
-                        </p>
+                        <p className="text-sm text-muted-foreground">Daftar penawaran</p>
                     </div>
                     <Button
                         type="button"
-                        onClick={() =>
-                            router.visit('/marketing/quotation/create')
-                        }
+                        onClick={() => router.visit('/marketing/quotation/create')}
                     >
                         Tambah Quotation
                     </Button>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                        <Select
-                            value={statusFilter}
-                            onValueChange={handlePeriodChange}
-                        >
-                            <SelectTrigger className="w-[160px] bg-background">
-                                <SelectValue placeholder="Pilih Periode" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="today">Hari Ini</SelectItem>
-                                <SelectItem value="week">Minggu Ini</SelectItem>
-                                <SelectItem value="month">Bulan Ini</SelectItem>
-                                <SelectItem value="year">Tahun Ini</SelectItem>
-                                <SelectItem value="all">Semua Data</SelectItem>
-                            </SelectContent>
-                        </Select>
-
-                        <label className="ml-2 text-sm text-muted-foreground">
-                            Tampilkan
-                            <select
-                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                value={pageSize === Infinity ? 'all' : pageSize}
-                                onChange={handlePageSizeChange}
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value="all">Semua</option>
-                            </select>
-                        </label>
-                    </div>
-                    <label className="text-sm text-muted-foreground">
-                        Cari
-                        <input
-                            type="search"
-                            className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm"
-                            placeholder="Cari data..."
-                            value={searchTerm}
-                            onChange={(event) =>
-                                setSearchTerm(event.target.value)
-                            }
-                        />
-                    </label>
+                {/* ==================== NAVIGASI TABS INTERFACE ==================== */}
+                <div className="mt-4 flex border-b border-sidebar-border">
+                    <button
+                        type="button"
+                        className={`px-4 py-2 text-sm font-medium transition-all border-b-2 ${
+                            activeTab === 'customer'
+                                ? 'border-primary text-primary font-bold'
+                                : 'border-transparent text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setActiveTab('customer')}
+                    >
+                        Data Quotation Customer
+                    </button>
+                    <button
+                        type="button"
+                        className={`px-4 py-2 text-sm font-medium transition-all border-b-2 ${
+                            activeTab === 'material'
+                                ? 'border-primary text-primary font-bold'
+                                : 'border-transparent text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => setActiveTab('material')}
+                    >
+                        Data Quotation Material
+                    </button>
                 </div>
 
-                <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                    <table className="w-full text-sm">
-                        <thead className="bg-muted/50 text-muted-foreground">
-                            <tr>
-                                <th className="px-4 py-3 text-left">
-                                    No Penawaran
-                                </th>
-                                <th className="px-4 py-3 text-left">Tanggal</th>
-                                <th className="px-4 py-3 text-left">
-                                    Customer
-                                </th>
-                                <th className="px-4 py-3 text-left">Attend</th>
-                                <th className="px-4 py-3 text-left">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <PlainTableStateRows
-                                columns={5}
-                                loading={loading}
-                                isEmpty={
-                                    !loading && displayedPenawaran.length === 0
-                                }
-                            />
-                            {!loading &&
-                                displayedPenawaran.map((item) => (
-                                    <tr
-                                        key={item.No_penawaran}
-                                        className="border-t border-sidebar-border/70"
+                {/* ==================== TAB 1: DATA CUSTOMER ==================== */}
+                {activeTab === 'customer' && (
+                    <div className="mt-2 flex flex-col gap-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <Select value={statusFilter} onValueChange={handlePeriodChange}>
+                                    <SelectTrigger className="w-[160px] bg-background">
+                                        <SelectValue placeholder="Pilih Periode" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="today">Hari Ini</SelectItem>
+                                        <SelectItem value="week">Minggu Ini</SelectItem>
+                                        <SelectItem value="month">Bulan Ini</SelectItem>
+                                        <SelectItem value="year">Tahun Ini</SelectItem>
+                                        <SelectItem value="all">Semua Data</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
+                                <label className="ml-2 text-sm text-muted-foreground">
+                                    Tampilkan
+                                    <select
+                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                        value={pageSize === Infinity ? 'all' : pageSize}
+                                        onChange={handlePageSizeChange}
                                     >
-                                        <td className="px-4 py-3">
-                                            {item.No_penawaran}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.Tgl_penawaran}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.Customer}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.Attend}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        handleOpenModal(item)
-                                                    }
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    aria-label="Lihat"
-                                                    title="Lihat"
-                                                >
-                                                    <Eye className="size-4" />
-                                                </button>
-                                                <Link
-                                                    href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/edit`}
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    aria-label="Edit"
-                                                    title="Edit"
-                                                >
-                                                    <Pencil className="size-4" />
-                                                </Link>
-                                                <a
-                                                    href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/print`}
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    aria-label="Cetak"
-                                                    title="Cetak"
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                >
-                                                    <Printer className="size-4" />
-                                                </a>
-                                                {Number(
-                                                    item.can_delete ?? 0,
-                                                ) === 1 && (
-                                                    <button
-                                                        type="button"
-                                                        className="text-muted-foreground transition hover:text-destructive"
-                                                        aria-label="Hapus"
-                                                        title="Hapus"
-                                                        disabled={isDeleting}
-                                                        onClick={() =>
-                                                            handleDelete(
-                                                                item.No_penawaran,
-                                                            )
-                                                        }
-                                                    >
-                                                        <Trash2 className="size-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {pageSize !== Infinity && totalItems > 0 && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                        <span>
-                            Menampilkan{' '}
-                            {Math.min(
-                                (currentPage - 1) * pageSize + 1,
-                                totalItems,
-                            )}
-                            -{Math.min(currentPage * pageSize, totalItems)} dari{' '}
-                            {totalItems} data
-                        </span>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    setCurrentPage((page) =>
-                                        Math.max(1, page - 1),
-                                    )
-                                }
-                                disabled={currentPage === 1}
-                            >
-                                Sebelumnya
-                            </Button>
-                            <span className="text-sm text-muted-foreground">
-                                Halaman {currentPage} dari {totalPages}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    setCurrentPage((page) =>
-                                        Math.min(totalPages, page + 1),
-                                    )
-                                }
-                                disabled={currentPage === totalPages}
-                            >
-                                Berikutnya
-                            </Button>
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                        <option value="all">Semua</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <label className="text-sm text-muted-foreground">
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm"
+                                    placeholder="Cari data..."
+                                    value={searchTerm}
+                                    onChange={(event) => setSearchTerm(event.target.value)}
+                                />
+                            </label>
                         </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left">No Penawaran</th>
+                                        <th className="px-4 py-3 text-left">Tanggal</th>
+                                        <th className="px-4 py-3 text-left">Customer</th>
+                                        <th className="px-4 py-3 text-left">Attend</th>
+                                        <th className="px-4 py-3 text-left">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        columns={5}
+                                        loading={loading}
+                                        isEmpty={!loading && displayedPenawaran.length === 0}
+                                    />
+                                    {!loading &&
+                                        displayedPenawaran.map((item) => (
+                                            <tr key={item.No_penawaran} className="border-t border-sidebar-border/70">
+                                                <td className="px-4 py-3">{item.No_penawaran}</td>
+                                                <td className="px-4 py-3">{item.Tgl_penawaran}</td>
+                                                <td className="px-4 py-3">{item.Customer}</td>
+                                                <td className="px-4 py-3">{item.Attend}</td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenModal(item)}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Lihat"
+                                                        >
+                                                            <Eye className="size-4" />
+                                                        </button>
+                                                        <Link
+                                                            href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/edit`}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Link>
+                                                        <a
+                                                            href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/print`}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Cetak"
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                        >
+                                                            <Printer className="size-4" />
+                                                        </a>
+                                                        {Number(item.can_delete ?? 0) === 1 && (
+                                                            <button
+                                                                type="button"
+                                                                className="text-muted-foreground transition hover:text-destructive"
+                                                                title="Hapus"
+                                                                disabled={isDeleting}
+                                                                onClick={() => handleDelete(item.No_penawaran)}
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {pageSize !== Infinity && totalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan {Math.min((currentPage - 1) * pageSize + 1, totalItems)} - {Math.min(currentPage * pageSize, totalItems)} dari {totalItems} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                                        disabled={currentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {currentPage} dari {totalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                                        disabled={currentPage === totalPages}
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 
+                {/* ==================== TAB 2: DATA MATERIAL ==================== */}
+                {activeTab === 'material' && (
+                    <div className="mt-2 flex flex-col gap-4 animate-in fade-in duration-300">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <label className="text-sm text-muted-foreground">
+                                Tampilkan
+                                <select
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                    value={materialPageSize === Infinity ? 'all' : materialPageSize}
+                                    onChange={handleMaterialPageSizeChange}
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </label>
+                            <label className="text-sm text-muted-foreground">
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm w-64 md:w-80"
+                                    placeholder="Cari customer atau material..."
+                                    value={materialSearch}
+                                    onChange={(e) => setMaterialSearch(e.target.value)}
+                                />
+                            </label>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left">No Penawaran</th>
+                                        <th className="px-4 py-3 text-left">Tanggal</th>
+                                        <th className="px-4 py-3 text-left">Customer</th>
+                                        <th className="px-4 py-3 text-left">Material</th>
+                                        <th className="px-4 py-3 text-center">Qty</th>
+                                        <th className="px-4 py-3 text-right">Harga</th>
+                                        <th className="px-4 py-3 text-left">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        columns={7}
+                                        loading={loading}
+                                        isEmpty={!loading && displayedMaterialList.length === 0}
+                                        emptyMessage="Tidak ada data quotation material ditemukan."
+                                    />
+                                    {!loading &&
+                                        displayedMaterialList.map((item, idx) => (
+                                            <tr key={item.id_detail || idx} className="border-t border-sidebar-border/70">
+                                                <td className="px-4 py-3">{renderValue(item.No_Penawaran)}</td>
+                                                <td className="px-4 py-3">{renderValue(item.Tgl_Penawaran)}</td>
+                                                <td className="px-4 py-3">{renderValue(item.Customer)}</td>
+                                                <td className="px-4 py-3 max-w-[250px] truncate uppercase" title={item.Material}>
+                                                    {renderValue(item.Material)}
+                                                </td>
+                                                <td className="px-4 py-3 text-center font-bold">
+                                                    {item.Qty} <span className="text-[10px] text-muted-foreground font-normal uppercase">{item.Satuan}</span>
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-mono font-bold">
+                                                    {formatRupiah(item.Harga)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            // Karena key-nya sudah sama persis dengan Tab 1, lempar item secara langsung
+                                                            onClick={() => handleOpenModal(item)} 
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Lihat"
+                                                        >
+                                                            <Eye className="size-4" />
+                                                        </button>
+                                                        <Link
+                                                            href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/edit`}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Link>
+                                                        <a
+                                                            href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/print`}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Cetak"
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                        >
+                                                            <Printer className="size-4" />
+                                                        </a>
+                                                        {Number(item.can_delete ?? 1) === 1 && (
+                                                            <button
+                                                                type="button"
+                                                                className="text-muted-foreground transition hover:text-destructive"
+                                                                title="Hapus"
+                                                                disabled={isDeleting}
+                                                                onClick={() => handleDelete(item.No_penawaran)}
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {materialPageSize !== Infinity && tab2TotalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between p-4 border-t border-sidebar-border text-sm text-muted-foreground gap-3">
+                                <span>
+                                    Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, tab2TotalItems)} - {Math.min(materialCurrentPage * materialPageSize, tab2TotalItems)} dari {tab2TotalItems} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={materialCurrentPage === 1}
+                                        onClick={() => setMaterialCurrentPage((page) => Math.max(1, page - 1))}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {materialCurrentPage} dari {tab2TotalPages}
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={materialCurrentPage === tab2TotalPages}
+                                        onClick={() => setMaterialCurrentPage((page) => Math.min(tab2TotalPages, page + 1))}
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ==================== DIALOG DETAIL MODAL ==================== */}
                 <Dialog
                     open={isModalOpen}
                     onOpenChange={(open) => {
@@ -563,197 +710,95 @@ export default function QuotationIndex({
                         </DialogHeader>
 
                         {!selectedPenawaran && (
-                            <p className="text-sm text-muted-foreground">
-                                Data tidak tersedia.
-                            </p>
+                            <p className="text-sm text-muted-foreground">Data tidak tersedia.</p>
                         )}
 
                         {selectedPenawaran && (
                             <div className="flex flex-col gap-6 text-sm">
                                 <div className="grid gap-6 lg:grid-cols-2">
                                     <div className="space-y-3">
-                                        <h3 className="text-base font-semibold">
-                                            Data Customer
-                                        </h3>
+                                        <h3 className="text-base font-semibold">Data Customer</h3>
                                         <div className="grid gap-2">
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Nomor Penawaran
-                                                </span>
+                                                <span className="text-muted-foreground">Nomor Penawaran</span>
+                                                <span>{renderValue(selectedPenawaran.No_penawaran)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Tanggal</span>
+                                                <span>{renderValue(selectedPenawaran.Tgl_penawaran)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Posting Date</span>
+                                                <span>{renderValue(selectedPenawaran.Tgl_Posting)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Customer</span>
+                                                <span>{renderValue(selectedPenawaran.Customer)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Alamat</span>
+                                                <span>{renderValue(selectedPenawaran.Alamat)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Telepon/Fax</span>
                                                 <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.No_penawaran,
-                                                    )}
+                                                    {renderValue(selectedPenawaran.Telp)}
+                                                    {selectedPenawaran.Fax ? ` / ${selectedPenawaran.Fax}` : ''}
                                                 </span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Tanggal
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Tgl_penawaran,
-                                                    )}
-                                                </span>
+                                                <span className="text-muted-foreground">Email</span>
+                                                <span>{renderValue(selectedPenawaran.Email)}</span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Posting Date
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Tgl_Posting,
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Customer
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Customer,
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Alamat
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Alamat,
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Telepon/Fax
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Telp,
-                                                    )}
-                                                    {selectedPenawaran.Fax
-                                                        ? ` / ${selectedPenawaran.Fax}`
-                                                        : ''}
-                                                </span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Email
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Email,
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Attend
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Attend,
-                                                    )}
-                                                </span>
+                                                <span className="text-muted-foreground">Attend</span>
+                                                <span>{renderValue(selectedPenawaran.Attend)}</span>
                                             </div>
                                         </div>
                                     </div>
 
                                     <div className="space-y-3">
-                                        <h3 className="text-base font-semibold">
-                                            Detail
-                                        </h3>
+                                        <h3 className="text-base font-semibold">Detail</h3>
                                         <div className="grid gap-2">
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Validity
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Validity,
-                                                    )}
-                                                </span>
+                                                <span className="text-muted-foreground">Validity</span>
+                                                <span>{renderValue(selectedPenawaran.Validity)}</span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Delivery
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Delivery,
-                                                    )}
-                                                </span>
+                                                <span className="text-muted-foreground">Delivery</span>
+                                                <span>{renderValue(selectedPenawaran.Delivery)}</span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Franco
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Franco,
-                                                    )}
-                                                </span>
+                                                <span className="text-muted-foreground">Franco</span>
+                                                <span>{renderValue(selectedPenawaran.Franco)}</span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Note 1
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Note1,
-                                                    )}
-                                                </span>
+                                                <span className="text-muted-foreground">Note 1</span>
+                                                <span>{renderValue(selectedPenawaran.Note1)}</span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Note 2
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Note2,
-                                                    )}
-                                                </span>
+                                                <span className="text-muted-foreground">Note 2</span>
+                                                <span>{renderValue(selectedPenawaran.Note2)}</span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Note 3
-                                                </span>
-                                                <span>
-                                                    {renderValue(
-                                                        selectedPenawaran.Note3,
-                                                    )}
-                                                </span>
+                                                <span className="text-muted-foreground">Note 3</span>
+                                                <span>{renderValue(selectedPenawaran.Note3)}</span>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="space-y-3">
-                                    <h3 className="text-base font-semibold">
-                                        Data Material
-                                    </h3>
+                                    <h3 className="text-base font-semibold">Data Material</h3>
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <label className="text-sm text-muted-foreground">
                                             Tampilkan
                                             <select
                                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                                value={
-                                                    materialPageSize ===
-                                                    Infinity
-                                                        ? 'all'
-                                                        : materialPageSize
-                                                }
+                                                value={materialPageSize === Infinity ? 'all' : materialPageSize}
                                                 onChange={(event) => {
-                                                    const value =
-                                                        event.target.value;
-                                                    setMaterialPageSize(
-                                                        value === 'all'
-                                                            ? Infinity
-                                                            : Number(value),
-                                                    );
+                                                    const value = event.target.value;
+                                                    setMaterialPageSize(value === 'all' ? Infinity : Number(value));
                                                     setMaterialCurrentPage(1);
                                                 }}
                                             >
@@ -761,9 +806,7 @@ export default function QuotationIndex({
                                                 <option value={10}>10</option>
                                                 <option value={25}>25</option>
                                                 <option value={50}>50</option>
-                                                <option value="all">
-                                                    Semua
-                                                </option>
+                                                <option value="all">Semua</option>
                                             </select>
                                         </label>
                                         <label className="text-sm text-muted-foreground">
@@ -774,9 +817,7 @@ export default function QuotationIndex({
                                                 placeholder="Cari material..."
                                                 value={materialSearchTerm}
                                                 onChange={(event) => {
-                                                    setMaterialSearchTerm(
-                                                        event.target.value,
-                                                    );
+                                                    setMaterialSearchTerm(event.target.value);
                                                     setMaterialCurrentPage(1);
                                                 }}
                                             />
@@ -786,166 +827,69 @@ export default function QuotationIndex({
                                         <table className="w-full text-sm">
                                             <thead className="bg-muted/50 text-muted-foreground">
                                                 <tr>
-                                                    <th className="px-4 py-3 text-left">
-                                                        No
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Material
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Qty
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Harga
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Harga Modal
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Margin
-                                                    </th>
-                                                    <th className="px-4 py-3 text-left">
-                                                        Remark
-                                                    </th>
+                                                    <th className="px-4 py-3 text-left">No</th>
+                                                    <th className="px-4 py-3 text-left">Material</th>
+                                                    <th className="px-4 py-3 text-left">Qty</th>
+                                                    <th className="px-4 py-3 text-left">Harga</th>
+                                                    <th className="px-4 py-3 text-left">Harga Modal</th>
+                                                    <th className="px-4 py-3 text-left">Margin</th>
+                                                    <th className="px-4 py-3 text-left">Remark</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <PlainTableStateRows
                                                     loading={detailLoading}
-                                                    columns={8}
+                                                    columns={7}
                                                     rows={5}
-                                                    isEmpty={
-                                                        !detailLoading &&
-                                                        displayedMaterialDetails.length ===
-                                                            0
-                                                    }
+                                                    isEmpty={!detailLoading && displayedMaterialDetails.length === 0}
                                                     emptyMessage="Belum ada data material."
                                                 />
-                                                {displayedMaterialDetails.map(
-                                                    (detail, index) => (
-                                                        <tr
-                                                            key={`${detail.No_penawaran}-${index}`}
-                                                            className="border-t border-sidebar-border/70"
-                                                        >
-                                                            <td className="px-4 py-3">
-                                                                {(materialPageSize ===
-                                                                Infinity
-                                                                    ? index
-                                                                    : (materialCurrentPage -
-                                                                          1) *
-                                                                          materialPageSize +
-                                                                      index) +
-                                                                    1}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {renderValue(
-                                                                    detail.Material,
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {renderValue(
-                                                                    detail.Qty,
-                                                                )}  {renderValue(
-                                                                    detail.Satuan,
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {formatRupiah(
-                                                                    detail.Harga,
-                                                                )} 
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {formatRupiah(
-                                                                    detail.Harga_modal,
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {renderValue(
-                                                                    detail.Margin,
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3">
-                                                                {renderValue(
-                                                                    detail.Remark,
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    ),
-                                                )}
+                                                {displayedMaterialDetails.map((detail, index) => (
+                                                    <tr key={`${detail.No_penawaran}-${index}`} className="border-t border-sidebar-border/70">
+                                                        <td className="px-4 py-3">
+                                                            {(materialPageSize === Infinity ? index : (materialCurrentPage - 1) * materialPageSize + index) + 1}
+                                                        </td>
+                                                        <td className="px-4 py-3">{renderValue(detail.Material)}</td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(detail.Qty)} {renderValue(detail.Satuan)}
+                                                        </td>
+                                                        <td className="px-4 py-3">{formatRupiah(detail.Harga)}</td>
+                                                        <td className="px-4 py-3">{formatRupiah(detail.Harga_modal)}</td>
+                                                        <td className="px-4 py-3">{renderValue(detail.Margin)}</td>
+                                                        <td className="px-4 py-3">{renderValue(detail.Remark)}</td>
+                                                    </tr>
+                                                ))}
                                             </tbody>
                                         </table>
                                     </div>
-                                    {materialPageSize !== Infinity &&
-                                        materialTotalItems > 0 && (
-                                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                                <span>
-                                                    Menampilkan{' '}
-                                                    {Math.min(
-                                                        (materialCurrentPage -
-                                                            1) *
-                                                            materialPageSize +
-                                                            1,
-                                                        materialTotalItems,
-                                                    )}
-                                                    -
-                                                    {Math.min(
-                                                        materialCurrentPage *
-                                                            materialPageSize,
-                                                        materialTotalItems,
-                                                    )}{' '}
-                                                    dari {materialTotalItems}{' '}
-                                                    data
+                                    {materialPageSize !== Infinity && materialTotalItems > 0 && (
+                                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                            <span>
+                                                Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialTotalItems)} - {Math.min(materialCurrentPage * materialPageSize, materialTotalItems)} dari {materialTotalItems} data
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setMaterialCurrentPage((page) => Math.max(1, page - 1))}
+                                                    disabled={materialCurrentPage === 1}
+                                                >
+                                                    Sebelumnya
+                                                </Button>
+                                                <span className="text-sm text-muted-foreground">
+                                                    Halaman {materialCurrentPage} dari {materialTotalPages}
                                                 </span>
-                                                <div className="flex items-center gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            setMaterialCurrentPage(
-                                                                (page) =>
-                                                                    Math.max(
-                                                                        1,
-                                                                        page -
-                                                                            1,
-                                                                    ),
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            materialCurrentPage ===
-                                                            1
-                                                        }
-                                                    >
-                                                        Sebelumnya
-                                                    </Button>
-                                                    <span className="text-sm text-muted-foreground">
-                                                        Halaman{' '}
-                                                        {materialCurrentPage}{' '}
-                                                        dari{' '}
-                                                        {materialTotalPages}
-                                                    </span>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            setMaterialCurrentPage(
-                                                                (page) =>
-                                                                    Math.min(
-                                                                        materialTotalPages,
-                                                                        page +
-                                                                            1,
-                                                                    ),
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            materialCurrentPage ===
-                                                            materialTotalPages
-                                                        }
-                                                    >
-                                                        Berikutnya
-                                                    </Button>
-                                                </div>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setMaterialCurrentPage((page) => Math.min(materialTotalPages, page + 1))}
+                                                    disabled={materialCurrentPage === materialTotalPages}
+                                                >
+                                                    Berikutnya
+                                                </Button>
                                             </div>
-                                        )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
