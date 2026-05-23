@@ -55,6 +55,7 @@ export default function QuotationIndex({
     const [remoteMaterialDetails, setRemoteMaterialDetails] = useState([]);
     
     const [loading, setLoading] = useState(false);
+    const [materialLoading, setMaterialLoading] = useState(false);
     
     // State Modal & Detail
     const [selectedPenawaran, setSelectedPenawaran] = useState(null);
@@ -67,6 +68,7 @@ export default function QuotationIndex({
     
     // State Navigasi Tab Utama
     const [activeTab, setActiveTab] = useState('customer');
+    const [materialTabLoaded, setMaterialTabLoaded] = useState(false);
 
     // State Tab 2 (Material)
     const [materialSearch, setMaterialSearch] = useState('');
@@ -74,7 +76,7 @@ export default function QuotationIndex({
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
 
     // ========================================================
-    // FETCH DATA KEDUA TAB SECARA BERSAMAAN
+    // FETCH DATA TAB 1 (CUSTOMER) SAJA
     // ========================================================
     const fetchQuotationData = useCallback(async (newPeriod) => {
         setLoading(true);
@@ -85,13 +87,6 @@ export default function QuotationIndex({
             });
             const dataPenawaran = await resPenawaran.json();
             setRemotePenawaran(dataPenawaran.penawaran || []);
-
-            // Fetch Tab 2 (TIDAK ADA filter periode = selalu semua data)
-            const resMaterial = await fetch(`/marketing/quotation/materials-details`, { 
-                headers: { Accept: 'application/json' } 
-            });
-            const dataMaterial = await resMaterial.json();
-            setRemoteMaterialDetails(dataMaterial.materials || []);
             
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -99,6 +94,27 @@ export default function QuotationIndex({
             setLoading(false);
         }
     }, []);
+
+    // ========================================================
+    // FETCH DATA TAB 2 (MATERIAL) - LAZY LOAD
+    // ========================================================
+    const fetchMaterialData = useCallback(async () => {
+        if (materialTabLoaded) return; // Jangan fetch ulang jika sudah pernah
+        
+        setMaterialLoading(true);
+        try {
+            const resMaterial = await fetch(`/marketing/quotation/materials-details`, { 
+                headers: { Accept: 'application/json' } 
+            });
+            const dataMaterial = await resMaterial.json();
+            setRemoteMaterialDetails(dataMaterial.materials || []);
+            setMaterialTabLoaded(true);
+        } catch (error) {
+            console.error('Error fetching material data:', error);
+        } finally {
+            setMaterialLoading(false);
+        }
+    }, [materialTabLoaded]);
 
     useEffect(() => {
         setRemotePenawaran(penawaran);
@@ -111,6 +127,16 @@ export default function QuotationIndex({
     const handlePeriodChange = (newPeriod) => {
         setStatusFilter(newPeriod);
         setCurrentPage(1);
+    };
+
+    // ========================================================
+    // HANDLE TAB CHANGE - LAZY LOAD MATERIAL TAB
+    // ========================================================
+    const handleTabChange = (tab) => {
+        setActiveTab(tab);
+        if (tab === 'material' && !materialTabLoaded) {
+            fetchMaterialData();
+        }
     };
 
     const filteredPenawaran = useMemo(() => {
@@ -177,8 +203,8 @@ export default function QuotationIndex({
 
         return dataToFilter.filter((item) => {
             const values = [
-                item.No_penawaran, // Diubah menjadi huruf kecil (p)
-                item.Tgl_penawaran, // Diubah menjadi huruf kecil (p)
+                item.No_penawaran,
+                item.Tgl_penawaran,
                 item.Customer,
                 item.Material,
             ];
@@ -271,10 +297,15 @@ export default function QuotationIndex({
     }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
 
     const handleOpenModal = (item) => {
-        setSelectedPenawaran(item);
+        // Gunakan No_penawaran atau No_Penawaran (kompatibel dengan tab material)
+        const noPenawaran = item.No_penawaran || item.No_Penawaran;
+        setSelectedPenawaran({
+            ...item,
+            No_penawaran: noPenawaran, // Pastikan selalu ada
+        });
         setIsModalOpen(true);
 
-        const selectedNo = String(item.No_penawaran ?? '').trim();
+        const selectedNo = String(noPenawaran ?? '').trim();
 
         // Kita hanya mengambil detailnya lewat API Fetch murni agar tidak berbenturan
         if (selectedNo && detailRowsNo !== selectedNo) {
@@ -348,8 +379,13 @@ export default function QuotationIndex({
                         showConfirmButton: false,
                     });
                     
-                    // Reload data tabel setelah berhasil delete
-                    fetchQuotationData(statusFilter);
+                    // Reload data tabel sesuai tab yang aktif
+                    if (activeTab === 'customer') {
+                        fetchQuotationData(statusFilter);
+                    } else {
+                        setMaterialTabLoaded(false);
+                        fetchMaterialData();
+                    }
                 })
                 .catch((error) => {
                     Swal.fire({
@@ -388,7 +424,7 @@ export default function QuotationIndex({
                                 ? 'border-primary text-primary font-bold'
                                 : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
-                        onClick={() => setActiveTab('customer')}
+                        onClick={() => handleTabChange('customer')}
                     >
                         Data Quotation Customer
                     </button>
@@ -399,7 +435,7 @@ export default function QuotationIndex({
                                 ? 'border-primary text-primary font-bold'
                                 : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
-                        onClick={() => setActiveTab('material')}
+                        onClick={() => handleTabChange('material')}
                     >
                         Data Quotation Material
                     </button>
@@ -596,11 +632,11 @@ export default function QuotationIndex({
                                 <tbody>
                                     <PlainTableStateRows
                                         columns={7}
-                                        loading={loading}
-                                        isEmpty={!loading && displayedMaterialList.length === 0}
+                                        loading={materialLoading}
+                                        isEmpty={!materialLoading && displayedMaterialList.length === 0}
                                         emptyMessage="Tidak ada data quotation material ditemukan."
                                     />
-                                    {!loading &&
+                                    {!materialLoading &&
                                         displayedMaterialList.map((item, idx) => (
                                             <tr key={item.id_detail || idx} className="border-t border-sidebar-border/70">
                                                 <td className="px-4 py-3">{renderValue(item.No_Penawaran)}</td>
@@ -619,36 +655,19 @@ export default function QuotationIndex({
                                                     <div className="flex items-center gap-2">
                                                         <button
                                                             type="button"
-                                                            // Karena key-nya sudah sama persis dengan Tab 1, lempar item secara langsung
                                                             onClick={() => handleOpenModal(item)} 
                                                             className="text-muted-foreground transition hover:text-foreground"
                                                             title="Lihat"
                                                         >
                                                             <Eye className="size-4" />
                                                         </button>
-                                                        <Link
-                                                            href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/edit`}
-                                                            className="text-muted-foreground transition hover:text-foreground"
-                                                            title="Edit"
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                        </Link>
-                                                        <a
-                                                            href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/print`}
-                                                            className="text-muted-foreground transition hover:text-foreground"
-                                                            title="Cetak"
-                                                            target="_blank"
-                                                            rel="noreferrer"
-                                                        >
-                                                            <Printer className="size-4" />
-                                                        </a>
                                                         {Number(item.can_delete ?? 1) === 1 && (
                                                             <button
                                                                 type="button"
                                                                 className="text-muted-foreground transition hover:text-destructive"
                                                                 title="Hapus"
                                                                 disabled={isDeleting}
-                                                                onClick={() => handleDelete(item.No_penawaran)}
+                                                                onClick={() => handleDelete(item.No_Penawaran)}
                                                             >
                                                                 <Trash2 className="size-4" />
                                                             </button>
@@ -725,7 +744,7 @@ export default function QuotationIndex({
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
                                                 <span className="text-muted-foreground">Tanggal</span>
-                                                <span>{renderValue(selectedPenawaran.Tgl_penawaran)}</span>
+                                                <span>{renderValue(selectedPenawaran.Tgl_penawaran || selectedPenawaran.Tgl_Penawaran)}</span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
                                                 <span className="text-muted-foreground">Posting Date</span>
