@@ -5,12 +5,13 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 
 const breadcrumbs = [
@@ -70,6 +71,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const [materialLoading, setMaterialLoading] = useState(false);
     const [customerError, setCustomerError] = useState('');
     const [materialError, setMaterialError] = useState('');
+    const hargaPenawaranRef = useRef(null);
 
     const [customerForm, setCustomerForm] = useState({
         tglPenawaran: todayDate(),
@@ -100,6 +102,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         hargaPenawaran: '',
         remark: '',
     });
+    const [materialFormErrors, setMaterialFormErrors] = useState({});
 
     const [materialItems, setMaterialItems] = useState([]);
 
@@ -253,34 +256,38 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }
     };
 
-    const handleSelectMaterial = async (item) => {
-    const materialName = renderValue(item.material);
-    
-    setMaterialForm((prev) => ({
-        ...prev,
-        nama: materialName,
-        satuan: renderValue(item.unit),
-        // Set sementara ke loading atau kosongkan
-        hargaModal: '...', 
-    }));
-    setMaterialModalOpen(false);
+    const focusHargaPenawaran = () => {
+        window.setTimeout(() => {
+            hargaPenawaranRef.current?.focus();
+            hargaPenawaranRef.current?.select();
+        }, 80);
+    };
 
-    // Fetch harga terakhir dari backend
-        // Di dalam handleSelectMaterial
-    try {
-        const response = await fetch(
-            `/marketing/quotation/get-last-price?material=${encodeURIComponent(materialName)}`
-        );
-        
-        // Pastikan respon sukses
-        if (!response.ok) throw new Error('Network response was not ok');
-        
-        const data = await response.json();
-        
+    const handleSelectMaterial = async (item) => {
+        const materialName = renderValue(item.material);
+
         setMaterialForm((prev) => ({
             ...prev,
-            hargaModal: data.harga > 0 ? String(data.harga) : '1',
+            nama: materialName,
+            satuan: renderValue(item.unit),
+            hargaModal: '...',
         }));
+        setMaterialModalOpen(false);
+        focusHargaPenawaran();
+
+        try {
+            const response = await fetch(
+                `/marketing/quotation/get-last-price?material=${encodeURIComponent(materialName)}`,
+            );
+
+            if (!response.ok) throw new Error('Network response was not ok');
+
+            const data = await response.json();
+
+            setMaterialForm((prev) => ({
+                ...prev,
+                hargaModal: data.harga > 0 ? String(data.harga) : '1',
+            }));
         } catch (error) {
             console.error('Gagal mengambil harga terakhir:', error);
         }
@@ -335,6 +342,16 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     };
 
     const handleAddMaterial = async () => {
+        const nextErrors = {};
+        if (!String(materialForm.hargaPenawaran ?? '').trim()) {
+            nextErrors.hargaPenawaran = 'Harga penawaran wajib diisi.';
+        }
+
+        setMaterialFormErrors(nextErrors);
+        if (Object.keys(nextErrors).length > 0) {
+            return;
+        }
+
         if (!materialForm.nama || !materialForm.quantity) {
             return;
         }
@@ -364,6 +381,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         };
 
         setMaterialItems((prev) => [...prev, newItem]);
+        setMaterialFormErrors({});
         setMaterialForm({
             nama: '',
             satuan: '',
@@ -778,19 +796,34 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     </Label>
                                     <Input
                                         id="harga_penawaran"
+                                        ref={hargaPenawaranRef}
                                         type="text"
                                         value={formatRupiahInput(
                                             materialForm.hargaPenawaran,
                                         )}
-                                        onChange={(event) =>
+                                        onChange={(event) => {
+                                            const value =
+                                                event.target.value.replace(
+                                                    /\D/g,
+                                                    '',
+                                                );
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                hargaPenawaran:
-                                                    event.target.value.replace(
-                                                        /\D/g,
-                                                        '',
-                                                    ),
-                                            }))
+                                                hargaPenawaran: value,
+                                            }));
+                                            if (value) {
+                                                setMaterialFormErrors(
+                                                    (prev) => ({
+                                                        ...prev,
+                                                        hargaPenawaran: '',
+                                                    }),
+                                                );
+                                            }
+                                        }}
+                                    />
+                                    <InputError
+                                        message={
+                                            materialFormErrors.hargaPenawaran
                                         }
                                     />
                                 </div>
