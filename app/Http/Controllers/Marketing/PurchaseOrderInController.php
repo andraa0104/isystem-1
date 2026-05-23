@@ -12,12 +12,50 @@ use Throwable;
 
 class PurchaseOrderInController
 {
+    private const POIN_CACHE_TAGS = ['poin_data'];
+    private const MATERIAL_CACHE_TAGS = ['material_data'];
+    private const CUSTOMER_CACHE_TAGS = ['customer_data'];
+    private const LOOKUP_CACHE_TTL = 30;
+
     private function formatFailureMessage(string $action, Throwable $e): string
     {
         $type = $e instanceof QueryException ? 'Error SQL/database' : 'Error sistem';
         $detail = trim($e->getMessage());
 
         return "Gagal {$action} data PO In. {$type}: " . ($detail !== '' ? $detail : 'Tidak ada detail error dari server.');
+    }
+
+    private function activeTenantDatabase(?Request $request = null): string
+    {
+        $request ??= request();
+        $connection = config('tenants.connection', config('database.default'));
+
+        $database = (string) (
+            DB::connection($connection)->getDatabaseName()
+            ?: $request->session()->get('tenant.database')
+            ?: $request->cookie('tenant_database')
+            ?: ''
+        );
+
+        $allowed = config('tenants.databases', []);
+        if ($database !== '' && in_array($database, $allowed, true)) {
+            return $database;
+        }
+
+        $fallback = (string) config("database.connections.$connection.database", '');
+        return in_array($fallback, $allowed, true) ? $fallback : $database;
+    }
+
+    private function tenantCachePrefix(?Request $request = null): string
+    {
+        $database = $this->activeTenantDatabase($request);
+
+        return preg_replace('/[^A-Za-z0-9_.:-]/', '_', strtolower($database)) ?: 'default';
+    }
+
+    private function poinCacheKey(string $scope, array $parts = [], ?Request $request = null): string
+    {
+        return 'poin:' . $this->tenantCachePrefix($request) . ':' . $scope . ':' . md5(json_encode($parts));
     }
 
     private function parseDateOrNull(?string $value): ?string
@@ -40,12 +78,7 @@ class PurchaseOrderInController
 
     private function resolveDatabasePrefix(Request $request): string
     {
-        $database = (string) (
-            $request->cookie('tenant_database')
-            ?? $request->session()->get('tenant.database')
-            ?? config('database.connections.'.config('database.default').'.database')
-            ?? ''
-        );
+        $database = $this->activeTenantDatabase($request);
 
         $prefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', preg_replace('/^db/i', '', $database)));
         return $prefix !== '' ? $prefix : 'SYS';
@@ -145,30 +178,7 @@ class PurchaseOrderInController
         $startDate = '',
         $endDate = ''
     ) {
-        // [PERBAIKAN] Tambahkan identitas tenant dan tanggal aktual kalender
-        $dbName = \Illuminate\Support\Facades\DB::connection()->getDatabaseName();
-        $now = \Carbon\Carbon::now();
-        $actualDateKey = $dateFilter;
-        
-        if ($dateFilter === 'today') {
-            $actualDateKey = $now->toDateString();
-        } elseif ($dateFilter === 'this_week') {
-            $actualDateKey = $now->startOfWeek()->toDateString();
-        } elseif ($dateFilter === 'this_month') {
-            $actualDateKey = $now->format('Y-m');
-        } elseif ($dateFilter === 'this_year') {
-            $actualDateKey = $now->year;
-        }
-
-        // Gabungkan argumen asli dengan dbName dan tanggal aktual agar hash (MD5) otomatis berubah saat ganti hari
-        $args = func_get_args();
-        $args['actual_date'] = $actualDateKey;
-        $args['tenant_db'] = $dbName;
-
-        // [CACHE KEY] Membuat ID unik berdasarkan filter, halaman, tenant, dan tanggal
-        $cacheKey = 'poin_data_' . md5(json_encode($args));
-
-        return Cache::tags(['poin_data'])->remember($cacheKey, 86400, function () use ($search, $perPage, $statusFilter, $page, $isPartial, $dateFilter, $startDate, $endDate) {
+        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $dateFilter, $startDate, $endDate) {
             $detailStats = DB::table('tb_detailpoin')
                 ->select('kode_poin')
                 ->selectRaw('count(*) as total_items')
@@ -325,7 +335,7 @@ class PurchaseOrderInController
                     'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
                 ],
             ];
-        });
+        })();
     }
 
     public function create()
@@ -346,11 +356,9 @@ class PurchaseOrderInController
 
     public function edit($kodePoin)
     {
-        $purchaseOrderIn = Cache::tags(['poin_data'])->remember('poin_header_' . $kodePoin, 86400, function () use ($kodePoin) {
-            return DB::table('tb_poin')
-                ->where('kode_poin', $kodePoin)
-                ->first();
-        });
+        $purchaseOrderIn = DB::table('tb_poin')
+            ->where('kode_poin', $kodePoin)
+            ->first();
 
         if (!$purchaseOrderIn) {
             return redirect()
@@ -358,21 +366,19 @@ class PurchaseOrderInController
                 ->with('error', 'Data PO In tidak ditemukan.');
         }
 
-        $purchaseOrderInItems = Cache::tags(['poin_data'])->remember('poin_items_' . $kodePoin, 86400, function () use ($kodePoin, $purchaseOrderIn) {
-            return DB::table('tb_detailpoin as d')
-                ->where('d.kode_poin',  $kodePoin)
-                ->addSelect([
-                    'd.*',
-                    'has_pr' => DB::table('tb_detailpr as pr')
-                        ->whereRaw("lower(trim(pr.ref_po)) = lower(trim(?))", [(string)$purchaseOrderIn->no_poin])
-                        ->whereRaw("lower(trim(pr.for_customer)) = lower(trim(?))", [(string)$purchaseOrderIn->customer_name])
-                        ->whereColumn('pr.kd_material', 'd.kd_material')
-                        ->whereRaw("coalesce(cast(replace(pr.sisa_pr, ',', '') as decimal(65,4)), 0) < coalesce(cast(replace(pr.qty, ',', '') as decimal(65,4)), 0)")
-                        ->selectRaw('count(*)')
-                ])
-                ->orderBy('d.line_no')
-                ->get();
-        });
+        $purchaseOrderInItems = DB::table('tb_detailpoin as d')
+            ->where('d.kode_poin',  $kodePoin)
+            ->addSelect([
+                'd.*',
+                'has_pr' => DB::table('tb_detailpr as pr')
+                    ->whereRaw("lower(trim(pr.ref_po)) = lower(trim(?))", [(string)$purchaseOrderIn->no_poin])
+                    ->whereRaw("lower(trim(pr.for_customer)) = lower(trim(?))", [(string)$purchaseOrderIn->customer_name])
+                    ->whereColumn('pr.kd_material', 'd.kd_material')
+                    ->whereRaw("coalesce(cast(replace(pr.sisa_pr, ',', '') as decimal(65,4)), 0) < coalesce(cast(replace(pr.qty, ',', '') as decimal(65,4)), 0)")
+                    ->selectRaw('count(*)')
+            ])
+            ->orderBy('d.line_no')
+            ->get();
 
         return Inertia::render('marketing/purchase-order-in/edit', [
             'purchaseOrderIn' => $purchaseOrderIn,
@@ -391,9 +397,7 @@ class PurchaseOrderInController
         $perPageInput = $request->query('per_page', 5);
         $page = max(1, (int) $request->query('page', 1));
         
-        $cacheKey = 'poin_show_' . $kodePoin . '_' . md5(json_encode([$search, $perPageInput, $page]));
-
-        $data = Cache::tags(['poin_data'])->remember($cacheKey, 86400, function () use ($kodePoin, $search, $perPageInput, $page) {
+        $data = (function () use ($kodePoin, $search, $perPageInput, $page) {
             $header = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
 
             if (!$header) {
@@ -431,7 +435,7 @@ class PurchaseOrderInController
                     'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
                 ],
             ];
-        });
+        })();
 
         if (!$data) {
             return response()->json(['message' => 'Data PO In tidak ditemukan.'], 404);
@@ -442,7 +446,7 @@ class PurchaseOrderInController
 
     public function print($kodePoin)
     {
-        $data = Cache::tags(['poin_data'])->remember('poin_print_' . $kodePoin, 86400, function () use ($kodePoin) {
+        $data = (function () use ($kodePoin) {
             $header = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
             if (!$header) return null;
 
@@ -454,17 +458,13 @@ class PurchaseOrderInController
             }
 
             return ['header' => $header, 'items' => $items, 'customer' => $customer];
-        });
+        })();
 
         if (!$data) {
             return redirect()->route('marketing.purchase-order-in.index')->with('error', 'Data PO In tidak ditemukan.');
         }
 
-        $database = request()->session()->get('tenant.database') ?? request()->cookie('tenant_database');
-        $lookupKey = $database;
-        if (is_string($lookupKey) && str_starts_with($lookupKey, 'DB')) {
-            $lookupKey = substr($lookupKey, 2);
-        }
+        $lookupKey = $this->activeTenantDatabase(request());
         $companyConfig = $lookupKey ? config("tenants.companies.$lookupKey", []) : [];
         $fallbackName = $lookupKey ? config("tenants.labels.$lookupKey", $lookupKey) : config('app.name');
 
@@ -491,9 +491,9 @@ class PurchaseOrderInController
         $page = max(1, (int) $request->query('page', 1));
 
         // Menggunakan tag 'material_data' yang sama persis seperti di MaterialController
-        $cacheKey = 'poin_materials_' . md5(json_encode([$search, $perPageInput, $page]));
+        $cacheKey = $this->poinCacheKey('materials', [$search, $perPageInput, $page], $request);
 
-        $data = Cache::tags(['material_data'])->remember($cacheKey, 86400, function () use ($search, $perPageInput, $page) {
+        $data = Cache::tags(self::MATERIAL_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPageInput, $page) {
             $query = DB::table('tb_material')->select('kd_material', 'material', 'unit', 'stok');
 
             if ($search !== '') {
@@ -571,7 +571,7 @@ class PurchaseOrderInController
             ]);
 
             // [FLUSH] Sinkronisasi otomatis menghapus memori 'material_data'
-            Cache::tags(['material_data'])->flush();
+            Cache::tags(self::MATERIAL_CACHE_TAGS)->flush();
 
         } catch (Throwable $exception) {
             return response()->json(['message' => $exception->getMessage()], 500);
@@ -596,9 +596,9 @@ class PurchaseOrderInController
         $search = trim((string) $request->query('search', ''));
         $page = max(1, (int) $request->query('page', 1));
 
-        $cacheKey = 'poin_customers_' . md5(json_encode([$search, $perPageInput, $page]));
+        $cacheKey = $this->poinCacheKey('customers', [$search, $perPageInput, $page], $request);
 
-        $data = Cache::tags(['customer_data'])->remember($cacheKey, 86400, function () use ($search, $perPageInput, $page) {
+        $data = Cache::tags(self::CUSTOMER_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPageInput, $page) {
             $perPage = $perPageInput === 'all'
                 ? null
                 : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
@@ -661,7 +661,7 @@ class PurchaseOrderInController
             DB::table('tb_cs')->insert($validated);
             
             // [FLUSH] Bersihkan cache jika ada customer baru
-            Cache::tags(['customer_data'])->flush();
+            Cache::tags(self::CUSTOMER_CACHE_TAGS)->flush();
 
         } catch (Throwable $exception) {
             return response()->json(['message' => $exception->getMessage()], 500);
@@ -823,7 +823,7 @@ class PurchaseOrderInController
             });
 
             // [FLUSH] Kosongkan cache agar tampilan tabel di depan (index) otomatis terbarui
-            Cache::tags(['poin_data'])->flush();
+            Cache::tags(self::POIN_CACHE_TAGS)->flush();
 
             if ($request->header('X-Inertia')) {
                 return redirect()
@@ -1007,7 +1007,7 @@ class PurchaseOrderInController
             });
 
             // [FLUSH] Kosongkan cache saat PO In di-update
-            Cache::tags(['poin_data'])->flush();
+            Cache::tags(self::POIN_CACHE_TAGS)->flush();
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'Data PO IN berhasil diperbarui.');
@@ -1048,7 +1048,7 @@ class PurchaseOrderInController
             });
 
             // [FLUSH] Bersihkan cache jika dihapus
-            Cache::tags(['poin_data'])->flush();
+            Cache::tags(self::POIN_CACHE_TAGS)->flush();
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'PO In berhasil dihapus.');
@@ -1166,7 +1166,7 @@ class PurchaseOrderInController
                 ]);
 
             // [FLUSH] Bersihkan cache
-            Cache::tags(['poin_data'])->flush();
+            Cache::tags(self::POIN_CACHE_TAGS)->flush();
 
             return response()->json([
                 'message' => 'Material berhasil diperbarui.',
@@ -1257,7 +1257,7 @@ class PurchaseOrderInController
             }
 
             // [FLUSH] Bersihkan cache
-            Cache::tags(['poin_data'])->flush();
+            Cache::tags(self::POIN_CACHE_TAGS)->flush();
 
             return response()->json([
                 'message' => 'Material berhasil dihapus.',

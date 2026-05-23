@@ -862,7 +862,7 @@ export default function QuotationIndex({
                                                             <td className="px-4 py-3">
                                                                 {renderValue(
                                                                     detail.Margin,
-                                                                )}%
+                                                                )}
                                                             </td>
                                                             <td className="px-4 py-3">
                                                                 {renderValue(
