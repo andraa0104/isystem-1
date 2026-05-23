@@ -167,16 +167,19 @@ class QuotationController
     }
 
     // ==========================================
-    // INI FUNGSI YANG SEBELUMNYA HILANG
+    // FUNGSI MATERIALS DETAILS DENGAN PAGINATION
     // ==========================================
     public function getQuotationMaterialsDetails(Request $request)
     {
-        // Tanpa filter, ambil semua data dari detail dan join ke header
-        $materials = DB::table('tb_penawarandetail as pd')
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = max(1, min(100, (int) $request->query('per_page', 5)));
+        $search = trim((string) $request->query('search', ''));
+
+        // Build query
+        $query = DB::table('tb_penawarandetail as pd')
             ->join('tb_penawaran as p', DB::raw('TRIM(pd.No_penawaran)'), '=', DB::raw('TRIM(p.No_penawaran)'))
             ->select(
                 'pd.ID as id_detail',
-                // Gunakan alias persis dengan yang Anda tulis di index.jsx (Case-Sensitive!)
                 'p.No_penawaran as No_Penawaran',
                 'p.Tgl_penawaran as Tgl_Penawaran',
                 'p.Customer',
@@ -187,12 +190,34 @@ class QuotationController
                 'pd.Harga_Modal as Harga_modal',
                 'pd.Margin',
                 'pd.Remark'
-            )
-            ->orderBy('p.Tgl_penawaran', 'desc')
+            );
+
+        // Apply search filter jika ada
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->whereRaw("TRIM(p.No_penawaran) LIKE ?", ["%{$search}%"])
+                  ->orWhere('p.Tgl_penawaran', 'LIKE', "%{$search}%")
+                  ->orWhere('p.Customer', 'LIKE', "%{$search}%")
+                  ->orWhere('pd.Material', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // Count total rows
+        $total = $query->count();
+
+        // Get paginated data
+        $materials = $query->orderBy('p.Tgl_penawaran', 'desc')
             ->orderBy('pd.ID', 'desc')
+            ->offset(($page - 1) * $perPage)
+            ->limit($perPage)
             ->get();
 
-        return response()->json(['materials' => $materials]);
+        return response()->json([
+            'materials' => $materials,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+        ]);
     }
 
     private function getPenawaranQuery($period)
