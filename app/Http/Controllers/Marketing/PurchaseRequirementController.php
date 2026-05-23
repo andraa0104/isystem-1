@@ -12,6 +12,41 @@ use Carbon\Carbon;
 
 class PurchaseRequirementController
 {
+    public function getLastPrice(Request $request)
+    {
+        try {
+            // 1. Validasi input kode material dari axios
+            $request->validate([
+                'kd_mat' => 'required|string'
+            ]);
+
+            $activeConnection = DB::getDefaultConnection();
+
+            // 2. Query disesuaikan menggunakan id_invin dan a_idr
+            $latestInventory = DB::connection($activeConnection)
+                ->table('tb_invin')
+                ->where('kd_mat', $request->kd_mat)
+                ->orderBy('id_invin', 'desc') // Menggunakan id_invin desc untuk mengambil data terakhir
+                ->first();
+
+            return response()->json([
+                'success' => true,
+                // Mengambil nilai dari kolom a_idr sebagai harga modal estimasi
+                'harga' => $latestInventory ? $latestInventory->harga : 0 
+            ]);
+
+        } catch (\Exception $e) {
+            // Mencatat error ke log jika terjadi kendala lain
+            Log::error('Error pada API getLastPrice PR: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'harga' => 0
+            ], 200); // Status 200 agar React tidak mendeteksi crash/AxiosError merah
+        }
+    }
+
     public function index(Request $request)
     {
         $period = $request->query('period', 'today');

@@ -263,6 +263,8 @@ Route::get('marketing/purchase-order-in/{kodePoin}/print', [PurchaseOrderInContr
 
 Route::get('marketing/purchase-requirement', [PurchaseRequirementController::class, 'index'])
     ->name('marketing.purchase-requirement.index');
+Route::get('/marketing/purchase-requirement/get-last-price', [PurchaseRequirementController::class, 'getLastPrice'])
+    ->name('marketing.purchase-requirement.getLastPrice');
 Route::get('marketing/purchase-requirement/materials', [PurchaseRequirementController::class, 'materials'])
     ->name('marketing.purchase-requirement.materials');
 Route::get('marketing/purchase-requirement/customers', [PurchaseRequirementController::class, 'customers'])

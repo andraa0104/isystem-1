@@ -23,6 +23,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
+import axios from 'axios';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -238,6 +239,13 @@ export default function PurchaseRequirementEdit({
         setEditingDraft((prev) => {
             if (!prev) return prev;
             const next = { ...prev, [field]: value };
+            
+            // --- LOGIKA SINKRONISASI MANUAl: HARGA PO IN MENGIKUTI HARGA MODAL ---
+            if (field === 'priceEstimate') {
+                next.priceInPo = value; // Pastikan isi Harga PO In selalu sama persis dengan Harga Modal
+            }
+            // --------------------------------------------------------------------
+
             // When Qty changes → auto-recalc Sisa PR = max(0, qty - stok)
             if (field === 'qtyDetail') {
                 const qty = parseFloat(value) || 0;
@@ -252,7 +260,7 @@ export default function PurchaseRequirementEdit({
                 const delta = newSisaPr - origSisaPr;
                 next.qtyDetail = String(Math.max(0, origQty + delta));
             }
-            // When Harga Modal changes → recalc margin
+            // When Harga Modal atau Harga PO In berubah → hitung margin (otomatis 0.00)
             if (field === 'priceEstimate' || field === 'priceInPo') {
                 next.margin = calculateMargin(
                     next.priceInPo,
@@ -1037,38 +1045,52 @@ export default function PurchaseRequirementEdit({
                                                             size="sm"
                                                             variant="default"
                                                             className="h-8"
-                                                            onClick={() => {
-                                                                const newItem =
-                                                                    {
-                                                                        id: `${Date.now()}`,
-                                                                        detailNo:
-                                                                            null,
-                                                                        kodeMaterial:
-                                                                            m.kd_material,
-                                                                        namaMaterial:
-                                                                            m.material,
-                                                                        stok: m.stok,
-                                                                        qty: 0,
-                                                                        qtyDetail: 0,
-                                                                        satuan: m.unit,
-                                                                        priceEstimate:
-                                                                            m.harga ||
-                                                                            0,
-                                                                        totalPrice: 0,
-                                                                        priceInPo: 0,
-                                                                        margin: '0%',
-                                                                        remark: '',
-                                                                        qtyPo: 0,
-                                                                    };
-                                                                setMaterialItems(
-                                                                    (prev) => [
-                                                                        ...prev,
-                                                                        newItem,
-                                                                    ],
-                                                                );
-                                                                setIsMaterialModalOpen(
-                                                                    false,
-                                                                );
+                                                            onClick={async () => { // <-- Pastikan ada keyword 'async'
+                                                                let hargaModalTerakhir = 0;
+                                                                
+                                                                // --- AMBIL HARGA TERAKHIR DARI DATABASE via AXIOS ---
+                                                                try {
+                                                                    const priceRes = await axios.get('/marketing/purchase-requirement/get-last-price', {
+                                                                        params: { kd_mat: m.kd_material }
+                                                                    });
+                                                                    
+                                                                    if (priceRes.data && priceRes.data.success) {
+                                                                        // Murni mengambil kolom 'harga' dari tb_invin sesuai response backend
+                                                                        hargaModalTerakhir = Math.round(Number(priceRes.data.harga)) || 0;
+                                                                    }
+                                                                } catch (error) {
+                                                                    console.error("Gagal autofill harga modal di edit.jsx:", error);
+                                                                    hargaModalTerakhir = Number(m.harga) || 0; // Fallback ke harga master jika API terkendala
+                                                                }
+                                                                // ----------------------------------------------------
+
+                                                                // Struktur item baru yang dimasukkan ke daftar materialItems
+                                                                const newItem = {
+                                                                    id: `manual-${Date.now()}`,
+                                                                    detailNo: null, // null menandakan barang baru yang ditambahkan saat edit
+                                                                    kodeMaterial: m.kd_material ?? '',
+                                                                    namaMaterial: m.material ?? '',
+                                                                    stok: m.stok ?? 0,
+                                                                    qty: '1', 
+                                                                    qtyDetail: 1, 
+                                                                    satuan: m.unit ?? '',
+                                                                    
+                                                                    // --- SINKRONISASI AUTOFILL & BALANCE ---
+                                                                    priceEstimate: hargaModalTerakhir, // Mengisi field Harga Modal
+                                                                    priceInPo: hargaModalTerakhir,     // Mengisi field Harga PO In agar langsung balance
+                                                                    // ---------------------------------------
+                                                                    
+                                                                    totalPrice: Math.round(1 * hargaModalTerakhir).toString(),
+                                                                    margin: '0.00', 
+                                                                    remark: '',
+                                                                    qtyPo: 0,
+                                                                };
+
+                                                                // Dorong ke list material paling akhir
+                                                                setMaterialItems((prev) => [...prev, newItem]);
+                                                                
+                                                                // Tutup modal material
+                                                                setIsMaterialModalOpen(false);
                                                             }}
                                                         >
                                                             Pilih

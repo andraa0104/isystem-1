@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { Head, router, usePage } from '@inertiajs/react';
 import { ArrowLeft, Check, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -301,29 +302,49 @@ export default function PurchaseRequirementCreate() {
             const data = await response.json();
             const rawItems = Array.isArray(data?.items) ? data.items : [];
 
-            // PERBAIKAN STEP 2: Filter hanya material yang sisa_qtypr > 0
-            // Jika backend tidak mengirim sisa_qtypr, akan fallback aman ke qty_po_in
             const filteredItems = rawItems.filter(
                 (item) => Number(item.sisa_qtypr ?? item.qty_po_in ?? 0) > 0
             );
 
-            setMaterialItems(
-                filteredItems.map((item, index) => ({
-                    id: item.id ?? `${Date.now()}-${index}`,
-                    no: item.line_no ?? index + 1,
-                    kodeMaterial: item.kd_material ?? '',
-                    namaMaterial: item.material ?? '',
-                    stok: item.stok ?? 0,
-                    qtyPoIn: item.qty_po_in ?? 0,
-                    // Default PR yang diajukan langsung menggunakan angka sisa_qtypr
-                    qtyPr: item.sisa_qtypr ?? item.qty_po_in ?? 0,
-                    satuan: item.satuan ?? '',
-                    hargaPoIn: item.harga_po_in ?? 0,
-                    hargaModal: item.harga_modal ?? '',
-                    margin: item.margin ?? '',
-                    remark: item.remark ?? '',
-                })),
+            // --- PROSES AUTOFILL MASSAL BERDASARKAN KODE MATERIAL ---
+            const itemsWithAutofilledPrice = await Promise.all(
+                filteredItems.map(async (item, index) => {
+                    let hargaModalTerakhir = item.harga_modal ?? '';
+
+                    // Jika harga_modal dari PO In kosong, mari cari ke tb_invin berdasarkan kd_material
+                    if (!hargaModalTerakhir && item.kd_material) {
+                        try {
+                            const priceRes = await axios.get('/marketing/purchase-requirement/get-last-price', {
+                                params: { kd_mat: item.kd_material }
+                            });
+                            if (priceRes.data && priceRes.data.success) {
+                                hargaModalTerakhir = priceRes.data.harga;
+                            }
+                        } catch (err) {
+                            console.error(`Gagal autofill harga untuk ${item.kd_material}:`, err);
+                        }
+                    }
+
+                    return {
+                        id: item.id ?? `${Date.now()}-${index}`,
+                        no: item.line_no ?? index + 1,
+                        kodeMaterial: item.kd_material ?? '',
+                        namaMaterial: item.material ?? '',
+                        stok: item.stok ?? 0,
+                        qtyPoIn: item.qty_po_in ?? 0,
+                        qtyPr: item.sisa_qtypr ?? item.qty_po_in ?? 0,
+                        satuan: item.satuan ?? '',
+                        hargaPoIn: item.harga_po_in ?? 0,
+                        // Diisi dengan harga modal terakhir dari tb_invin hasil dicocokkan tadi
+                        hargaModal: hargaModalTerakhir, 
+                        margin: calculateMargin(item.harga_po_in ?? 0, hargaModalTerakhir),
+                        remark: item.remark ?? '',
+                    };
+                })
             );
+            // --------------------------------------------------------
+
+            setMaterialItems(itemsWithAutofilledPrice);
         } catch {
             setMaterialItems([]);
             setPoinMaterialError('Gagal memuat material dari PO In terpilih.');
@@ -333,42 +354,47 @@ export default function PurchaseRequirementCreate() {
     };
 
     const handleAddManualMaterial = () => {
-        if (
-            !materialForm.kodeMaterial ||
-            parseNumber(materialForm.quantity) <= 0
-        ) {
-            setSubmitError('Pilih material dan isi quantity terlebih dahulu.');
-            return;
-        }
+    // --- LOGIKA VALIDASI QUANTITY BARU ---
+    // Jika quantity kosong, undefined, hanya spasi, atau bernilai 0
+    if (!materialForm.quantity || String(materialForm.quantity).trim() === '' || parseNumber(materialForm.quantity) <= 0) {
+        setSubmitError('Field quantity wajib diisi!');
+        return; // Menolak material baru masuk ke dalam tambah ke daftar
+    }
+    // -------------------------------------
 
-        const newItem = {
-            id: `manual-${Date.now()}`,
-            no: materialItems.length + 1,
-            kodeMaterial: materialForm.kodeMaterial,
-            namaMaterial: materialForm.namaMaterial,
-            stok: materialForm.lastStock,
-            qtyPoIn: 0,
-            qtyPr: materialForm.quantity,
-            satuan: materialForm.satuan,
-            hargaPoIn: 0,
-            hargaModal: materialForm.priceEstimate,
-            totalPrice: materialForm.totalPrice,
-            margin: '',
-            remark: materialForm.remark,
-        };
+    if (!materialForm.kodeMaterial) {
+        setSubmitError('Pilih material terlebih dahulu.');
+        return;
+    }
 
-        setMaterialItems((prev) => [...prev, newItem]);
-        setMaterialForm({
-            kodeMaterial: '',
-            namaMaterial: '',
-            satuan: '',
-            quantity: '',
-            lastStock: 0,
-            priceEstimate: '',
-            totalPrice: 0,
-            remark: '',
-        });
-        setSubmitError('');
+    const newItem = {
+        id: `manual-${Date.now()}`,
+        no: materialItems.length + 1,
+        kodeMaterial: materialForm.kodeMaterial,
+        namaMaterial: materialForm.namaMaterial,
+        stok: materialForm.lastStock,
+        qtyPoIn: 0,
+        qtyPr: materialForm.quantity,
+        satuan: materialForm.satuan,
+        hargaPoIn: 0,
+        hargaModal: materialForm.priceEstimate,
+        totalPrice: materialForm.totalPrice,
+        margin: '',
+        remark: materialForm.remark,
+    };
+
+    setMaterialItems((prev) => [...prev, newItem]);
+    setMaterialForm({
+        kodeMaterial: '',
+        namaMaterial: '',
+        satuan: '',
+        quantity: '',
+        lastStock: 0,
+        priceEstimate: '',
+        totalPrice: 0,
+        remark: '',
+    });
+    setSubmitError('');
     };
 
     const updateMaterialForm = (field, value) => {
@@ -1091,17 +1117,13 @@ export default function PurchaseRequirementCreate() {
                                                 </div>
                                                 <Button
                                                     type="button"
-                                                    onClick={
-                                                        handleAddManualMaterial
-                                                    }
+                                                    onClick={handleAddManualMaterial}
                                                     disabled={
-                                                        !materialForm.kodeMaterial ||
-                                                        !materialForm.quantity
+                                                        !materialForm.kodeMaterial
                                                     }
                                                     className="h-10 px-6 shadow-lg shadow-primary/20"
                                                 >
-                                                    <Plus className="mr-2 h-4 w-4" />{' '}
-                                                    Tambah Ke Daftar
+                                                    <Plus className="mr-2 h-4 w-4" /> Tambah Ke Daftar
                                                 </Button>
                                             </div>
                                         </div>
@@ -1574,31 +1596,27 @@ export default function PurchaseRequirementCreate() {
                                                             size="sm"
                                                             variant="default"
                                                             className="h-8"
-                                                            onClick={() => {
-                                                                updateMaterialForm(
-                                                                    'kodeMaterial',
-                                                                    m.kd_material,
-                                                                );
-                                                                updateMaterialForm(
-                                                                    'namaMaterial',
-                                                                    m.material,
-                                                                );
-                                                                updateMaterialForm(
-                                                                    'satuan',
-                                                                    m.unit,
-                                                                );
-                                                                updateMaterialForm(
-                                                                    'lastStock',
-                                                                    m.stok,
-                                                                );
-                                                                updateMaterialForm(
-                                                                    'priceEstimate',
-                                                                    m.harga ||
-                                                                        0,
-                                                                );
-                                                                setIsMaterialModalOpen(
-                                                                    false,
-                                                                );
+                                                            onClick={async () => {
+                                                                updateMaterialForm('kodeMaterial', m.kd_material);
+                                                                updateMaterialForm('namaMaterial', m.material);
+                                                                updateMaterialForm('satuan', m.unit);
+                                                                updateMaterialForm('lastStock', m.stok);
+                                                                
+                                                                // AUTOFILL UNTUK INPUT MANUAL LEWAT DIALOG MODAL
+                                                                try {
+                                                                    const priceRes = await axios.get('/marketing/purchase-requirement/get-last-price', {
+                                                                        params: { kd_mat: m.kd_material }
+                                                                    });
+                                                                    if (priceRes.data && priceRes.data.success) {
+                                                                        updateMaterialForm('priceEstimate', priceRes.data.harga);
+                                                                    } else {
+                                                                        updateMaterialForm('priceEstimate', m.harga || 0);
+                                                                    }
+                                                                } catch (error) {
+                                                                    updateMaterialForm('priceEstimate', m.harga || 0);
+                                                                }
+
+                                                                setIsMaterialModalOpen(false);
                                                             }}
                                                         >
                                                             Pilih
