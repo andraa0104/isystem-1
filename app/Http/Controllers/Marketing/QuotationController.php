@@ -197,8 +197,9 @@ class QuotationController
         // 2. Terapkan Filter Pencarian jika Search Box diisi
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
-                // Menggunakan DB::raw untuk TRIM agar tidak error di pencarian
-                $q->where(DB::raw("TRIM(p.No_penawaran)"), 'LIKE', "%{$search}%")
+                // Hindari DB::raw di dalam where jika memungkinkan, 
+                // atau pastikan alias tabel (p.) sudah benar
+                $q->where('p.No_penawaran', 'LIKE', "%{$search}%")
                   ->orWhere('p.Tgl_penawaran', 'LIKE', "%{$search}%")
                   ->orWhere('p.Customer', 'LIKE', "%{$search}%")
                   ->orWhere('pd.Material', 'LIKE', "%{$search}%");
