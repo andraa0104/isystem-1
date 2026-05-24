@@ -30,6 +30,7 @@ const formatRupiah = (value) => {
     if (Number.isNaN(number)) {
         return '-';
     }
+
     return `Rp. ${new Intl.NumberFormat('id-ID').format(number)}`;
 };
 
@@ -72,7 +73,7 @@ export default function QuotationIndex({
     const [materialTotal, setMaterialTotal] = useState(0);
 
     // ========================================================
-    // FETCH DATA TAB 1 (CUSTOMER) - SAMA SEPERTI SEMULA
+    // FETCH DATA TAB 1 (CUSTOMER)
     // ========================================================
     const fetchQuotationData = useCallback(async (newPeriod) => {
         setLoading(true);
@@ -129,6 +130,9 @@ export default function QuotationIndex({
         setCurrentPage(1);
     };
 
+    // ========================================================
+    // HANDLE TAB CHANGE - FETCH MATERIAL DATA SAAT TAB DIKLIK
+    // ========================================================
     const handleTabChange = (tab) => {
         setActiveTab(tab);
         if (tab === 'material') {
@@ -137,18 +141,34 @@ export default function QuotationIndex({
         }
     };
 
-    // Filter & Pagination Tab 1 (frontend)
+    // ========================================================
+    // FILTER & PAGINATION TAB 1 (CUSTOMER)
+    // ========================================================
     const filteredPenawaran = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
         const dataToFilter = remotePenawaran || [];
-        if (!term) return dataToFilter;
+        if (!term) {
+            return dataToFilter;
+        }
+
         return dataToFilter.filter((item) => {
-            const values = [item.No_penawaran, item.Tgl_penawaran, item.Customer, item.Attend];
-            return values.some((value) => String(value ?? '').toLowerCase().includes(term));
+            const values = [
+                item.No_penawaran,
+                item.Tgl_penawaran,
+                item.Customer,
+                item.Attend,
+            ];
+
+            return values.some((value) =>
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
+            );
         });
     }, [remotePenawaran, searchTerm]);
 
-    const totalItems = filteredPenawaran.length;
+    const totalItems = useMemo(() => filteredPenawaran.length, [filteredPenawaran]);
+    
     const totalPages = useMemo(() => {
         if (pageSize === Infinity) return 1;
         return Math.max(1, Math.ceil(totalItems / pageSize));
@@ -170,10 +190,14 @@ export default function QuotationIndex({
     }, [pageSize, searchTerm]);
 
     useEffect(() => {
-        if (currentPage > totalPages) setCurrentPage(totalPages);
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
     }, [currentPage, totalPages]);
 
-    // Pagination Tab 2 (server side)
+    // ========================================================
+    // PAGINATION TAB 2 (MATERIAL) - SERVER SIDE
+    // ========================================================
     const tab2TotalPages = useMemo(() => {
         if (materialPageSize === Infinity) return 1;
         return Math.max(1, Math.ceil(materialTotal / materialPageSize));
@@ -194,12 +218,76 @@ export default function QuotationIndex({
     }, [materialCurrentPage, materialPageSize, materialSearch, fetchMaterialData]);
 
     useEffect(() => {
-        if (materialCurrentPage > tab2TotalPages) setMaterialCurrentPage(tab2TotalPages);
+        if (materialCurrentPage > tab2TotalPages) {
+            setMaterialCurrentPage(tab2TotalPages);
+        }
     }, [materialCurrentPage, tab2TotalPages]);
 
     // ========================================================
-    // LOGIKA MODAL DETAIL (tidak berubah)
+    // MODAL DETAIL - DIPERBAIKI UNTUK MENAMPILKAN HEADER DARI TAB 2
     // ========================================================
+    const fetchHeaderData = useCallback(async (noPenawaran) => {
+        try {
+            const response = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/header`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) return null;
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching header:', error);
+            return null;
+        }
+    }, []);
+
+    const fetchDetailData = useCallback(async (noPenawaran) => {
+        try {
+            const response = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/details`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) return [];
+            const data = await response.json();
+            return Array.isArray(data?.details) ? data.details : [];
+        } catch (error) {
+            console.error('Error fetching details:', error);
+            return [];
+        }
+    }, []);
+
+    const handleOpenModal = async (item) => {
+        const noPenawaran = item.No_penawaran || item.No_Penawaran;
+        if (!noPenawaran) return;
+
+        // Jika item dari tab 1, sudah lengkap dengan data header
+        if (item.Customer !== undefined) {
+            setSelectedPenawaran({
+                ...item,
+                No_penawaran: noPenawaran,
+            });
+            setIsModalOpen(true);
+            setDetailRowsNo(noPenawaran);
+            setDetailLoading(true);
+            const details = await fetchDetailData(noPenawaran);
+            setDetailRows(details);
+            setDetailLoading(false);
+            return;
+        }
+
+        // Jika dari tab 2, ambil header terlebih dahulu
+        setDetailLoading(true);
+        const header = await fetchHeaderData(noPenawaran);
+        if (header) {
+            setSelectedPenawaran(header);
+            setIsModalOpen(true);
+            setDetailRowsNo(noPenawaran);
+            const details = await fetchDetailData(noPenawaran);
+            setDetailRows(details);
+        } else {
+            Swal.fire('Error', 'Gagal mengambil data quotation', 'error');
+        }
+        setDetailLoading(false);
+    };
+
+    // Untuk kasus item dari tab 1 yang mungkin langsung punya detail
     const selectedDetails = useMemo(() => {
         if (!selectedPenawaran) return [];
         const selectedNo = String(selectedPenawaran.No_penawaran ?? '').trim();
@@ -211,8 +299,18 @@ export default function QuotationIndex({
         const term = materialSearchTerm.trim().toLowerCase();
         if (!term) return selectedDetails;
         return selectedDetails.filter((detail) => {
-            const values = [detail.Material, detail.Qty, detail.Harga, detail.Satuan, detail.Harga_modal, detail.Margin, detail.Remark];
-            return values.some((value) => String(value ?? '').toLowerCase().includes(term));
+            const values = [
+                detail.Material,
+                detail.Qty,
+                detail.Harga,
+                detail.Satuan,
+                detail.Harga_modal,
+                detail.Margin,
+                detail.Remark,
+            ];
+            return values.some((value) =>
+                String(value ?? '').toLowerCase().includes(term),
+            );
         });
     }, [materialSearchTerm, selectedDetails]);
 
@@ -228,28 +326,6 @@ export default function QuotationIndex({
         return filteredMaterialDetails.slice(startIndex, startIndex + materialPageSize);
     }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
 
-    const handleOpenModal = (item) => {
-        const noPenawaran = item.No_penawaran || item.No_Penawaran;
-        setSelectedPenawaran({ ...item, No_penawaran: noPenawaran });
-        setIsModalOpen(true);
-        const selectedNo = String(noPenawaran ?? '').trim();
-        if (selectedNo && detailRowsNo !== selectedNo) {
-            setDetailLoading(true);
-            setDetailRows([]);
-            setDetailRowsNo(selectedNo);
-            fetch(`/marketing/quotation/${encodeURIComponent(selectedNo)}/details`, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            })
-                .then((response) => (response.ok ? response.json() : null))
-                .then((data) => {
-                    const details = Array.isArray(data?.details) ? data.details : [];
-                    setDetailRows(details);
-                })
-                .catch(() => setDetailRows([]))
-                .finally(() => setDetailLoading(false));
-        }
-    };
-
     useEffect(() => {
         if (isModalOpen) {
             setMaterialSearchTerm('');
@@ -264,6 +340,7 @@ export default function QuotationIndex({
 
     const handleDelete = (noPenawaran) => {
         if (!noPenawaran || isDeleting) return;
+
         Swal.fire({
             title: 'Hapus data?',
             text: `No Penawaran: ${noPenawaran}`,
@@ -274,6 +351,7 @@ export default function QuotationIndex({
             reverseButtons: true,
         }).then((result) => {
             if (!result.isConfirmed) return;
+
             setIsDeleting(true);
             fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}`, {
                 method: 'DELETE',
@@ -284,11 +362,20 @@ export default function QuotationIndex({
             })
                 .then(async (response) => {
                     const data = await response.json().catch(() => ({}));
-                    if (!response.ok) throw new Error(data?.message || 'Gagal menghapus data.');
+                    if (!response.ok) {
+                        throw new Error(data?.message || 'Gagal menghapus data.');
+                    }
                     return data;
                 })
                 .then((data) => {
-                    Swal.fire({ icon: 'success', title: 'Berhasil', text: data?.message || 'Data berhasil dihapus.', timer: 1800, showConfirmButton: false });
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Berhasil',
+                        text: data?.message || 'Data berhasil dihapus.',
+                        timer: 1800,
+                        showConfirmButton: false,
+                    });
+                    
                     if (activeTab === 'customer') {
                         fetchQuotationData(statusFilter);
                     } else {
@@ -296,7 +383,13 @@ export default function QuotationIndex({
                         fetchMaterialData(materialCurrentPage, effectivePerPage, materialSearch);
                     }
                 })
-                .catch((error) => Swal.fire({ icon: 'error', title: 'Gagal', text: error.message }))
+                .catch((error) => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal',
+                        text: error.message,
+                    });
+                })
                 .finally(() => setIsDeleting(false));
         });
     };
@@ -310,17 +403,22 @@ export default function QuotationIndex({
                         <h1 className="text-xl font-semibold">Quotation</h1>
                         <p className="text-sm text-muted-foreground">Daftar penawaran</p>
                     </div>
-                    <Button type="button" onClick={() => router.visit('/marketing/quotation/create')}>
+                    <Button
+                        type="button"
+                        onClick={() => router.visit('/marketing/quotation/create')}
+                    >
                         Tambah Quotation
                     </Button>
                 </div>
 
-                {/* TABS */}
+                {/* ==================== NAVIGASI TABS ==================== */}
                 <div className="mt-4 flex border-b border-sidebar-border">
                     <button
                         type="button"
                         className={`px-4 py-2 text-sm font-medium transition-all border-b-2 ${
-                            activeTab === 'customer' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted-foreground hover:text-foreground'
+                            activeTab === 'customer'
+                                ? 'border-primary text-primary font-bold'
+                                : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
                         onClick={() => handleTabChange('customer')}
                     >
@@ -329,7 +427,9 @@ export default function QuotationIndex({
                     <button
                         type="button"
                         className={`px-4 py-2 text-sm font-medium transition-all border-b-2 ${
-                            activeTab === 'material' ? 'border-primary text-primary font-bold' : 'border-transparent text-muted-foreground hover:text-foreground'
+                            activeTab === 'material'
+                                ? 'border-primary text-primary font-bold'
+                                : 'border-transparent text-muted-foreground hover:text-foreground'
                         }`}
                         onClick={() => handleTabChange('material')}
                     >
@@ -337,7 +437,7 @@ export default function QuotationIndex({
                     </button>
                 </div>
 
-                {/* ========== TAB 1 : CUSTOMER (kembali seperti semula) ========== */}
+                {/* ==================== TAB 1: DATA CUSTOMER ==================== */}
                 {activeTab === 'customer' && (
                     <div className="mt-2 flex flex-col gap-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -354,9 +454,14 @@ export default function QuotationIndex({
                                         <SelectItem value="all">Semua Data</SelectItem>
                                     </SelectContent>
                                 </Select>
+
                                 <label className="ml-2 text-sm text-muted-foreground">
                                     Tampilkan
-                                    <select className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm" value={pageSize === Infinity ? 'all' : pageSize} onChange={handlePageSizeChange}>
+                                    <select
+                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                        value={pageSize === Infinity ? 'all' : pageSize}
+                                        onChange={handlePageSizeChange}
+                                    >
                                         <option value={5}>5</option>
                                         <option value={10}>10</option>
                                         <option value={25}>25</option>
@@ -367,9 +472,16 @@ export default function QuotationIndex({
                             </div>
                             <label className="text-sm text-muted-foreground">
                                 Cari
-                                <input type="search" className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm" placeholder="Cari data..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                                <input
+                                    type="search"
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm"
+                                    placeholder="Cari data..."
+                                    value={searchTerm}
+                                    onChange={(event) => setSearchTerm(event.target.value)}
+                                />
                             </label>
                         </div>
+
                         <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
                             <table className="w-full text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
@@ -382,48 +494,105 @@ export default function QuotationIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <PlainTableStateRows columns={5} loading={loading} isEmpty={!loading && displayedPenawaran.length === 0} />
-                                    {!loading && displayedPenawaran.map((item) => (
-                                        <tr key={item.No_penawaran} className="border-t border-sidebar-border/70">
-                                            <td className="px-4 py-3">{item.No_penawaran}</td>
-                                            <td className="px-4 py-3">{item.Tgl_penawaran}</td>
-                                            <td className="px-4 py-3">{item.Customer}</td>
-                                            <td className="px-4 py-3">{item.Attend}</td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={() => handleOpenModal(item)} className="text-muted-foreground transition hover:text-foreground" title="Lihat"><Eye className="size-4" /></button>
-                                                    <Link href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/edit`} className="text-muted-foreground transition hover:text-foreground" title="Edit"><Pencil className="size-4" /></Link>
-                                                    <a href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/print`} className="text-muted-foreground transition hover:text-foreground" title="Cetak" target="_blank" rel="noreferrer"><Printer className="size-4" /></a>
-                                                    {Number(item.can_delete ?? 0) === 1 && (
-                                                        <button onClick={() => handleDelete(item.No_penawaran)} className="text-muted-foreground transition hover:text-destructive" title="Hapus" disabled={isDeleting}><Trash2 className="size-4" /></button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    <PlainTableStateRows
+                                        columns={5}
+                                        loading={loading}
+                                        isEmpty={!loading && displayedPenawaran.length === 0}
+                                    />
+                                    {!loading &&
+                                        displayedPenawaran.map((item) => (
+                                            <tr key={item.No_penawaran} className="border-t border-sidebar-border/70">
+                                                <td className="px-4 py-3">{item.No_penawaran}</td>
+                                                <td className="px-4 py-3">{item.Tgl_penawaran}</td>
+                                                <td className="px-4 py-3">{item.Customer}</td>
+                                                <td className="px-4 py-3">{item.Attend}</td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenModal(item)}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Lihat"
+                                                        >
+                                                            <Eye className="size-4" />
+                                                        </button>
+                                                        <Link
+                                                            href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/edit`}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Link>
+                                                        <a
+                                                            href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/print`}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Cetak"
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                        >
+                                                            <Printer className="size-4" />
+                                                        </a>
+                                                        {Number(item.can_delete ?? 0) === 1 && (
+                                                            <button
+                                                                type="button"
+                                                                className="text-muted-foreground transition hover:text-destructive"
+                                                                title="Hapus"
+                                                                disabled={isDeleting}
+                                                                onClick={() => handleDelete(item.No_penawaran)}
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
                                 </tbody>
                             </table>
                         </div>
+
                         {pageSize !== Infinity && totalItems > 0 && (
                             <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>Menampilkan {Math.min((currentPage - 1) * pageSize + 1, totalItems)} - {Math.min(currentPage * pageSize, totalItems)} dari {totalItems} data</span>
+                                <span>
+                                    Menampilkan {Math.min((currentPage - 1) * pageSize + 1, totalItems)} - {Math.min(currentPage * pageSize, totalItems)} dari {totalItems} data
+                                </span>
                                 <div className="flex items-center gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>Sebelumnya</Button>
-                                    <span>Halaman {currentPage} dari {totalPages}</span>
-                                    <Button variant="outline" size="sm" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>Berikutnya</Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                                        disabled={currentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {currentPage} dari {totalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                                        disabled={currentPage === totalPages}
+                                    >
+                                        Berikutnya
+                                    </Button>
                                 </div>
                             </div>
                         )}
                     </div>
                 )}
 
-                {/* ========== TAB 2 : MATERIAL (hanya kolom yang diminta, tanpa hapus) ========== */}
+                {/* ==================== TAB 2: DATA MATERIAL (DIUBAH SESUAI PERMINTAAN) ==================== */}
                 {activeTab === 'material' && (
                     <div className="mt-2 flex flex-col gap-4 animate-in fade-in duration-300">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <label className="text-sm text-muted-foreground">
                                 Tampilkan
-                                <select className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm" value={materialPageSize === Infinity ? 'all' : materialPageSize} onChange={handleMaterialPageSizeChange}>
+                                <select
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                    value={materialPageSize === Infinity ? 'all' : materialPageSize}
+                                    onChange={handleMaterialPageSizeChange}
+                                >
                                     <option value={5}>5</option>
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
@@ -433,9 +602,19 @@ export default function QuotationIndex({
                             </label>
                             <label className="text-sm text-muted-foreground">
                                 Cari
-                                <input type="search" className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm w-64 md:w-80" placeholder="Cari No. Penawaran atau Material..." value={materialSearch} onChange={(e) => { setMaterialSearch(e.target.value); setMaterialCurrentPage(1); }} />
+                                <input
+                                    type="search"
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm w-64 md:w-80"
+                                    placeholder="Cari No. Penawaran atau Material..."
+                                    value={materialSearch}
+                                    onChange={(e) => {
+                                        setMaterialSearch(e.target.value);
+                                        setMaterialCurrentPage(1);
+                                    }}
+                                />
                             </label>
                         </div>
+
                         <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
                             <table className="w-full text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
@@ -449,92 +628,234 @@ export default function QuotationIndex({
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <PlainTableStateRows columns={6} loading={materialLoading} isEmpty={!materialLoading && remoteMaterialDetails.length === 0} emptyMessage="Tidak ada data quotation material ditemukan." />
-                                    {!materialLoading && remoteMaterialDetails.map((item, idx) => (
-                                        <tr key={item.id_detail || idx} className="border-t border-sidebar-border/70">
-                                            <td className="px-4 py-3">{renderValue(item.No_Penawaran)}</td>
-                                            <td className="px-4 py-3 max-w-[250px] truncate uppercase" title={item.Material}>{renderValue(item.Material)}</td>
-                                            <td className="px-4 py-3">{item.Qty} {item.Satuan ? renderValue(item.Satuan) : ''}</td>
-                                            <td className="px-4 py-3 text-right font-mono font-bold">{formatRupiah(item.Harga)}</td>
-                                            <td className="px-4 py-3 text-right font-mono">{formatRupiah(item.Harga_modal)}</td>
-                                            <td className="px-4 py-3">
-                                                <button onClick={() => handleOpenModal(item)} className="text-muted-foreground transition hover:text-foreground" title="Lihat"><Eye className="size-4" /></button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    <PlainTableStateRows
+                                        columns={6}
+                                        loading={materialLoading}
+                                        isEmpty={!materialLoading && remoteMaterialDetails.length === 0}
+                                        emptyMessage="Tidak ada data quotation material ditemukan."
+                                    />
+                                    {!materialLoading &&
+                                        remoteMaterialDetails.map((item, idx) => (
+                                            <tr key={item.id_detail || idx} className="border-t border-sidebar-border/70">
+                                                <td className="px-4 py-3">{renderValue(item.No_Penawaran)}</td>
+                                                <td className="px-4 py-3 max-w-[250px] truncate uppercase" title={item.Material}>
+                                                    {renderValue(item.Material)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {item.Qty} {item.Satuan ? renderValue(item.Satuan) : ''}
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-mono font-bold">
+                                                    {formatRupiah(item.Harga)}
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-mono">
+                                                    {formatRupiah(item.Harga_modal)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenModal(item)}
+                                                        className="text-muted-foreground transition hover:text-foreground"
+                                                        title="Lihat"
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
                                 </tbody>
                             </table>
                         </div>
+
                         {materialPageSize !== Infinity && materialTotal > 0 && (
                             <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialTotal)} - {Math.min(materialCurrentPage * materialPageSize, materialTotal)} dari {materialTotal} data</span>
+                                <span>
+                                    Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialTotal)} - {Math.min(materialCurrentPage * materialPageSize, materialTotal)} dari {materialTotal} data
+                                </span>
                                 <div className="flex items-center gap-2">
-                                    <Button variant="outline" size="sm" disabled={materialCurrentPage === 1} onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))}>Sebelumnya</Button>
-                                    <span>Halaman {materialCurrentPage} dari {tab2TotalPages}</span>
-                                    <Button variant="outline" size="sm" disabled={materialCurrentPage === tab2TotalPages} onClick={() => setMaterialCurrentPage((p) => Math.min(tab2TotalPages, p + 1))}>Berikutnya</Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={materialCurrentPage === 1}
+                                        onClick={() => setMaterialCurrentPage((page) => Math.max(1, page - 1))}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {materialCurrentPage} dari {tab2TotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={materialCurrentPage === tab2TotalPages}
+                                        onClick={() => setMaterialCurrentPage((page) => Math.min(tab2TotalPages, page + 1))}
+                                    >
+                                        Berikutnya
+                                    </Button>
                                 </div>
                             </div>
                         )}
                     </div>
                 )}
 
-                {/* ========== MODAL DETAIL (tidak berubah) ========== */}
-                <Dialog open={isModalOpen} onOpenChange={(open) => { setIsModalOpen(open); if (!open) setSelectedPenawaran(null); }}>
+                {/* ==================== DIALOG DETAIL MODAL ==================== */}
+                <Dialog
+                    open={isModalOpen}
+                    onOpenChange={(open) => {
+                        setIsModalOpen(open);
+                        if (!open) {
+                            setSelectedPenawaran(null);
+                        }
+                    }}
+                >
                     <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
-                        <DialogHeader><DialogTitle>Detail Quotation</DialogTitle></DialogHeader>
-                        {!selectedPenawaran && <p className="text-sm text-muted-foreground">Data tidak tersedia.</p>}
+                        <DialogHeader>
+                            <DialogTitle>Detail Quotation</DialogTitle>
+                        </DialogHeader>
+
+                        {!selectedPenawaran && (
+                            <p className="text-sm text-muted-foreground">Data tidak tersedia.</p>
+                        )}
+
                         {selectedPenawaran && (
                             <div className="flex flex-col gap-6 text-sm">
                                 <div className="grid gap-6 lg:grid-cols-2">
                                     <div className="space-y-3">
                                         <h3 className="text-base font-semibold">Data Customer</h3>
                                         <div className="grid gap-2">
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Nomor Penawaran</span><span>{renderValue(selectedPenawaran.No_penawaran)}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Tanggal</span><span>{renderValue(selectedPenawaran.Tgl_penawaran || selectedPenawaran.Tgl_Penawaran)}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Posting Date</span><span>{renderValue(selectedPenawaran.Tgl_Posting)}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Customer</span><span>{renderValue(selectedPenawaran.Customer)}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Alamat</span><span>{renderValue(selectedPenawaran.Alamat)}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Telepon/Fax</span><span>{renderValue(selectedPenawaran.Telp)}{selectedPenawaran.Fax ? ` / ${selectedPenawaran.Fax}` : ''}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Email</span><span>{renderValue(selectedPenawaran.Email)}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Attend</span><span>{renderValue(selectedPenawaran.Attend)}</span></div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Nomor Penawaran</span>
+                                                <span>{renderValue(selectedPenawaran.No_penawaran)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Tanggal</span>
+                                                <span>{renderValue(selectedPenawaran.Tgl_penawaran || selectedPenawaran.Tgl_Penawaran)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Posting Date</span>
+                                                <span>{renderValue(selectedPenawaran.Tgl_Posting)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Customer</span>
+                                                <span>{renderValue(selectedPenawaran.Customer)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Alamat</span>
+                                                <span>{renderValue(selectedPenawaran.Alamat)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Telepon/Fax</span>
+                                                <span>
+                                                    {renderValue(selectedPenawaran.Telp)}
+                                                    {selectedPenawaran.Fax ? ` / ${selectedPenawaran.Fax}` : ''}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Email</span>
+                                                <span>{renderValue(selectedPenawaran.Email)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Attend</span>
+                                                <span>{renderValue(selectedPenawaran.Attend)}</span>
+                                            </div>
                                         </div>
                                     </div>
+
                                     <div className="space-y-3">
                                         <h3 className="text-base font-semibold">Detail</h3>
                                         <div className="grid gap-2">
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Validity</span><span>{renderValue(selectedPenawaran.Validity)}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Delivery</span><span>{renderValue(selectedPenawaran.Delivery)}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Franco</span><span>{renderValue(selectedPenawaran.Franco)}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Note 1</span><span>{renderValue(selectedPenawaran.Note1)}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Note 2</span><span>{renderValue(selectedPenawaran.Note2)}</span></div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2"><span className="text-muted-foreground">Note 3</span><span>{renderValue(selectedPenawaran.Note3)}</span></div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Validity</span>
+                                                <span>{renderValue(selectedPenawaran.Validity)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Delivery</span>
+                                                <span>{renderValue(selectedPenawaran.Delivery)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Franco</span>
+                                                <span>{renderValue(selectedPenawaran.Franco)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Note 1</span>
+                                                <span>{renderValue(selectedPenawaran.Note1)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Note 2</span>
+                                                <span>{renderValue(selectedPenawaran.Note2)}</span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">Note 3</span>
+                                                <span>{renderValue(selectedPenawaran.Note3)}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+
                                 <div className="space-y-3">
                                     <h3 className="text-base font-semibold">Data Material</h3>
                                     <div className="flex flex-wrap items-center justify-between gap-3">
-                                        <label className="text-sm text-muted-foreground">Tampilkan
-                                            <select className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm" value={materialPageSize === Infinity ? 'all' : materialPageSize} onChange={(e) => { const v = e.target.value; setMaterialPageSize(v === 'all' ? Infinity : Number(v)); setMaterialCurrentPage(1); }}>
-                                                <option value={5}>5</option><option value={10}>10</option><option value={25}>25</option><option value={50}>50</option><option value="all">Semua</option>
+                                        <label className="text-sm text-muted-foreground">
+                                            Tampilkan
+                                            <select
+                                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                                value={materialPageSize === Infinity ? 'all' : materialPageSize}
+                                                onChange={(event) => {
+                                                    const value = event.target.value;
+                                                    setMaterialPageSize(value === 'all' ? Infinity : Number(value));
+                                                    setMaterialCurrentPage(1);
+                                                }}
+                                            >
+                                                <option value={5}>5</option>
+                                                <option value={10}>10</option>
+                                                <option value={25}>25</option>
+                                                <option value={50}>50</option>
+                                                <option value="all">Semua</option>
                                             </select>
                                         </label>
-                                        <label className="text-sm text-muted-foreground">Cari Material
-                                            <input type="search" className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm" placeholder="Cari material..." value={materialSearchTerm} onChange={(e) => { setMaterialSearchTerm(e.target.value); setMaterialCurrentPage(1); }} />
+                                        <label className="text-sm text-muted-foreground">
+                                            Cari Material
+                                            <input
+                                                type="search"
+                                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm"
+                                                placeholder="Cari material..."
+                                                value={materialSearchTerm}
+                                                onChange={(event) => {
+                                                    setMaterialSearchTerm(event.target.value);
+                                                    setMaterialCurrentPage(1);
+                                                }}
+                                            />
                                         </label>
                                     </div>
                                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
                                         <table className="w-full text-sm">
                                             <thead className="bg-muted/50 text-muted-foreground">
-                                                <tr><th className="px-4 py-3 text-left">No</th><th className="px-4 py-3 text-left">Material</th><th className="px-4 py-3 text-left">Qty</th><th className="px-4 py-3 text-left">Harga</th><th className="px-4 py-3 text-left">Harga Modal</th><th className="px-4 py-3 text-left">Margin</th><th className="px-4 py-3 text-left">Remark</th></tr>
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left">No</th>
+                                                    <th className="px-4 py-3 text-left">Material</th>
+                                                    <th className="px-4 py-3 text-left">Qty</th>
+                                                    <th className="px-4 py-3 text-left">Harga</th>
+                                                    <th className="px-4 py-3 text-left">Harga Modal</th>
+                                                    <th className="px-4 py-3 text-left">Margin</th>
+                                                    <th className="px-4 py-3 text-left">Remark</th>
+                                                </tr>
                                             </thead>
                                             <tbody>
-                                                <PlainTableStateRows loading={detailLoading} columns={7} rows={5} isEmpty={!detailLoading && displayedMaterialDetails.length === 0} emptyMessage="Belum ada data material." />
+                                                <PlainTableStateRows
+                                                    loading={detailLoading}
+                                                    columns={7}
+                                                    rows={5}
+                                                    isEmpty={!detailLoading && displayedMaterialDetails.length === 0}
+                                                    emptyMessage="Belum ada data material."
+                                                />
                                                 {displayedMaterialDetails.map((detail, index) => (
                                                     <tr key={`${detail.No_penawaran}-${index}`} className="border-t border-sidebar-border/70">
-                                                        <td className="px-4 py-3">{(materialPageSize === Infinity ? index : (materialCurrentPage - 1) * materialPageSize + index) + 1}</td>
+                                                        <td className="px-4 py-3">
+                                                            {(materialPageSize === Infinity ? index : (materialCurrentPage - 1) * materialPageSize + index) + 1}
+                                                        </td>
                                                         <td className="px-4 py-3">{renderValue(detail.Material)}</td>
-                                                        <td className="px-4 py-3">{renderValue(detail.Qty)} {renderValue(detail.Satuan)}</td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(detail.Qty)} {renderValue(detail.Satuan)}
+                                                        </td>
                                                         <td className="px-4 py-3">{formatRupiah(detail.Harga)}</td>
                                                         <td className="px-4 py-3">{formatRupiah(detail.Harga_modal)}</td>
                                                         <td className="px-4 py-3">{renderValue(detail.Margin)}</td>
@@ -546,11 +867,29 @@ export default function QuotationIndex({
                                     </div>
                                     {materialPageSize !== Infinity && materialModalTotalItems > 0 && (
                                         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                            <span>Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialModalTotalItems)} - {Math.min(materialCurrentPage * materialPageSize, materialModalTotalItems)} dari {materialModalTotalItems} data</span>
+                                            <span>
+                                                Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialModalTotalItems)} - {Math.min(materialCurrentPage * materialPageSize, materialModalTotalItems)} dari {materialModalTotalItems} data
+                                            </span>
                                             <div className="flex items-center gap-2">
-                                                <Button variant="outline" size="sm" onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))} disabled={materialCurrentPage === 1}>Sebelumnya</Button>
-                                                <span>Halaman {materialCurrentPage} dari {materialModalTotalPages}</span>
-                                                <Button variant="outline" size="sm" onClick={() => setMaterialCurrentPage((p) => Math.min(materialModalTotalPages, p + 1))} disabled={materialCurrentPage === materialModalTotalPages}>Berikutnya</Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setMaterialCurrentPage((page) => Math.max(1, page - 1))}
+                                                    disabled={materialCurrentPage === 1}
+                                                >
+                                                    Sebelumnya
+                                                </Button>
+                                                <span className="text-sm text-muted-foreground">
+                                                    Halaman {materialCurrentPage} dari {materialModalTotalPages}
+                                                </span>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setMaterialCurrentPage((page) => Math.min(materialModalTotalPages, page + 1))}
+                                                    disabled={materialCurrentPage === materialModalTotalPages}
+                                                >
+                                                    Berikutnya
+                                                </Button>
                                             </div>
                                         </div>
                                     )}
