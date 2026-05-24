@@ -255,44 +255,39 @@ export default function QuotationIndex({
 
     
     const handleOpenModal = async (item) => {
-        // Ambil nomor penawaran dari item (bisa dari properti No_penawaran atau No_Penawaran)
-        let noPenawaran = item.No_penawaran || item.No_Penawaran;
+        const noPenawaran = item.No_penawaran || item.No_Penawaran;
         if (!noPenawaran) return;
-    
-        // Jika item dari tab 1 (sudah lengkap dengan data customer)
+
+        // Jika item dari tab 1, sudah lengkap dengan data header
         if (item.Customer !== undefined) {
-            setSelectedPenawaran(item);
+            setSelectedPenawaran({
+                ...item,
+                No_penawaran: noPenawaran,
+            });
             setIsModalOpen(true);
+            setDetailRowsNo(noPenawaran);
             setDetailLoading(true);
             const details = await fetchDetailData(noPenawaran);
             setDetailRows(details);
             setDetailLoading(false);
             return;
         }
-    
-        // Jika dari tab 2, kita perlu mengambil header (data customer)
+
+        // Jika dari tab 2, ambil header terlebih dahulu
         setDetailLoading(true);
-        try {
-            const header = await fetchHeaderData(noPenawaran);
-            if (header) {
-                // Pastikan header memiliki properti No_penawaran yang valid
-                const finalNo = header.No_penawaran || header.No_Penawaran || noPenawaran;
-                // Set header sebagai selectedPenawaran
-                setSelectedPenawaran(header);
-                setIsModalOpen(true);
-                // Ambil detail material menggunakan nomor penawaran yang sudah dibakukan
-                const details = await fetchDetailData(finalNo);
-                setDetailRows(details);
-            } else {
-                Swal.fire('Error', 'Gagal mengambil data quotation', 'error');
-            }
-        } catch (error) {
-            console.error(error);
-            Swal.fire('Error', 'Terjadi kesalahan', 'error');
-        } finally {
-            setDetailLoading(false);
+        const header = await fetchHeaderData(noPenawaran);
+        if (header) {
+            setSelectedPenawaran(header);
+            setIsModalOpen(true);
+            setDetailRowsNo(noPenawaran);
+            const details = await fetchDetailData(noPenawaran);
+            setDetailRows(details);
+        } else {
+            Swal.fire('Error', 'Gagal mengambil data quotation', 'error');
         }
+        setDetailLoading(false);
     };
+
     // Untuk kasus item dari tab 1 yang mungkin langsung punya detail
     const selectedDetails = useMemo(() => {
         if (!selectedPenawaran) return [];
