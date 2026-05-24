@@ -171,104 +171,65 @@ class QuotationController
     // ==========================================
     public function getQuotationMaterialsDetails(Request $request)
     {
-        $page = max(1, (int) $request->query('page', 1));
-        $perPage = max(1, min(100, (int) $request->query('per_page', 5)));
-        $search = trim((string) $request->query('search', ''));
+        \Log::info('getQuotationMaterialsDetails called', $request->all());
+        
+        try {
+            $page = (int) $request->query('page', 1);
+            $perPage = (int) $request->query('per_page', 5);
+            $search = trim($request->query('search', ''));
     
-        // Resolve kolom (untuk menangani kemungkinan perbedaan huruf besar/kecil)
-        $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
-        $materialColumn = $this->resolveColumn('tb_penawarandetail', ['Material', 'material'], 'Material');
-        $qtyColumn = $this->resolveColumn('tb_penawarandetail', ['Qty', 'qty'], 'Qty');
-        $satuanColumn = $this->resolveColumn('tb_penawarandetail', ['Satuan', 'satuan'], 'Satuan');
-        $hargaColumn = $this->resolveColumn('tb_penawarandetail', ['Harga', 'harga'], 'Harga');
-        $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
-        $marginColumn = $this->resolveColumn('tb_penawarandetail', ['Margin', 'margin'], 'Margin');
-        $remarkColumn = $this->resolveColumn('tb_penawarandetail', ['Remark', 'remark'], 'Remark');
+            \Log::info("Params: page=$page, perPage=$perPage, search=$search");
     
-        // Query hanya dari tb_penawarandetail
-        $query = DB::table('tb_penawarandetail')
-            ->select(
-                'ID as id_detail',
-                $this->wrapColumn($noPenawaranColumn) . ' as No_Penawaran',
-                $this->wrapColumn($materialColumn) . ' as Material',
-                $this->wrapColumn($qtyColumn) . ' as Qty',
-                $this->wrapColumn($satuanColumn) . ' as Satuan',
-                $this->wrapColumn($hargaColumn) . ' as Harga',
-                $this->wrapColumn($hargaModalColumn) . ' as Harga_modal',
-                $this->wrapColumn($marginColumn) . ' as Margin',
-                $this->wrapColumn($remarkColumn) . ' as Remark',
-                DB::raw('1 as can_delete') // izinkan hapus
-            );
+            // Cek apakah tabel ada
+            if (!DB::connection()->getSchemaBuilder()->hasTable('tb_penawarandetail')) {
+                throw new \Exception('Tabel tb_penawarandetail tidak ditemukan');
+            }
     
-        // Filter pencarian (No_Penawaran atau Material)
-        if ($search !== '') {
-            $query->where(function ($q) use ($search, $noPenawaranColumn, $materialColumn) {
-                $q->where($this->wrapColumn($noPenawaranColumn), 'LIKE', "%{$search}%")
-                  ->orWhere($this->wrapColumn($materialColumn), 'LIKE', "%{$search}%");
+            // Cek kolom
+            $columns = DB::getSchemaBuilder()->getColumnListing('tb_penawarandetail');
+            \Log::info('Columns in tb_penawarandetail: ', $columns);
+    
+            // Query sederhana tanpa alias
+            $query = DB::table('tb_penawarandetail')
+                ->select('ID', 'No_Penawaran', 'Material', 'Qty', 'Satuan', 'Harga', 'Harga_Modal as Harga_modal', 'Margin', 'Remark');
+    
+            if ($search !== '') {
+                $query->where(function($q) use ($search) {
+                    $q->where('No_Penawaran', 'LIKE', "%{$search}%")
+                      ->orWhere('Material', 'LIKE', "%{$search}%");
+                });
+            }
+    
+            $query->orderBy('ID', 'desc');
+    
+            // Gunakan paginate manual untuk menghindari bug
+            $total = $query->count();
+            $offset = ($page - 1) * $perPage;
+            $items = $query->offset($offset)->limit($perPage)->get();
+    
+            // Tambahkan can_delete
+            $items = $items->map(function($item) {
+                $item->can_delete = 1;
+                $item->id_detail = $item->ID;
+                return $item;
             });
-        }
     
-        // Pagination menggunakan Laravel's built-in paginate
-        $materials = $query->orderBy('ID', 'desc')
-            ->paginate(perPage: $perPage, page: $page);
-    
-        return response()->json([
-            'materials' => $materials->items(),
-            'total'     => $materials->total(),
-            'page'      => $materials->currentPage(),
-            'per_page'  => $materials->perPage(),
-        ]);
-    }
-    private function getPenawaranQuery($period)
-    {
-        $query = DB::table('tb_penawaran as p')
-            ->select(
-                'p.No_penawaran',
-                'p.Tgl_penawaran',
-                'p.Tgl_Posting',
-                'p.Customer',
-                'p.Alamat',
-                'p.Telp',
-                'p.Fax',
-                'p.Email',
-                'p.Attend',
-                'p.Validity',
-                'p.Delivery',
-                'p.Franco',
-                'p.Note1',
-                'p.Note2',
-                'p.Note3',
-                DB::raw('1 as can_delete')
-            );
-
-        $now = \Carbon\Carbon::now();
-
-        if ($period === 'today') {
-            $todayDate = $now->format('Y-m-d');
-            $todayDot = $now->format('d.m.Y');
-            
-            $query->where(function($q) use ($todayDate, $todayDot) {
-                $q->whereDate('p.Tgl_Posting', $todayDate)
-                  ->orWhere('p.Tgl_Posting', 'like', $todayDate . '%')
-                  ->orWhere('p.Tgl_Posting', 'like', '%' . $todayDot . '%')
-                  ->orWhere('p.Tgl_penawaran', 'like', $todayDate . '%');
-            });
-        } elseif ($period === 'week') {
-            $query->whereBetween('p.Tgl_Posting', [
-                $now->startOfWeek()->toDateString(),
-                $now->endOfWeek()->toDateString()
+            return response()->json([
+                'materials' => $items,
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage,
             ]);
-        } elseif ($period === 'month') {
-            $query->whereMonth('p.Tgl_Posting', $now->month)
-                  ->whereYear('p.Tgl_Posting', $now->year);
-        } elseif ($period === 'year') {
-            $query->whereYear('p.Tgl_Posting', $now->year);
+            
+        } catch (\Exception $e) {
+            \Log::error('Error in getQuotationMaterialsDetails: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return response()->json([
+                'error' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
         }
-
-        return $query->orderBy('p.Tgl_Posting', 'desc')
-            ->orderBy('p.No_penawaran', 'desc');
     }
-
+ 
+    
     public function create()
     {
         return Inertia::render('marketing/quotation/create', [
