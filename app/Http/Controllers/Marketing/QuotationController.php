@@ -191,7 +191,7 @@ class QuotationController
     
             // Query sederhana tanpa alias
             $query = DB::table('tb_penawarandetail')
-                ->select('ID', 'No_Penawaran', 'Material', 'Qty', 'Satuan', 'Harga', 'Harga_Modal as Harga_modal', 'Margin', 'Remark');
+                ->select('ID', 'No_Penawaran', 'Material', 'Qty', 'Satuan', 'Harga', 'Harga_Modal as Harga_modal');
     
             if ($search !== '') {
                 $query->where(function($q) use ($search) {
