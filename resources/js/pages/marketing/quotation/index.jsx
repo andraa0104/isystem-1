@@ -64,12 +64,13 @@ export default function QuotationIndex({
     // State Navigasi Tab Utama
     const [activeTab, setActiveTab] = useState('customer');
 
-    // State Tab 2 (Material) - Seperti Tab 1
+    // State Tab 2 (Material) - Server Side Pagination (diubah)
     const [materialSearch, setMaterialSearch] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
     const [materialLoading, setMaterialLoading] = useState(false);
     const [remoteMaterialDetails, setRemoteMaterialDetails] = useState([]);
+    const [materialTotal, setMaterialTotal] = useState(0); // total dari server
 
     // ========================================================
     // FETCH DATA TAB 1 (CUSTOMER)
@@ -91,24 +92,26 @@ export default function QuotationIndex({
     }, []);
 
     // ========================================================
-    // FETCH DATA TAB 2 (MATERIAL) - SAMA SEPERTI TAB 1
+    // FETCH DATA TAB 2 (MATERIAL) - SERVER SIDE PAGINATION
     // ========================================================
-    const fetchMaterialData = useCallback(async () => {
+    const fetchMaterialData = useCallback(async (page, perPage, search) => {
         setMaterialLoading(true);
         try {
-            const resMaterial = await fetch('/marketing/quotation/materials-data', { 
-                headers: { Accept: 'application/json' } 
+            const params = new URLSearchParams({
+                page: page,
+                per_page: perPage,
+                search: search
             });
-            if (!resMaterial.ok) {
-                const errorText = await resMaterial.text();
-                console.error('Error response:', errorText);
-                throw new Error(`HTTP ${resMaterial.status}`);
-            }
+            const resMaterial = await fetch(`/marketing/quotation/materials-data?${params.toString()}`, {
+                headers: { Accept: 'application/json' }
+            });
             const dataMaterial = await resMaterial.json();
             setRemoteMaterialDetails(dataMaterial.materials || []);
+            setMaterialTotal(dataMaterial.total || 0);
         } catch (error) {
             console.error('Error fetching material data:', error);
-            // Tampilkan notifikasi error ke user (opsional)
+            setRemoteMaterialDetails([]);
+            setMaterialTotal(0);
         } finally {
             setMaterialLoading(false);
         }
@@ -133,10 +136,26 @@ export default function QuotationIndex({
     const handleTabChange = (tab) => {
         setActiveTab(tab);
         if (tab === 'material') {
-            fetchMaterialData();
+            // Panggil fetch dengan state saat ini
+            const effectivePerPage = materialPageSize === Infinity ? 999999 : materialPageSize;
+            fetchMaterialData(materialCurrentPage, effectivePerPage, materialSearch);
         }
     };
 
+    // Reset halaman Tab 2 ketika search atau pageSize berubah
+    useEffect(() => {
+        setMaterialCurrentPage(1);
+    }, [materialPageSize, materialSearch]);
+
+    // Fetch Tab 2 ketika page, size, atau search berubah
+    useEffect(() => {
+        const effectivePerPage = materialPageSize === Infinity ? 999999 : materialPageSize;
+        fetchMaterialData(materialCurrentPage, effectivePerPage, materialSearch);
+    }, [materialCurrentPage, materialPageSize, materialSearch, fetchMaterialData]);
+
+    // ========================================================
+    // FILTER & PAGINATION TAB 1 (CUSTOMER) - tetap frontend
+    // ========================================================
     const filteredPenawaran = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
         const dataToFilter = remotePenawaran || [];
@@ -189,52 +208,17 @@ export default function QuotationIndex({
     }, [currentPage, totalPages]);
 
     // ========================================================
-    // LOGIKA FILTER & PAGINASI TAB 2 (MATERIAL) - SAMA TAB 1
+    // PAGINATION TAB 2 (MATERIAL) - berdasarkan materialTotal dari server
     // ========================================================
-    const filteredQuotationMaterials = useMemo(() => {
-        const term = materialSearch.trim().toLowerCase();
-        const dataToFilter = remoteMaterialDetails || []; 
-        if (!term) {
-            return dataToFilter;
-        }
-
-        return dataToFilter.filter((item) => {
-            const values = [
-                item.No_Penawaran,
-                item.Tgl_Penawaran,
-                item.Customer,
-                item.Material,
-            ];
-
-            return values.some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(term),
-            );
-        });
-    }, [remoteMaterialDetails, materialSearch]);
-
-    const tab2TotalItems = useMemo(() => filteredQuotationMaterials.length, [filteredQuotationMaterials]);
-
     const tab2TotalPages = useMemo(() => {
         if (materialPageSize === Infinity) return 1;
-        return Math.max(1, Math.ceil(tab2TotalItems / materialPageSize));
-    }, [materialPageSize, tab2TotalItems]);
-
-    const displayedMaterialList = useMemo(() => {
-        if (materialPageSize === Infinity) return filteredQuotationMaterials;
-        const startIndex = (materialCurrentPage - 1) * materialPageSize;
-        return filteredQuotationMaterials.slice(startIndex, startIndex + materialPageSize);
-    }, [materialCurrentPage, filteredQuotationMaterials, materialPageSize]);
+        return Math.max(1, Math.ceil(materialTotal / materialPageSize));
+    }, [materialPageSize, materialTotal]);
 
     const handleMaterialPageSizeChange = (event) => {
         const value = event.target.value;
         setMaterialPageSize(value === 'all' ? Infinity : Number(value));
     };
-
-    useEffect(() => {
-        setMaterialCurrentPage(1);
-    }, [materialPageSize, materialSearch]);
 
     useEffect(() => {
         if (materialCurrentPage > tab2TotalPages) {
@@ -243,7 +227,7 @@ export default function QuotationIndex({
     }, [materialCurrentPage, tab2TotalPages]);
 
     // ========================================================
-    // LOGIKA MODAL DETAIL
+    // LOGIKA MODAL DETAIL (tidak berubah)
     // ========================================================
     const selectedDetails = useMemo(() => {
         if (!selectedPenawaran) {
@@ -376,7 +360,9 @@ export default function QuotationIndex({
                     if (activeTab === 'customer') {
                         fetchQuotationData(statusFilter);
                     } else {
-                        fetchMaterialData();
+                        // Refresh material tab dengan state saat ini
+                        const effectivePerPage = materialPageSize === Infinity ? 999999 : materialPageSize;
+                        fetchMaterialData(materialCurrentPage, effectivePerPage, materialSearch);
                     }
                 })
                 .catch((error) => {
@@ -578,7 +564,7 @@ export default function QuotationIndex({
                     </div>
                 )}
 
-                {/* ==================== TAB 2: DATA MATERIAL ==================== */}
+                {/* ==================== TAB 2: DATA MATERIAL (SERVER SIDE PAGINATION) ==================== */}
                 {activeTab === 'material' && (
                     <div className="mt-2 flex flex-col gap-4 animate-in fade-in duration-300">
                         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -628,11 +614,11 @@ export default function QuotationIndex({
                                     <PlainTableStateRows
                                         columns={7}
                                         loading={materialLoading}
-                                        isEmpty={!materialLoading && displayedMaterialList.length === 0}
+                                        isEmpty={!materialLoading && remoteMaterialDetails.length === 0}
                                         emptyMessage="Tidak ada data quotation material ditemukan."
                                     />
                                     {!materialLoading &&
-                                        displayedMaterialList.map((item, idx) => (
+                                        remoteMaterialDetails.map((item, idx) => (
                                             <tr key={item.id_detail || idx} className="border-t border-sidebar-border/70">
                                                 <td className="px-4 py-3">{renderValue(item.No_Penawaran)}</td>
                                                 <td className="px-4 py-3">{renderValue(item.Tgl_Penawaran)}</td>
@@ -675,10 +661,10 @@ export default function QuotationIndex({
                             </table>
                         </div>
 
-                        {materialPageSize !== Infinity && tab2TotalItems > 0 && (
+                        {materialPageSize !== Infinity && materialTotal > 0 && (
                             <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                 <span>
-                                    Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, tab2TotalItems)} - {Math.min(materialCurrentPage * materialPageSize, tab2TotalItems)} dari {tab2TotalItems} data
+                                    Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialTotal)} - {Math.min(materialCurrentPage * materialPageSize, materialTotal)} dari {materialTotal} data
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <Button
