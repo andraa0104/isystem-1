@@ -603,18 +603,15 @@ export default function QuotationIndex({
                                     <tr>
                                         <th className="px-4 py-3 text-left">No Penawaran</th>
                                         <th className="px-4 py-3 text-left">Material</th>
-                                        <th className="px-4 py-3 text-center">Qty</th>
-                                        <th className="px-4 py-3 text-left">Satuan</th>
+                                        <th className="px-4 py-3 text-left">Qty / Satuan</th>
                                         <th className="px-4 py-3 text-right">Harga</th>
                                         <th className="px-4 py-3 text-right">Harga Modal</th>
-                                        <th className="px-4 py-3 text-left">Margin</th>
-                                        <th className="px-4 py-3 text-left">Remark</th>
                                         <th className="px-4 py-3 text-left">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <PlainTableStateRows
-                                        columns={9}
+                                        columns={6}
                                         loading={materialLoading}
                                         isEmpty={!materialLoading && remoteMaterialDetails.length === 0}
                                         emptyMessage="Tidak ada data quotation material ditemukan."
@@ -626,40 +623,24 @@ export default function QuotationIndex({
                                                 <td className="px-4 py-3 max-w-[250px] truncate uppercase" title={item.Material}>
                                                     {renderValue(item.Material)}
                                                 </td>
-                                                <td className="px-4 py-3 text-center font-bold">
-                                                    {item.Qty} <span className="text-[10px] text-muted-foreground font-normal uppercase">{item.Satuan}</span>
+                                                <td className="px-4 py-3">
+                                                    {item.Qty} {item.Satuan ? renderValue(item.Satuan) : ''}
                                                 </td>
-                                                <td className="px-4 py-3">{renderValue(item.Satuan)}</td>
                                                 <td className="px-4 py-3 text-right font-mono font-bold">
                                                     {formatRupiah(item.Harga)}
                                                 </td>
                                                 <td className="px-4 py-3 text-right font-mono">
                                                     {formatRupiah(item.Harga_modal)}
                                                 </td>
-                                                <td className="px-4 py-3">{renderValue(item.Margin)}</td>
-                                                <td className="px-4 py-3">{renderValue(item.Remark)}</td>
                                                 <td className="px-4 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleOpenModal(item)} 
-                                                            className="text-muted-foreground transition hover:text-foreground"
-                                                            title="Lihat"
-                                                        >
-                                                            <Eye className="size-4" />
-                                                        </button>
-                                                        {Number(item.can_delete ?? 1) === 1 && (
-                                                            <button
-                                                                type="button"
-                                                                className="text-muted-foreground transition hover:text-destructive"
-                                                                title="Hapus"
-                                                                disabled={isDeleting}
-                                                                onClick={() => handleDelete(item.No_Penawaran)}
-                                                            >
-                                                                <Trash2 className="size-4" />
-                                                            </button>
-                                                        )}
-                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenModal(item)}
+                                                        className="text-muted-foreground transition hover:text-foreground"
+                                                        title="Lihat"
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </button>
                                                 </td>
                                             </tr>
                                         ))}
