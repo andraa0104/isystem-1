@@ -160,11 +160,65 @@ class QuotationController
         $period = $request->query('period', 'today');
         
         $penawaran = $this->getPenawaranQuery($period)->get();
-
+    
         return response()->json([
             'penawaran' => $penawaran,
         ]);
     }
+
+    private function getPenawaranQuery($period)
+    {
+        // Gunakan nama kolom yang sudah dipastikan ada (hardcode)
+        $query = DB::table('tb_penawaran as p')
+            ->select(
+                'p.No_penawaran',
+                'p.Tgl_Penawaran',
+                'p.Tgl_Posting',
+                'p.Customer',
+                'p.Alamat',
+                'p.Telp',
+                'p.Fax',
+                'p.Email',
+                'p.Attend',
+                'p.Validity',
+                'p.Delivery',
+                'p.Franco',
+                'p.Note1',
+                'p.Note2',
+                'p.Note3',
+                DB::raw('1 as can_delete')
+            );
+    
+        $now = Carbon::now();
+    
+        if ($period === 'today') {
+            $todayDate = $now->format('Y-m-d');
+            $todayDot = $now->format('d.m.Y');
+            
+            $query->where(function($q) use ($todayDate, $todayDot) {
+                $q->whereDate('p.Tgl_Posting', $todayDate)
+                  ->orWhere('p.Tgl_Posting', 'like', $todayDate . '%')
+                  ->orWhere('p.Tgl_Posting', 'like', '%' . $todayDot . '%')
+                  ->orWhere('p.Tgl_Penawaran', 'like', $todayDate . '%');
+            });
+        } elseif ($period === 'week') {
+            $query->whereBetween('p.Tgl_Posting', [
+                $now->startOfWeek()->toDateString(),
+                $now->endOfWeek()->toDateString()
+            ]);
+        } elseif ($period === 'month') {
+            $query->whereMonth('p.Tgl_Posting', $now->month)
+                  ->whereYear('p.Tgl_Posting', $now->year);
+        } elseif ($period === 'year') {
+            $query->whereYear('p.Tgl_Posting', $now->year);
+        } elseif ($period === 'all') {
+            // tidak ada filter tambahan
+        }
+    
+        return $query->orderBy('p.Tgl_Posting', 'desc')
+            ->orderBy('p.No_Penawaran', 'desc');
+    }
+
 
     // ==========================================
     // FUNGSI MATERIALS DETAILS DENGAN PAGINATION
