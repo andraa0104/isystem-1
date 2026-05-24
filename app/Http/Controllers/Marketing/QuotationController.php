@@ -76,14 +76,46 @@ class QuotationController
     
     public function details($noPenawaran)
     {
-        $detailNo = trim($noPenawaran);
-    
-        $details = DB::table('tb_penawarandetail')
-            ->where('No_Penawaran', $detailNo)
-            ->get();
-    
-        return response()->json(['details' => $details]);
+        $detailNo = trim((string) $noPenawaran);
+
+        $details = Cache::tags(['quotation_data'])->remember('quotation_details_api_' . $detailNo, 86400, function () use ($detailNo) {
+            $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
+            $hargaColumn = $this->resolveColumn('tb_penawarandetail', ['Harga', 'harga'], 'Harga');
+            $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
+
+            return DB::table('tb_penawarandetail')
+                ->selectRaw(
+                    'ID, ID as id, '.
+                    $this->wrapColumn($noPenawaranColumn).' as No_penawaran, '.
+                    $this->wrapColumn($noPenawaranColumn).' as no_penawaran, '.
+                    'Material, Material as material, '.
+                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                    .' THEN '.$this->wrapColumn($hargaModalColumn)
+                    .' ELSE '.$this->wrapColumn($hargaColumn).' END as Harga, '.
+                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                    .' THEN '.$this->wrapColumn($hargaModalColumn)
+                    .' ELSE '.$this->wrapColumn($hargaColumn).' END as harga_penawaran, '.
+                    'Qty, Qty as quantity, '.
+                    'Satuan, Satuan as satuan, '.
+                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                    .' THEN '.$this->wrapColumn($hargaColumn)
+                    .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as Harga_modal, '.
+                    'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
+                    .' THEN '.$this->wrapColumn($hargaColumn)
+                    .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as harga_modal, '.
+                    'Margin, Margin as margin, '.
+                    'Remark, Remark as remark'
+                )
+                ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [$detailNo])
+                ->orderBy('ID')
+                ->get();
+        });
+
+        return response()->json([
+            'details' => $details,
+        ]);
     }
+
     public function destroy(Request $request, $noPenawaran)
     {
         $noPenawaran = trim((string) $noPenawaran);
@@ -251,15 +283,15 @@ class QuotationController
         }
     }
  
-    public function details($noPenawaran)
+    public function header($noPenawaran)
     {
-        $detailNo = trim($noPenawaran);
-    
-        $details = DB::table('tb_penawarandetail')
-            ->where('No_Penawaran', $detailNo)
-            ->get();
-    
-        return response()->json(['details' => $details]);
+        $no = trim($noPenawaran);
+        $header = DB::table('tb_penawaran')
+            ->where('No_Penawaran', $no)
+            ->orWhere('No_penawaran', $no)
+            ->orWhere('no_penawaran', $no)
+            ->first();
+        return response()->json($header);
     }
     
     public function create()
