@@ -169,13 +169,14 @@ class QuotationController
     // ==========================================
     // FUNGSI MATERIALS DETAILS DENGAN PAGINATION
     // ==========================================
-    public function getQuotationMaterialsDetails(Request $request)
+    ublic function getQuotationMaterialsDetails(Request $request)
     {
+        // Ambil parameter dari frontend, set default jika kosong
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 5)));
         $search = trim((string) $request->query('search', ''));
 
-        // 1. Build Query Dasar (Tanpa filter tanggal)
+        // 1. Build Query Dasar (Tanpa filter tanggal sama sekali mengikuti Tab 1)
         $query = DB::table('tb_penawarandetail as pd')
             ->join('tb_penawaran as p', DB::raw('TRIM(pd.No_penawaran)'), '=', DB::raw('TRIM(p.No_penawaran)'))
             ->select(
@@ -193,27 +194,28 @@ class QuotationController
                 DB::raw('1 as can_delete')
             );
 
-        // 2. Terapkan Filter Pencarian (Jika user mengetik di search box)
+        // 2. Terapkan Filter Pencarian jika Search Box diisi
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
-                $q->whereRaw("TRIM(p.No_penawaran) LIKE ?", ["%{$search}%"])
+                // Menggunakan DB::raw untuk TRIM agar tidak error di pencarian
+                $q->where(DB::raw("TRIM(p.No_penawaran)"), 'LIKE', "%{$search}%")
                   ->orWhere('p.Tgl_penawaran', 'LIKE', "%{$search}%")
                   ->orWhere('p.Customer', 'LIKE', "%{$search}%")
                   ->orWhere('pd.Material', 'LIKE', "%{$search}%");
             });
         }
 
-        // 3. Hitung Total Keseluruhan Data (Untuk memunculkan "5 dari xxx data")
+        // 3. Hitung Total Data untuk info "5 dari xxx data"
         $total = $query->count();
 
-        // 4. Ambil Data Sesuai Halaman (Page) & Jumlah per Halaman (Limit)
+        // 4. Ambil Data Sesuai Halaman (Pagination Offset)
         $materials = $query->orderBy('p.Tgl_penawaran', 'desc')
             ->orderBy('pd.ID', 'desc')
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
             ->get();
 
-        // 5. Kembalikan Response JSON beserta Metadata Pagination
+        // 5. Kembalikan Response ke Frontend
         return response()->json([
             'materials' => $materials,
             'total'     => $total,
