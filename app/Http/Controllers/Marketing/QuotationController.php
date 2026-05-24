@@ -178,11 +178,11 @@ class QuotationController
 
         // 1. Build Query Dasar (Tanpa filter tanggal sama sekali mengikuti Tab 1)
         $query = DB::table('tb_penawarandetail as pd')
-            ->join('tb_penawaran as p', DB::raw('TRIM(pd.No_penawaran)'), '=', DB::raw('TRIM(p.No_penawaran)'))
+            ->join('tb_penawaran as p', DB::raw('TRIM(pd.No_Penawaran)'), '=', DB::raw('TRIM(p.No_Penawaran)'))
             ->select(
                 'pd.ID as id_detail',
-                'p.No_penawaran as No_Penawaran',
-                'p.Tgl_penawaran as Tgl_Penawaran',
+                'p.No_Penawaran as No_Penawaran',
+                'p.Tgl_Penawaran as Tgl_Penawaran',
                 'p.Customer',
                 'pd.Material',
                 'pd.Qty',
@@ -199,8 +199,8 @@ class QuotationController
             $query->where(function ($q) use ($search) {
                 // Hindari DB::raw di dalam where jika memungkinkan, 
                 // atau pastikan alias tabel (p.) sudah benar
-                $q->where('p.No_penawaran', 'LIKE', "%{$search}%")
-                  ->orWhere('p.Tgl_penawaran', 'LIKE', "%{$search}%")
+                $q->where('p.No_Penawaran', 'LIKE', "%{$search}%")
+                  ->orWhere('p.Tgl_Penawaran', 'LIKE', "%{$search}%")
                   ->orWhere('p.Customer', 'LIKE', "%{$search}%")
                   ->orWhere('pd.Material', 'LIKE', "%{$search}%");
             });
@@ -210,7 +210,7 @@ class QuotationController
         $total = $query->count();
 
         // 4. Ambil Data Sesuai Halaman (Pagination Offset)
-        $materials = $query->orderBy('p.Tgl_penawaran', 'desc')
+        $materials = $query->orderBy('p.Tgl_Penawaran', 'desc')
             ->orderBy('pd.ID', 'desc')
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
