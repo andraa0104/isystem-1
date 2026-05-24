@@ -175,7 +175,7 @@ class QuotationController
         $perPage = max(1, min(100, (int) $request->query('per_page', 5)));
         $search = trim((string) $request->query('search', ''));
 
-        // Build query
+        // 1. Build Query Dasar (Tanpa filter tanggal)
         $query = DB::table('tb_penawarandetail as pd')
             ->join('tb_penawaran as p', DB::raw('TRIM(pd.No_penawaran)'), '=', DB::raw('TRIM(p.No_penawaran)'))
             ->select(
@@ -189,10 +189,11 @@ class QuotationController
                 'pd.Harga',
                 'pd.Harga_Modal as Harga_modal',
                 'pd.Margin',
-                'pd.Remark'
+                'pd.Remark',
+                DB::raw('1 as can_delete')
             );
 
-        // Apply search filter jika ada
+        // 2. Terapkan Filter Pencarian (Jika user mengetik di search box)
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $q->whereRaw("TRIM(p.No_penawaran) LIKE ?", ["%{$search}%"])
@@ -202,24 +203,24 @@ class QuotationController
             });
         }
 
-        // Count total rows
+        // 3. Hitung Total Keseluruhan Data (Untuk memunculkan "5 dari xxx data")
         $total = $query->count();
 
-        // Get paginated data
+        // 4. Ambil Data Sesuai Halaman (Page) & Jumlah per Halaman (Limit)
         $materials = $query->orderBy('p.Tgl_penawaran', 'desc')
             ->orderBy('pd.ID', 'desc')
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
             ->get();
 
+        // 5. Kembalikan Response JSON beserta Metadata Pagination
         return response()->json([
             'materials' => $materials,
-            'total' => $total,
-            'page' => $page,
-            'per_page' => $perPage,
+            'total'     => $total,
+            'page'      => $page,
+            'per_page'  => $perPage,
         ]);
     }
-
     private function getPenawaranQuery($period)
     {
         $query = DB::table('tb_penawaran as p')
@@ -644,6 +645,12 @@ class QuotationController
                     $insertData = [];
                     
                     foreach ($materials as $item) {
+                        // Logika untuk menambahkan % pada Margin
+                        $marginInput = $item['margin'] ?? null;
+                        if ($marginInput !== null && trim($marginInput) !== '' && !str_contains($marginInput, '%')) {
+                            $marginInput = trim($marginInput) . '%';
+                        }
+
                         $insertData[] = [
                             $noPenawaranColumn => $noPenawaran,
                             'Material' => $item['material'] ?? null,
@@ -651,10 +658,11 @@ class QuotationController
                             'Harga' => $item['harga_penawaran'] ?? null,
                             $hargaModalColumn => $item['harga_modal'] ?? null,
                             'Satuan' => $item['satuan'] ?? null,
-                            'Margin' => $item['margin'] ?? null,
+                            'Margin' => $marginInput, // Margin sudah difilter dengan %
                             'Remark' => $this->valueOrSpace($item['remark'] ?? null),
                         ];
                     }
+                    
                     if (!empty($insertData)) {
                         DB::table('tb_penawarandetail')->insert($insertData);
                     }
