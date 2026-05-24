@@ -175,35 +175,41 @@ class QuotationController
         $perPage = max(1, min(100, (int) $request->query('per_page', 5)));
         $search = trim((string) $request->query('search', ''));
     
-        // Query dasar (sudah tanpa TRIM, pastikan kolom No_penawaran bersih)
-        $query = DB::table('tb_penawarandetail as pd')
-            ->join('tb_penawaran as p', 'pd.No_Penawaran', '=', 'p.No_penawaran')
-            ->select([
-                'pd.ID as id_detail',
-                'p.No_Penawaran',
-                'p.Tgl_Penawaran',
-                'p.Customer',
-                'pd.Material',
-                'pd.Qty',
-                'pd.Satuan',
-                'pd.Harga',
-                'pd.Harga_Modal as Harga_modal',
-                'pd.Margin',
-                'pd.Remark',
-                DB::raw('1 as can_delete')
-            ]);
+        // Resolve kolom (untuk menangani kemungkinan perbedaan huruf besar/kecil)
+        $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
+        $materialColumn = $this->resolveColumn('tb_penawarandetail', ['Material', 'material'], 'Material');
+        $qtyColumn = $this->resolveColumn('tb_penawarandetail', ['Qty', 'qty'], 'Qty');
+        $satuanColumn = $this->resolveColumn('tb_penawarandetail', ['Satuan', 'satuan'], 'Satuan');
+        $hargaColumn = $this->resolveColumn('tb_penawarandetail', ['Harga', 'harga'], 'Harga');
+        $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
+        $marginColumn = $this->resolveColumn('tb_penawarandetail', ['Margin', 'margin'], 'Margin');
+        $remarkColumn = $this->resolveColumn('tb_penawarandetail', ['Remark', 'remark'], 'Remark');
     
-        // Filter pencarian
+        // Query hanya dari tb_penawarandetail
+        $query = DB::table('tb_penawarandetail')
+            ->select(
+                'ID as id_detail',
+                $this->wrapColumn($noPenawaranColumn) . ' as No_Penawaran',
+                $this->wrapColumn($materialColumn) . ' as Material',
+                $this->wrapColumn($qtyColumn) . ' as Qty',
+                $this->wrapColumn($satuanColumn) . ' as Satuan',
+                $this->wrapColumn($hargaColumn) . ' as Harga',
+                $this->wrapColumn($hargaModalColumn) . ' as Harga_modal',
+                $this->wrapColumn($marginColumn) . ' as Margin',
+                $this->wrapColumn($remarkColumn) . ' as Remark',
+                DB::raw('1 as can_delete') // izinkan hapus
+            );
+    
+        // Filter pencarian (No_Penawaran atau Material)
         if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('p.p.Customer', 'LIKE', "%{$search}%")
-                  ->orWhere('pd.Material', 'LIKE', "%{$search}%");
+            $query->where(function ($q) use ($search, $noPenawaranColumn, $materialColumn) {
+                $q->where($this->wrapColumn($noPenawaranColumn), 'LIKE', "%{$search}%")
+                  ->orWhere($this->wrapColumn($materialColumn), 'LIKE', "%{$search}%");
             });
         }
     
-        // Gunakan paginate bawaan Laravel (otomatis COUNT dan pagination)
-        $materials = $query->orderBy('p.Tgl_penawaran', 'desc')
-            ->orderBy('pd.ID', 'desc')
+        // Pagination menggunakan Laravel's built-in paginate
+        $materials = $query->orderBy('ID', 'desc')
             ->paginate(perPage: $perPage, page: $page);
     
         return response()->json([
