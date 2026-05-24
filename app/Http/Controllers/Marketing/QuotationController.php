@@ -81,6 +81,9 @@ class QuotationController
         $details = DB::table('tb_penawarandetail')
             ->where('No_Penawaran', $detailNo)
             ->get();
+        
+        // Tambahkan log untuk memastikan data ditemukan di server
+        \Log::info("Fetching details for $detailNo: " . $details->count() . " records found.");
     
         return response()->json(['details' => $details]);
     }
