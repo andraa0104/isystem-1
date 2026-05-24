@@ -228,65 +228,71 @@ export default function QuotationIndex({
     // ========================================================
     const fetchHeaderData = useCallback(async (noPenawaran) => {
         try {
-            const response = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/header`, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            if (!response.ok) return null;
-            return await response.json();
+            const res = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/header`);
+            if (!res.ok) return null;
+            const data = await res.json();
+            // Tambahkan properti No_penawaran jika hanya ada No_Penawaran
+            if (data.No_Penawaran && !data.No_penawaran) {
+                data.No_penawaran = data.No_Penawaran;
+            }
+            return data;
         } catch (error) {
-            console.error('Error fetching header:', error);
+            console.error(error);
             return null;
         }
     }, []);
-
+    
     const fetchDetailData = useCallback(async (noPenawaran) => {
         try {
-            const response = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/details`, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            if (!response.ok) return [];
-            const data = await response.json();
-            return Array.isArray(data?.details) ? data.details : [];
+            const res = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/details`);
+            if (!res.ok) return [];
+            const data = await res.json();
+            return data.details || [];
         } catch (error) {
-            console.error('Error fetching details:', error);
+            console.error(error);
             return [];
         }
     }, []);
-
+    
     const handleOpenModal = async (item) => {
-        const noPenawaran = item.No_penawaran || item.No_Penawaran;
+        // Ambil nomor penawaran dari item (bisa dari properti No_penawaran atau No_Penawaran)
+        let noPenawaran = item.No_penawaran || item.No_Penawaran;
         if (!noPenawaran) return;
-
-        // Jika item dari tab 1, sudah lengkap dengan data header
+    
+        // Jika item dari tab 1 (sudah lengkap dengan data customer)
         if (item.Customer !== undefined) {
-            setSelectedPenawaran({
-                ...item,
-                No_penawaran: noPenawaran,
-            });
+            setSelectedPenawaran(item);
             setIsModalOpen(true);
-            setDetailRowsNo(noPenawaran);
             setDetailLoading(true);
             const details = await fetchDetailData(noPenawaran);
             setDetailRows(details);
             setDetailLoading(false);
             return;
         }
-
-        // Jika dari tab 2, ambil header terlebih dahulu
+    
+        // Jika dari tab 2, kita perlu mengambil header (data customer)
         setDetailLoading(true);
-        const header = await fetchHeaderData(noPenawaran);
-        if (header) {
-            setSelectedPenawaran(header);
-            setIsModalOpen(true);
-            setDetailRowsNo(noPenawaran);
-            const details = await fetchDetailData(noPenawaran);
-            setDetailRows(details);
-        } else {
-            Swal.fire('Error', 'Gagal mengambil data quotation', 'error');
+        try {
+            const header = await fetchHeaderData(noPenawaran);
+            if (header) {
+                // Pastikan header memiliki properti No_penawaran yang valid
+                const finalNo = header.No_penawaran || header.No_Penawaran || noPenawaran;
+                // Set header sebagai selectedPenawaran
+                setSelectedPenawaran(header);
+                setIsModalOpen(true);
+                // Ambil detail material menggunakan nomor penawaran yang sudah dibakukan
+                const details = await fetchDetailData(finalNo);
+                setDetailRows(details);
+            } else {
+                Swal.fire('Error', 'Gagal mengambil data quotation', 'error');
+            }
+        } catch (error) {
+            console.error(error);
+            Swal.fire('Error', 'Terjadi kesalahan', 'error');
+        } finally {
+            setDetailLoading(false);
         }
-        setDetailLoading(false);
     };
-
     // Untuk kasus item dari tab 1 yang mungkin langsung punya detail
     const selectedDetails = useMemo(() => {
         if (!selectedPenawaran) return [];
