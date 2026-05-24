@@ -621,7 +621,7 @@ export default function QuotationIndex({
                                     <tr>
                                         <th className="px-4 py-3 text-left">No Penawaran</th>
                                         <th className="px-4 py-3 text-left">Material</th>
-                                        <th className="px-4 py-3 text-left">Qty / Satuan</th>
+                                        <th className="px-4 py-3 text-left">Qty</th>
                                         <th className="px-4 py-3 text-right">Harga</th>
                                         <th className="px-4 py-3 text-right">Harga Modal</th>
                                         <th className="px-4 py-3 text-left">Action</th>
