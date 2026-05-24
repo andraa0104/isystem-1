@@ -171,16 +171,26 @@ class QuotationController
     // ==========================================
     public function getQuotationMaterialsDetails(Request $request)
     {
-        // Ambil parameter dari frontend, set default jika kosong
+        // Ambil parameter pagination dari frontend
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 5)));
         $search = trim((string) $request->query('search', ''));
-
+    
+        // Resolve nama kolom yang mungkin berbeda kapitalisasi/spasi
         $noPenawaranColumnPD = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
-        $noPenawaranColumnP = $this->resolveColumn('tb_penawaran', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
-        $tglColumn = $this->resolveColumn('tb_penawaran', ['Tgl_Penawaran', 'Tgl_penawaran', 'tgl_penawaran'], 'Tgl_penawaran');
+        $noPenawaranColumnP  = $this->resolveColumn('tb_penawaran',      ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
+        $tglColumn           = $this->resolveColumn('tb_penawaran',      ['Tgl_Penawaran', 'Tgl_penawaran', 'tgl_penawaran'], 'Tgl_penawaran');
+        $hargaModalColumn    = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
+        $hargaColumn         = $this->resolveColumn('tb_penawarandetail', ['Harga', 'harga'], 'Harga');
+        $marginColumn        = $this->resolveColumn('tb_penawarandetail', ['Margin', 'margin'], 'Margin');
+        $remarkColumn        = $this->resolveColumn('tb_penawarandetail', ['Remark', 'remark'], 'Remark');
+    
+        // Query join dengan case-insensitive & trim
         $query = DB::table('tb_penawarandetail as pd')
-            ->join('tb_penawaran as p', DB::raw('LOWER(TRIM(pd.' . $this->wrapColumn($noPenawaranColumn) . '))'), '=', DB::raw('LOWER(TRIM(p.No_Penawaran))'))
+            ->join('tb_penawaran as p', function ($join) use ($noPenawaranColumnPD, $noPenawaranColumnP) {
+                $join->on(DB::raw('LOWER(TRIM(pd.' . $this->wrapColumn($noPenawaranColumnPD) . '))'), '=', 
+                          DB::raw('LOWER(TRIM(p.' . $this->wrapColumn($noPenawaranColumnP) . '))'));
+            })
             ->select(
                 'pd.ID as id_detail',
                 'p.' . $this->wrapColumn($noPenawaranColumnP) . ' as No_Penawaran',
@@ -189,42 +199,40 @@ class QuotationController
                 'pd.Material',
                 'pd.Qty',
                 'pd.Satuan',
-                'pd.Harga',
-                'pd.Harga_Modal as Harga_modal',
-                'pd.Margin',
-                'pd.Remark',
+                'pd.' . $this->wrapColumn($hargaColumn) . ' as Harga',
+                'pd.' . $this->wrapColumn($hargaModalColumn) . ' as Harga_modal',
+                'pd.' . $this->wrapColumn($marginColumn) . ' as Margin',
+                'pd.' . $this->wrapColumn($remarkColumn) . ' as Remark',
                 DB::raw('1 as can_delete')
             );
-        // 2. Terapkan Filter Pencarian jika Search Box diisi
+    
+        // Filter pencarian jika ada
         if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                // Hindari DB::raw di dalam where jika memungkinkan, 
-                // atau pastikan alias tabel (p.) sudah benar
-                $q->where('p.No_Penawaran', 'LIKE', "%{$search}%")
-                  ->orWhere('p.Tgl_Penawaran', 'LIKE', "%{$search}%")
+            $query->where(function ($q) use ($search, $noPenawaranColumnP, $tglColumn) {
+                $q->where('p.' . $this->wrapColumn($noPenawaranColumnP), 'LIKE', "%{$search}%")
+                  ->orWhere('p.' . $this->wrapColumn($tglColumn), 'LIKE', "%{$search}%")
                   ->orWhere('p.Customer', 'LIKE', "%{$search}%")
                   ->orWhere('pd.Material', 'LIKE', "%{$search}%");
             });
         }
-
-        // 3. Hitung Total Data untuk info "5 dari xxx data"
+    
+        // Hitung total data
         $total = $query->count();
-
-        // 4. Ambil Data Sesuai Halaman (Pagination Offset)
-        $materials = $query->orderBy('p.Tgl_Penawaran', 'desc')
+    
+        // Ambil data sesuai halaman
+        $materials = $query->orderBy('p.' . $this->wrapColumn($tglColumn), 'desc')
             ->orderBy('pd.ID', 'desc')
             ->offset(($page - 1) * $perPage)
             ->limit($perPage)
             ->get();
-
-        // 5. Kembalikan Response ke Frontend
+    
         return response()->json([
             'materials' => $materials,
             'total'     => $total,
             'page'      => $page,
             'per_page'  => $perPage,
         ]);
-    }
+}
     private function getPenawaranQuery($period)
     {
         $query = DB::table('tb_penawaran as p')
