@@ -257,34 +257,22 @@ export default function QuotationIndex({
     const handleOpenModal = async (item) => {
         const noPenawaran = item.No_penawaran || item.No_Penawaran;
         if (!noPenawaran) return;
-
-        // Jika item dari tab 1, sudah lengkap dengan data header
-        if (item.Customer !== undefined) {
-            setSelectedPenawaran({
-                ...item,
-                No_penawaran: noPenawaran,
-            });
-            setIsModalOpen(true);
-            setDetailRowsNo(noPenawaran);
-            setDetailLoading(true);
-            const details = await fetchDetailData(noPenawaran);
-            setDetailRows(details);
-            setDetailLoading(false);
-            return;
-        }
-
-        // Jika dari tab 2, ambil header terlebih dahulu
+    
         setDetailLoading(true);
-        const header = await fetchHeaderData(noPenawaran);
-        if (header) {
-            setSelectedPenawaran(header);
-            setIsModalOpen(true);
-            setDetailRowsNo(noPenawaran);
-            const details = await fetchDetailData(noPenawaran);
-            setDetailRows(details);
-        } else {
-            Swal.fire('Error', 'Gagal mengambil data quotation', 'error');
-        }
+        setIsModalOpen(true);
+        setDetailRows([]); // Kosongkan data lama agar tidak nyangkut
+    
+        // 1. Ambil Header (Satu kali jalan untuk kedua tab)
+        const header = (item.Customer !== undefined) ? item : await fetchHeaderData(noPenawaran);
+        setSelectedPenawaran(header);
+    
+        // 2. Ambil Detail (Satu kali jalan untuk kedua tab)
+        const response = await fetchDetailData(noPenawaran);
+        
+        // Pastikan data yang masuk adalah array
+        const dataDetails = Array.isArray(response) ? response : (response.details || []);
+        
+        setDetailRows(dataDetails);
         setDetailLoading(false);
     };
 
@@ -841,28 +829,27 @@ export default function QuotationIndex({
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                <PlainTableStateRows
-                                                    loading={detailLoading}
-                                                    columns={7}
-                                                    rows={5}
-                                                    isEmpty={!detailLoading && displayedMaterialDetails.length === 0}
-                                                    emptyMessage="Belum ada data material."
-                                                />
-                                                {displayedMaterialDetails.map((detail, index) => (
-                                                    <tr key={`${detail.No_penawaran}-${index}`} className="border-t border-sidebar-border/70">
-                                                        <td className="px-4 py-3">
-                                                            {(materialPageSize === Infinity ? index : (materialCurrentPage - 1) * materialPageSize + index) + 1}
-                                                        </td>
-                                                        <td className="px-4 py-3">{renderValue(detail.Material)}</td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(detail.Qty)} {renderValue(detail.Satuan)}
-                                                        </td>
-                                                        <td className="px-4 py-3">{formatRupiah(detail.Harga)}</td>
-                                                        <td className="px-4 py-3">{formatRupiah(detail.Harga_modal)}</td>
-                                                        <td className="px-4 py-3">{renderValue(detail.Margin)}</td>
-                                                        <td className="px-4 py-3">{renderValue(detail.Remark)}</td>
+                                                {detailLoading ? (
+                                                    <tr>
+                                                        <td colSpan="6" className="text-center py-4">Loading...</td>
                                                     </tr>
-                                                ))}
+                                                ) : detailRows.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan="6" className="text-center py-4">Tidak ada data detail.</td>
+                                                    </tr>
+                                                ) : (
+                                                    detailRows.map((detail, index) => (
+                                                        <tr key={index} className="border-t border-sidebar-border/70">
+                                                            <td className="px-4 py-3">{index + 1}</td>
+                                                            <td className="px-4 py-3">{detail.Material}</td>
+                                                            <td className="px-4 py-3">{detail.Qty} {detail.Satuan}</td>
+                                                            <td className="px-4 py-3">{formatRupiah(detail.Harga)}</td>
+                                                            <td className="px-4 py-3">{formatRupiah(detail.Harga_modal)}</td>
+                                                            <td className="px-4 py-3">{detail.Margin}</td>
+                                                            <td className="px-4 py-3">{detail.Remark}</td>
+                                                        </tr>
+                                                    ))
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
