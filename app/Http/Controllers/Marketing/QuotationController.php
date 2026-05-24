@@ -283,6 +283,18 @@ class QuotationController
         }
     }
  
+    public function header($noPenawaran)
+    {
+        $quotation = DB::table('tb_penawaran')
+            ->where('No_Penawaran', $noPenawaran)
+            ->first();
+    
+        if (!$quotation) {
+            return response()->json(['error' => 'Not found'], 404);
+        }
+    
+        return response()->json($quotation);
+    }
     
     public function create()
     {
