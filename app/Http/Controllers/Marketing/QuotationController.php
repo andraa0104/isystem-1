@@ -141,7 +141,7 @@ class QuotationController
             ->select(
                 'p.No_penawaran',
                 'p.Tgl_Penawaran',
-                'p.Tgl_Posting',
+                'p.Tgl_Posting as Tgl.penawaran',
                 'p.Customer',
                 'p.Alamat',
                 'p.Telp',
