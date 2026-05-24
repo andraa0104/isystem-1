@@ -213,6 +213,8 @@ Route::get('marketing/quotation/{noPenawaran}/edit', [QuotationController::class
     ->name('marketing.quotation.edit');
 Route::get('marketing/quotation/{noPenawaran}/details', [QuotationController::class, 'details'])
     ->name('marketing.quotation.details');
+Route::get('/marketing/quotation/{noPenawaran}/header', [QuotationController::class, 'header'])
+    ->name('marketing.quotation.header');
 Route::get('marketing/quotation/{noPenawaran}/print', [QuotationController::class, 'print'])
     ->name('marketing.quotation.print');
 Route::delete('marketing/quotation/{noPenawaran}', [QuotationController::class, 'destroy'])
