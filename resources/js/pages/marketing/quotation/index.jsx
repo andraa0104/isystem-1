@@ -42,19 +42,16 @@ export default function QuotationIndex({
     detailNo = null,
     period = 'today',
 }) {
-    // ==================== TAB 1 (CUSTOMER) ====================
+    // State Tab 1 (Customer)
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState(period);
     const [remotePenawaran, setRemotePenawaran] = useState(penawaran);
+    
     const [loading, setLoading] = useState(false);
-    const handlePeriodChange = (newPeriod) => {
-        setStatusFilter(newPeriod);
-        setCurrentPage(1);
-    };
-
-    // ==================== MODAL DETAIL ====================
+    
+    // State Modal & Detail
     const [selectedPenawaran, setSelectedPenawaran] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [detailRows, setDetailRows] = useState([]);
@@ -62,8 +59,11 @@ export default function QuotationIndex({
     const [detailLoading, setDetailLoading] = useState(false);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
     const [isDeleting, setIsDeleting] = useState(false);
+    
+    // State Navigasi Tab Utama
+    const [activeTab, setActiveTab] = useState('customer');
 
-    // ==================== TAB 2 (MATERIAL) ====================
+    // State Tab 2 (Material) - Server Side Pagination
     const [materialSearch, setMaterialSearch] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
@@ -71,17 +71,18 @@ export default function QuotationIndex({
     const [remoteMaterialDetails, setRemoteMaterialDetails] = useState([]);
     const [materialTotal, setMaterialTotal] = useState(0);
 
-    const [activeTab, setActiveTab] = useState('customer');
-
-    // ==================== FETCH TAB 1 ====================
+    // ========================================================
+    // FETCH DATA TAB 1 (CUSTOMER) - SAMA SEPERTI SEMULA
+    // ========================================================
     const fetchQuotationData = useCallback(async (newPeriod) => {
         setLoading(true);
         try {
-            const resPenawaran = await fetch(`/marketing/quotation/data?period=${newPeriod}`, {
-                headers: { Accept: 'application/json' }
+            const resPenawaran = await fetch(`/marketing/quotation/data?period=${newPeriod}`, { 
+                headers: { Accept: 'application/json' } 
             });
             const dataPenawaran = await resPenawaran.json();
             setRemotePenawaran(dataPenawaran.penawaran || []);
+            
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
@@ -89,7 +90,9 @@ export default function QuotationIndex({
         }
     }, []);
 
-    // ==================== FETCH TAB 2 (SERVER SIDE) ====================
+    // ========================================================
+    // FETCH DATA TAB 2 (MATERIAL) - SERVER SIDE PAGINATION
+    // ========================================================
     const fetchMaterialData = useCallback(async (page, perPage, search) => {
         setMaterialLoading(true);
         try {
@@ -113,7 +116,6 @@ export default function QuotationIndex({
         }
     }, []);
 
-    // Efek awal dan perubahan period
     useEffect(() => {
         setRemotePenawaran(penawaran);
     }, [penawaran]);
@@ -122,7 +124,11 @@ export default function QuotationIndex({
         fetchQuotationData(statusFilter);
     }, [statusFilter, fetchQuotationData]);
 
-    // ==================== HANDLE TAB CHANGE ====================
+    const handlePeriodChange = (newPeriod) => {
+        setStatusFilter(newPeriod);
+        setCurrentPage(1);
+    };
+
     const handleTabChange = (tab) => {
         setActiveTab(tab);
         if (tab === 'material') {
@@ -131,7 +137,7 @@ export default function QuotationIndex({
         }
     };
 
-    // ==================== PAGINATION & FILTER TAB 1 ====================
+    // Filter & Pagination Tab 1 (frontend)
     const filteredPenawaran = useMemo(() => {
         const term = searchTerm.trim().toLowerCase();
         const dataToFilter = remotePenawaran || [];
@@ -167,7 +173,12 @@ export default function QuotationIndex({
         if (currentPage > totalPages) setCurrentPage(totalPages);
     }, [currentPage, totalPages]);
 
-    // ==================== PAGINATION TAB 2 ====================
+    // Pagination Tab 2 (server side)
+    const tab2TotalPages = useMemo(() => {
+        if (materialPageSize === Infinity) return 1;
+        return Math.max(1, Math.ceil(materialTotal / materialPageSize));
+    }, [materialPageSize, materialTotal]);
+
     const handleMaterialPageSizeChange = (event) => {
         const value = event.target.value;
         setMaterialPageSize(value === 'all' ? Infinity : Number(value));
@@ -182,12 +193,13 @@ export default function QuotationIndex({
         fetchMaterialData(materialCurrentPage, effectivePerPage, materialSearch);
     }, [materialCurrentPage, materialPageSize, materialSearch, fetchMaterialData]);
 
-    const tab2TotalPages = useMemo(() => {
-        if (materialPageSize === Infinity) return 1;
-        return Math.max(1, Math.ceil(materialTotal / materialPageSize));
-    }, [materialPageSize, materialTotal]);
+    useEffect(() => {
+        if (materialCurrentPage > tab2TotalPages) setMaterialCurrentPage(tab2TotalPages);
+    }, [materialCurrentPage, tab2TotalPages]);
 
-    // ==================== MODAL DETAIL LOGIC ====================
+    // ========================================================
+    // LOGIKA MODAL DETAIL (tidak berubah)
+    // ========================================================
     const selectedDetails = useMemo(() => {
         if (!selectedPenawaran) return [];
         const selectedNo = String(selectedPenawaran.No_penawaran ?? '').trim();
@@ -325,7 +337,7 @@ export default function QuotationIndex({
                     </button>
                 </div>
 
-                {/* ========== TAB 1 : CUSTOMER ========== */}
+                {/* ========== TAB 1 : CUSTOMER (kembali seperti semula) ========== */}
                 {activeTab === 'customer' && (
                     <div className="mt-2 flex flex-col gap-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -405,7 +417,7 @@ export default function QuotationIndex({
                     </div>
                 )}
 
-                {/* ========== TAB 2 : MATERIAL (hanya kolom yang diminta) ========== */}
+                {/* ========== TAB 2 : MATERIAL (hanya kolom yang diminta, tanpa hapus) ========== */}
                 {activeTab === 'material' && (
                     <div className="mt-2 flex flex-col gap-4 animate-in fade-in duration-300">
                         <div className="flex flex-wrap items-center justify-between gap-3">
