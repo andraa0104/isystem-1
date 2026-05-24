@@ -96,14 +96,19 @@ export default function QuotationIndex({
     const fetchMaterialData = useCallback(async () => {
         setMaterialLoading(true);
         try {
-            const resMaterial = await fetch(`/marketing/quotation/materials-data`, { 
+            const resMaterial = await fetch('/marketing/quotation/materials-data', { 
                 headers: { Accept: 'application/json' } 
             });
+            if (!resMaterial.ok) {
+                const errorText = await resMaterial.text();
+                console.error('Error response:', errorText);
+                throw new Error(`HTTP ${resMaterial.status}`);
+            }
             const dataMaterial = await resMaterial.json();
             setRemoteMaterialDetails(dataMaterial.materials || []);
-            
         } catch (error) {
             console.error('Error fetching material data:', error);
+            // Tampilkan notifikasi error ke user (opsional)
         } finally {
             setMaterialLoading(false);
         }
