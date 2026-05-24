@@ -225,8 +225,8 @@ Route::delete('marketing/quotation/{noPenawaran}/detail/{detailId}', [QuotationC
     ->name('marketing.quotation.detail.destroy');
 Route::post('marketing/quotation', [QuotationController::class, 'store'])
     ->name('marketing.quotation.store');
-Route::get('/marketing/quotation/materials-details', [QuotationController::class, 'getQuotationMaterialsDetails'])
-    ->name('marketing.quotation.getQuotationMaterialsDetails');
+Route::get('/marketing/quotation/materials-data', [QuotationController::class, 'getQuotationMaterialsDetails'])
+    ->name('marketing.quotation.materials-data');
 Route::get('marketing/purchase-order-in', [PurchaseOrderInController::class, 'index'])
     ->name('marketing.purchase-order-in.index');
 Route::get('marketing/purchase-order-in/data', [PurchaseOrderInController::class, 'data'])
