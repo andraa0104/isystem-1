@@ -228,31 +228,31 @@ export default function QuotationIndex({
     // ========================================================
     const fetchHeaderData = useCallback(async (noPenawaran) => {
         try {
-            const res = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/header`);
-            if (!res.ok) return null;
-            const data = await res.json();
-            // Tambahkan properti No_penawaran jika hanya ada No_Penawaran
-            if (data.No_Penawaran && !data.No_penawaran) {
-                data.No_penawaran = data.No_Penawaran;
-            }
-            return data;
+            const response = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/header`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) return null;
+            return await response.json();
         } catch (error) {
-            console.error(error);
+            console.error('Error fetching header:', error);
             return null;
         }
     }, []);
-    
+
     const fetchDetailData = useCallback(async (noPenawaran) => {
         try {
-            const res = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/details`);
-            if (!res.ok) return [];
-            const data = await res.json();
-            return data.details || [];
+            const response = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/details`, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            if (!response.ok) return [];
+            const data = await response.json();
+            return Array.isArray(data?.details) ? data.details : [];
         } catch (error) {
-            console.error(error);
+            console.error('Error fetching details:', error);
             return [];
         }
     }, []);
+
     
     const handleOpenModal = async (item) => {
         // Ambil nomor penawaran dari item (bisa dari properti No_penawaran atau No_Penawaran)
