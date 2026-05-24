@@ -49,6 +49,10 @@ export default function QuotationIndex({
     const [statusFilter, setStatusFilter] = useState(period);
     const [remotePenawaran, setRemotePenawaran] = useState(penawaran);
     const [loading, setLoading] = useState(false);
+    const handlePeriodChange = (newPeriod) => {
+        setStatusFilter(newPeriod);
+        setCurrentPage(1);
+    };
 
     // ==================== MODAL DETAIL ====================
     const [selectedPenawaran, setSelectedPenawaran] = useState(null);
