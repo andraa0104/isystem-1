@@ -587,7 +587,7 @@ export default function QuotationIndex({
                                 <input
                                     type="search"
                                     className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm w-64 md:w-80"
-                                    placeholder="Cari customer atau material..."
+                                    placeholder="Cari No. Penawaran atau Material..."
                                     value={materialSearch}
                                     onChange={(e) => {
                                         setMaterialSearch(e.target.value);
@@ -596,23 +596,25 @@ export default function QuotationIndex({
                                 />
                             </label>
                         </div>
-
+                
                         <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
                             <table className="w-full text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
                                     <tr>
                                         <th className="px-4 py-3 text-left">No Penawaran</th>
-                                        <th className="px-4 py-3 text-left">Tanggal</th>
-                                        <th className="px-4 py-3 text-left">Customer</th>
                                         <th className="px-4 py-3 text-left">Material</th>
                                         <th className="px-4 py-3 text-center">Qty</th>
+                                        <th className="px-4 py-3 text-left">Satuan</th>
                                         <th className="px-4 py-3 text-right">Harga</th>
+                                        <th className="px-4 py-3 text-right">Harga Modal</th>
+                                        <th className="px-4 py-3 text-left">Margin</th>
+                                        <th className="px-4 py-3 text-left">Remark</th>
                                         <th className="px-4 py-3 text-left">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <PlainTableStateRows
-                                        columns={7}
+                                        columns={9}
                                         loading={materialLoading}
                                         isEmpty={!materialLoading && remoteMaterialDetails.length === 0}
                                         emptyMessage="Tidak ada data quotation material ditemukan."
@@ -621,17 +623,21 @@ export default function QuotationIndex({
                                         remoteMaterialDetails.map((item, idx) => (
                                             <tr key={item.id_detail || idx} className="border-t border-sidebar-border/70">
                                                 <td className="px-4 py-3">{renderValue(item.No_Penawaran)}</td>
-                                                <td className="px-4 py-3">{renderValue(item.Tgl_Penawaran)}</td>
-                                                <td className="px-4 py-3">{renderValue(item.Customer)}</td>
                                                 <td className="px-4 py-3 max-w-[250px] truncate uppercase" title={item.Material}>
                                                     {renderValue(item.Material)}
                                                 </td>
                                                 <td className="px-4 py-3 text-center font-bold">
                                                     {item.Qty} <span className="text-[10px] text-muted-foreground font-normal uppercase">{item.Satuan}</span>
                                                 </td>
+                                                <td className="px-4 py-3">{renderValue(item.Satuan)}</td>
                                                 <td className="px-4 py-3 text-right font-mono font-bold">
                                                     {formatRupiah(item.Harga)}
                                                 </td>
+                                                <td className="px-4 py-3 text-right font-mono">
+                                                    {formatRupiah(item.Harga_modal)}
+                                                </td>
+                                                <td className="px-4 py-3">{renderValue(item.Margin)}</td>
+                                                <td className="px-4 py-3">{renderValue(item.Remark)}</td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-2">
                                                         <button
@@ -660,7 +666,7 @@ export default function QuotationIndex({
                                 </tbody>
                             </table>
                         </div>
-
+                
                         {materialPageSize !== Infinity && materialTotal > 0 && (
                             <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                 <span>
@@ -691,7 +697,6 @@ export default function QuotationIndex({
                         )}
                     </div>
                 )}
-
                 {/* ==================== DIALOG DETAIL MODAL ==================== */}
                 <Dialog
                     open={isModalOpen}
