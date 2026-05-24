@@ -260,22 +260,33 @@ export default function QuotationIndex({
     
         setDetailLoading(true);
         setIsModalOpen(true);
-        setDetailRows([]); // Kosongkan data lama agar tidak nyangkut
+        setDetailRows([]);
     
-        // 1. Ambil Header (Satu kali jalan untuk kedua tab)
-        const header = (item.Customer !== undefined) ? item : await fetchHeaderData(noPenawaran);
-        setSelectedPenawaran(header);
+        // 1. Ambil data Header dengan cara yang konsisten
+        let header;
+        if (item.Customer !== undefined) {
+            // Data lengkap dari Tab 1
+            header = item;
+        } else {
+            // Data dari Tab 2 (perlu fetch header)
+            header = await fetchHeaderData(noPenawaran);
+        }
     
-        // 2. Ambil Detail (Satu kali jalan untuk kedua tab)
-        const response = await fetchDetailData(noPenawaran);
-        
-        // Pastikan data yang masuk adalah array
-        const dataDetails = Array.isArray(response) ? response : (response.details || []);
-        
-        setDetailRows(dataDetails);
+        // 2. Normalisasi Data (PENTING!)
+        // Pastikan properti "No_penawaran" dan "Tgl_Posting" selalu ada
+        const normalizedHeader = {
+            ...header,
+            No_penawaran: header?.No_penawaran || header?.No_Penawaran || noPenawaran,
+            Tgl_Posting: header?.Tgl_Posting || header?.tgl_posting || '-',
+        };
+    
+        setSelectedPenawaran(normalizedHeader);
+    
+        // 3. Ambil Detail
+        const details = await fetchDetailData(noPenawaran);
+        setDetailRows(Array.isArray(details) ? details : (details.details || []));
         setDetailLoading(false);
     };
-
     // Untuk kasus item dari tab 1 yang mungkin langsung punya detail
     const selectedDetails = useMemo(() => {
         if (!selectedPenawaran) return [];
