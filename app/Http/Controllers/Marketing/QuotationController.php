@@ -171,25 +171,17 @@ class QuotationController
     // ==========================================
     public function getQuotationMaterialsDetails(Request $request)
     {
-        // Ambil parameter pagination
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min(100, (int) $request->query('per_page', 5)));
         $search = trim((string) $request->query('search', ''));
     
-        // 🔥 OPTIMASI 1: Gunakan JOIN tanpa TRIM/LOWER (pastikan data sudah bersih)
-        // Jika No_penawaran mengandung spasi, lakukan UPDATE sekali saja di database.
-        // Untuk sementara, kita tetap gunakan TRIM tapi tanpa LOWER (case-sensitive)
-        $noPenawaranColumnPD = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
-        $noPenawaranColumnP  = $this->resolveColumn('tb_penawaran',      ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
-        $tglColumn           = $this->resolveColumn('tb_penawaran',      ['Tgl_Penawaran', 'Tgl_penawaran', 'tgl_penawaran'], 'Tgl_penawaran');
-    
-        // 🔥 OPTIMASI 2: Build query dengan bindings yang benar
+        // Query dasar (sudah tanpa TRIM, pastikan kolom No_penawaran bersih)
         $query = DB::table('tb_penawarandetail as pd')
-            ->join('tb_penawaran as p', DB::raw('TRIM(pd.' . $this->wrapColumn($noPenawaranColumnPD) . ')'), '=', DB::raw('TRIM(p.' . $this->wrapColumn($noPenawaranColumnP) . ')'))
-            ->select(
+            ->join('tb_penawaran as p', 'pd.No_Penawaran', '=', 'p.No_penawaran')
+            ->select([
                 'pd.ID as id_detail',
-                'p.' . $this->wrapColumn($noPenawaranColumnP) . ' as No_Penawaran',
-                'p.' . $this->wrapColumn($tglColumn) . ' as Tgl_Penawaran',
+                'p.No_Penawaran',
+                'p.Tgl_Penawaran',
                 'p.Customer',
                 'pd.Material',
                 'pd.Qty',
@@ -199,33 +191,26 @@ class QuotationController
                 'pd.Margin',
                 'pd.Remark',
                 DB::raw('1 as can_delete')
-            );
+            ]);
     
-        // 🔥 OPTIMASI 3: Filter search (tetap pakai LIKE karena dibutuhkan)
+        // Filter pencarian
         if ($search !== '') {
-            $query->where(function ($q) use ($search, $noPenawaranColumnP, $tglColumn) {
-                $q->where('p.' . $this->wrapColumn($noPenawaranColumnP), 'LIKE', "%{$search}%")
-                  ->orWhere('p.' . $this->wrapColumn($tglColumn), 'LIKE', "%{$search}%")
-                  ->orWhere('p.Customer', 'LIKE', "%{$search}%")
+            $query->where(function ($q) use ($search) {
+                $q->where('p.p.Customer', 'LIKE', "%{$search}%")
                   ->orWhere('pd.Material', 'LIKE', "%{$search}%");
             });
         }
     
-        // 🔥 OPTIMASI 4: Hitung total tanpa ORDER BY (lebih cepat)
-        $total = $query->clone()->count();
-    
-        // 🔥 OPTIMASI 5: Ambil data dengan pagination
-        $materials = $query->orderBy('p.' . $this->wrapColumn($tglColumn), 'desc')
+        // Gunakan paginate bawaan Laravel (otomatis COUNT dan pagination)
+        $materials = $query->orderBy('p.Tgl_penawaran', 'desc')
             ->orderBy('pd.ID', 'desc')
-            ->offset(($page - 1) * $perPage)
-            ->limit($perPage)
-            ->get();
+            ->paginate(perPage: $perPage, page: $page);
     
         return response()->json([
-            'materials' => $materials,
-            'total'     => $total,
-            'page'      => $page,
-            'per_page'  => $perPage,
+            'materials' => $materials->items(),
+            'total'     => $materials->total(),
+            'page'      => $materials->currentPage(),
+            'per_page'  => $materials->perPage(),
         ]);
     }
     private function getPenawaranQuery($period)
