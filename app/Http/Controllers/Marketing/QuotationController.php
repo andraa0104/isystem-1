@@ -176,13 +176,15 @@ class QuotationController
         $perPage = max(1, min(100, (int) $request->query('per_page', 5)));
         $search = trim((string) $request->query('search', ''));
 
-        // 1. Build Query Dasar (Tanpa filter tanggal sama sekali mengikuti Tab 1)
+        $noPenawaranColumnPD = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
+        $noPenawaranColumnP = $this->resolveColumn('tb_penawaran', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
+        $tglColumn = $this->resolveColumn('tb_penawaran', ['Tgl_Penawaran', 'Tgl_penawaran', 'tgl_penawaran'], 'Tgl_penawaran');
         $query = DB::table('tb_penawarandetail as pd')
-            ->join('tb_penawaran as p', DB::raw('TRIM(pd.No_Penawaran)'), '=', DB::raw('TRIM(p.No_Penawaran)'))
+            ->join('tb_penawaran as p', DB::raw('LOWER(TRIM(pd.' . $this->wrapColumn($noPenawaranColumn) . '))'), '=', DB::raw('LOWER(TRIM(p.No_Penawaran))'))
             ->select(
                 'pd.ID as id_detail',
-                'p.No_Penawaran as No_Penawaran',
-                'p.Tgl_Penawaran as Tgl_Penawaran',
+                'p.' . $this->wrapColumn($noPenawaranColumnP) . ' as No_Penawaran',
+                'p.' . $this->wrapColumn($tglColumn) . ' as Tgl_Penawaran',
                 'p.Customer',
                 'pd.Material',
                 'pd.Qty',
@@ -193,7 +195,6 @@ class QuotationController
                 'pd.Remark',
                 DB::raw('1 as can_delete')
             );
-
         // 2. Terapkan Filter Pencarian jika Search Box diisi
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
