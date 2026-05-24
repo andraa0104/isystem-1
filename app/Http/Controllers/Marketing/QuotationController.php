@@ -169,7 +169,7 @@ class QuotationController
     // ==========================================
     // FUNGSI MATERIALS DETAILS DENGAN PAGINATION
     // ==========================================
-    ublic function getQuotationMaterialsDetails(Request $request)
+    public function getQuotationMaterialsDetails(Request $request)
     {
         // Ambil parameter dari frontend, set default jika kosong
         $page = max(1, (int) $request->query('page', 1));
