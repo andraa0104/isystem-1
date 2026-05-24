@@ -262,22 +262,27 @@ export default function QuotationIndex({
         setIsModalOpen(true);
         setDetailRows([]);
     
+        // 1. Ambil data Header dengan cara yang konsisten
         let header;
-        // Jika item dari Tab 1, ambil datanya langsung
         if (item.Customer !== undefined) {
-            header = {
-                ...item,
-                // Memastikan Tgl_Posting terisi, mencoba berbagai kemungkinan penamaan key
-                Tgl_Posting: item.Tgl_Posting || item.tgl_posting || '-' 
-            };
+            // Data lengkap dari Tab 1
+            header = item;
         } else {
-            // Jika dari Tab 2, fetch header
+            // Data dari Tab 2 (perlu fetch header)
             header = await fetchHeaderData(noPenawaran);
         }
     
-        setSelectedPenawaran(header);
+        // 2. Normalisasi Data (PENTING!)
+        // Pastikan properti "No_penawaran" dan "Tgl_Posting" selalu ada
+        const normalizedHeader = {
+            ...header,
+            No_penawaran: header?.No_penawaran || header?.No_Penawaran || noPenawaran,
+            Tgl_penawaran: header?.Tgl_penawaran || header?.Tgl_Posting || header?.tgl_posting || '-'
+        };
     
-        // AMBIL DATA DETAIL
+        setSelectedPenawaran(normalizedHeader);
+    
+        // 3. Ambil Detail
         const details = await fetchDetailData(noPenawaran);
         setDetailRows(Array.isArray(details) ? details : (details.details || []));
         setDetailLoading(false);
@@ -727,7 +732,7 @@ export default function QuotationIndex({
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
                                                 <span className="text-muted-foreground">Posting Date</span>
-                                                <span>{renderValue(selectedPenawaran.Tgl_Posting)}</span>
+                                                <span>{renderValue(selectedPenawaran.Tgl_penawaran)}</span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
                                                 <span className="text-muted-foreground">Customer</span>
