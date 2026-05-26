@@ -59,6 +59,8 @@ export default function QuotationIndex({
     const [detailRowsNo, setDetailRowsNo] = useState(null);
     const [detailLoading, setDetailLoading] = useState(false);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
+    const [modalMaterialPageSize, setModalMaterialPageSize] = useState(5);
+    const [modalMaterialCurrentPage, setModalMaterialCurrentPage] = useState(1);
     const [isDeleting, setIsDeleting] = useState(false);
     
     // State Navigasi Tab Utama
@@ -261,6 +263,7 @@ export default function QuotationIndex({
         setDetailLoading(true);
         setIsModalOpen(true);
         setDetailRows([]);
+        setDetailRowsNo(noPenawaran);
     
         // 1. Ambil data Header dengan cara yang konsisten
         let header;
@@ -285,13 +288,14 @@ export default function QuotationIndex({
         // 3. Ambil Detail
         const details = await fetchDetailData(noPenawaran);
         setDetailRows(Array.isArray(details) ? details : (details.details || []));
+        setDetailRowsNo(noPenawaran);
         setDetailLoading(false);
     };
     // Untuk kasus item dari tab 1 yang mungkin langsung punya detail
     const selectedDetails = useMemo(() => {
         if (!selectedPenawaran) return [];
         const selectedNo = String(selectedPenawaran.No_penawaran ?? '').trim();
-        if (detailRowsNo === selectedNo && detailRows.length > 0) return detailRows;
+        if (String(detailRowsNo ?? '').trim() === selectedNo && detailRows.length > 0) return detailRows;
         return [];
     }, [detailRows, detailRowsNo, selectedPenawaran]);
 
@@ -316,21 +320,31 @@ export default function QuotationIndex({
 
     const materialModalTotalItems = filteredMaterialDetails.length;
     const materialModalTotalPages = useMemo(() => {
-        if (materialPageSize === Infinity) return 1;
-        return Math.max(1, Math.ceil(materialModalTotalItems / materialPageSize));
-    }, [materialPageSize, materialModalTotalItems]);
+        if (modalMaterialPageSize === Infinity) return 1;
+        return Math.max(1, Math.ceil(materialModalTotalItems / modalMaterialPageSize));
+    }, [modalMaterialPageSize, materialModalTotalItems]);
 
     const displayedMaterialDetails = useMemo(() => {
-        if (materialPageSize === Infinity) return filteredMaterialDetails;
-        const startIndex = (materialCurrentPage - 1) * materialPageSize;
-        return filteredMaterialDetails.slice(startIndex, startIndex + materialPageSize);
-    }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
+        if (modalMaterialPageSize === Infinity) return filteredMaterialDetails;
+        const startIndex = (modalMaterialCurrentPage - 1) * modalMaterialPageSize;
+        return filteredMaterialDetails.slice(startIndex, startIndex + modalMaterialPageSize);
+    }, [filteredMaterialDetails, modalMaterialCurrentPage, modalMaterialPageSize]);
+
+    useEffect(() => {
+        setModalMaterialCurrentPage(1);
+    }, [materialSearchTerm, modalMaterialPageSize]);
+
+    useEffect(() => {
+        if (modalMaterialCurrentPage > materialModalTotalPages) {
+            setModalMaterialCurrentPage(materialModalTotalPages);
+        }
+    }, [modalMaterialCurrentPage, materialModalTotalPages]);
 
     useEffect(() => {
         if (isModalOpen) {
             setMaterialSearchTerm('');
-            setMaterialPageSize(5);
-            setMaterialCurrentPage(1);
+            setModalMaterialPageSize(5);
+            setModalMaterialCurrentPage(1);
         } else {
             setDetailRows([]);
             setDetailRowsNo(null);
@@ -798,11 +812,11 @@ export default function QuotationIndex({
                                             Tampilkan
                                             <select
                                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                                value={materialPageSize === Infinity ? 'all' : materialPageSize}
+                                                value={modalMaterialPageSize === Infinity ? 'all' : modalMaterialPageSize}
                                                 onChange={(event) => {
                                                     const value = event.target.value;
-                                                    setMaterialPageSize(value === 'all' ? Infinity : Number(value));
-                                                    setMaterialCurrentPage(1);
+                                                    setModalMaterialPageSize(value === 'all' ? Infinity : Number(value));
+                                                    setModalMaterialCurrentPage(1);
                                                 }}
                                             >
                                                 <option value={5}>5</option>
@@ -821,7 +835,7 @@ export default function QuotationIndex({
                                                 value={materialSearchTerm}
                                                 onChange={(event) => {
                                                     setMaterialSearchTerm(event.target.value);
-                                                    setMaterialCurrentPage(1);
+                                                    setModalMaterialCurrentPage(1);
                                                 }}
                                             />
                                         </label>
@@ -842,16 +856,20 @@ export default function QuotationIndex({
                                             <tbody>
                                                 {detailLoading ? (
                                                     <tr>
-                                                        <td colSpan="6" className="text-center py-4">Loading...</td>
+                                                        <td colSpan="7" className="text-center py-4">Loading...</td>
                                                     </tr>
-                                                ) : detailRows.length === 0 ? (
+                                                ) : filteredMaterialDetails.length === 0 ? (
                                                     <tr>
-                                                        <td colSpan="6" className="text-center py-4">Tidak ada data detail.</td>
+                                                        <td colSpan="7" className="text-center py-4">Tidak ada data detail.</td>
                                                     </tr>
                                                 ) : (
-                                                    detailRows.map((detail, index) => (
+                                                    displayedMaterialDetails.map((detail, index) => (
                                                         <tr key={index} className="border-t border-sidebar-border/70">
-                                                            <td className="px-4 py-3">{index + 1}</td>
+                                                            <td className="px-4 py-3">
+                                                                {modalMaterialPageSize === Infinity
+                                                                    ? index + 1
+                                                                    : (modalMaterialCurrentPage - 1) * modalMaterialPageSize + index + 1}
+                                                            </td>
                                                             <td className="px-4 py-3">{detail.Material}</td>
                                                             <td className="px-4 py-3">{detail.Qty} {detail.Satuan}</td>
                                                             <td className="px-4 py-3">{formatRupiah(detail.Harga)}</td>
@@ -864,28 +882,28 @@ export default function QuotationIndex({
                                             </tbody>
                                         </table>
                                     </div>
-                                    {materialPageSize !== Infinity && materialModalTotalItems > 0 && (
+                                    {modalMaterialPageSize !== Infinity && materialModalTotalItems > 0 && (
                                         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                             <span>
-                                                Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialModalTotalItems)} - {Math.min(materialCurrentPage * materialPageSize, materialModalTotalItems)} dari {materialModalTotalItems} data
+                                                Menampilkan {Math.min((modalMaterialCurrentPage - 1) * modalMaterialPageSize + 1, materialModalTotalItems)} - {Math.min(modalMaterialCurrentPage * modalMaterialPageSize, materialModalTotalItems)} dari {materialModalTotalItems} data
                                             </span>
                                             <div className="flex items-center gap-2">
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
-                                                    onClick={() => setMaterialCurrentPage((page) => Math.max(1, page - 1))}
-                                                    disabled={materialCurrentPage === 1}
+                                                    onClick={() => setModalMaterialCurrentPage((page) => Math.max(1, page - 1))}
+                                                    disabled={modalMaterialCurrentPage === 1}
                                                 >
                                                     Sebelumnya
                                                 </Button>
                                                 <span className="text-sm text-muted-foreground">
-                                                    Halaman {materialCurrentPage} dari {materialModalTotalPages}
+                                                    Halaman {modalMaterialCurrentPage} dari {materialModalTotalPages}
                                                 </span>
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
-                                                    onClick={() => setMaterialCurrentPage((page) => Math.min(materialModalTotalPages, page + 1))}
-                                                    disabled={materialCurrentPage === materialModalTotalPages}
+                                                    onClick={() => setModalMaterialCurrentPage((page) => Math.min(materialModalTotalPages, page + 1))}
+                                                    disabled={modalMaterialCurrentPage === materialModalTotalPages}
                                                 >
                                                     Berikutnya
                                                 </Button>
