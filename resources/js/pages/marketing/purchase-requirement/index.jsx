@@ -242,13 +242,17 @@ export default function PurchaseRequirementIndex({
         return () => clearTimeout(timer);
     }, [materialSearchTerm]);
 
-    const fetchTableData = useCallback(async (newPeriod) => {
+    const fetchTableData = useCallback(async (newPeriod, startDate = '', endDate = '') => {
         setTableLoading(true);
         try {
-            const response = await fetch(
-                `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=table`,
-                { headers: { Accept: 'application/json' } }
-            );
+            let url = `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=table`;
+            
+            // Sertakan parameter tanggal jika memilih "Range Tanggal"
+            if (newPeriod === 'range' && startDate && endDate) {
+                url += `&start_date=${startDate}&end_date=${endDate}`;
+            }
+            
+            const response = await fetch(url, { headers: { Accept: 'application/json' } });
             const data = await response.json();
             
             const rawList = data.purchaseRequirements || [];
@@ -291,26 +295,39 @@ export default function PurchaseRequirementIndex({
 
     // --- PERBAIKAN: Hanya fetch sekali di awal, tidak di-trigger ulang oleh periodFilter dari card! ---
     const isInitialMount = useRef(true);
+    // 1. Effect untuk mengambil data Summary Card (dikendalikan oleh prop 'period')
+    const isSummaryInitialMount = useRef(true);
     useEffect(() => {
-        if (isInitialMount.current) {
-            isInitialMount.current = false;
-            
-            // HANYA jika server backend (Inertia) gagal mengirim data props awal, baru kita paksa API berjalan
+        if (isSummaryInitialMount.current) {
+            isSummaryInitialMount.current = false;
             if (!purchaseRequirements || purchaseRequirements.length === 0) {
-                setTableLoading(true);
                 setSummaryLoading(true);
-                fetchTableData(period ?? 'today');
                 fetchSummaryData(period ?? 'today');
             }
             return;
         }
-
-        // Fetch ini hanya akan berjalan jika Anda mengganti periode filter nantinya
-        fetchTableData(period ?? 'today');
         fetchSummaryData(period ?? 'today');
+    }, [period, fetchSummaryData]);
+
+    // 2. Effect untuk mengambil data Tabel (dikendalikan oleh dropdown tableDateFilter)
+    const isTableInitialMount = useRef(true);
+    useEffect(() => {
+        if (isTableInitialMount.current) {
+            isTableInitialMount.current = false;
+            // Jika sudah ada data bawaan dari server (props), jangan fetch ulang di awal
+            if (purchaseRequirements?.length > 0 && tableDateFilter === 'today') {
+                return;
+            }
+        }
         
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [period, fetchTableData, fetchSummaryData]);
+        // Abaikan fetch jika tipe range tapi tanggal belum diisi lengkap
+        if (tableDateFilter === 'range' && (!tableStartDate || !tableEndDate)) {
+            return;
+        }
+        
+        // Fetch data tabel ke server HANYA saat filter tanggal tabel diubah
+        fetchTableData(tableDateFilter, tableStartDate, tableEndDate);
+    }, [tableDateFilter, tableStartDate, tableEndDate, fetchTableData]);
 
     useEffect(() => {
         if (purchaseRequirements?.length > 0) {
