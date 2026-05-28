@@ -873,7 +873,7 @@ export default function QuotationIndex({
                                                             <td className="px-4 py-3">{detail.Material}</td>
                                                             <td className="px-4 py-3">{detail.Qty} {detail.Satuan}</td>
                                                             <td className="px-4 py-3">{formatRupiah(detail.Harga)}</td>
-                                                            <td className="px-4 py-3">{formatRupiah(detail.Harga_modal)}</td>
+                                                            <td className="px-4 py-3">{formatRupiah(detail.Harga_Modal)}</td>
                                                             <td className="px-4 py-3">{detail.Margin}</td>
                                                             <td className="px-4 py-3">{detail.Remark}</td>
                                                         </tr>
