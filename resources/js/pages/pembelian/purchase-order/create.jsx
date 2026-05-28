@@ -985,19 +985,22 @@ export default function PurchaseOrderCreate({
                                 <div className="grid gap-2">
                                     <Label>Price</Label>
                                     <Input
-                                        type="number"
+                                        type="text" // Ubah dari number ke text
                                         value={
                                             includePpn
-                                                ? priceWithPpn.toString()
-                                                : materialForm.basePrice
+                                                ? (priceWithPpn ? `Rp. ${new Intl.NumberFormat('id-ID').format(priceWithPpn)}` : 'Rp. 0')
+                                                : (materialForm.basePrice ? `Rp. ${new Intl.NumberFormat('id-ID').format(materialForm.basePrice)}` : '')
                                         }
                                         readOnly={includePpn}
-                                        onChange={(event) =>
+                                        onChange={(event) => {
+                                            // Hanya simpan angka murni ke state agar kalkulasi tidak error
+                                            const rawValue = event.target.value.replace(/[^0-9]/g, '');
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                basePrice: event.target.value,
-                                            }))
-                                        }
+                                                basePrice: rawValue,
+                                            }));
+                                        }}
+                                        placeholder="Rp. 0"
                                     />
                                 </div>
                                 <div className="grid gap-2">
@@ -1027,7 +1030,7 @@ export default function PurchaseOrderCreate({
                                     <Input
                                         value={
                                             totalPriceValue
-                                                ? totalPriceValue.toString()
+                                                ? formatRupiah(totalPriceValue)
                                                 : ''
                                         }
                                         readOnly

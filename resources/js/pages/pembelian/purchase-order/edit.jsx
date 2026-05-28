@@ -205,14 +205,71 @@ export default function PurchaseOrderEdit({
         setIsPrModalOpen(false);
     };
 
-    const handleVendorSelect = (item) => {
+    const handleVendorSelect = async (item) => {
+        const vendorCode = item.kd_vdr ?? '';
+        const vendorName = item.nm_vdr ?? '';
+
+        // Generate Ref Quota otomatis di frontend (Singkatan Vendor + Tanggal)
+        const stopWords = [
+            'PT', 'CV', 'UD', 'TOKO', 'BENGKEL', 'LAS', 'PD', 'TB', 'FA',
+        ];
+        const words = vendorName.replace(/[^A-Za-z0-9 ]/g, '').split(' ');
+        const filteredWords = words.filter(
+            (w) => w.length > 0 && !stopWords.includes(w.toUpperCase()),
+        );
+        const sourceWords = filteredWords.length > 0 ? filteredWords : words;
+        const acronym = sourceWords
+            .map((w) => w[0])
+            .join('')
+            .toUpperCase();
+        const now = new Date();
+        const dd = String(now.getDate()).padStart(2, '0');
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const yy = String(now.getFullYear()).slice(-2);
+        const datePart = `${dd}${mm}${yy}`;
+        const immediateRefQuota = acronym ? `${acronym}-${datePart}` : '';
+
+        // Set state awal dari vendor yang dipilih
         setFormData((prev) => ({
             ...prev,
-            kodeVendor: item.kd_vdr ?? '',
-            namaVendor: item.nm_vdr ?? '',
-            attended: item.attn_vdr ?? '',
+            kodeVendor: vendorCode,
+            namaVendor: vendorName,
+            attended: item.attn_vdr ?? prev.attended,
+            refQuota: immediateRefQuota || prev.refQuota,
         }));
+
         setIsVendorModalOpen(false);
+
+        // Fetch data autofill dari API
+        try {
+            const query = new URLSearchParams({
+                kd_vdr: vendorCode,
+                nm_vdr: vendorName,
+            }).toString();
+
+            const response = await fetch(
+                `/pembelian/purchase-order/suggest-vendor?${query}`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                }
+            );
+
+            if (response.ok) {
+                const suggestion = await response.json();
+                setFormData((prev) => ({
+                    ...prev,
+                    ppn: suggestion.ppn ?? prev.ppn,
+                    paymentTerms: suggestion.payment_terms ?? prev.paymentTerms,
+                    deliveryTime: suggestion.delivery_time ?? prev.deliveryTime,
+                    francoLoco: suggestion.franco_loco ?? prev.francoLoco,
+                    refQuota: suggestion.ref_quota ?? prev.refQuota,
+                }));
+            }
+        } catch (error) {
+            console.error('Failed to fetch vendor suggestions:', error);
+        }
     };
 
     const handleEditMaterial = (item) => {
@@ -483,6 +540,12 @@ export default function PurchaseOrderEdit({
         },
         { netSum: 0, ppnSum: 0, grossSum: 0 },
     );
+
+    // Ambil nilai PPN murni dari database PO (tb_po.h_ppn)
+    const currentPpn = Number(purchaseOrder?.h_ppn ?? 0);
+
+    // Hitung otomatis Grand Total = Total Harga Sebelum PPN + Total PPN
+    const calculatedGrandTotal = Math.round(totalPriceSum + currentPpn);
 
     const handleSubmit = () => {
         router.put(
@@ -865,21 +928,22 @@ export default function PurchaseOrderEdit({
                                 <div className="grid gap-2">
                                     <Label>Price</Label>
                                     <Input
-                                        type="number"
+                                        type="text" // Ubah dari number ke text
                                         value={
                                             includePpn
-                                                ? netPrice.toString()
-                                                : materialForm.price
+                                                ? (netPrice ? `Rp. ${new Intl.NumberFormat('id-ID').format(netPrice)}` : 'Rp. 0')
+                                                : (materialForm.price ? `Rp. ${new Intl.NumberFormat('id-ID').format(materialForm.price)}` : '')
                                         }
-                                        onChange={(event) =>
+                                        onChange={(event) => {
+                                            // Hanya simpan angka murni ke state
+                                            const rawValue = event.target.value.replace(/[^0-9]/g, '');
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                price: event.target.value,
-                                            }))
-                                        }
-                                        disabled={
-                                            !editingMaterialId || includePpn
-                                        }
+                                                price: rawValue,
+                                            }));
+                                        }}
+                                        disabled={!editingMaterialId || includePpn}
+                                        placeholder="Rp. 0"
                                     />
                                 </div>
                                 <div className="grid gap-2">
@@ -924,9 +988,8 @@ export default function PurchaseOrderEdit({
                                     <Label>Total Price</Label>
                                     <Input
                                         value={
-                                            editingMaterialId
-                                                ? totalPriceValue
-                                                : ''
+                                            editingMaterialId && totalPriceValue
+                                                ? formatRupiah(totalPriceValue) : ''
                                         }
                                         readOnly
                                     />
@@ -985,9 +1048,6 @@ export default function PurchaseOrderEdit({
                                                 PPN
                                             </th>
                                             <th className="px-4 py-3 text-left">
-                                                IN/EX
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
                                                 Total Price
                                             </th>
                                             <th className="px-4 py-3 text-left">
@@ -1000,7 +1060,7 @@ export default function PurchaseOrderEdit({
                                             <tr>
                                                 <td
                                                     className="px-4 py-6 text-center text-muted-foreground"
-                                                    colSpan={9}
+                                                    colSpan={8}
                                                 >
                                                     Belum ada material
                                                     ditambahkan.
@@ -1034,9 +1094,6 @@ export default function PurchaseOrderEdit({
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {renderValue(item.ppn)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.inEx ?? 'EX'}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {renderValue(
@@ -1084,14 +1141,14 @@ export default function PurchaseOrderEdit({
                                 <div className="grid gap-2">
                                     <Label>Total PPN</Label>
                                     <Input
-                                        value={formatRupiah(totalPpnSum)}
+                                        value={formatRupiah(purchaseOrder?.h_ppn ?? 0)}
                                         readOnly
                                     />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Grand Total</Label>
                                     <Input
-                                        value={formatRupiah(grandTotalSum)}
+                                        value={formatRupiah(calculatedGrandTotal)}
                                         readOnly
                                     />
                                 </div>
