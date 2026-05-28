@@ -242,12 +242,30 @@ export default function PurchaseRequirementIndex({
         return () => clearTimeout(timer);
     }, [materialSearchTerm]);
 
-    const fetchTableData = useCallback(async (newPeriod, startDate = '', endDate = '') => {
+    const fetchTableData = useCallback(async (newPeriod, currentStatus, startDate = '', endDate = '') => {
         setTableLoading(true);
         try {
+            // JIKA STATUS TEREALISASI, AMBIL LANGSUNG DARI ENDPOINT MILIK CARD!
+            if (currentStatus === 'realized') {
+                const params = new URLSearchParams({ period: newPeriod });
+                const response = await fetch(`/marketing/purchase-requirement/realized?${params.toString()}`, {
+                    headers: { Accept: 'application/json' }
+                });
+                const data = await response.json();
+                
+                const list = Array.isArray(data?.purchaseRequirements) ? data.purchaseRequirements : [];
+                const optimizedList = list.map(item => {
+                    const parsed = parseFlexibleDate(item.date);
+                    return { ...item, _parsedDateTs: parsed ? parsed.getTime() : null };
+                });
+                
+                setPurchaseRequirementsList(optimizedList);
+                setTableLoading(false);
+                return;
+            }
+
+            // JIKA BUKAN TEREALISASI, AMBIL DARI ENDPOINT TABEL BIASA
             let url = `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=table`;
-            
-            // Sertakan parameter tanggal jika memilih "Range Tanggal"
             if (newPeriod === 'range' && startDate && endDate) {
                 url += `&start_date=${startDate}&end_date=${endDate}`;
             }
@@ -258,10 +276,7 @@ export default function PurchaseRequirementIndex({
             const rawList = data.purchaseRequirements || [];
             const optimizedList = rawList.map(item => {
                 const parsed = parseFlexibleDate(item.date);
-                return {
-                    ...item,
-                    _parsedDateTs: parsed ? parsed.getTime() : null
-                };
+                return { ...item, _parsedDateTs: parsed ? parsed.getTime() : null };
             });
             
             setPurchaseRequirementsList(optimizedList);
@@ -294,8 +309,20 @@ export default function PurchaseRequirementIndex({
     }, []);
 
     // --- PERBAIKAN: Hanya fetch sekali di awal, tidak di-trigger ulang oleh periodFilter dari card! ---
+    // Effect 1: Mengurus Summary Card bagian atas
     const isInitialMount = useRef(true);
-    // 1. Effect untuk mengambil data Summary Card (dikendalikan oleh prop 'period')
+    useEffect(() => {
+        if (isInitialMount.current) {
+            isInitialMount.current = false;
+            if (!purchaseRequirements || purchaseRequirements.length === 0) {
+                setSummaryLoading(true);
+                fetchSummaryData(period ?? 'today');
+            }
+        } else {
+            fetchSummaryData(period ?? 'today');
+        }
+    }, [period, fetchSummaryData]);
+
     const isSummaryInitialMount = useRef(true);
     useEffect(() => {
         if (isSummaryInitialMount.current) {
@@ -304,35 +331,31 @@ export default function PurchaseRequirementIndex({
                 setSummaryLoading(true);
                 fetchSummaryData(period ?? 'today');
             }
-            return;
+        } else {
+            fetchSummaryData(period ?? 'today');
         }
-        fetchSummaryData(period ?? 'today');
     }, [period, fetchSummaryData]);
 
-    // 2. Effect untuk mengambil data Tabel (dikendalikan oleh dropdown tableDateFilter)
-    const isTableInitialMount = useRef(true);
+    // Effect 2: Mengurus Data Tabel (Akan Fetch saat Tanggal ATAU Status diubah)
+    const isTableMounted = useRef(false);
     useEffect(() => {
-        if (isTableInitialMount.current) {
-            isTableInitialMount.current = false;
-            // Jika sudah ada data bawaan dari server (props), jangan fetch ulang di awal
-            if (purchaseRequirements?.length > 0 && tableDateFilter === 'today') {
+        if (!isTableMounted.current) {
+            isTableMounted.current = true;
+            if (purchaseRequirements?.length > 0 && tableDateFilter === 'today' && statusFilter === 'outstanding') {
                 return;
             }
         }
         
-        // Abaikan fetch jika tipe range tapi tanggal belum diisi lengkap
         if (tableDateFilter === 'range' && (!tableStartDate || !tableEndDate)) {
             return;
         }
         
-        // Fetch data tabel ke server HANYA saat filter tanggal tabel diubah
-        fetchTableData(tableDateFilter, tableStartDate, tableEndDate);
-    }, [tableDateFilter, tableStartDate, tableEndDate, fetchTableData]);
+        // Memanggil data dengan menyertakan statusFilter!
+        fetchTableData(tableDateFilter, statusFilter, tableStartDate, tableEndDate);
+    }, [tableDateFilter, statusFilter, tableStartDate, tableEndDate, fetchTableData]);
 
     useEffect(() => {
         if (purchaseRequirements?.length > 0) {
-            // Gunakan setTimeout agar UI dan Card bisa render duluan, 
-            // sehingga browser tidak hang meskipun data ada 10.000+ baris
             const timer = setTimeout(() => {
                 const optimizedList = purchaseRequirements.map((item) => {
                     const parsed = parseFlexibleDate(item.date);
@@ -396,6 +419,7 @@ export default function PurchaseRequirementIndex({
         const term = debouncedSearchTerm.trim().toLowerCase();
         
         const filtered = purchaseRequirementsList.filter((item) => {
+            // KEMBALIKAN FILTER TANGGAL: Agar bisa membaca data dari Card dengan benar
             if (dateFilterBounds) {
                 if (!item._parsedDateTs) return false;
                 if (item._parsedDateTs < dateFilterBounds.start || item._parsedDateTs > dateFilterBounds.end) {
@@ -405,7 +429,9 @@ export default function PurchaseRequirementIndex({
 
             const outstanding = Number(item.outstanding_count ?? 0) > 0;
             const sisaPoStatus = Number(item.sisa_po_count ?? 0) > 0;
-            const realized = Number(item.realized_count ?? 0) > 0;
+            
+            // LOGIKA KETAT TEREALISASI: 100% Sesuai Card (Semua material sudah tidak ada sisa PR)
+            const realized = !outstanding && !sisaPoStatus;
             
             if (statusFilter === 'outstanding' && !outstanding) return false;
             if (statusFilter === 'sisa_po' && !sisaPoStatus) return false;
