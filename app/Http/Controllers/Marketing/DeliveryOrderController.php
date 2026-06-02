@@ -9,6 +9,146 @@ use Inertia\Inertia;
 
 class DeliveryOrderController
 {
+    private function parseNumber($value): float
+    {
+        if ($value === null) {
+            return 0.0;
+        }
+
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        $clean = str_replace(',', '', (string) $value);
+        return is_numeric($clean) ? (float) $clean : 0.0;
+    }
+
+    private function nextMibNoDoc(): string
+    {
+        $last = DB::table('tb_kdmib')
+            ->select('no_doc')
+            ->where('no_doc', 'like', 'MIB%')
+            ->orderByDesc('no_doc')
+            ->lockForUpdate()
+            ->first();
+
+        $lastNum = 0;
+        if ($last && isset($last->no_doc)) {
+            $digits = preg_replace('/\D+/', '', (string) $last->no_doc);
+            if ($digits !== '') {
+                $lastNum = (int) $digits;
+            }
+        }
+
+        return 'MIB' . str_pad((string) ($lastNum + 1), 7, '0', STR_PAD_LEFT);
+    }
+
+    private function restoreDeletedMaterialsToStockAndMib($rows, string $sourceDocNo): void
+    {
+        if ($rows->isEmpty() || !Schema::hasTable('tb_material')) {
+            return;
+        }
+
+        $mibRows = [];
+
+        foreach ($rows as $row) {
+            $qty = $this->parseNumber($row->qty ?? 0);
+            $doHarga = $this->parseNumber($row->harga ?? 0);
+            $matName = trim((string) ($row->mat ?? ''));
+            $kdMat = trim((string) ($row->kd_mat ?? ''));
+
+            if ($qty <= 0 || ($kdMat === '' && $matName === '')) {
+                continue;
+            }
+
+            $materialQuery = DB::table('tb_material');
+            if ($kdMat !== '') {
+                $materialQuery->where('kd_material', $kdMat);
+            } else {
+                $materialQuery->whereRaw('lower(trim(material)) = ?', [strtolower($matName)]);
+            }
+
+            $materialRow = $materialQuery->first();
+            if (!$materialRow) {
+                continue;
+            }
+
+            $materialHarga = $this->parseNumber($materialRow->harga ?? 0);
+            $sameMainStockPrice = $materialHarga === 0.0 || abs($materialHarga - $doHarga) <= 0.000001;
+
+            if ($sameMainStockPrice) {
+                $materialUpdate = [];
+                if (Schema::hasColumn('tb_material', 'stok')) {
+                    $materialUpdate['stok'] = $this->parseNumber($materialRow->stok ?? 0) + $qty;
+                }
+                if (Schema::hasColumn('tb_material', 'rest_stock')) {
+                    $materialUpdate['rest_stock'] = $this->parseNumber($materialRow->rest_stock ?? 0) + $qty;
+                }
+                if (Schema::hasColumn('tb_material', 'harga')) {
+                    $materialUpdate['harga'] = $doHarga;
+                }
+
+                if (!empty($materialUpdate)) {
+                    DB::table('tb_material')
+                        ->where('kd_material', $materialRow->kd_material)
+                        ->update($materialUpdate);
+                }
+
+                continue;
+            }
+
+            $mibRows[] = [
+                'no' => $row->no ?? count($mibRows) + 1,
+                'kd_mat' => $materialRow->kd_material,
+                'material' => $materialRow->material ?? $matName,
+                'qty' => $qty,
+                'unit' => (string) ($row->unit ?? ''),
+                'price' => $doHarga,
+                'total_price' => $this->parseNumber($row->total ?? 0) ?: ($qty * $doHarga),
+            ];
+        }
+
+        if (empty($mibRows) || !Schema::hasTable('tb_kdmib') || !Schema::hasTable('tb_mib')) {
+            return;
+        }
+
+        $noDoc = $this->nextMibNoDoc();
+        $today = now()->format('d.m.Y');
+        $sourceText = "HAPUS MATERIAL DARI {$sourceDocNo}";
+        $header = [
+            'no_doc' => $noDoc,
+            'ref_po' => $sourceText,
+            'ref_pr' => $sourceText,
+            'vdr' => $sourceText,
+            'doc_tgl' => $today,
+            'posting_tgl' => $today,
+        ];
+        $header = array_filter($header, fn ($_, $col) => Schema::hasColumn('tb_kdmib', $col), ARRAY_FILTER_USE_BOTH);
+        DB::table('tb_kdmib')->insert($header);
+
+        $mibColumns = Schema::getColumnListing('tb_mib');
+        $inserts = array_map(function ($row) use ($noDoc, $mibColumns) {
+            $insert = [
+                'no_doc' => $noDoc,
+                'no' => $row['no'],
+                'kd_mat' => $row['kd_mat'],
+                'material' => $row['material'],
+                'qty' => $row['qty'],
+                'rest_mat' => $row['qty'],
+                'unit' => $row['unit'],
+                'price' => $row['price'],
+                'total_price' => $row['total_price'],
+                'transfer' => 0,
+                'id_po' => 0,
+                'keterangan' => 'STOK',
+            ];
+
+            return array_intersect_key($insert, array_flip($mibColumns));
+        }, $mibRows);
+
+        DB::table('tb_mib')->insert($inserts);
+    }
+
     public function index(Request $request)
     {
         $period = $request->query('period', 'today');
@@ -830,7 +970,7 @@ class DeliveryOrderController
         $refPo = strtolower(trim((string) ($row->ref_po ?? '')));
 
         try {
-            DB::transaction(function () use ($noDo, $lineNo, $qty, $kdMat, $refPo) {
+            DB::transaction(function () use ($noDo, $lineNo, $qty, $kdMat, $refPo, $row) {
                 // Business rule: Minimal 1 material
                 $count = DB::table('tb_do')
                     ->where('no_do', $noDo)
@@ -871,6 +1011,8 @@ class DeliveryOrderController
                     }
                 }
 
+                $this->restoreDeletedMaterialsToStockAndMib(collect([$row]), (string) $noDo);
+
                 DB::table('tb_do')
                     ->where('no_do', $noDo)
                     ->where('no', $lineNo)
@@ -904,17 +1046,6 @@ class DeliveryOrderController
 
         try {
             DB::transaction(function () use ($rows, $noDo) {
-                $parseNumber = static function ($value) {
-                    if ($value === null) {
-                        return 0.0;
-                    }
-                    if (is_numeric($value)) {
-                        return (float) $value;
-                    }
-                    $clean = str_replace(',', '', (string) $value);
-                    return is_numeric($clean) ? (float) $clean : 0.0;
-                };
-
                 // Bulk Pre-fetching
                 $refPos = $rows->pluck('ref_po')->filter()->unique()->all();
 
@@ -926,11 +1057,10 @@ class DeliveryOrderController
                         ->keyBy(fn($row) => strtolower(trim($row->no_poin)));
                 }
 
-                $materialUpdates = [];
                 $detailPoinUpdates = [];
 
                 foreach ($rows as $row) {
-                    $qty = $parseNumber($row->qty ?? 0);
+                    $qty = $this->parseNumber($row->qty ?? 0);
                     $kdMat = $row->kd_mat ?? null;
                     $matName = $row->mat ?? null;
                     $refPo = $row->ref_po ?? null;
@@ -939,12 +1069,6 @@ class DeliveryOrderController
                     $kodePoin = $refPoLower ? $poinMap->get($refPoLower)?->kode_poin : null;
 
                     if ($kdMat) {
-                        $materialUpdates[] = [
-                            'material' => $matName,
-                            'harga' => $row->harga ?? 0,
-                            'qty' => $qty,
-                        ];
-
                         if ($kodePoin) {
                             $detailPoinUpdates[] = [
                                 'kode_poin' => $kodePoin,
@@ -954,12 +1078,6 @@ class DeliveryOrderController
                             ];
                         }
                     } elseif ($matName) {
-                        $materialUpdates[] = [
-                            'qty' => $qty,
-                            'material' => $matName,
-                            'harga' => $row->harga ?? 0,
-                        ];
-
                         if ($kodePoin) {
                             $detailPoinUpdates[] = [
                                 'kode_poin' => $kodePoin,
@@ -969,37 +1087,6 @@ class DeliveryOrderController
                             ];
                         }
                     }
-                }
-
-                // Execute Updates
-                foreach ($materialUpdates as $up) {
-                    $materialName = trim((string)($up['material'] ?? ''));
-                    if ($materialName === '') {
-                        continue;
-                    }
-
-                    $materialRow = DB::table('tb_material')
-                        ->whereRaw('lower(trim(material)) = ?', [strtolower($materialName)])
-                        ->first();
-
-                    if (!$materialRow) {
-                        continue;
-                    }
-
-                    $materialUpdate = [
-                        'stok' => $parseNumber($materialRow->stok ?? 0) + $up['qty'],
-                        'rest_stock' => $parseNumber($materialRow->rest_stock ?? 0) + $up['qty'],
-                    ];
-
-                    $doHarga = $parseNumber($up['harga'] ?? 0);
-                    $materialHarga = $parseNumber($materialRow->harga ?? 0);
-                    if ($doHarga > $materialHarga) {
-                        $materialUpdate['harga'] = $doHarga;
-                    }
-
-                    DB::table('tb_material')
-                        ->where('kd_material', $materialRow->kd_material)
-                        ->update($materialUpdate);
                 }
 
                 $hasSisaQtyDo = Schema::hasColumn('tb_detailpoin', 'sisa_qtydo');
@@ -1015,6 +1102,8 @@ class DeliveryOrderController
                         $q->increment('sisa_qtydo', $up['qty']);
                     }
                 }
+
+                $this->restoreDeletedMaterialsToStockAndMib($rows, (string) $noDo);
 
                 DB::table('tb_do')->where('no_do', $noDo)->delete();
                 DB::table('tb_kddo')->where('no_do', $noDo)->delete();

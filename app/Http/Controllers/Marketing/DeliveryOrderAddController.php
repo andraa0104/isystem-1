@@ -4,11 +4,152 @@ namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Carbon\Carbon;
 
 class DeliveryOrderAddController
 {
+    private function parseNumber($value): float
+    {
+        if ($value === null) {
+            return 0.0;
+        }
+
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        $clean = str_replace(',', '', (string) $value);
+        return is_numeric($clean) ? (float) $clean : 0.0;
+    }
+
+    private function nextMibNoDoc(): string
+    {
+        $last = DB::table('tb_kdmib')
+            ->select('no_doc')
+            ->where('no_doc', 'like', 'MIB%')
+            ->orderByDesc('no_doc')
+            ->lockForUpdate()
+            ->first();
+
+        $lastNum = 0;
+        if ($last && isset($last->no_doc)) {
+            $digits = preg_replace('/\D+/', '', (string) $last->no_doc);
+            if ($digits !== '') {
+                $lastNum = (int) $digits;
+            }
+        }
+
+        return 'MIB' . str_pad((string) ($lastNum + 1), 7, '0', STR_PAD_LEFT);
+    }
+
+    private function restoreDeletedMaterialsToStockAndMib($rows, string $sourceDocNo): void
+    {
+        if ($rows->isEmpty() || !Schema::hasTable('tb_material')) {
+            return;
+        }
+
+        $mibRows = [];
+
+        foreach ($rows as $row) {
+            $qty = $this->parseNumber($row->qty ?? 0);
+            $dobHarga = $this->parseNumber($row->harga ?? 0);
+            $matName = trim((string) ($row->mat ?? ''));
+            $kdMat = trim((string) ($row->kd_mat ?? ''));
+
+            if ($qty <= 0 || ($kdMat === '' && $matName === '')) {
+                continue;
+            }
+
+            $materialQuery = DB::table('tb_material');
+            if ($kdMat !== '') {
+                $materialQuery->where('kd_material', $kdMat);
+            } else {
+                $materialQuery->whereRaw('lower(trim(material)) = ?', [strtolower($matName)]);
+            }
+
+            $materialRow = $materialQuery->first();
+            if (!$materialRow) {
+                continue;
+            }
+
+            $materialHarga = $this->parseNumber($materialRow->harga ?? 0);
+            $sameMainStockPrice = $materialHarga === 0.0 || abs($materialHarga - $dobHarga) <= 0.000001;
+
+            if ($sameMainStockPrice) {
+                $materialUpdate = [];
+                if (Schema::hasColumn('tb_material', 'stok')) {
+                    $materialUpdate['stok'] = $this->parseNumber($materialRow->stok ?? 0) + $qty;
+                }
+                if (Schema::hasColumn('tb_material', 'rest_stock')) {
+                    $materialUpdate['rest_stock'] = $this->parseNumber($materialRow->rest_stock ?? 0) + $qty;
+                }
+                if (Schema::hasColumn('tb_material', 'harga')) {
+                    $materialUpdate['harga'] = $dobHarga;
+                }
+
+                if (!empty($materialUpdate)) {
+                    DB::table('tb_material')
+                        ->where('kd_material', $materialRow->kd_material)
+                        ->update($materialUpdate);
+                }
+
+                continue;
+            }
+
+            $mibRows[] = [
+                'no' => $row->no ?? count($mibRows) + 1,
+                'kd_mat' => $materialRow->kd_material,
+                'material' => $materialRow->material ?? $matName,
+                'qty' => $qty,
+                'unit' => (string) ($row->unit ?? ''),
+                'price' => $dobHarga,
+                'total_price' => $this->parseNumber($row->total ?? 0) ?: ($qty * $dobHarga),
+            ];
+        }
+
+        if (empty($mibRows) || !Schema::hasTable('tb_kdmib') || !Schema::hasTable('tb_mib')) {
+            return;
+        }
+
+        $noDoc = $this->nextMibNoDoc();
+        $today = now()->format('d.m.Y');
+        $sourceText = "HAPUS MATERIAL DARI {$sourceDocNo}";
+        $header = [
+            'no_doc' => $noDoc,
+            'ref_po' => $sourceText,
+            'ref_pr' => $sourceText,
+            'vdr' => $sourceText,
+            'doc_tgl' => $today,
+            'posting_tgl' => $today,
+        ];
+        $header = array_filter($header, fn ($_, $col) => Schema::hasColumn('tb_kdmib', $col), ARRAY_FILTER_USE_BOTH);
+        DB::table('tb_kdmib')->insert($header);
+
+        $mibColumns = Schema::getColumnListing('tb_mib');
+        $inserts = array_map(function ($row) use ($noDoc, $mibColumns) {
+            $insert = [
+                'no_doc' => $noDoc,
+                'no' => $row['no'],
+                'kd_mat' => $row['kd_mat'],
+                'material' => $row['material'],
+                'qty' => $row['qty'],
+                'rest_mat' => $row['qty'],
+                'unit' => $row['unit'],
+                'price' => $row['price'],
+                'total_price' => $row['total_price'],
+                'transfer' => 0,
+                'id_po' => 0,
+                'keterangan' => 'STOK',
+            ];
+
+            return array_intersect_key($insert, array_flip($mibColumns));
+        }, $mibRows);
+
+        DB::table('tb_mib')->insert($inserts);
+    }
+
     public function create()
     {
         return Inertia::render('marketing/delivery-order-add/create');
@@ -682,15 +823,7 @@ class DeliveryOrderAddController
                     throw new \RuntimeException('Gagal menghapus. Minimal harus ada 1 material dalam DOB.');
                 }
 
-                $qty = (float)($row->qty ?? 0);
-                $kdMat = $row->kd_mat ?? null;
-
-                // 1. Restore tb_material.stok
-                if ($kdMat) {
-                    DB::table('tb_material')
-                        ->where('kd_material', $kdMat)
-                        ->increment('stok', $qty);
-                }
+                $this->restoreDeletedMaterialsToStockAndMib(collect([$row]), (string) $noDob);
 
                 DB::table('tb_dob')
                     ->where('no_dob', $noDob)
@@ -724,48 +857,7 @@ class DeliveryOrderAddController
 
         try {
             DB::transaction(function () use ($rows, $noDob) {
-                $parseNumber = static function ($value) {
-                    if ($value === null) {
-                        return 0.0;
-                    }
-                    if (is_numeric($value)) {
-                        return (float) $value;
-                    }
-                    $clean = str_replace(',', '', (string) $value);
-                    return is_numeric($clean) ? (float) $clean : 0.0;
-                };
-
-                foreach ($rows as $row) {
-                    $qty = $parseNumber($row->qty ?? 0);
-                    $matName = trim((string) ($row->mat ?? ''));
-
-                    if ($matName === '') {
-                        continue;
-                    }
-
-                    $materialRow = DB::table('tb_material')
-                        ->whereRaw('lower(trim(material)) = ?', [strtolower($matName)])
-                        ->first();
-
-                    if (!$materialRow) {
-                        continue;
-                    }
-
-                    $materialUpdate = [
-                        'stok' => $parseNumber($materialRow->stok ?? 0) + $qty,
-                        'rest_stock' => $parseNumber($materialRow->rest_stock ?? 0) + $qty,
-                    ];
-
-                    $dobHarga = $parseNumber($row->harga ?? 0);
-                    $materialHarga = $parseNumber($materialRow->harga ?? 0);
-                    if ($dobHarga > $materialHarga) {
-                        $materialUpdate['harga'] = $dobHarga;
-                    }
-
-                    DB::table('tb_material')
-                        ->where('kd_material', $materialRow->kd_material)
-                        ->update($materialUpdate);
-                }
+                $this->restoreDeletedMaterialsToStockAndMib($rows, (string) $noDob);
 
                 DB::table('tb_dob')->where('no_dob', $noDob)->delete();
                 DB::table('tb_kddob')->where('no_dob', $noDob)->delete();
