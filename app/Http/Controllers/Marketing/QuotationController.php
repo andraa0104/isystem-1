@@ -593,25 +593,34 @@ class QuotationController
             $materials = [];
         }
 
-        $maxAttempts = 3;
+        $maxAttempts = 10;
         $attempt = 0;
 
         while (true) {
             try {
                 DB::transaction(function () use ($request, $materials, $prefix) {
-                    $lastNumber = DB::table('tb_penawaran')
-                        ->where('No_penawaran', 'like', $prefix.'%')
-                        ->orderBy('No_penawaran', 'desc')
-                        ->lockForUpdate()
-                        ->value('No_penawaran');
+                    $counter = DB::table('tb_counter')
+                        ->select('nomor_terakhir')
+                        ->where('nama_tabel', 'tb_penawaran')
+                        ->first();
 
-                    $sequence = 1;
-                    if ($lastNumber) {
-                        $suffix = substr($lastNumber, strlen($prefix));
-                        $sequence = max(1, (int) $suffix + 1);
+                    if (!$counter) {
+                        throw new \RuntimeException('Data counter tb_penawaran tidak ditemukan.');
                     }
 
-                    $noPenawaran = $prefix.str_pad((string) $sequence, 7, '0', STR_PAD_LEFT);
+                    $oldNumber = (int) $counter->nomor_terakhir;
+                    $newNumber = $oldNumber + 1;
+
+                    $updated = DB::table('tb_counter')
+                        ->where('nama_tabel', 'tb_penawaran')
+                        ->where('nomor_terakhir', $oldNumber)
+                        ->update(['nomor_terakhir' => $newNumber]);
+
+                    if ($updated === 0) {
+                        throw new \RuntimeException('counter_tb_penawaran_dipakai');
+                    }
+
+                    $noPenawaran = $prefix.str_pad((string) $newNumber, 7, '0', STR_PAD_LEFT);
 
                     if (DB::table('tb_penawaran')->where('No_penawaran', $noPenawaran)->exists()) {
                         throw new \RuntimeException('duplicate_no_penawaran');
@@ -667,13 +676,18 @@ class QuotationController
             } catch (\Throwable $exception) {
                 $attempt++;
                 $message = strtolower($exception->getMessage());
+                $isCounterConflict = str_contains($message, 'counter_tb_penawaran_dipakai');
                 $isDuplicate = str_contains($message, 'duplicate_no_penawaran')
                     || str_contains($message, 'duplicate')
                     || ($exception instanceof \Illuminate\Database\QueryException
                         && $exception->getCode() === '23000');
 
-                if ($attempt < $maxAttempts && $isDuplicate) {
+                if ($attempt < $maxAttempts && ($isCounterConflict || $isDuplicate)) {
                     continue;
+                }
+
+                if ($isCounterConflict) {
+                    return back()->with('error', 'Nomor sedang dipakai user lain.');
                 }
 
                 return back()->with('error', $exception->getMessage());
