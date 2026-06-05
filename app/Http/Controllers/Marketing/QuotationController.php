@@ -50,28 +50,6 @@ class QuotationController
         return '`'.str_replace('`', '``', $column).'`';
     }
 
-    private function indexExists(string $table, string $index): bool
-    {
-        $database = DB::getDatabaseName();
-
-        return DB::table('information_schema.statistics')
-            ->where('table_schema', $database)
-            ->where('table_name', $table)
-            ->where('index_name', $index)
-            ->exists();
-    }
-
-    private function booleanFullTextQuery(string $search): ?string
-    {
-        $terms = preg_split('/\s+/', trim($search));
-        $terms = array_values(array_filter(array_map(function ($term) {
-            $term = preg_replace('/[^\pL\pN_-]+/u', '', (string) $term);
-            return strlen($term) >= 2 ? '+' . $term . '*' : null;
-        }, $terms ?: [])));
-
-        return empty($terms) ? null : implode(' ', $terms);
-    }
-
     public function getLastPrice(Request $request)
     {
         $materialName = $request->query('material');
@@ -209,30 +187,12 @@ class QuotationController
         }
 
         if ($search !== '') {
-            $fullTextQuery = $this->booleanFullTextQuery($search);
-            $hasFullText = $fullTextQuery !== null && $this->indexExists('tb_penawaran', 'ft_tb_penawaran_search');
-
-            $query->where(function ($q) use ($search, $fullTextQuery, $hasFullText) {
-                $q->where('p.No_penawaran', 'like', '%' . $search . '%');
-
-                if ($hasFullText) {
-                    $q->orWhereRaw(
-                        'MATCH(p.Customer, p.Alamat, p.Attend) AGAINST (? IN BOOLEAN MODE)',
-                        [$fullTextQuery]
-                    );
-                } else {
-                    $q->orWhere('p.Customer', 'like', '%' . $search . '%')
-                        ->orWhere('p.Alamat', 'like', '%' . $search . '%')
-                        ->orWhere('p.Attend', 'like', '%' . $search . '%');
-                }
+            $query->where(function ($q) use ($search) {
+                $q->where('p.No_penawaran', 'like', '%' . $search . '%')
+                    ->orWhere('p.Customer', 'like', '%' . $search . '%')
+                    ->orWhere('p.Alamat', 'like', '%' . $search . '%')
+                    ->orWhere('p.Attend', 'like', '%' . $search . '%');
             });
-
-            if ($hasFullText) {
-                $query->selectRaw(
-                    'MATCH(p.Customer, p.Alamat, p.Attend) AGAINST (? IN BOOLEAN MODE) as search_score',
-                    [$fullTextQuery]
-                )->orderByDesc('search_score');
-            }
         }
     
         return $query->orderBy('p.Tgl_Posting', 'desc')
@@ -268,28 +228,10 @@ class QuotationController
                 ->select('ID', 'No_Penawaran', 'Material', 'Qty', 'Satuan', 'Harga', 'Harga_Modal as Harga_modal');
     
             if ($search !== '') {
-                $fullTextQuery = $this->booleanFullTextQuery($search);
-                $hasFullText = $fullTextQuery !== null && $this->indexExists('tb_penawarandetail', 'ft_tb_penawarandetail_material');
-
-                $query->where(function($q) use ($search, $fullTextQuery, $hasFullText) {
-                    $q->where('No_Penawaran', 'LIKE', '%' . $search . '%');
-
-                    if ($hasFullText) {
-                        $q->orWhereRaw(
-                            'MATCH(Material) AGAINST (? IN BOOLEAN MODE)',
-                            [$fullTextQuery]
-                        );
-                    } else {
-                        $q->orWhere('Material', 'LIKE', "%{$search}%");
-                    }
+                $query->where(function($q) use ($search) {
+                    $q->where('No_Penawaran', 'LIKE', '%' . $search . '%')
+                        ->orWhere('Material', 'LIKE', "%{$search}%");
                 });
-
-                if ($hasFullText) {
-                    $query->selectRaw(
-                        'MATCH(Material) AGAINST (? IN BOOLEAN MODE) as search_score',
-                        [$fullTextQuery]
-                    )->orderByDesc('search_score');
-                }
             }
     
             $query->orderBy('ID', 'desc');
@@ -344,8 +286,19 @@ class QuotationController
 
     public function customers()
     {
-        $customers = Cache::tags(['customer_data'])->remember('quotation_customers_all', 86400, function () {
-            return DB::table('tb_cs')
+        $search = trim((string) request()->query('search', ''));
+        $page = max(1, (int) request()->query('page', 1));
+        $pageSizeRaw = request()->query('pageSize', 5);
+        $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
+
+        $cacheKey = 'quotation_customers_' . md5(json_encode([
+            'search' => $search,
+            'page' => $page,
+            'pageSize' => $pageSizeRaw,
+        ]));
+
+        $data = Cache::tags(['customer_data'])->remember($cacheKey, 86400, function () use ($search, $page, $pageSize) {
+            $query = DB::table('tb_cs')
                 ->select(
                     'kd_cs as kd_cs',
                     'nm_cs as nm_cs',
@@ -353,29 +306,78 @@ class QuotationController
                     'alamat_cs as alamat_cs',
                     'telp_cs as telp_cs',
                     'fax_cs as fax_cs'
-                )
-                ->orderBy('nm_cs')
-                ->get();
+                );
+
+            if ($search !== '') {
+                $query->where(function ($q) use ($search) {
+                    $q->where('kd_cs', 'like', '%' . $search . '%')
+                        ->orWhere('nm_cs', 'like', '%' . $search . '%')
+                        ->orWhere('Attnd', 'like', '%' . $search . '%')
+                        ->orWhere('alamat_cs', 'like', '%' . $search . '%')
+                        ->orWhere('telp_cs', 'like', '%' . $search . '%');
+                });
+            }
+
+            $total = (clone $query)->count();
+            $query->orderBy('nm_cs');
+
+            if ($pageSize !== 'all') {
+                $query->forPage($page, $pageSize);
+            }
+
+            return [
+                'customers' => $query->get(),
+                'total' => $total,
+            ];
         });
 
-        return response()->json(['customers' => $customers]);
+        return response()->json($data);
     }
 
     public function materials()
     {
-        $materials = Cache::tags(['material_data'])->remember('quotation_materials_all', 86400, function () {
-            return DB::table('tb_material')
+        $search = trim((string) request()->query('search', ''));
+        $page = max(1, (int) request()->query('page', 1));
+        $pageSizeRaw = request()->query('pageSize', 5);
+        $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
+
+        $cacheKey = 'quotation_materials_' . md5(json_encode([
+            'search' => $search,
+            'page' => $page,
+            'pageSize' => $pageSizeRaw,
+        ]));
+
+        $data = Cache::tags(['material_data'])->remember($cacheKey, 86400, function () use ($search, $page, $pageSize) {
+            $query = DB::table('tb_material')
                 ->select(
                     'Material as material',
                     'Unit as unit',
                     'Stok as stok',
                     'Remark as remark'
-                )
-                ->orderBy('Material')
-                ->get();
+                );
+
+            if ($search !== '') {
+                $query->where(function ($q) use ($search) {
+                    $q->where('Material', 'like', '%' . $search . '%')
+                        ->orWhere('Unit', 'like', '%' . $search . '%')
+                        ->orWhere('Remark', 'like', '%' . $search . '%');
+                });
+            }
+
+            $total = (clone $query)->count();
+            $query->orderBy('Material');
+
+            if ($pageSize !== 'all') {
+                $query->forPage($page, $pageSize);
+            }
+
+            return [
+                'materials' => $query->get(),
+                'total' => $total,
+            ];
         });
 
-        return response()->json(['materials' => $materials]);
+        return response()->json($data);
     }
 
     public function edit($noPenawaran)

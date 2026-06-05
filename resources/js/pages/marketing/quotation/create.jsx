@@ -67,11 +67,15 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [customerList, setCustomerList] = useState(customers);
     const [materialList, setMaterialList] = useState(materials);
+    const [customerTotalItems, setCustomerTotalItems] = useState(customers.length);
+    const [materialTotalItems, setMaterialTotalItems] = useState(materials.length);
     const [customerLoading, setCustomerLoading] = useState(false);
     const [materialLoading, setMaterialLoading] = useState(false);
     const [customerError, setCustomerError] = useState('');
     const [materialError, setMaterialError] = useState('');
     const hargaPenawaranRef = useRef(null);
+    const customerRequestSeq = useRef(0);
+    const materialRequestSeq = useRef(0);
 
     const [customerForm, setCustomerForm] = useState({
         tglPenawaran: todayDate(),
@@ -107,30 +111,19 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const [materialItems, setMaterialItems] = useState([]);
 
     const [customerSearch, setCustomerSearch] = useState('');
+    const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('');
     const [customerPageSize, setCustomerPageSize] = useState(5);
     const [customerPage, setCustomerPage] = useState(1);
 
     const [materialSearch, setMaterialSearch] = useState('');
+    const [debouncedMaterialSearch, setDebouncedMaterialSearch] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialPage, setMaterialPage] = useState(1);
 
     const filteredCustomers = useMemo(() => {
-        const term = customerSearch.trim().toLowerCase();
-        if (!term) {
-            return customerList;
-        }
+        return customerList;
+    }, [customerList]);
 
-        return customerList.filter((item) => {
-            const values = [item.kd_cs, item.nm_cs, item.attnd];
-            return values.some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(term),
-            );
-        });
-    }, [customerSearch, customerList]);
-
-    const customerTotalItems = filteredCustomers.length;
     const customerTotalPages = useMemo(() => {
         if (customerPageSize === Infinity) {
             return 1;
@@ -140,34 +133,13 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     }, [customerPageSize, customerTotalItems]);
 
     const displayedCustomers = useMemo(() => {
-        if (customerPageSize === Infinity) {
-            return filteredCustomers;
-        }
-
-        const startIndex = (customerPage - 1) * customerPageSize;
-        return filteredCustomers.slice(
-            startIndex,
-            startIndex + customerPageSize,
-        );
-    }, [customerPage, customerPageSize, filteredCustomers]);
+        return filteredCustomers;
+    }, [filteredCustomers]);
 
     const filteredMaterials = useMemo(() => {
-        const term = materialSearch.trim().toLowerCase();
-        if (!term) {
-            return materialList;
-        }
+        return materialList;
+    }, [materialList]);
 
-        return materialList.filter((item) => {
-            const values = [item.material, item.unit, item.remark];
-            return values.some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(term),
-            );
-        });
-    }, [materialSearch, materialList]);
-
-    const materialTotalItems = filteredMaterials.length;
     const materialTotalPages = useMemo(() => {
         if (materialPageSize === Infinity) {
             return 1;
@@ -177,16 +149,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     }, [materialPageSize, materialTotalItems]);
 
     const displayedMaterials = useMemo(() => {
-        if (materialPageSize === Infinity) {
-            return filteredMaterials;
-        }
-
-        const startIndex = (materialPage - 1) * materialPageSize;
-        return filteredMaterials.slice(
-            startIndex,
-            startIndex + materialPageSize,
-        );
-    }, [filteredMaterials, materialPage, materialPageSize]);
+        return filteredMaterials;
+    }, [filteredMaterials]);
 
     const marginValue = useMemo(() => {
         const modal = parseNumber(materialForm.hargaModal);
@@ -204,6 +168,14 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     }, [customerPageSize, customerSearch]);
 
     useEffect(() => {
+        const handler = setTimeout(
+            () => setDebouncedCustomerSearch(customerSearch.trim()),
+            400,
+        );
+        return () => clearTimeout(handler);
+    }, [customerSearch]);
+
+    useEffect(() => {
         if (customerPage > customerTotalPages) {
             setCustomerPage(customerTotalPages);
         }
@@ -214,10 +186,38 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     }, [materialPageSize, materialSearch]);
 
     useEffect(() => {
+        const handler = setTimeout(
+            () => setDebouncedMaterialSearch(materialSearch.trim()),
+            400,
+        );
+        return () => clearTimeout(handler);
+    }, [materialSearch]);
+
+    useEffect(() => {
         if (materialPage > materialTotalPages) {
             setMaterialPage(materialTotalPages);
         }
     }, [materialPage, materialTotalPages]);
+
+    useEffect(() => {
+        if (!customerModalOpen) return;
+
+        loadCustomers({
+            search: debouncedCustomerSearch,
+            page: customerPage,
+            pageSize: customerPageSize,
+        });
+    }, [customerModalOpen, debouncedCustomerSearch, customerPage, customerPageSize]);
+
+    useEffect(() => {
+        if (!materialModalOpen) return;
+
+        loadMaterials({
+            search: debouncedMaterialSearch,
+            page: materialPage,
+            pageSize: materialPageSize,
+        });
+    }, [materialModalOpen, debouncedMaterialSearch, materialPage, materialPageSize]);
 
     const handleSelectCustomer = async (item) => {
         const customerName = renderValue(item.nm_cs);
@@ -293,51 +293,73 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }
     };
 
-    const loadCustomers = async () => {
-        if (customerLoading || customerList.length > 0) {
-            return;
-        }
+    const loadCustomers = async ({ search = '', page = 1, pageSize = 5 } = {}) => {
+        const requestSeq = customerRequestSeq.current + 1;
+        customerRequestSeq.current = requestSeq;
         setCustomerLoading(true);
         setCustomerError('');
         try {
-            const response = await fetch('/marketing/quotation/customers', {
+            const params = new URLSearchParams({
+                search,
+                page: String(page),
+                pageSize: pageSize === Infinity ? 'all' : String(pageSize),
+            });
+            const response = await fetch(`/marketing/quotation/customers?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
             });
             if (!response.ok) {
                 throw new Error('Request failed');
             }
             const data = await response.json();
+            if (requestSeq !== customerRequestSeq.current) return;
             setCustomerList(
                 Array.isArray(data?.customers) ? data.customers : [],
             );
+            setCustomerTotalItems(Number(data?.total ?? 0));
         } catch (error) {
+            if (requestSeq !== customerRequestSeq.current) return;
             setCustomerError('Gagal memuat data customer.');
+            setCustomerList([]);
+            setCustomerTotalItems(0);
         } finally {
-            setCustomerLoading(false);
+            if (requestSeq === customerRequestSeq.current) {
+                setCustomerLoading(false);
+            }
         }
     };
 
-    const loadMaterials = async () => {
-        if (materialLoading || materialList.length > 0) {
-            return;
-        }
+    const loadMaterials = async ({ search = '', page = 1, pageSize = 5 } = {}) => {
+        const requestSeq = materialRequestSeq.current + 1;
+        materialRequestSeq.current = requestSeq;
         setMaterialLoading(true);
         setMaterialError('');
         try {
-            const response = await fetch('/marketing/quotation/materials', {
+            const params = new URLSearchParams({
+                search,
+                page: String(page),
+                pageSize: pageSize === Infinity ? 'all' : String(pageSize),
+            });
+            const response = await fetch(`/marketing/quotation/materials?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
             });
             if (!response.ok) {
                 throw new Error('Request failed');
             }
             const data = await response.json();
+            if (requestSeq !== materialRequestSeq.current) return;
             setMaterialList(
                 Array.isArray(data?.materials) ? data.materials : [],
             );
+            setMaterialTotalItems(Number(data?.total ?? 0));
         } catch (error) {
+            if (requestSeq !== materialRequestSeq.current) return;
             setMaterialError('Gagal memuat data material.');
+            setMaterialList([]);
+            setMaterialTotalItems(0);
         } finally {
-            setMaterialLoading(false);
+            if (requestSeq === materialRequestSeq.current) {
+                setMaterialLoading(false);
+            }
         }
     };
 
@@ -1013,8 +1035,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                 onOpenChange={(open) => {
                     setCustomerModalOpen(open);
                     if (open) {
-                        loadCustomers();
                         setCustomerSearch('');
+                        setDebouncedCustomerSearch('');
                         setCustomerPageSize(5);
                         setCustomerPage(1);
                     }
@@ -1201,8 +1223,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                 onOpenChange={(open) => {
                     setMaterialModalOpen(open);
                     if (open) {
-                        loadMaterials();
                         setMaterialSearch('');
+                        setDebouncedMaterialSearch('');
                         setMaterialPageSize(5);
                         setMaterialPage(1);
                     }

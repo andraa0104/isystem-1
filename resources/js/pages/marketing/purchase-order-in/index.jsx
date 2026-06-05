@@ -80,7 +80,22 @@ const formatDateDisplay = (value) => {
 };
 
 const toDate = (value) => {
-    const date = new Date(value);
+    const text = String(value ?? '').trim();
+    if (!text) {
+        return null;
+    }
+
+    const dotDate = text.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (dotDate) {
+        return new Date(Number(dotDate[3]), Number(dotDate[2]) - 1, Number(dotDate[1]));
+    }
+
+    const slashDate = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (slashDate) {
+        return new Date(Number(slashDate[3]), Number(slashDate[2]) - 1, Number(slashDate[1]));
+    }
+
+    const date = new Date(text);
     return Number.isNaN(date.getTime()) ? null : date;
 };
 
@@ -145,6 +160,24 @@ const isInPeriod = (value, period, startCustom, endCustom) => {
     return true;
 };
 
+const SummaryMetric = ({ label, value, loading, onClick }) => (
+    <button
+        type="button"
+        className="rounded-lg border border-sidebar-border/70 px-3 py-2 text-left transition hover:border-primary/50 hover:bg-muted/40"
+        onClick={(event) => {
+            event.stopPropagation();
+            onClick?.();
+        }}
+    >
+        <p className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
+            {label}
+        </p>
+        <div className="mt-1 text-xl font-bold">
+            {loading ? <Skeleton className="h-6 w-10" /> : value}
+        </div>
+    </button>
+);
+
 export default function PurchaseOrderInIndex({
     purchaseOrderIns: initialPurchaseOrderIns = [],
     outstandingPurchaseOrderIns: initialOutstandingPoIns = [],
@@ -169,6 +202,7 @@ export default function PurchaseOrderInIndex({
     const [dataPoInStart, setDataPoInStart] = useState('');
     const [dataPoInEnd, setDataPoInEnd] = useState('');
     const [activeModal, setActiveModal] = useState(null);
+    const [activeModalTab, setActiveModalTab] = useState('do');
 
     const [purchaseOrderIns, setPurchaseOrderIns] = useState(
         initialPurchaseOrderIns,
@@ -178,10 +212,15 @@ export default function PurchaseOrderInIndex({
     const [summary, setSummary] = useState(initialSummary);
     const [outstandingPurchaseOrderIns, setOutstandingPurchaseOrderIns] =
         useState(initialOutstandingPoIns);
+    const [outstandingDoPurchaseOrderIns, setOutstandingDoPurchaseOrderIns] =
+        useState([]);
     const [belumPrPurchaseOrderIns, setBelumPrPurchaseOrderIns] =
         useState(initialBelumPrPoIns);
+    const [sisaDoPurchaseOrderIns, setSisaDoPurchaseOrderIns] = useState([]);
     const [realizedPurchaseOrderIns, setRealizedPurchaseOrderIns] =
         useState(initialRealizedPoIns);
+    const [realizedDoPurchaseOrderIns, setRealizedDoPurchaseOrderIns] =
+        useState([]);
     const [allPurchaseOrderIns, setAllPurchaseOrderIns] =
         useState(initialAllPoIns);
     const [pagination, setPagination] = useState(initialPagination);
@@ -268,9 +307,16 @@ export default function PurchaseOrderInIndex({
                 setOutstandingPurchaseOrderIns(
                     data.outstandingPurchaseOrderIns || [],
                 );
+                setOutstandingDoPurchaseOrderIns(
+                    data.outstandingDoPurchaseOrderIns || [],
+                );
                 setBelumPrPurchaseOrderIns(data.belumPrPurchaseOrderIns || []);
+                setSisaDoPurchaseOrderIns(data.sisaDoPurchaseOrderIns || []);
                 setRealizedPurchaseOrderIns(
                     data.realizedPurchaseOrderIns || [],
+                );
+                setRealizedDoPurchaseOrderIns(
+                    data.realizedDoPurchaseOrderIns || [],
                 );
                 setAllPurchaseOrderIns(data.allPurchaseOrderIns || []);
             }
@@ -316,17 +362,35 @@ export default function PurchaseOrderInIndex({
         [outstandingPurchaseOrderIns],
     );
 
+    const outstandingDoItems = useMemo(
+        () => outstandingDoPurchaseOrderIns,
+        [outstandingDoPurchaseOrderIns],
+    );
+
     const belumPrItems = useMemo(
         () => belumPrPurchaseOrderIns,
         [belumPrPurchaseOrderIns],
     );
 
+    const sisaDoItems = useMemo(
+        () => sisaDoPurchaseOrderIns,
+        [sisaDoPurchaseOrderIns],
+    );
+
     const realizedItemsByPeriod = useMemo(
         () =>
             realizedPurchaseOrderIns.filter((item) =>
-                isInPeriod(item.date_poin, realizedPeriod),
+                isInPeriod(item.last_pr_date, realizedPeriod),
             ),
         [realizedPurchaseOrderIns, realizedPeriod],
+    );
+
+    const realizedDoItemsByPeriod = useMemo(
+        () =>
+            realizedDoPurchaseOrderIns.filter((item) =>
+                isInPeriod(item.last_do_date, realizedPeriod),
+            ),
+        [realizedDoPurchaseOrderIns, realizedPeriod],
     );
 
     const dataItemsByPeriod = useMemo(
@@ -348,12 +412,20 @@ export default function PurchaseOrderInIndex({
 
     const modalItems =
         activeModal === 'outstanding'
-            ? outstandingItems
-            : activeModal === 'belum_pr'
-              ? belumPrItems
-              : activeModal === 'all_data'
-                ? dataItemsByPeriod
-                : realizedItemsByPeriod;
+            ? activeModalTab === 'pr'
+                ? outstandingItems
+                : outstandingDoItems
+            : activeModal === 'sisa'
+              ? activeModalTab === 'pr'
+                  ? belumPrItems
+                  : sisaDoItems
+              : activeModal === 'realized'
+                ? activeModalTab === 'pr'
+                    ? realizedItemsByPeriod
+                    : realizedDoItemsByPeriod
+                : activeModal === 'all_data'
+                  ? dataItemsByPeriod
+                  : [];
 
     const modalFilteredItems = useMemo(() => {
         const term = modalSearch.trim().toLowerCase();
@@ -543,6 +615,7 @@ export default function PurchaseOrderInIndex({
                         }}
                         onClick={() => {
                             setActiveModal('outstanding');
+                            setActiveModalTab('do');
                             setModalSearch('');
                             setModalPageSize(5);
                             setModalPage(1);
@@ -564,12 +637,31 @@ export default function PurchaseOrderInIndex({
                         >
                             PO IN Outstanding
                         </p>
-                        <div className="mt-1 text-2xl font-bold">
-                            {loading ? (
-                                <Skeleton className="h-8 w-12" />
-                            ) : (
-                                (summary.outstanding ?? 0)
-                            )}
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                            <SummaryMetric
+                                label="Belum PR"
+                                value={summary.outstanding_pr ?? 0}
+                                loading={loading}
+                                onClick={() => {
+                                    setActiveModal('outstanding');
+                                    setActiveModalTab('pr');
+                                    setModalSearch('');
+                                    setModalPageSize(5);
+                                    setModalPage(1);
+                                }}
+                            />
+                            <SummaryMetric
+                                label="Belum DO"
+                                value={summary.outstanding_do ?? 0}
+                                loading={loading}
+                                onClick={() => {
+                                    setActiveModal('outstanding');
+                                    setActiveModalTab('do');
+                                    setModalSearch('');
+                                    setModalPageSize(5);
+                                    setModalPage(1);
+                                }}
+                            />
                         </div>
                         <p
                             className={cn(
@@ -577,11 +669,11 @@ export default function PurchaseOrderInIndex({
                                 isDark ? 'text-slate-500' : 'text-slate-500',
                             )}
                         >
-                            Belum Dibuat PR
+                            Dipisah berdasarkan dokumen yang belum dibuat
                         </p>
                     </article>
 
-                    {/* Card PO IN Belum PR */}
+                    {/* Card PO IN Sisa */}
                     <article
                         className={cn(
                             'cursor-pointer rounded-xl border p-4 shadow-sm transition hover:shadow-md',
@@ -593,7 +685,8 @@ export default function PurchaseOrderInIndex({
                             backgroundColor: isDark ? '#1e293b' : '#ffffff',
                         }}
                         onClick={() => {
-                            setActiveModal('belum_pr');
+                            setActiveModal('sisa');
+                            setActiveModalTab('do');
                             setModalSearch('');
                             setModalPageSize(5);
                             setModalPage(1);
@@ -613,14 +706,33 @@ export default function PurchaseOrderInIndex({
                                 isDark ? 'text-slate-400' : 'text-slate-600',
                             )}
                         >
-                            PO IN Sisa PR
+                            PO IN Sisa
                         </p>
-                        <div className="mt-1 text-2xl font-bold">
-                            {loading ? (
-                                <Skeleton className="h-8 w-12" />
-                            ) : (
-                                (summary.belum_pr ?? 0)
-                            )}
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                            <SummaryMetric
+                                label="Sisa PR"
+                                value={summary.sisa_pr ?? 0}
+                                loading={loading}
+                                onClick={() => {
+                                    setActiveModal('sisa');
+                                    setActiveModalTab('pr');
+                                    setModalSearch('');
+                                    setModalPageSize(5);
+                                    setModalPage(1);
+                                }}
+                            />
+                            <SummaryMetric
+                                label="Sisa DO"
+                                value={summary.sisa_do ?? 0}
+                                loading={loading}
+                                onClick={() => {
+                                    setActiveModal('sisa');
+                                    setActiveModalTab('do');
+                                    setModalSearch('');
+                                    setModalPageSize(5);
+                                    setModalPage(1);
+                                }}
+                            />
                         </div>
                         <p
                             className={cn(
@@ -628,7 +740,7 @@ export default function PurchaseOrderInIndex({
                                 isDark ? 'text-slate-500' : 'text-slate-500',
                             )}
                         >
-                            Masih ada sisa Material yang belum dibuat PR
+                            Sudah sebagian dibuat, masih ada sisa material
                         </p>
                     </article>
 
@@ -645,6 +757,7 @@ export default function PurchaseOrderInIndex({
                         }}
                         onClick={() => {
                             setActiveModal('realized');
+                            setActiveModalTab('do');
                             setModalSearch('');
                             setModalPageSize(5);
                             setModalPage(1);
@@ -676,6 +789,7 @@ export default function PurchaseOrderInIndex({
                                 <option value="this_week">Minggu Ini</option>
                                 <option value="this_month">Bulan Ini</option>
                                 <option value="this_year">Tahun Ini</option>
+                                <option value="all">Semua Data</option>
                             </select>
                         </div>
                         <p
@@ -686,12 +800,31 @@ export default function PurchaseOrderInIndex({
                         >
                             PO IN Terealisasi
                         </p>
-                        <div className="mt-1 text-2xl font-bold">
-                            {loading ? (
-                                <Skeleton className="h-8 w-12" />
-                            ) : (
-                                realizedItemsByPeriod.length
-                            )}
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                            <SummaryMetric
+                                label="PR Selesai"
+                                value={realizedItemsByPeriod.length}
+                                loading={loading}
+                                onClick={() => {
+                                    setActiveModal('realized');
+                                    setActiveModalTab('pr');
+                                    setModalSearch('');
+                                    setModalPageSize(5);
+                                    setModalPage(1);
+                                }}
+                            />
+                            <SummaryMetric
+                                label="DO Selesai"
+                                value={realizedDoItemsByPeriod.length}
+                                loading={loading}
+                                onClick={() => {
+                                    setActiveModal('realized');
+                                    setActiveModalTab('do');
+                                    setModalSearch('');
+                                    setModalPageSize(5);
+                                    setModalPage(1);
+                                }}
+                            />
                         </div>
                         <p
                             className={cn(
@@ -699,7 +832,7 @@ export default function PurchaseOrderInIndex({
                                 isDark ? 'text-slate-500' : 'text-slate-500',
                             )}
                         >
-                            Semua material sudah PR —{' '}
+                            Semua material sudah dibuat DO —{' '}
                             {periodLabelMap[realizedPeriod]}
                         </p>
                     </article>
@@ -749,6 +882,7 @@ export default function PurchaseOrderInIndex({
                                 <option value="this_month">Bulan Ini</option>
                                 <option value="this_year">Tahun Ini</option>
                                 <option value="range">Range Tanggal</option>
+                                <option value="all">Semua Data</option>
                             </select>
                         </div>
                         {dataPoInPeriod === 'range' && (
@@ -857,13 +991,12 @@ export default function PurchaseOrderInIndex({
                                 }}
                             >
                                 <option value="all">Semua Data</option>
-                                <option value="outstanding">
-                                    PO IN Outstanding
-                                </option>
-                                <option value="sisa_pr">PO IN Sisa PR</option>
-                                <option value="realized">
-                                    PO IN Terealisasi
-                                </option>
+                                <option value="outstanding_pr">Belum PR</option>
+                                <option value="outstanding_do">Belum DO</option>
+                                <option value="sisa_pr">Sisa PR</option>
+                                <option value="sisa_do">Sisa DO</option>
+                                <option value="realized_pr">PR Selesai</option>
+                                <option value="realized_do">DO Selesai</option>
                             </select>
                             <select
                                 className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
@@ -1529,11 +1662,56 @@ export default function PurchaseOrderInIndex({
                                     ? 'Data PO IN'
                                     : activeModal === 'outstanding'
                                       ? 'Data PO IN Outstanding'
-                                      : activeModal === 'belum_pr'
-                                        ? 'Data PO IN Sisa PR'
+                                      : activeModal === 'sisa'
+                                        ? 'Data PO IN Sisa'
                                         : `Data PO IN Terealisasi (${periodLabelMap[realizedPeriod]})`}
                             </DialogTitle>
                         </DialogHeader>
+
+                        {activeModal !== 'all_data' && (
+                            <div className="mb-3 grid h-11 w-full max-w-sm grid-cols-2 rounded-lg border border-sidebar-border/70 bg-muted/30 p-1">
+                                <button
+                                    type="button"
+                                    className={cn(
+                                        'flex h-9 items-center justify-center rounded-md px-3 text-sm font-semibold whitespace-nowrap transition',
+                                        activeModalTab === 'pr'
+                                            ? 'bg-background text-foreground shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground',
+                                    )}
+                                    onClick={() => {
+                                        setActiveModalTab('pr');
+                                        setModalSearch('');
+                                        setModalPage(1);
+                                    }}
+                                >
+                                    {activeModal === 'outstanding'
+                                        ? 'Outstanding PR'
+                                        : activeModal === 'sisa'
+                                          ? 'Sisa PR'
+                                          : 'PR Selesai'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className={cn(
+                                        'flex h-9 items-center justify-center rounded-md px-3 text-sm font-semibold whitespace-nowrap transition',
+                                        activeModalTab === 'do'
+                                            ? 'bg-background text-foreground shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground',
+                                    )}
+                                    onClick={() => {
+                                        setActiveModalTab('do');
+                                        setModalSearch('');
+                                        setModalPage(1);
+                                    }}
+                                >
+                                    {activeModal === 'outstanding'
+                                        ? 'Outstanding DO'
+                                        : activeModal === 'sisa'
+                                          ? 'Sisa DO'
+                                          : 'DO Selesai'}
+                                </button>
+                            </div>
+                        )}
 
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                             <div className="relative w-full max-w-md">
@@ -1592,7 +1770,13 @@ export default function PurchaseOrderInIndex({
                                             No PO In
                                         </th>
                                         <th className="px-4 py-3 text-left">
-                                            Date Input
+                                            {activeModal === 'realized' &&
+                                            activeModalTab === 'do'
+                                                ? 'Tgl DO Terakhir'
+                                                : activeModal === 'realized' &&
+                                                    activeModalTab === 'pr'
+                                                  ? 'Tgl PR Terakhir'
+                                                : 'Date Input'}
                                         </th>
                                         <th className="px-4 py-3 text-left">
                                             Customer
@@ -1635,8 +1819,16 @@ export default function PurchaseOrderInIndex({
                                             </td>
                                             <td className="px-4 py-3">
                                                 {formatDateDisplay(
-                                                    item.created_at ||
-                                                        item.date_poin,
+                                                    activeModal === 'realized' &&
+                                                    activeModalTab === 'do'
+                                                        ? item.last_do_date
+                                                        : activeModal ===
+                                                                'realized' &&
+                                                            activeModalTab ===
+                                                                'pr'
+                                                          ? item.last_pr_date
+                                                        : item.created_at ||
+                                                              item.date_poin,
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -1648,7 +1840,7 @@ export default function PurchaseOrderInIndex({
                                             <td className="px-4 py-3">
                                                 {activeModal ===
                                                     'outstanding' ||
-                                                activeModal === 'belum_pr' ? (
+                                                activeModal === 'sisa' ? (
                                                     <div className="flex items-center gap-2">
                                                         <Button
                                                             type="button"
