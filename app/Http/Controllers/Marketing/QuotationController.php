@@ -50,6 +50,28 @@ class QuotationController
         return '`'.str_replace('`', '``', $column).'`';
     }
 
+    private function indexExists(string $table, string $index): bool
+    {
+        $database = DB::getDatabaseName();
+
+        return DB::table('information_schema.statistics')
+            ->where('table_schema', $database)
+            ->where('table_name', $table)
+            ->where('index_name', $index)
+            ->exists();
+    }
+
+    private function booleanFullTextQuery(string $search): ?string
+    {
+        $terms = preg_split('/\s+/', trim($search));
+        $terms = array_values(array_filter(array_map(function ($term) {
+            $term = preg_replace('/[^\pL\pN_-]+/u', '', (string) $term);
+            return strlen($term) >= 2 ? '+' . $term . '*' : null;
+        }, $terms ?: [])));
+
+        return empty($terms) ? null : implode(' ', $terms);
+    }
+
     public function getLastPrice(Request $request)
     {
         $materialName = $request->query('material');
@@ -129,15 +151,16 @@ class QuotationController
     public function data(Request $request)
     {
         $period = $request->query('period', 'today');
+        $search = trim((string) $request->query('search', ''));
         
-        $penawaran = $this->getPenawaranQuery($period)->get();
+        $penawaran = $this->getPenawaranQuery($period, $search)->get();
     
         return response()->json([
             'penawaran' => $penawaran,
         ]);
     }
 
-    private function getPenawaranQuery($period)
+    private function getPenawaranQuery($period, string $search = '')
     {
         // Gunakan nama kolom yang sudah dipastikan ada (hardcode)
         $query = DB::table('tb_penawaran as p')
@@ -184,6 +207,33 @@ class QuotationController
         } elseif ($period === 'all') {
             // tidak ada filter tambahan
         }
+
+        if ($search !== '') {
+            $fullTextQuery = $this->booleanFullTextQuery($search);
+            $hasFullText = $fullTextQuery !== null && $this->indexExists('tb_penawaran', 'ft_tb_penawaran_search');
+
+            $query->where(function ($q) use ($search, $fullTextQuery, $hasFullText) {
+                $q->where('p.No_penawaran', 'like', '%' . $search . '%');
+
+                if ($hasFullText) {
+                    $q->orWhereRaw(
+                        'MATCH(p.Customer, p.Alamat, p.Attend) AGAINST (? IN BOOLEAN MODE)',
+                        [$fullTextQuery]
+                    );
+                } else {
+                    $q->orWhere('p.Customer', 'like', '%' . $search . '%')
+                        ->orWhere('p.Alamat', 'like', '%' . $search . '%')
+                        ->orWhere('p.Attend', 'like', '%' . $search . '%');
+                }
+            });
+
+            if ($hasFullText) {
+                $query->selectRaw(
+                    'MATCH(p.Customer, p.Alamat, p.Attend) AGAINST (? IN BOOLEAN MODE) as search_score',
+                    [$fullTextQuery]
+                )->orderByDesc('search_score');
+            }
+        }
     
         return $query->orderBy('p.Tgl_Posting', 'desc')
             ->orderBy('p.No_Penawaran', 'desc');
@@ -218,10 +268,28 @@ class QuotationController
                 ->select('ID', 'No_Penawaran', 'Material', 'Qty', 'Satuan', 'Harga', 'Harga_Modal as Harga_modal');
     
             if ($search !== '') {
-                $query->where(function($q) use ($search) {
-                    $q->where('No_Penawaran', 'LIKE', "%{$search}%")
-                      ->orWhere('Material', 'LIKE', "%{$search}%");
+                $fullTextQuery = $this->booleanFullTextQuery($search);
+                $hasFullText = $fullTextQuery !== null && $this->indexExists('tb_penawarandetail', 'ft_tb_penawarandetail_material');
+
+                $query->where(function($q) use ($search, $fullTextQuery, $hasFullText) {
+                    $q->where('No_Penawaran', 'LIKE', '%' . $search . '%');
+
+                    if ($hasFullText) {
+                        $q->orWhereRaw(
+                            'MATCH(Material) AGAINST (? IN BOOLEAN MODE)',
+                            [$fullTextQuery]
+                        );
+                    } else {
+                        $q->orWhere('Material', 'LIKE', "%{$search}%");
+                    }
                 });
+
+                if ($hasFullText) {
+                    $query->selectRaw(
+                        'MATCH(Material) AGAINST (? IN BOOLEAN MODE) as search_score',
+                        [$fullTextQuery]
+                    )->orderByDesc('search_score');
+                }
             }
     
             $query->orderBy('ID', 'desc');

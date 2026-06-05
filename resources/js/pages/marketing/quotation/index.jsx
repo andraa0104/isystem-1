@@ -45,6 +45,7 @@ export default function QuotationIndex({
 }) {
     // State Tab 1 (Customer)
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState(period);
@@ -68,6 +69,7 @@ export default function QuotationIndex({
 
     // State Tab 2 (Material) - Server Side Pagination
     const [materialSearch, setMaterialSearch] = useState('');
+    const [debouncedMaterialSearch, setDebouncedMaterialSearch] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
     const [materialLoading, setMaterialLoading] = useState(false);
@@ -77,10 +79,14 @@ export default function QuotationIndex({
     // ========================================================
     // FETCH DATA TAB 1 (CUSTOMER)
     // ========================================================
-    const fetchQuotationData = useCallback(async (newPeriod) => {
+    const fetchQuotationData = useCallback(async (newPeriod, search = '') => {
         setLoading(true);
         try {
-            const resPenawaran = await fetch(`/marketing/quotation/data?period=${newPeriod}`, { 
+            const params = new URLSearchParams({
+                period: newPeriod,
+                search,
+            });
+            const resPenawaran = await fetch(`/marketing/quotation/data?${params.toString()}`, { 
                 headers: { Accept: 'application/json' } 
             });
             const dataPenawaran = await resPenawaran.json();
@@ -124,8 +130,13 @@ export default function QuotationIndex({
     }, [penawaran]);
 
     useEffect(() => {
-        fetchQuotationData(statusFilter);
-    }, [statusFilter, fetchQuotationData]);
+        const handler = setTimeout(() => setDebouncedSearchTerm(searchTerm.trim()), 400);
+        return () => clearTimeout(handler);
+    }, [searchTerm]);
+
+    useEffect(() => {
+        fetchQuotationData(statusFilter, debouncedSearchTerm);
+    }, [statusFilter, debouncedSearchTerm, fetchQuotationData]);
 
     const handlePeriodChange = (newPeriod) => {
         setStatusFilter(newPeriod);
@@ -147,27 +158,9 @@ export default function QuotationIndex({
     // FILTER & PAGINATION TAB 1 (CUSTOMER)
     // ========================================================
     const filteredPenawaran = useMemo(() => {
-        const term = searchTerm.trim().toLowerCase();
         const dataToFilter = remotePenawaran || [];
-        if (!term) {
-            return dataToFilter;
-        }
-
-        return dataToFilter.filter((item) => {
-            const values = [
-                item.No_penawaran,
-                item.Tgl_Posting,
-                item.Customer,
-                item.Attend,
-            ];
-
-            return values.some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(term),
-            );
-        });
-    }, [remotePenawaran, searchTerm]);
+        return dataToFilter;
+    }, [remotePenawaran]);
 
     const totalItems = useMemo(() => filteredPenawaran.length, [filteredPenawaran]);
     
@@ -215,9 +208,14 @@ export default function QuotationIndex({
     }, [materialPageSize, materialSearch]);
 
     useEffect(() => {
+        const handler = setTimeout(() => setDebouncedMaterialSearch(materialSearch.trim()), 400);
+        return () => clearTimeout(handler);
+    }, [materialSearch]);
+
+    useEffect(() => {
         const effectivePerPage = materialPageSize === Infinity ? 999999 : materialPageSize;
-        fetchMaterialData(materialCurrentPage, effectivePerPage, materialSearch);
-    }, [materialCurrentPage, materialPageSize, materialSearch, fetchMaterialData]);
+        fetchMaterialData(materialCurrentPage, effectivePerPage, debouncedMaterialSearch);
+    }, [materialCurrentPage, materialPageSize, debouncedMaterialSearch, fetchMaterialData]);
 
     useEffect(() => {
         if (materialCurrentPage > tab2TotalPages) {
@@ -392,10 +390,10 @@ export default function QuotationIndex({
                     });
                     
                     if (activeTab === 'customer') {
-                        fetchQuotationData(statusFilter);
+                        fetchQuotationData(statusFilter, debouncedSearchTerm);
                     } else {
                         const effectivePerPage = materialPageSize === Infinity ? 999999 : materialPageSize;
-                        fetchMaterialData(materialCurrentPage, effectivePerPage, materialSearch);
+                        fetchMaterialData(materialCurrentPage, effectivePerPage, debouncedMaterialSearch);
                     }
                 })
                 .catch((error) => {
