@@ -156,7 +156,7 @@ export default function QuotationIndex({
         return dataToFilter.filter((item) => {
             const values = [
                 item.No_penawaran,
-                item.Tgl_penawaran,
+                item.Tgl_Posting,
                 item.Customer,
                 item.Attend,
             ];
@@ -276,11 +276,12 @@ export default function QuotationIndex({
         }
     
         // 2. Normalisasi Data (PENTING!)
-        // Pastikan properti "No_penawaran" dan "Tgl_Posting" selalu ada
+        // Pastikan properti "No_penawaran", "Tgl_Penawaran", dan "Tgl_Posting" selalu ada
         const normalizedHeader = {
             ...header,
-            No_penawaran: header?.No_penawaran || header?.No_Penawaran || noPenawaran,
-            Tgl_penawaran: header?.Tgl_penawaran || header?.Tgl_Posting || header?.tgl_posting || '-'
+            No_penawaran: header?.No_penawaran || noPenawaran,
+            Tgl_Penawaran: header?.Tgl_Penawaran || '-',
+            Tgl_Posting: header?.Tgl_Posting || '-'
         };
     
         setSelectedPenawaran(normalizedHeader);
@@ -517,7 +518,7 @@ export default function QuotationIndex({
                                         displayedPenawaran.map((item) => (
                                             <tr key={item.No_penawaran} className="border-t border-sidebar-border/70">
                                                 <td className="px-4 py-3">{item.No_penawaran}</td>
-                                                <td className="px-4 py-3">{item.Tgl_penawaran}</td>
+                                                <td className="px-4 py-3">{item.Tgl_Posting}</td>
                                                 <td className="px-4 py-3">{item.Customer}</td>
                                                 <td className="px-4 py-3">{item.Attend}</td>
                                                 <td className="px-4 py-3">
@@ -742,11 +743,11 @@ export default function QuotationIndex({
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
                                                 <span className="text-muted-foreground">Tanggal</span>
-                                                <span>{renderValue(selectedPenawaran.Tgl_penawaran || selectedPenawaran.Tgl_Penawaran)}</span>
+                                                <span>{renderValue(selectedPenawaran.Tgl_Penawaran)}</span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
                                                 <span className="text-muted-foreground">Posting Date</span>
-                                                <span>{renderValue(selectedPenawaran.Tgl_penawaran)}</span>
+                                                <span>{renderValue(selectedPenawaran.Tgl_Posting)}</span>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
                                                 <span className="text-muted-foreground">Customer</span>

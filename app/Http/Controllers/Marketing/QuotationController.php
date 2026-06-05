@@ -144,7 +144,7 @@ class QuotationController
             ->select(
                 'p.No_penawaran',
                 'p.Tgl_Penawaran',
-                DB::raw('COALESCE(p.Tgl_Posting, p.Tgl_posting) as Tgl_penawaran'),
+                DB::raw('COALESCE(p.Tgl_Posting) as Tgl_Posting'),
                 'p.Customer',
                 'p.Alamat',
                 'p.Telp',
@@ -169,8 +169,7 @@ class QuotationController
             $query->where(function($q) use ($todayDate, $todayDot) {
                 $q->whereDate('p.Tgl_Posting', $todayDate)
                   ->orWhere('p.Tgl_Posting', 'like', $todayDate . '%')
-                  ->orWhere('p.Tgl_Posting', 'like', '%' . $todayDot . '%')
-                  ->orWhere('p.Tgl_Penawaran', 'like', $todayDate . '%');
+                  ->orWhere('p.Tgl_Posting', 'like', '%' . $todayDot . '%');
             });
         } elseif ($period === 'week') {
             $query->whereBetween('p.Tgl_Posting', [
