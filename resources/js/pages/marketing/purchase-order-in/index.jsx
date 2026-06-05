@@ -341,19 +341,48 @@ export default function PurchaseOrderInIndex({
         return () => clearTimeout(timer);
     }, [search]);
 
-    const fetchAllDataModal = async () => {
+    const realizedPeriodKey = useMemo(() => {
+        if (realizedPeriod === 'this_week') return 'week';
+        if (realizedPeriod === 'this_month') return 'month';
+        if (realizedPeriod === 'this_year') return 'year';
+        return realizedPeriod;
+    }, [realizedPeriod]);
+
+    const realizedPrCount = Number(
+        summary.realized_pr_counts?.[realizedPeriodKey] ?? 0,
+    );
+    const realizedDoCount = Number(
+        summary.realized_do_counts?.[realizedPeriodKey] ?? 0,
+    );
+
+    const modalStatus = useMemo(() => {
+        if (activeModal === 'outstanding') {
+            return activeModalTab === 'pr' ? 'outstanding_pr' : 'outstanding_do';
+        }
+        if (activeModal === 'sisa') {
+            return activeModalTab === 'pr' ? 'sisa_pr' : 'sisa_do';
+        }
+        if (activeModal === 'realized') {
+            return activeModalTab === 'pr' ? 'realized_pr' : 'realized_do';
+        }
+        return 'all';
+    }, [activeModal, activeModalTab]);
+
+    const fetchModalData = async () => {
+        if (!activeModal) return;
+
         setModalLoading(true);
         try {
             const queryParams = new URLSearchParams({
                 search: modalSearch,
                 per_page: 'all',
-                status: 'all',
-                date_filter: dataPoInPeriod,
+                status: activeModal === 'all_data' ? 'all' : modalStatus,
+                date_filter: activeModal === 'all_data' ? dataPoInPeriod : 'all',
                 page: '1',
                 is_partial: '1',
             });
 
-            if (dataPoInPeriod === 'range') {
+            if (activeModal === 'all_data' && dataPoInPeriod === 'range') {
                 queryParams.set('start_date', dataPoInStart);
                 queryParams.set('end_date', dataPoInEnd);
             }
@@ -363,22 +392,45 @@ export default function PurchaseOrderInIndex({
                 { headers: { Accept: 'application/json' } },
             );
             const data = await response.json();
-            setAllPurchaseOrderIns(data.purchaseOrderIns || []);
+            const rows = data.purchaseOrderIns || [];
+
+            if (activeModal === 'all_data') {
+                setAllPurchaseOrderIns(rows);
+            } else if (modalStatus === 'outstanding_pr') {
+                setOutstandingPurchaseOrderIns(rows);
+            } else if (modalStatus === 'outstanding_do') {
+                setOutstandingDoPurchaseOrderIns(rows);
+            } else if (modalStatus === 'sisa_pr') {
+                setBelumPrPurchaseOrderIns(rows);
+            } else if (modalStatus === 'sisa_do') {
+                setSisaDoPurchaseOrderIns(rows);
+            } else if (modalStatus === 'realized_pr') {
+                setRealizedPurchaseOrderIns(rows);
+            } else if (modalStatus === 'realized_do') {
+                setRealizedDoPurchaseOrderIns(rows);
+            }
         } catch (error) {
-            console.error('Error fetching all PO In modal data:', error);
-            setAllPurchaseOrderIns([]);
+            console.error('Error fetching PO In modal data:', error);
         } finally {
             setModalLoading(false);
         }
     };
 
     useEffect(() => {
-        if (activeModal !== 'all_data') return;
+        if (!activeModal) return;
         const timer = setTimeout(() => {
-            fetchAllDataModal();
+            fetchModalData();
         }, 250);
         return () => clearTimeout(timer);
-    }, [activeModal, modalSearch, dataPoInPeriod, dataPoInStart, dataPoInEnd]);
+    }, [
+        activeModal,
+        activeModalTab,
+        modalSearch,
+        dataPoInPeriod,
+        dataPoInStart,
+        dataPoInEnd,
+        modalStatus,
+    ]);
 
     const periodLabelMap = {
         today: 'Hari Ini',
@@ -854,7 +906,7 @@ export default function PurchaseOrderInIndex({
                         <div className="mt-3 grid grid-cols-2 gap-2">
                             <SummaryMetric
                                 label="PR Selesai"
-                                value={realizedItemsByPeriod.length}
+                                value={realizedPrCount}
                                 loading={loading}
                                 onClick={() => {
                                     setActiveModal('realized');
@@ -866,7 +918,7 @@ export default function PurchaseOrderInIndex({
                             />
                             <SummaryMetric
                                 label="DO Selesai"
-                                value={realizedDoItemsByPeriod.length}
+                                value={realizedDoCount}
                                 loading={loading}
                                 onClick={() => {
                                     setActiveModal('realized');

@@ -154,16 +154,29 @@ class PurchaseOrderInController
         $startDate = (string) $request->query('start_date', '');
         $endDate = (string) $request->query('end_date', '');
 
-        $data = $this->getPurchaseOrderInData(
-            $search,
-            $perPage,
-            $statusFilter,
-            $page,
-            $isPartial,
-            $dateFilter,
-            $startDate,
-            $endDate
-        );
+        $cacheKey = $this->poinCacheKey('index-data', [
+            'search' => $search,
+            'per_page' => $perPageInput,
+            'status' => $statusFilter,
+            'page' => $page,
+            'is_partial' => $isPartial,
+            'date_filter' => $dateFilter,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+        ], $request);
+
+        $data = Cache::tags(self::POIN_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPage, $statusFilter, $page, $isPartial, $dateFilter, $startDate, $endDate) {
+            return $this->getPurchaseOrderInData(
+                $search,
+                $perPage,
+                $statusFilter,
+                $page,
+                $isPartial,
+                $dateFilter,
+                $startDate,
+                $endDate
+            );
+        });
 
         return response()->json($data);
     }
@@ -190,18 +203,11 @@ class PurchaseOrderInController
                 ->selectRaw('sum(case when coalesce(cast(sisa_qtydo as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) < coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as do_started_items')
                 ->groupBy('kode_poin');
 
-            $doStats = DB::table('tb_poin as pdo')
-                ->join('tb_detailpoin as dpdo', 'dpdo.kode_poin', '=', 'pdo.kode_poin')
-                ->join('tb_kddo as kdo', function ($join) {
-                    $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(pdo.no_poin))');
-                })
-                ->join('tb_do as ddo', function ($join) {
-                    $join->whereRaw('lower(trim(ddo.no_do)) = lower(trim(kdo.no_do))')
-                        ->whereRaw('lower(trim(ddo.kd_mat)) = lower(trim(dpdo.kd_material))');
-                })
-                ->select('pdo.kode_poin')
+            $doStats = DB::table('tb_kddo as kdo')
+                ->selectRaw('lower(trim(kdo.ref_po)) as ref_po_key')
                 ->selectRaw('max(kdo.pos_tgl) as last_do_date')
-                ->groupBy('pdo.kode_poin');
+                ->whereRaw("trim(coalesce(kdo.ref_po, '')) <> ''")
+                ->groupByRaw('lower(trim(kdo.ref_po))');
 
             $prCheck = DB::table('tb_pr')
                 ->select('ref_po')
@@ -215,7 +221,9 @@ class PurchaseOrderInController
 
             $query = DB::table('tb_poin as p')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-                ->leftJoinSub($doStats, 'dos', 'dos.kode_poin', '=', 'p.kode_poin')
+                ->leftJoinSub($doStats, 'dos', function ($join) {
+                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
+                })
                 ->leftJoinSub($prCheck, 'pc', 'pc.ref_po', '=', 'p.no_poin')
                 ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
                 ->select(
@@ -327,7 +335,10 @@ class PurchaseOrderInController
 
             $statusData = DB::table('tb_poin as p')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-                ->leftJoinSub($doStats, 'dos', 'dos.kode_poin', '=', 'p.kode_poin')
+                ->leftJoinSub($doStats, 'dos', function ($join) {
+                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
+                })
+                ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
                 ->selectRaw("count(*) as total")
                 ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding")
                 ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as belum_pr")
@@ -338,6 +349,14 @@ class PurchaseOrderInController
                 ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as sisa_do")
                 ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 then 1 end) as realized_pr")
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null then 1 end) as realized_do")
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_today", [$startToday])
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_week", [$startWeek])
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_month", [$startMonth])
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_year", [$startYear])
+                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_today", [$startToday])
+                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_week", [$startWeek])
+                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_month", [$startMonth])
+                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_year", [$startYear])
                 ->first();
 
             $periodCounts = DB::table('tb_poin')
@@ -358,6 +377,20 @@ class PurchaseOrderInController
                 'sisa_do' => (int) ($statusData->sisa_do ?? 0),
                 'realized_pr' => (int) ($statusData->realized_pr ?? 0),
                 'realized_do' => (int) ($statusData->realized_do ?? 0),
+                'realized_pr_counts' => [
+                    'today' => (int) ($statusData->realized_pr_today ?? 0),
+                    'week' => (int) ($statusData->realized_pr_week ?? 0),
+                    'month' => (int) ($statusData->realized_pr_month ?? 0),
+                    'year' => (int) ($statusData->realized_pr_year ?? 0),
+                    'all' => (int) ($statusData->realized_pr ?? 0),
+                ],
+                'realized_do_counts' => [
+                    'today' => (int) ($statusData->realized_do_today ?? 0),
+                    'week' => (int) ($statusData->realized_do_week ?? 0),
+                    'month' => (int) ($statusData->realized_do_month ?? 0),
+                    'year' => (int) ($statusData->realized_do_year ?? 0),
+                    'all' => (int) ($statusData->realized_do ?? 0),
+                ],
                 'data_counts' => [
                     'today' => (int) $periodCounts->today,
                     'week'  => (int) $periodCounts->week,
@@ -368,7 +401,9 @@ class PurchaseOrderInController
 
             $base = DB::table('tb_poin as p')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-                ->leftJoinSub($doStats, 'dos', 'dos.kode_poin', '=', 'p.kode_poin')
+                ->leftJoinSub($doStats, 'dos', function ($join) {
+                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
+                })
                 ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
                 ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.created_at', 'p.customer_name', 'p.grand_total', DB::raw('prs.last_pr_date as last_pr_date'), DB::raw('dos.last_do_date as last_do_date'))
                 ->orderByDesc('p.id');
@@ -376,30 +411,12 @@ class PurchaseOrderInController
             return [
                 'summary' => $summary,
                 'purchaseOrderIns' => $rows,
-                'outstandingPurchaseOrderIns' => (clone $base)
-                    ->whereRaw('coalesce(ds.changed_count, 0) = 0')
-                    ->whereRaw('ds.kode_poin is not null')
-                    ->get(),
-                'outstandingDoPurchaseOrderIns' => (clone $base)
-                    ->whereRaw('coalesce(ds.do_changed_count, 0) = 0')
-                    ->whereRaw('ds.kode_poin is not null')
-                    ->get(),
-                'belumPrPurchaseOrderIns' => (clone $base)
-                    ->whereRaw('coalesce(ds.started_items, 0) > 0')
-                    ->whereRaw('coalesce(ds.unrealized_items, 0) > 0')
-                    ->get(),
-                'sisaDoPurchaseOrderIns' => (clone $base)
-                    ->whereRaw('coalesce(ds.do_started_items, 0) > 0')
-                    ->whereRaw('coalesce(ds.do_unrealized_items, 0) > 0')
-                    ->get(),
-                'realizedPurchaseOrderIns' => (clone $base)
-                    ->whereRaw('coalesce(ds.unrealized_items, 0) = 0')
-                    ->whereRaw('coalesce(ds.started_items, 0) > 0')
-                    ->get(),
-                'realizedDoPurchaseOrderIns' => (clone $base)
-                    ->whereRaw('coalesce(ds.do_unrealized_items, 0) = 0')
-                    ->whereNotNull('dos.last_do_date')
-                    ->get(),
+                'outstandingPurchaseOrderIns' => [],
+                'outstandingDoPurchaseOrderIns' => [],
+                'belumPrPurchaseOrderIns' => [],
+                'sisaDoPurchaseOrderIns' => [],
+                'realizedPurchaseOrderIns' => [],
+                'realizedDoPurchaseOrderIns' => [],
                 'allPurchaseOrderIns' => [],
                 'pagination' => [
                     'total' => $total,
