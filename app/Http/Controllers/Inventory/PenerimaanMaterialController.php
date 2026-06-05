@@ -178,33 +178,6 @@ class PenerimaanMaterialController
                 $docTgl = \Carbon\Carbon::parse($data['doc_date'])->format('d.m.Y');
                 $postingTgl = $now->format('d.m.Y');
 
-                // Generate MI code: MI + 8 digits (last + 1)
-                $last = DB::table('tb_kdmi')
-                    ->select('no_doc')
-                    ->where('no_doc', 'like', 'MI%')
-                    ->orderByDesc('no_doc')
-                    ->lockForUpdate()
-                    ->first();
-
-                $lastNum = 0;
-                if ($last && isset($last->no_doc)) {
-                    $digits = preg_replace('/\\D+/', '', (string) $last->no_doc);
-                    if ($digits !== '') {
-                        $lastNum = (int) $digits;
-                    }
-                }
-                $noDoc = 'MI' . str_pad((string) ($lastNum + 1), 8, '0', STR_PAD_LEFT);
-
-                // Header insert to tb_kdmi
-                DB::table('tb_kdmi')->insert([
-                    'no_doc' => $noDoc,
-                    'ref_pr' => $data['no_po'],
-                    'ref_po' => $data['ref_pr'] ?? '',
-                    'vdr' => $data['vendor'] ?? '',
-                    'doc_tgl' => $docTgl,
-                    'posting_tgl' => $postingTgl,
-                ]);
-
                 // Stock column is `stok` (tb_stok doesn't exist in this DB).
                 $stockColumn = Schema::hasColumn('tb_material', 'stok') ? 'stok' : null;
                 $priceColumn = Schema::hasColumn('tb_material', 'harga') ? 'harga' : null;
@@ -254,6 +227,8 @@ class PenerimaanMaterialController
                 if (!$noDoc) {
                     $existingHeader = DB::table("tb_kdmi")
                         ->where("ref_pr", $data["no_po"]) // PO number in tb_kdmi.ref_pr
+                        ->where('no_doc', 'like', 'MI%')
+                        ->orderBy('no_doc')
                         ->first();
 
                     if ($existingHeader) {
@@ -506,6 +481,8 @@ class PenerimaanMaterialController
                 if (!$noDoc) {
                     $existingHeader = DB::table("tb_kdmi")
                         ->where("ref_pr", $data["no_po"]) // PO number in tb_kdmi.ref_pr
+                        ->where('no_doc', 'like', 'MI%')
+                        ->orderBy('no_doc')
                         ->first();
 
                     if ($existingHeader) {
@@ -761,6 +738,8 @@ class PenerimaanMaterialController
                 if (!$noDoc) {
                     $existingHeader = DB::table('tb_kdmib')
                         ->where('ref_po', $data['no_po'])
+                        ->where('no_doc', 'like', 'MIB%')
+                        ->orderBy('no_doc')
                         ->first();
                     if ($existingHeader) {
                         $noDoc = $existingHeader->no_doc;
