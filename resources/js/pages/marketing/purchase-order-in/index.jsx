@@ -225,17 +225,10 @@ export default function PurchaseOrderInIndex({
         useState(initialAllPoIns);
     const [pagination, setPagination] = useState(initialPagination);
 
-    // Trigger lazy load for allPurchaseOrderIns when modal is opened
-    useEffect(() => {
-        if (activeModal === 'all_data' && allPurchaseOrderIns.length === 0) {
-            // If we have an AJAX endpoint, we could use that instead of router.reload
-            // For now, let's stick to the reload or fetch it via AJAX if available
-            fetchPoInData({ status: 'all' });
-        }
-    }, [activeModal]);
     const [modalSearch, setModalSearch] = useState('');
     const [modalPageSize, setModalPageSize] = useState(5);
     const [modalPage, setModalPage] = useState(1);
+    const [modalLoading, setModalLoading] = useState(false);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailTableLoading, setDetailTableLoading] = useState(false);
@@ -348,6 +341,45 @@ export default function PurchaseOrderInIndex({
         return () => clearTimeout(timer);
     }, [search]);
 
+    const fetchAllDataModal = async () => {
+        setModalLoading(true);
+        try {
+            const queryParams = new URLSearchParams({
+                search: modalSearch,
+                per_page: 'all',
+                status: 'all',
+                date_filter: dataPoInPeriod,
+                page: '1',
+                is_partial: '1',
+            });
+
+            if (dataPoInPeriod === 'range') {
+                queryParams.set('start_date', dataPoInStart);
+                queryParams.set('end_date', dataPoInEnd);
+            }
+
+            const response = await fetch(
+                `/marketing/purchase-order-in/data?${queryParams.toString()}`,
+                { headers: { Accept: 'application/json' } },
+            );
+            const data = await response.json();
+            setAllPurchaseOrderIns(data.purchaseOrderIns || []);
+        } catch (error) {
+            console.error('Error fetching all PO In modal data:', error);
+            setAllPurchaseOrderIns([]);
+        } finally {
+            setModalLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (activeModal !== 'all_data') return;
+        const timer = setTimeout(() => {
+            fetchAllDataModal();
+        }, 250);
+        return () => clearTimeout(timer);
+    }, [activeModal, modalSearch, dataPoInPeriod, dataPoInStart, dataPoInEnd]);
+
     const periodLabelMap = {
         today: 'Hari Ini',
         this_week: 'Minggu Ini',
@@ -405,6 +437,25 @@ export default function PurchaseOrderInIndex({
             ),
         [allPurchaseOrderIns, dataPoInPeriod, dataPoInStart, dataPoInEnd],
     );
+
+    const dataPoInCount = useMemo(() => {
+        if (dataPoInPeriod === 'all') {
+            return Number(summary.total ?? 0);
+        }
+        if (dataPoInPeriod === 'today') {
+            return Number(summary.data_counts?.today ?? 0);
+        }
+        if (dataPoInPeriod === 'this_week') {
+            return Number(summary.data_counts?.week ?? 0);
+        }
+        if (dataPoInPeriod === 'this_month') {
+            return Number(summary.data_counts?.month ?? 0);
+        }
+        if (dataPoInPeriod === 'this_year') {
+            return Number(summary.data_counts?.year ?? 0);
+        }
+        return dataItemsByPeriod.length;
+    }, [dataItemsByPeriod.length, dataPoInPeriod, summary]);
 
     // dataPoInTotalAmount removed for performance
 
@@ -940,10 +991,8 @@ export default function PurchaseOrderInIndex({
                             <div className="text-2xl font-bold">
                                 {loading ? (
                                     <Skeleton className="h-8 w-12" />
-                                ) : dataPoInPeriod === 'range' ? (
-                                    dataItemsByPeriod.length
                                 ) : (
-                                    dataItemsByPeriod.length
+                                    dataPoInCount
                                 )}
                             </div>
                             <p
@@ -1792,7 +1841,9 @@ export default function PurchaseOrderInIndex({
                                 <tbody>
                                     <PlainTableStateRows
                                         columns={7}
+                                        loading={modalLoading}
                                         isEmpty={
+                                            !modalLoading &&
                                             modalDisplayedItems.length === 0
                                         }
                                         emptyTitle="Tidak ada data."

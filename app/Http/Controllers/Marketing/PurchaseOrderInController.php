@@ -400,7 +400,7 @@ class PurchaseOrderInController
                     ->whereRaw('coalesce(ds.do_unrealized_items, 0) = 0')
                     ->whereNotNull('dos.last_do_date')
                     ->get(),
-                'allPurchaseOrderIns' => (clone $base)->get(),
+                'allPurchaseOrderIns' => [],
                 'pagination' => [
                     'total' => $total,
                     'page' => $page,
