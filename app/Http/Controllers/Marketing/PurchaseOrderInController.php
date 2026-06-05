@@ -150,6 +150,7 @@ class PurchaseOrderInController
         $statusFilter = $request->query('status', 'outstanding');
         $page = max(1, (int) $request->query('page', 1));
         $isPartial = $request->boolean('is_partial', false);
+        $summaryOnly = $request->boolean('summary_only', false);
         $dateFilter = (string) $request->query('date_filter', 'today');
         $startDate = (string) $request->query('start_date', '');
         $endDate = (string) $request->query('end_date', '');
@@ -160,18 +161,20 @@ class PurchaseOrderInController
             'status' => $statusFilter,
             'page' => $page,
             'is_partial' => $isPartial,
+            'summary_only' => $summaryOnly,
             'date_filter' => $dateFilter,
             'start_date' => $startDate,
             'end_date' => $endDate,
         ], $request);
 
-        $data = Cache::tags(self::POIN_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPage, $statusFilter, $page, $isPartial, $dateFilter, $startDate, $endDate) {
+        $data = Cache::tags(self::POIN_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $dateFilter, $startDate, $endDate) {
             return $this->getPurchaseOrderInData(
                 $search,
                 $perPage,
                 $statusFilter,
                 $page,
                 $isPartial,
+                $summaryOnly,
                 $dateFilter,
                 $startDate,
                 $endDate
@@ -187,11 +190,12 @@ class PurchaseOrderInController
         $statusFilter,
         $page,
         $isPartial = false,
+        $summaryOnly = false,
         $dateFilter = 'today',
         $startDate = '',
         $endDate = ''
     ) {
-        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $dateFilter, $startDate, $endDate) {
+        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $dateFilter, $startDate, $endDate) {
             $detailStats = DB::table('tb_detailpoin')
                 ->select('kode_poin')
                 ->selectRaw('count(*) as total_items')
@@ -209,23 +213,16 @@ class PurchaseOrderInController
                 ->whereRaw("trim(coalesce(kdo.ref_po, '')) <> ''")
                 ->groupByRaw('lower(trim(kdo.ref_po))');
 
-            $prCheck = DB::table('tb_pr')
-                ->select('ref_po')
-                ->selectRaw('count(*) as pr_count')
-                ->groupBy('ref_po');
-
             $prStats = DB::table('tb_pr')
                 ->select('ref_po')
                 ->selectRaw("max(coalesce(str_to_date(date, '%d.%m.%Y'), str_to_date(date, '%Y-%m-%d'))) as last_pr_date")
                 ->groupBy('ref_po');
 
+            $needsDoDate = in_array($statusFilter, ['realized', 'realized_do'], true);
+            $needsPrDate = $statusFilter === 'realized_pr';
+
             $query = DB::table('tb_poin as p')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-                ->leftJoinSub($doStats, 'dos', function ($join) {
-                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
-                })
-                ->leftJoinSub($prCheck, 'pc', 'pc.ref_po', '=', 'p.no_poin')
-                ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
                 ->select(
                     'p.id',
                     'p.kode_poin',
@@ -234,16 +231,19 @@ class PurchaseOrderInController
                     'p.created_at',
                     'p.delivery_date',
                     'p.customer_name',
-                    'p.grand_total',
-                    DB::raw('prs.last_pr_date as last_pr_date'),
-                    DB::raw('dos.last_do_date as last_do_date'),
-                    DB::raw("case when pc.pr_count is null then 1 else 0 end as can_delete"),
-                    DB::raw("case 
-                        when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 'outstanding'
-                        when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 'sisa_pr'
-                        else 'realized'
-                    end as status_poin")
+                    'p.grand_total'
                 );
+
+            if ($needsDoDate) {
+                $query->leftJoinSub($doStats, 'dos', function ($join) {
+                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
+                })->selectRaw('dos.last_do_date as last_do_date');
+            }
+
+            if ($needsPrDate) {
+                $query->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
+                    ->selectRaw('prs.last_pr_date as last_pr_date');
+            }
 
             if ($search !== '') {
                 $query->where(function ($q) use ($search) {
@@ -306,26 +306,31 @@ class PurchaseOrderInController
                 }
             }
 
-            $total = (clone $query)->count();
-            if ($perPage === null) {
-                $rows = (clone $query)->orderByDesc('p.id')->get();
+            if ($summaryOnly) {
+                $total = 0;
+                $rows = collect();
             } else {
-                $rows = (clone $query)
-                    ->orderByDesc('p.id')
-                    ->forPage($page, $perPage)
-                    ->get();
-            }
+                $total = (clone $query)->count();
+                if ($perPage === null) {
+                    $rows = (clone $query)->orderByDesc('p.id')->get();
+                } else {
+                    $rows = (clone $query)
+                        ->orderByDesc('p.id')
+                        ->forPage($page, $perPage)
+                        ->get();
+                }
 
-            if ($isPartial) {
-                return [
-                    'purchaseOrderIns' => $rows,
-                    'pagination' => [
-                        'total' => $total,
-                        'page' => $page,
-                        'per_page' => $perPage === null ? 'all' : $perPage,
-                        'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
-                    ],
-                ];
+                if ($isPartial) {
+                    return [
+                        'purchaseOrderIns' => $rows,
+                        'pagination' => [
+                            'total' => $total,
+                            'page' => $page,
+                            'per_page' => $perPage === null ? 'all' : $perPage,
+                            'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
+                        ],
+                    ];
+                }
             }
 
             $startToday = $now->copy()->startOfDay()->toDateTimeString();

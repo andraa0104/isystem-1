@@ -323,10 +323,36 @@ export default function PurchaseOrderInIndex({
         }
     };
 
+    const fetchPoInSummary = async () => {
+        setLoading(true);
+        try {
+            const queryParams = new URLSearchParams({
+                search: '',
+                per_page: '5',
+                status: 'all',
+                date_filter: 'all',
+                page: '1',
+                summary_only: '1',
+            });
+
+            const response = await fetch(
+                `/marketing/purchase-order-in/data?${queryParams.toString()}`,
+                { headers: { Accept: 'application/json' } },
+            );
+            const data = await response.json();
+            setSummary(data.summary || {});
+        } catch (error) {
+            console.error('Error fetching PO In summary:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (isFirstRender.current) {
             isFirstRender.current = false;
-            fetchPoInData({ isPartial: false });
+            fetchPoInData({ isPartial: true });
+            fetchPoInSummary();
         } else {
             fetchPoInData({ page: 1, isPartial: true });
         }
