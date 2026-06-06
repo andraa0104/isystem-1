@@ -97,7 +97,7 @@ def predict(target_customer, historical_data):
         term_votes[entry.get('payment_term')] += weight
         
         # Mengumpulkan No PO IN dengan batas kemiripan > 0.5 (dilonggarkan agar gampang terdeteksi)
-        if similarity > 0.5 and entry.get('no_poin'):
+        if similarity > 0.7 and entry.get('no_poin'):
             po_list.append(entry.get('no_poin'))
     
     best_franco = franco_votes.most_common(1)[0][0] if franco_votes else None
