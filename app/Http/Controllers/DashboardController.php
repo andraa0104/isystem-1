@@ -886,6 +886,159 @@ class DashboardController
         return $result;
     }
 
+    // Tambahkan method ini di dalam class DashboardController
+
+    private function buildStockSummary(): array
+    {
+        $result = [
+            'physical' => null,
+            'physical_last_update' => null,
+            'book' => null,
+            'book_last_update' => null,
+            'difference' => null,
+        ];
+
+        // 1. HITUNG STOK BUKU & LAST UPDATE STOK BUKU
+        if (Schema::hasTable('tb_kas')) {
+            $kasCols = Schema::getColumnListing('tb_kas');
+            // Ubah semua kolom menjadi lowercase untuk menghindari kegagalan case-sensitivity
+            $kasColsLower = array_map('strtolower', $kasCols);
+            
+            $accountField = in_array('kode_akun1', $kasColsLower, true) ? 'Kode_Akun1' : 'Kode_Akun';
+            
+            // Cari kolom tanggal buat secara dinamis (case-insensitive)
+            $tglBuatField = 'Tgl_Buat'; 
+            if (in_array('tgl_buat', $kasColsLower, true)) {
+                $tglBuatField = $kasCols[array_search('tgl_buat', $kasColsLower, true)];
+            } elseif (in_array('tgl_voucher', $kasColsLower, true)) {
+                $tglBuatField = $kasCols[array_search('tgl_voucher', $kasColsLower, true)];
+            }
+
+            // Ambil saldo buku dari baris terakhir akun 1105AD
+            $lastKasRow = DB::table('tb_kas')
+                ->where($accountField, '1105AD')
+                ->orderByDesc(in_array('tgl_voucher', $kasColsLower, true) ? 'Tgl_Voucher' : 'id')
+                ->orderByDesc(in_array('kode_voucher', $kasColsLower, true) ? 'Kode_Voucher' : 'id')
+                ->first();
+
+            if ($lastKasRow) {
+                $result['book'] = (float) ($lastKasRow->Saldo ?? 0);
+            } else {
+                $result['book'] = 0.0;
+            }
+
+            // Ambil nilai MAX dari kolom tanggal buat khusus untuk Last Update Stok Buku
+            $maxBookDate = DB::table('tb_kas')->where($accountField, '1105AD')->max($tglBuatField);
+            if ($maxBookDate) {
+                $result['book_last_update'] = $this->normalizeDate($maxBookDate);
+            }
+        }
+
+        // 2. HITUNG NOMINAL STOK FISIK (Logika Kode VB6)
+        $hmis = 0; $hmib = 0; $hmibs = 0; $hmi = 0; $hdo = 0; $hdob = 0; $hdot = 0;
+        $hasAnyPhysicalTable = false;
+
+        if (Schema::hasTable('tb_mi')) {
+            $hasAnyPhysicalTable = true;
+            $rowMi = DB::table('tb_mi')->selectRaw('SUM(harga_mis) as mis, SUM(harga_mib) as mib')->first();
+            $hmis = (float) ($rowMi->mis ?? 0);
+            $hmib = (float) ($rowMi->mib ?? 0);
+        }
+
+        if (Schema::hasTable('tb_mib')) {
+            $hasAnyPhysicalTable = true;
+            $hmibs = (float) DB::table('tb_mib')->sum('total_price');
+        }
+
+        if (Schema::hasTable('tb_material')) {
+            $hasAnyPhysicalTable = true;
+            $hmi = (float) DB::table('tb_material')->selectRaw('SUM(stok * harga) as total_value')->value('total_value');
+        }
+
+        if (Schema::hasTable('tb_do')) {
+            $hasAnyPhysicalTable = true;
+            $hdo = (float) DB::table('tb_do')->where('Val_inv', '<>', 1)->orWhereNull('Val_inv')->sum('total');
+        }
+
+        if (Schema::hasTable('tb_dobi')) {
+            $hasAnyPhysicalTable = true;
+            $hdob = (float) DB::table('tb_dobi')->where('status', 0)->sum('total');
+        }
+
+        if (Schema::hasTable('tb_dob')) {
+            $hasAnyPhysicalTable = true;
+            $hdot = (float) DB::table('tb_dob')->where('status', 0)->sum('total');
+        }
+
+        if ($hasAnyPhysicalTable) {
+            $result['physical'] = $hmis + $hmib + $hmibs + $hmi + $hdo + $hdob + $hdot;
+        }
+
+        // 3. HITUNG LAST UPDATE KHUSUS STOK FISIK
+        $lastUpdateMi = null;
+        if (Schema::hasTable('tb_mi')) {
+            $lastUpdateMi = DB::table('tb_mi')->max('posting_tgl');
+        }
+
+        $lastUpdateMib = null;
+        if (Schema::hasTable('tb_kdmib') && Schema::hasTable('tb_mib')) {
+            $lastUpdateMib = DB::table('tb_kdmib')
+                ->join('tb_mib', 'tb_kdmib.no_doc', '=', 'tb_mib.no_doc')
+                ->max('tb_kdmib.posting_tgl');
+        }
+
+        // Normalisasikan format tanggal mi dan kdmib ke format standar YYYY-MM-DD
+        $dateMiNorm = $lastUpdateMi ? $this->normalizeDate($lastUpdateMi) : null;
+        $dateMibNorm = $lastUpdateMib ? $this->normalizeDate($lastUpdateMib) : null;
+
+        $physicalDates = array_filter([$dateMiNorm, $dateMibNorm]);
+        if (!empty($physicalDates)) {
+            rsort($physicalDates); // Urutkan dari yang paling baru
+            $result['physical_last_update'] = $physicalDates[0];
+        }
+
+        // 4. HITUNG SELISIH (STOK FISIK - STOK BUKU)
+        if ($result['physical'] !== null && $result['book'] !== null) {
+            $result['difference'] = $result['physical'] - $result['book'];
+        }
+
+        return $result;
+    }
+
+    /**
+     * Fungsi Helper untuk membersihkan dan mengubah segala jenis format string tanggal database
+     * (seperti dd.mm.yyyy atau dd-mm-yyyy) menjadi YYYY-MM-DD standar ISO.
+     */
+    private function normalizeDate($dateString): ?string
+    {
+        if (!$dateString) return null;
+        $dateString = trim($dateString);
+        try {
+            // Deteksi jika format menggunakan dot/strip di awal (ex: 25.12.2025 atau 25-12-2025)
+            if (preg_match('/^\d{2}[\.\-]\d{2}[\.\-]\d{4}/', $dateString)) {
+                $separator = str_contains($dateString, '.') ? '.' : '-';
+                $parts = explode(' ', $dateString);
+                $datePart = $parts[0];
+                return \Illuminate\Support\Carbon::createFromFormat("d{$separator}m{$separator}Y", $datePart)->toDateString();
+            }
+            return \Illuminate\Support\Carbon::parse($dateString)->toDateString();
+        } catch (\Exception $e) {
+            return $dateString; // Kembalikan string asli jika gagal di-parse
+        }
+    }
+
+    // Tambahkan method ini ke dalam DashboardController untuk menyediakan API endpoint
+    public function stockSummaryStats(Request $request)
+    {
+        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember(
+            $this->dashboardCacheKey('stock-summary', [], $request), 
+            self::DASHBOARD_CACHE_TTL, 
+            fn () => $this->buildStockSummary()
+        );
+
+        return response()->json($stats);
+    }
+
     private function getSalesHppWeeklyStatsForMonth(): array
     {
         // 4 minggu berjalan (termasuk minggu ini)

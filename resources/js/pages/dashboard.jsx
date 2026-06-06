@@ -186,6 +186,17 @@ export default function Dashboard({
         },
     });
 
+    // === TAMBAHKAN BLOK INI ===
+    const stockSummaryRequest = useCachedRequest({
+        key: 'stockSummary',
+        enabled: true, // atau sesuaikan dengan inView jika ingin lazy load
+        ttlMs: 120_000,
+        fetcher: async () => {
+            const response = await axios.get('/dashboard/stock-summary-stats');
+            return response.data;
+        },
+    });
+
     const salesHppRequest = useCachedRequest({
         key: `salesHpp:v2:${salesHppRange}`,
         enabled: salesHppView.inView || prefetchPriorityCards,
@@ -203,6 +214,8 @@ export default function Dashboard({
             return response.data;
         },
     });
+
+    
 
     const quotationSeries = Array.isArray(quotationRequest.data)
         ? quotationRequest.data
@@ -224,11 +237,12 @@ export default function Dashboard({
         total: 0,
         last_update: null,
     };
-    const stockSummary = {
+    const stockSummary = stockSummaryRequest.data ?? {
         physical: null,
+        physical_last_update: null, // Berpasangan dengan backend
         book: null,
+        book_last_update: null,     // Berpasangan dengan backend
         difference: null,
-        last_update: null,
     };
 
     const salesHppData = salesHppRequest.data ??
@@ -283,6 +297,7 @@ export default function Dashboard({
             deliveryRequest.refresh(true),
             receivablePayableRequest.refresh(true),
             salesHppRequest.refresh(true),
+            stockSummaryRequest.refresh(true), // <-- TAMBAHKAN INI
         ]);
         setLastRefreshedAt(new Date());
         setIsGlobalRefreshing(false);
@@ -875,52 +890,90 @@ export default function Dashboard({
                             <CardHeader className="space-y-2">
                                 <CardTitle>Ringkasan Stok</CardTitle>
                                 <p className="text-sm text-muted-foreground">
-                                    Total Stok Fisik, Stok Buku, dan selisih.
+                                    Total Stok Fisik, Stok Buku, dan selisih nilai persediaan.
                                 </p>
                             </CardHeader>
-                            <CardContent className="flex flex-1 flex-col">
-                                <div className="grid flex-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
-                                    <div className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4">
-                                        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                            Stok Fisik
-                                        </div>
-                                        <div className="mt-2 text-2xl font-bold tracking-tight tabular-nums">
-                                            {stockSummary.physical === null
-                                                ? '-'
-                                                : formatNumber(
-                                                      stockSummary.physical,
-                                                  )}
-                                        </div>
+                            <CardContent>
+                                {stockSummaryRequest.status === 'error' ? (
+                                    <DashboardCardError
+                                        message={stockSummaryRequest.error}
+                                        onRetry={stockSummaryRequest.retry}
+                                    />
+                                ) : stockSummaryRequest.status !== 'success' ? (
+                                    /* Tampilan Skeleton Loading yang disamakan dengan Piutang & Hutang */
+                                    <div className="space-y-3">
+                                        {[1, 2, 3].map((idx) => (
+                                            <div key={idx} className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 animate-pulse">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="h-4 w-24 rounded bg-muted" />
+                                                    <div className="h-7 w-36 rounded bg-muted" />
+                                                </div>
+                                                <div className="mt-2 h-3 w-40 rounded bg-muted" />
+                                            </div>
+                                        ))}
                                     </div>
-                                    <div className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4">
-                                        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                            Stok Buku
+                                ) : (
+                                    <div className="space-y-3">
+                                        
+                                        {/* Baris Kategori: Stok Fisik */}
+                                        <div className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 border-l-4 border-l-emerald-500">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                                    Stok Fisik
+                                                </div>
+                                                <div className="text-xl font-bold tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400">
+                                                    {stockSummary.physical === null
+                                                        ? '-'
+                                                        : `Rp ${formatNumber(stockSummary.physical)}`}
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 text-xs text-muted-foreground">
+                                                Last update: {formatDate(stockSummary.physical_last_update)}
+                                            </div>
                                         </div>
-                                        <div className="mt-2 text-2xl font-bold tracking-tight tabular-nums">
-                                            {stockSummary.book === null
-                                                ? '-'
-                                                : formatNumber(
-                                                      stockSummary.book,
-                                                  )}
+
+                                        {/* Baris Kategori: Stok Buku */}
+                                        <div className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 border-l-4 border-l-blue-500">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                                    Stok Buku
+                                                </div>
+                                                <div className="text-xl font-bold tracking-tight tabular-nums text-blue-600 dark:text-blue-400">
+                                                    {stockSummary.book === null
+                                                        ? '-'
+                                                        : `Rp ${formatNumber(stockSummary.book)}`}
+                                                </div>
+                                            </div>
+                                            <div className="mt-2 text-xs text-muted-foreground">
+                                                Last update: {formatDate(stockSummary.book_last_update)}
+                                            </div>
                                         </div>
+
+                                        {/* Baris Kategori: Selisih (Dinamis Otomatis Merah jika Minus) */}
+                                        {(() => {
+                                            const isMinus = stockSummary.difference !== null && stockSummary.difference < 0;
+                                            return (
+                                                <div className={`rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 border-l-4 ${
+                                                    isMinus ? 'border-l-red-500' : 'border-l-slate-400 dark:border-l-slate-600'
+                                                }`}>
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                                            Selisih
+                                                        </div>
+                                                        <div className={`text-xl font-bold tracking-tight tabular-nums ${
+                                                            isMinus ? 'text-red-500 dark:text-red-400' : 'text-foreground'
+                                                        }`}>
+                                                            {stockSummary.difference === null
+                                                                ? '-'
+                                                                : `Rp ${formatNumber(stockSummary.difference)}`}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
                                     </div>
-                                    <div className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4">
-                                        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                            Selisih
-                                        </div>
-                                        <div className="mt-2 text-2xl font-bold tracking-tight tabular-nums">
-                                            {stockSummary.difference === null
-                                                ? '-'
-                                                : formatNumber(
-                                                      stockSummary.difference,
-                                                  )}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-3 text-xs text-muted-foreground">
-                                    Last update:{' '}
-                                    {formatDate(stockSummary.last_update)}
-                                </div>
+                                )}
                             </CardContent>
                         </Card>
                     </div>

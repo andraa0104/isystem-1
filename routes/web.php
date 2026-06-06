@@ -84,6 +84,8 @@ Route::get('dashboard/user-note', [DashboardController::class, 'getUserNote'])
     ->name('dashboard.user-note');
 Route::post('dashboard/user-note', [DashboardController::class, 'saveUserNote'])
     ->name('dashboard.user-note.save');
+Route::get('/dashboard/stock-summary-stats', [DashboardController::class, 'stockSummaryStats'])
+    ->name('dashboard.stock-summary-stats');
 
 Route::get('laporan/jurnal-umum', [JurnalUmumController::class, 'index'])
     ->name('laporan.jurnal-umum.index');
