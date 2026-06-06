@@ -19,7 +19,7 @@ class AIPredictionService
         // 1. Fetch historical data from tb_poin
         // We limit to the last 100 entries for efficiency and relevance
         $history = DB::table('tb_poin')
-            ->select('customer_name', 'franco_loco', 'ppn_input_percent as ppn_percent', 'payment_term')
+            ->select('customer_name', 'no_poin', 'franco_loco', 'ppn_input_percent as ppn_percent', 'payment_term')
             ->whereNotNull('customer_name')
             ->orderBy('created_at', 'desc')
             ->limit(200) // Capture a good chunk of history

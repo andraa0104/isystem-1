@@ -619,6 +619,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 : prev.ppnPercent,
                         francoLoco: data.franco || prev.francoLoco,
                         paymentTerm: data.payment_term || prev.paymentTerm,
+                        noPoin: data.next_poin || prev.noPoin,
                     }));
                 }
             }
