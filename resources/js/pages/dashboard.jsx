@@ -224,6 +224,12 @@ export default function Dashboard({
         total: 0,
         last_update: null,
     };
+    const stockSummary = {
+        physical: null,
+        book: null,
+        difference: null,
+        last_update: null,
+    };
 
     const salesHppData = salesHppRequest.data ??
         initialSalesHppStats ?? { summary: {}, series: [] };
@@ -860,6 +866,61 @@ export default function Dashboard({
                                         </div>
                                     </div>
                                 )}
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    <div className="min-w-0">
+                        <Card className="flex h-full flex-col">
+                            <CardHeader className="space-y-2">
+                                <CardTitle>Ringkasan Stok</CardTitle>
+                                <p className="text-sm text-muted-foreground">
+                                    Total Stok Fisik, Stok Buku, dan selisih.
+                                </p>
+                            </CardHeader>
+                            <CardContent className="flex flex-1 flex-col">
+                                <div className="grid flex-1 gap-3 sm:grid-cols-3 lg:grid-cols-1">
+                                    <div className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4">
+                                        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                            Stok Fisik
+                                        </div>
+                                        <div className="mt-2 text-2xl font-bold tracking-tight tabular-nums">
+                                            {stockSummary.physical === null
+                                                ? '-'
+                                                : formatNumber(
+                                                      stockSummary.physical,
+                                                  )}
+                                        </div>
+                                    </div>
+                                    <div className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4">
+                                        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                            Stok Buku
+                                        </div>
+                                        <div className="mt-2 text-2xl font-bold tracking-tight tabular-nums">
+                                            {stockSummary.book === null
+                                                ? '-'
+                                                : formatNumber(
+                                                      stockSummary.book,
+                                                  )}
+                                        </div>
+                                    </div>
+                                    <div className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4">
+                                        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                            Selisih
+                                        </div>
+                                        <div className="mt-2 text-2xl font-bold tracking-tight tabular-nums">
+                                            {stockSummary.difference === null
+                                                ? '-'
+                                                : formatNumber(
+                                                      stockSummary.difference,
+                                                  )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-3 text-xs text-muted-foreground">
+                                    Last update:{' '}
+                                    {formatDate(stockSummary.last_update)}
+                                </div>
                             </CardContent>
                         </Card>
                     </div>
