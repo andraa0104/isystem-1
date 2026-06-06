@@ -100,6 +100,30 @@ class DashboardController
         return "CASE WHEN k.Kode_Akun LIKE '51%' AND COALESCE(k.Mutasi_Kas,0) < 0 THEN -COALESCE(k.Mutasi_Kas,0) ELSE 0 END";
     }
 
+    private function tbKasBiayaQuery()
+    {
+        foreach (['Tgl_Voucher', 'Kode_Akun1', 'Jenis_Beban1', 'Nominal1'] as $column) {
+            if (!Schema::hasTable('tb_kas') || !Schema::hasColumn('tb_kas', $column)) {
+                return null;
+            }
+        }
+
+        return DB::table('tb_kas as k')
+            ->whereRaw("TRIM(COALESCE(k.Kode_Akun1,'')) LIKE '51%'")
+            ->whereRaw("UPPER(TRIM(COALESCE(k.Jenis_Beban1,''))) = 'DEBIT'");
+    }
+
+    private function tbDoHppQuery()
+    {
+        foreach (['pos_tgl', 'total'] as $column) {
+            if (!Schema::hasTable('tb_do') || !Schema::hasColumn('tb_do', $column)) {
+                return null;
+            }
+        }
+
+        return DB::table('tb_do as d');
+    }
+
     public function index()
     {
         // Initial props dikosongkan untuk mempercepat load. Data akan di-fetch per-card.
@@ -579,7 +603,6 @@ class DashboardController
         $salesLastUpdate = null;
         $hppLastUpdate = null;
         $biayaLastUpdate = null;
-        $kasFlags = $this->hasKasBreakdownColumns();
 
         if ($group === 'week') {
             $endWeekStart = Carbon::now()->startOfWeek(Carbon::MONDAY);
@@ -606,36 +629,34 @@ class DashboardController
 
             // HPP grouped by week
             $hppData = [];
-            if (Schema::hasTable('tb_invin')) {
-                $hppData = DB::table('tb_invin')
-                    ->selectRaw("YEARWEEK(STR_TO_DATE(inv_d, '%d.%m.%Y'), 1) as week_key, SUM(ttl_harga) as total")
-                    ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') >= ?", [$startWeekStart->toDateString()])
-                    ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') <= ?", [Carbon::now()->toDateString()])
+            $hppQuery = $this->tbDoHppQuery();
+            if ($hppQuery) {
+                $hppData = $hppQuery
+                    ->selectRaw("YEARWEEK(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), 1) as week_key, SUM(COALESCE(d.total,0)) as total")
+                    ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeekStart->toDateString()])
+                    ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [Carbon::now()->toDateString()])
                     ->groupBy('week_key')
                     ->pluck('total', 'week_key');
 
-                $hppLastUpdateRaw = DB::table('tb_invin')
-                    ->selectRaw("MAX(STR_TO_DATE(inv_d, '%d.%m.%Y')) as last_update")
-                    ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') >= ?", [$startWeekStart->toDateString()])
+                $hppLastUpdateRaw = $this->tbDoHppQuery()
+                    ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
+                    ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeekStart->toDateString()])
                     ->value('last_update');
                 $hppLastUpdate = $hppLastUpdateRaw;
             }
 
-            // Biaya (Beban) grouped by week (Kode_Akun starts with 51, only outflow)
+            // Biaya (Beban) from tb_kas: Kode_Akun1 starts with 51, Jenis_Beban1 Debit.
             $biayaData = [];
-            if (Schema::hasTable('tb_kas')
-                && Schema::hasColumn('tb_kas', 'Tgl_Voucher')
-                && (Schema::hasColumn('tb_kas', 'Kode_Akun') || $kasFlags['has_breakdown'])
-                && (Schema::hasColumn('tb_kas', 'Mutasi_Kas') || $kasFlags['has_breakdown'])) {
-                $sumSql = $this->biayaSelectSumSql($kasFlags);
-                $biayaData = DB::table('tb_kas as k')
-                    ->selectRaw("YEARWEEK(k.Tgl_Voucher, 1) as week_key, SUM($sumSql) as total")
+            $biayaQuery = $this->tbKasBiayaQuery();
+            if ($biayaQuery) {
+                $biayaData = $biayaQuery
+                    ->selectRaw("YEARWEEK(k.Tgl_Voucher, 1) as week_key, SUM(COALESCE(k.Nominal1,0)) as total")
                     ->where('k.Tgl_Voucher', '>=', $startWeekStart->toDateString())
                     ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
                     ->groupBy('week_key')
                     ->pluck('total', 'week_key');
 
-                $biayaLastUpdate = DB::table('tb_kas as k')
+                $biayaLastUpdate = $this->tbKasBiayaQuery()
                     ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
                     ->where('k.Tgl_Voucher', '>=', $startWeekStart->toDateString())
                     ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
@@ -698,39 +719,36 @@ class DashboardController
                 ->value('last_update');
         }
 
-        // HPP: inv_d (d.m.Y) -> Convert to YYYY-MM-DD first
         $hppData = [];
-        if (Schema::hasTable('tb_invin')) {
-            $hppData = DB::table('tb_invin')
-                ->selectRaw("DATE_FORMAT(STR_TO_DATE(inv_d, '%d.%m.%Y'), '%Y-%m') as month_key, SUM(ttl_harga) as total")
-                ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') >= ?", [$start->toDateString()])
-                ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') <= ?", [$now->toDateString()])
+        $hppQuery = $this->tbDoHppQuery();
+        if ($hppQuery) {
+            $hppData = $hppQuery
+                ->selectRaw("DATE_FORMAT(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), '%Y-%m') as month_key, SUM(COALESCE(d.total,0)) as total")
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [$now->toDateString()])
                 ->groupBy('month_key')
                 ->pluck('total', 'month_key');
 
-            $hppLastUpdateRaw = DB::table('tb_invin')
-                 ->selectRaw("MAX(STR_TO_DATE(inv_d, '%d.%m.%Y')) as last_update")
-                 ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') >= ?", [$start->toDateString()])
+            $hppLastUpdateRaw = $this->tbDoHppQuery()
+                 ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
+                 ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
                  ->value('last_update');
             $hppLastUpdate = $hppLastUpdateRaw;
         }
 
-        // Biaya (Beban) grouped by month (Kode_Akun starts with 51, only outflow)
+        // Biaya (Beban) from tb_kas: Kode_Akun1 starts with 51, Jenis_Beban1 Debit.
         $biayaData = [];
-        if (Schema::hasTable('tb_kas')
-            && Schema::hasColumn('tb_kas', 'Tgl_Voucher')
-            && (Schema::hasColumn('tb_kas', 'Kode_Akun') || $kasFlags['has_breakdown'])
-            && (Schema::hasColumn('tb_kas', 'Mutasi_Kas') || $kasFlags['has_breakdown'])) {
-            $sumSql = $this->biayaSelectSumSql($kasFlags);
-            $biayaData = DB::table('tb_kas as k')
-                ->selectRaw("DATE_FORMAT(k.Tgl_Voucher, '%Y-%m') as month_key, SUM($sumSql) as total")
+        $biayaQuery = $this->tbKasBiayaQuery();
+        if ($biayaQuery) {
+            $biayaData = $biayaQuery
+                ->selectRaw("DATE_FORMAT(k.Tgl_Voucher, '%Y-%m') as month_key, SUM(COALESCE(k.Nominal1,0)) as total")
                 ->where('k.Tgl_Voucher', '>=', $start->toDateString())
                 ->where('k.Tgl_Voucher', '<=', $now->toDateString())
                 ->groupBy('month_key')
                 ->pluck('total', 'month_key');
 
-            $biayaLastUpdate = DB::table('tb_kas as k')
-                ->selectRaw("MAX(k.Tgl_Voucher) as last_update")
+            $biayaLastUpdate = $this->tbKasBiayaQuery()
+                ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
                 ->where('k.Tgl_Voucher', '>=', $start->toDateString())
                 ->where('k.Tgl_Voucher', '<=', $now->toDateString())
                 ->value('last_update');
@@ -775,7 +793,6 @@ class DashboardController
     {
         $end = Carbon::now()->startOfDay();
         $start = $end->copy()->subDays(6);
-        $kasFlags = $this->hasKasBreakdownColumns();
 
         $result = [
             'summary' => [
@@ -805,35 +822,33 @@ class DashboardController
 
         $hppData = [];
         $hppLastUpdate = null;
-        if (Schema::hasTable('tb_invin')) {
-            $hppData = DB::table('tb_invin')
-                ->selectRaw("DATE_FORMAT(STR_TO_DATE(inv_d, '%d.%m.%Y'), '%Y-%m-%d') as day_key, SUM(ttl_harga) as total")
-                ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') >= ?", [$start->toDateString()])
-                ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') <= ?", [$end->toDateString()])
+        $hppQuery = $this->tbDoHppQuery();
+        if ($hppQuery) {
+            $hppData = $hppQuery
+                ->selectRaw("DATE_FORMAT(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), '%Y-%m-%d') as day_key, SUM(COALESCE(d.total,0)) as total")
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [$end->toDateString()])
                 ->groupBy('day_key')
                 ->pluck('total', 'day_key');
 
-            $hppLastUpdate = DB::table('tb_invin')
-                ->selectRaw("MAX(STR_TO_DATE(inv_d, '%d.%m.%Y')) as last_update")
-                ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') >= ?", [$start->toDateString()])
+            $hppLastUpdate = $this->tbDoHppQuery()
+                ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
                 ->value('last_update');
         }
 
         $biayaData = [];
         $biayaLastUpdate = null;
-        if (Schema::hasTable('tb_kas')
-            && Schema::hasColumn('tb_kas', 'Tgl_Voucher')
-            && (Schema::hasColumn('tb_kas', 'Kode_Akun') || $kasFlags['has_breakdown'])
-            && (Schema::hasColumn('tb_kas', 'Mutasi_Kas') || $kasFlags['has_breakdown'])) {
-            $sumSql = $this->biayaSelectSumSql($kasFlags);
-            $biayaData = DB::table('tb_kas as k')
-                ->selectRaw("DATE_FORMAT(k.Tgl_Voucher, '%Y-%m-%d') as day_key, SUM($sumSql) as total")
+        $biayaQuery = $this->tbKasBiayaQuery();
+        if ($biayaQuery) {
+            $biayaData = $biayaQuery
+                ->selectRaw("DATE_FORMAT(k.Tgl_Voucher, '%Y-%m-%d') as day_key, SUM(COALESCE(k.Nominal1,0)) as total")
                 ->where('k.Tgl_Voucher', '>=', $start->toDateString())
                 ->where('k.Tgl_Voucher', '<=', $end->toDateString())
                 ->groupBy('day_key')
                 ->pluck('total', 'day_key');
 
-            $biayaLastUpdate = DB::table('tb_kas as k')
+            $biayaLastUpdate = $this->tbKasBiayaQuery()
                 ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
                 ->where('k.Tgl_Voucher', '>=', $start->toDateString())
                 ->where('k.Tgl_Voucher', '<=', $end->toDateString())
@@ -876,7 +891,6 @@ class DashboardController
         // 4 minggu berjalan (termasuk minggu ini)
         $endWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
         $startWeek = $endWeek->copy()->subWeeks(3);
-        $kasFlags = $this->hasKasBreakdownColumns();
 
         $result = [
             'summary' => [
@@ -906,35 +920,33 @@ class DashboardController
 
         $hppData = [];
         $hppLastUpdate = null;
-        if (Schema::hasTable('tb_invin')) {
-            $hppData = DB::table('tb_invin')
-                ->selectRaw("YEARWEEK(STR_TO_DATE(inv_d, '%d.%m.%Y'), 1) as week_key, SUM(ttl_harga) as total")
-                ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') >= ?", [$startWeek->toDateString()])
-                ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') <= ?", [Carbon::now()->toDateString()])
+        $hppQuery = $this->tbDoHppQuery();
+        if ($hppQuery) {
+            $hppData = $hppQuery
+                ->selectRaw("YEARWEEK(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), 1) as week_key, SUM(COALESCE(d.total,0)) as total")
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeek->toDateString()])
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [Carbon::now()->toDateString()])
                 ->groupBy('week_key')
                 ->pluck('total', 'week_key');
 
-            $hppLastUpdate = DB::table('tb_invin')
-                ->selectRaw("MAX(STR_TO_DATE(inv_d, '%d.%m.%Y')) as last_update")
-                ->whereRaw("STR_TO_DATE(inv_d, '%d.%m.%Y') >= ?", [$startWeek->toDateString()])
+            $hppLastUpdate = $this->tbDoHppQuery()
+                ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeek->toDateString()])
                 ->value('last_update');
         }
 
         $biayaData = [];
         $biayaLastUpdate = null;
-        if (Schema::hasTable('tb_kas')
-            && Schema::hasColumn('tb_kas', 'Tgl_Voucher')
-            && (Schema::hasColumn('tb_kas', 'Kode_Akun') || $kasFlags['has_breakdown'])
-            && (Schema::hasColumn('tb_kas', 'Mutasi_Kas') || $kasFlags['has_breakdown'])) {
-            $sumSql = $this->biayaSelectSumSql($kasFlags);
-            $biayaData = DB::table('tb_kas as k')
-                ->selectRaw("YEARWEEK(k.Tgl_Voucher, 1) as week_key, SUM($sumSql) as total")
+        $biayaQuery = $this->tbKasBiayaQuery();
+        if ($biayaQuery) {
+            $biayaData = $biayaQuery
+                ->selectRaw("YEARWEEK(k.Tgl_Voucher, 1) as week_key, SUM(COALESCE(k.Nominal1,0)) as total")
                 ->where('k.Tgl_Voucher', '>=', $startWeek->toDateString())
                 ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
                 ->groupBy('week_key')
                 ->pluck('total', 'week_key');
 
-            $biayaLastUpdate = DB::table('tb_kas as k')
+            $biayaLastUpdate = $this->tbKasBiayaQuery()
                 ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
                 ->where('k.Tgl_Voucher', '>=', $startWeek->toDateString())
                 ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
