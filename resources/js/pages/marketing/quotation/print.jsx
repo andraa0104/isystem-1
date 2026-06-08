@@ -271,7 +271,9 @@ export default function QuotationPrint({
                         <tr>
                             <td className="w-1/2 align-top">Best Regards,</td>
                             <td className="w-1/2 text-center align-top">
-                                Acknowledge by,
+                                <div className="inline-block min-w-[120px] text-left">
+                                    Acknowledge by,
+                                </div>
                             </td>
                         </tr>
                         <tr>
@@ -282,8 +284,10 @@ export default function QuotationPrint({
                             <td className="text font-semibold underline">
                                 Marketing Office
                             </td>
-                            <td className="text text-center font-semibold underline">
-                                Head Office
+                            <td className="text-center font-semibold">
+                                <div className="inline-block min-w-[120px] text-left underline">
+                                    Head Office
+                                </div>
                             </td>
                         </tr>
                     </tbody>
