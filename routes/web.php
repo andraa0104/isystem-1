@@ -23,6 +23,7 @@ use App\Http\Controllers\Inventory\TransferMaterialController;
 use App\Http\Controllers\Marketing\InvoiceMasukController;
 use App\Http\Controllers\Marketing\FakturPenjualanController;
 use App\Http\Controllers\Marketing\KwitansiPenjualanController;
+use App\Http\Controllers\Marketing\ReviewTagihanController;
 use App\Http\Controllers\Marketing\TandaTerimaInvoiceController;
 use App\Http\Controllers\Pembayaran\PermintaanDanaOperasionalController;
 use App\Http\Controllers\Pembayaran\PermintaanDanaBiayaController;
@@ -280,6 +281,8 @@ Route::get('marketing/purchase-requirement/poin-details', [PurchaseRequirementCo
     ->name('marketing.purchase-requirement.poin-details');
 Route::get('marketing/purchase-requirement/data', [PurchaseRequirementController::class, 'data'])
     ->name('marketing.purchase-requirement.data');
+Route::get('marketing/purchase-requirement/overdue-invoices', [PurchaseRequirementController::class, 'overdueInvoices'])
+    ->name('marketing.purchase-requirement.overdue-invoices');
 Route::get('marketing/purchase-requirement/details', [PurchaseRequirementController::class, 'details'])
     ->name('marketing.purchase-requirement.details');
 Route::get('marketing/purchase-requirement/outstanding', [PurchaseRequirementController::class, 'outstanding'])
@@ -478,6 +481,16 @@ Route::get('pembayaran/payment-cost/details', [PaymentCostController::class, 'de
 
 Route::get('penjualan/faktur-penjualan', [FakturPenjualanController::class, 'index'])
     ->name('penjualan.faktur-penjualan.index');
+Route::get('penjualan/review-tagihan', [ReviewTagihanController::class, 'index'])
+    ->name('penjualan.review-tagihan.index');
+Route::get('penjualan/review-tagihan/summary', [ReviewTagihanController::class, 'summary'])
+    ->name('penjualan.review-tagihan.summary');
+Route::get('penjualan/review-tagihan/customers', [ReviewTagihanController::class, 'customers'])
+    ->name('penjualan.review-tagihan.customers');
+Route::get('penjualan/review-tagihan/overdue-customer-names', [ReviewTagihanController::class, 'overdueCustomerNames'])
+    ->name('penjualan.review-tagihan.overdue-customer-names');
+Route::get('penjualan/review-tagihan/invoices', [ReviewTagihanController::class, 'invoices'])
+    ->name('penjualan.review-tagihan.invoices');
 Route::get('pembayaran/biaya-kirim-penjualan', [BiayaKirimPenjualanController::class, 'index'])
     ->name('pembayaran.biaya-kirim-penjualan.index');
 Route::get('pembayaran/biaya-kirim-penjualan/create', [BiayaKirimPenjualanController::class, 'create'])

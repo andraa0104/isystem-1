@@ -65,6 +65,8 @@ export default function DeliveryOrderEdit({
         original_qty: 0,
         stock_now: 0,
     });
+    const isSelectedMaterialOutOfStock =
+        Number(inputItem.last_stock) === 0 && Number(inputItem.stock_now) === -1;
 
     useEffect(() => {
         setFormData({
@@ -462,6 +464,7 @@ export default function DeliveryOrderEdit({
                                             disabled={
                                                 isSubmitting ||
                                                 !inputItem.no ||
+                                                isSelectedMaterialOutOfStock ||
                                                 inputItem.stock_now < 0
                                             }
                                         >

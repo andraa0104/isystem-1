@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Marketing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -20,19 +21,31 @@ class PurchaseRequirementController
                 'kd_mat' => 'required|string'
             ]);
 
-            $activeConnection = DB::getDefaultConnection();
+            $kdMat = trim((string) $request->kd_mat);
 
-            // 2. Query disesuaikan menggunakan id_invin dan a_idr
-            $latestInventory = DB::connection($activeConnection)
-                ->table('tb_invin')
-                ->where('kd_mat', $request->kd_mat)
-                ->orderBy('id_invin', 'desc') // Menggunakan id_invin desc untuk mengambil data terakhir
-                ->first();
+            $latestPoDetail = null;
+            if (Schema::hasTable('tb_detailpo')) {
+                $latestPoDetail = DB::table('tb_detailpo')
+                    ->whereRaw('lower(trim(kd_mat)) = ?', [Str::lower($kdMat)])
+                    ->whereRaw('coalesce(cast(price as decimal(18,4)), 0) > 0')
+                    ->orderByDesc('id_po')
+                    ->orderByDesc('no_po')
+                    ->first();
+            }
+
+            $latestInventory = null;
+            if (!$latestPoDetail && Schema::hasTable('tb_invin')) {
+                $latestInventory = DB::table('tb_invin')
+                    ->whereRaw('lower(trim(kd_mat)) = ?', [Str::lower($kdMat)])
+                    ->orderBy('id_invin', 'desc')
+                    ->first();
+            }
 
             return response()->json([
                 'success' => true,
-                // Mengambil nilai dari kolom a_idr sebagai harga modal estimasi
-                'harga' => $latestInventory ? $latestInventory->harga : 0 
+                'harga' => $latestPoDetail
+                    ? $latestPoDetail->price
+                    : ($latestInventory ? $latestInventory->harga : 0),
             ]);
 
         } catch (\Exception $e) {
@@ -87,6 +100,54 @@ class PurchaseRequirementController
         }
 
         return response()->json($response);
+    }
+
+    public function overdueInvoices(Request $request)
+    {
+        $customerName = trim((string) $request->query('customer', ''));
+
+        if ($customerName === '') {
+            return response()->json([
+                'customer' => '',
+                'total_overdue' => 0,
+                'oldest_overdue_days' => 0,
+                'invoices' => [],
+            ]);
+        }
+
+        $today = Carbon::today();
+        $dueDateExpr = "coalesce(date(jth_tempo), str_to_date(jth_tempo, '%Y-%m-%d'), str_to_date(jth_tempo, '%Y/%m/%d'), str_to_date(jth_tempo, '%d/%m/%Y'), str_to_date(jth_tempo, '%d-%m-%Y'), str_to_date(jth_tempo, '%d.%m.%Y'))";
+
+        $rows = DB::table('tb_kdfakturpenjualan')
+            ->select(
+                'no_fakturpenjualan',
+                'tgl_doc',
+                'ref_po',
+                'harga',
+                'h_ppn',
+                'g_total',
+                'tgl_terimainv',
+                'tgl_bayar',
+                'total_bayaran',
+                'saldo_piutang',
+                'jth_tempo',
+                'nm_cs',
+                DB::raw("datediff(?, {$dueDateExpr}) as umur_tempo")
+            )
+            ->addBinding($today->toDateString(), 'select')
+            ->whereRaw('lower(trim(nm_cs)) = ?', [Str::lower($customerName)])
+            ->whereRaw('coalesce(cast(saldo_piutang as decimal(18,4)), 0) > 0')
+            ->whereRaw("{$dueDateExpr} < ?", [$today->toDateString()])
+            ->orderByDesc('umur_tempo')
+            ->orderBy('jth_tempo')
+            ->get();
+
+        return response()->json([
+            'customer' => $rows->first()->nm_cs ?? $customerName,
+            'total_overdue' => (float) $rows->sum(fn ($row) => (float) ($row->saldo_piutang ?? 0)),
+            'oldest_overdue_days' => (int) ($rows->max('umur_tempo') ?? 0),
+            'invoices' => $rows,
+        ]);
     }
 
     private function getCommonQueries($period)

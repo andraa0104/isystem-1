@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge';
+import OverdueInvoiceWarningDialog from '@/components/OverdueInvoiceWarningDialog';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -126,6 +127,9 @@ export default function PurchaseRequirementCreate() {
     const [poinMaterialLoading, setPoinMaterialLoading] = useState(false);
     const [poinMaterialError, setPoinMaterialError] = useState('');
     const [submitError, setSubmitError] = useState('');
+    const [overdueWarningOpen, setOverdueWarningOpen] = useState(false);
+    const [overdueWarningData, setOverdueWarningData] = useState(null);
+    const [hasConfirmedOverdue, setHasConfirmedOverdue] = useState(false);
 
     const [formData, setFormData] = useState({
         date: todayValue(),
@@ -458,13 +462,9 @@ export default function PurchaseRequirementCreate() {
         setMaterialItems((prev) => prev.filter((item) => item.id !== id));
     };
 
-    const handleSubmit = (event) => {
-        event.preventDefault();
-        setSubmitError('');
-
+    const validateSubmit = () => {
         if (materialItems.length === 0) {
-            setSubmitError('Belum ada material dari PO In yang dipilih.');
-            return;
+            return 'Belum ada material dari PO In yang dipilih.';
         }
 
         const hasInvalidRow = materialItems.some(
@@ -473,41 +473,37 @@ export default function PurchaseRequirementCreate() {
                 parseNumber(item.qtyPr) < 0,
         );
         if (hasInvalidRow) {
-            setSubmitError(
-                'Harga modal wajib diisi dan Qty PR tidak boleh negatif.',
-            );
-            return;
+            return 'Harga modal wajib diisi dan Qty PR tidak boleh negatif.';
         }
 
+        return '';
+    };
+
+    const buildSubmitPayload = () => ({
+        date: formData.date,
+        payment: formData.payment,
+        for_customer: formData.forCustomer,
+        ref_po: formData.refPo,
+        materials: materialItems.map((item, index) => ({
+            no: index + 1,
+            detail_id: String(item.id).startsWith('manual-') ? null : item.id,
+            kd_material: item.kodeMaterial,
+            material: item.namaMaterial,
+            qty: item.qtyPr,
+            unit: item.satuan,
+            stok: item.stok,
+            unit_price: item.hargaModal,
+            total_price: calculateTotalPrice(item.qtyPr, item.hargaModal),
+            price_po: formData.isStok ? item.hargaModal : item.hargaPoIn,
+            margin: formData.isStok ? 0 : item.margin,
+            renmark: item.remark,
+        })),
+    });
+
+    const submitPurchaseRequirement = () => {
         router.post(
             '/marketing/purchase-requirement',
-            {
-                date: formData.date,
-                payment: formData.payment,
-                for_customer: formData.forCustomer,
-                ref_po: formData.refPo,
-                materials: materialItems.map((item, index) => ({
-                    no: index + 1,
-                    detail_id: String(item.id).startsWith('manual-')
-                        ? null
-                        : item.id,
-                    kd_material: item.kodeMaterial,
-                    material: item.namaMaterial,
-                    qty: item.qtyPr,
-                    unit: item.satuan,
-                    stok: item.stok,
-                    unit_price: item.hargaModal,
-                    total_price: calculateTotalPrice(
-                        item.qtyPr,
-                        item.hargaModal,
-                    ),
-                    price_po: formData.isStok
-                        ? item.hargaModal
-                        : item.hargaPoIn,
-                    margin: formData.isStok ? 0 : item.margin,
-                    renmark: item.remark,
-                })),
-            },
+            buildSubmitPayload(),
             {
                 onStart: () => setIsSubmitting(true),
                 onError: () => setIsSubmitting(false),
@@ -518,6 +514,47 @@ export default function PurchaseRequirementCreate() {
                 },
             },
         );
+    };
+
+    const handleSubmit = async (event) => {
+        event.preventDefault();
+        setSubmitError('');
+
+        const validationError = validateSubmit();
+        if (validationError) {
+            setSubmitError(validationError);
+            return;
+        }
+
+        if (hasConfirmedOverdue) {
+            submitPurchaseRequirement();
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const response = await axios.get(
+                '/marketing/purchase-requirement/overdue-invoices',
+                {
+                    params: { customer: formData.forCustomer },
+                },
+            );
+
+            if (
+                Array.isArray(response.data?.invoices) &&
+                response.data.invoices.length > 0
+            ) {
+                setOverdueWarningData(response.data);
+                setOverdueWarningOpen(true);
+                setIsSubmitting(false);
+                return;
+            }
+
+            submitPurchaseRequirement();
+        } catch {
+            setSubmitError('Gagal memeriksa tunggakan customer.');
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -828,6 +865,13 @@ export default function PurchaseRequirementCreate() {
                                                                                             value={
                                                                                                 item.qtyPr
                                                                                             }
+                                                                                            readOnly={
+                                                                                                !String(
+                                                                                                    item.id,
+                                                                                                ).startsWith(
+                                                                                                    'manual-',
+                                                                                                )
+                                                                                            }
                                                                                             onChange={(
                                                                                                 e,
                                                                                             ) =>
@@ -983,150 +1027,157 @@ export default function PurchaseRequirementCreate() {
                                             )}
                                         </div>
 
-                                        {/* Manual Input Form - Always Visible */}
-                                        <div className="border-t bg-primary/5 p-6 dark:bg-primary/10">
-                                            <h3 className="mb-4 text-sm font-bold tracking-widest text-primary uppercase">
-                                                Input Material Baru
-                                            </h3>
-                                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                                                <div className="space-y-2 md:col-span-2 xl:col-span-5">
-                                                    <Label className="text-xs">
-                                                        Material
-                                                    </Label>
-                                                    <div className="flex gap-2">
-                                                        <div className="relative flex-1">
-                                                            <Input
-                                                                placeholder="Pilih Material..."
-                                                                className="h-10 border-primary/20 bg-background pr-10"
-                                                                value={
-                                                                    materialForm.namaMaterial
+                                        {formData.isStok && (
+                                            <div className="border-t bg-primary/5 p-6 dark:bg-primary/10">
+                                                <h3 className="mb-4 text-sm font-bold tracking-widest text-primary uppercase">
+                                                    Input Material Baru
+                                                </h3>
+                                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                                                    <div className="space-y-2 md:col-span-2 xl:col-span-5">
+                                                        <Label className="text-xs">
+                                                            Material
+                                                        </Label>
+                                                        <div className="flex gap-2">
+                                                            <div className="relative flex-1">
+                                                                <Input
+                                                                    placeholder="Pilih Material..."
+                                                                    className="h-10 border-primary/20 bg-background pr-10"
+                                                                    value={
+                                                                        materialForm.namaMaterial
+                                                                    }
+                                                                    readOnly
+                                                                />
+                                                                {materialForm.kodeMaterial && (
+                                                                    <div className="absolute top-2.5 right-3">
+                                                                        <Check className="h-5 w-5 text-green-500" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <Button
+                                                                type="button"
+                                                                className="h-10"
+                                                                onClick={() =>
+                                                                    setIsMaterialModalOpen(
+                                                                        true,
+                                                                    )
                                                                 }
-                                                                readOnly
-                                                            />
-                                                            {materialForm.kodeMaterial && (
-                                                                <div className="absolute top-2.5 right-3">
-                                                                    <Check className="h-5 w-5 text-green-500" />
-                                                                </div>
-                                                            )}
+                                                            >
+                                                                <Search className="h-4 w-4" />
+                                                            </Button>
                                                         </div>
-                                                        <Button
-                                                            type="button"
-                                                            className="h-10"
-                                                            onClick={() =>
-                                                                setIsMaterialModalOpen(
-                                                                    true,
-                                                                )
-                                                            }
-                                                        >
-                                                            <Search className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                    {materialForm.kodeMaterial && (
-                                                        <p className="font-mono text-[14px] text-muted-foreground">
-                                                            KODE MATERIAL:{' '}
-                                                            {
-                                                                materialForm.kodeMaterial
-                                                            }
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <div className="space-y-2 xl:col-span-1">
-                                                    <Label className="text-xs">
-                                                        Stok Saat Ini
-                                                    </Label>
-                                                    <Input
-                                                        type="text"
-                                                        className="h-10 bg-muted/50 font-bold"
-                                                        value={
-                                                            materialForm.lastStock
-                                                        }
-                                                        readOnly
-                                                    />
-                                                </div>
-                                                <div className="space-y-2 xl:col-span-2">
-                                                    <Label className="text-xs">
-                                                        Quantity
-                                                    </Label>
-                                                    <Input
-                                                        type="number"
-                                                        className="h-10 border-primary/20"
-                                                        placeholder="0"
-                                                        value={
-                                                            materialForm.quantity
-                                                        }
-                                                        onChange={(e) =>
-                                                            updateMaterialForm(
-                                                                'quantity',
-                                                                e.target.value,
-                                                            )
-                                                        }
-                                                    />
-                                                </div>
-                                                <div className="space-y-2 xl:col-span-2">
-                                                    <Label className="text-xs">
-                                                        Harga Est.
-                                                    </Label>
-                                                    <Input
-                                                        type="text"
-                                                        className="h-10 border-primary/20"
-                                                        placeholder="Rp 0"
-                                                        value={formatRupiah(
-                                                            materialForm.priceEstimate,
+                                                        {materialForm.kodeMaterial && (
+                                                            <p className="font-mono text-[14px] text-muted-foreground">
+                                                                KODE MATERIAL:{' '}
+                                                                {
+                                                                    materialForm.kodeMaterial
+                                                                }
+                                                            </p>
                                                         )}
-                                                        onChange={(e) =>
-                                                            updateMaterialForm(
-                                                                'priceEstimate',
-                                                                parseRupiahInput(
+                                                    </div>
+                                                    <div className="space-y-2 xl:col-span-1">
+                                                        <Label className="text-xs">
+                                                            Stok Saat Ini
+                                                        </Label>
+                                                        <Input
+                                                            type="text"
+                                                            className="h-10 bg-muted/50 font-bold"
+                                                            value={
+                                                                materialForm.lastStock
+                                                            }
+                                                            readOnly
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2 xl:col-span-2">
+                                                        <Label className="text-xs">
+                                                            Quantity
+                                                        </Label>
+                                                        <Input
+                                                            type="number"
+                                                            className="h-10 border-primary/20"
+                                                            placeholder="0"
+                                                            value={
+                                                                materialForm.quantity
+                                                            }
+                                                            onChange={(e) =>
+                                                                updateMaterialForm(
+                                                                    'quantity',
                                                                     e.target
                                                                         .value,
-                                                                ),
-                                                            )
-                                                        }
-                                                    />
+                                                                )
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2 xl:col-span-2">
+                                                        <Label className="text-xs">
+                                                            Harga Est.
+                                                        </Label>
+                                                        <Input
+                                                            type="text"
+                                                            className="h-10 border-primary/20"
+                                                            placeholder="Rp 0"
+                                                            value={formatRupiah(
+                                                                materialForm.priceEstimate,
+                                                            )}
+                                                            onChange={(e) =>
+                                                                updateMaterialForm(
+                                                                    'priceEstimate',
+                                                                    parseRupiahInput(
+                                                                        e
+                                                                            .target
+                                                                            .value,
+                                                                    ),
+                                                                )
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2 md:col-span-2 xl:col-span-5">
+                                                        <Label className="text-xs">
+                                                            Remark / Catatan
+                                                        </Label>
+                                                        <Input
+                                                            type="text"
+                                                            className="h-10 border-primary/20"
+                                                            placeholder="Tambahkan catatan untuk material ini..."
+                                                            value={
+                                                                materialForm.remark
+                                                            }
+                                                            onChange={(e) =>
+                                                                updateMaterialForm(
+                                                                    'remark',
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div className="space-y-2 md:col-span-2 xl:col-span-5">
-                                                    <Label className="text-xs">
-                                                        Remark / Catatan
-                                                    </Label>
-                                                    <Input
-                                                        type="text"
-                                                        className="h-10 border-primary/20"
-                                                        placeholder="Tambahkan catatan untuk material ini..."
-                                                        value={
-                                                            materialForm.remark
+                                                <div className="mt-4 flex items-center justify-between border-t border-primary/10 pt-4">
+                                                    <div className="text-xs">
+                                                        <span className="text-muted-foreground italic">
+                                                            Total Item:{' '}
+                                                        </span>
+                                                        <span className="font-bold text-primary">
+                                                            {formatRupiah(
+                                                                materialForm.totalPrice,
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        onClick={
+                                                            handleAddManualMaterial
                                                         }
-                                                        onChange={(e) =>
-                                                            updateMaterialForm(
-                                                                'remark',
-                                                                e.target.value,
-                                                            )
+                                                        disabled={
+                                                            !materialForm.kodeMaterial
                                                         }
-                                                    />
+                                                        className="h-10 px-6 shadow-lg shadow-primary/20"
+                                                    >
+                                                        <Plus className="mr-2 h-4 w-4" />{' '}
+                                                        Tambah Ke Daftar
+                                                    </Button>
                                                 </div>
                                             </div>
-                                            <div className="mt-4 flex items-center justify-between border-t border-primary/10 pt-4">
-                                                <div className="text-xs">
-                                                    <span className="text-muted-foreground italic">
-                                                        Total Item:{' '}
-                                                    </span>
-                                                    <span className="font-bold text-primary">
-                                                        {formatRupiah(
-                                                            materialForm.totalPrice,
-                                                        )}
-                                                    </span>
-                                                </div>
-                                                <Button
-                                                    type="button"
-                                                    onClick={handleAddManualMaterial}
-                                                    disabled={
-                                                        !materialForm.kodeMaterial
-                                                    }
-                                                    className="h-10 px-6 shadow-lg shadow-primary/20"
-                                                >
-                                                    <Plus className="mr-2 h-4 w-4" /> Tambah Ke Daftar
-                                                </Button>
-                                            </div>
-                                        </div>
+                                        )}
                                     </CardContent>
                                 </Card>
                             </div>
@@ -1395,6 +1446,12 @@ export default function PurchaseRequirementCreate() {
                                                     size="sm"
                                                     variant="outline"
                                                     onClick={() => {
+                                                        setHasConfirmedOverdue(
+                                                            false,
+                                                        );
+                                                        setOverdueWarningData(
+                                                            null,
+                                                        );
                                                         setFormData((prev) => ({
                                                             ...prev,
                                                             refPo: prev.isStok
@@ -1597,25 +1654,62 @@ export default function PurchaseRequirementCreate() {
                                                             variant="default"
                                                             className="h-8"
                                                             onClick={async () => {
-                                                                updateMaterialForm('kodeMaterial', m.kd_material);
-                                                                updateMaterialForm('namaMaterial', m.material);
-                                                                updateMaterialForm('satuan', m.unit);
-                                                                updateMaterialForm('lastStock', m.stok);
-                                                                
-                                                                // AUTOFILL UNTUK INPUT MANUAL LEWAT DIALOG MODAL
+                                                                let priceEstimate =
+                                                                    m.harga ||
+                                                                    0;
+
                                                                 try {
-                                                                    const priceRes = await axios.get('/marketing/purchase-requirement/get-last-price', {
-                                                                        params: { kd_mat: m.kd_material }
-                                                                    });
-                                                                    if (priceRes.data && priceRes.data.success) {
-                                                                        updateMaterialForm('priceEstimate', priceRes.data.harga);
-                                                                    } else {
-                                                                        updateMaterialForm('priceEstimate', m.harga || 0);
+                                                                    const priceRes =
+                                                                        await axios.get(
+                                                                            '/marketing/purchase-requirement/get-last-price',
+                                                                            {
+                                                                                params: {
+                                                                                    kd_mat: m.kd_material,
+                                                                                },
+                                                                            },
+                                                                        );
+                                                                    const latestPrice =
+                                                                        parseNumber(
+                                                                            priceRes
+                                                                                .data
+                                                                                ?.harga,
+                                                                        );
+                                                                    if (
+                                                                        priceRes
+                                                                            .data
+                                                                            ?.success &&
+                                                                        latestPrice >
+                                                                            0
+                                                                    ) {
+                                                                        priceEstimate =
+                                                                            latestPrice;
                                                                     }
-                                                                } catch (error) {
-                                                                    updateMaterialForm('priceEstimate', m.harga || 0);
+                                                                } catch {
+                                                                    priceEstimate =
+                                                                        m.harga ||
+                                                                        0;
                                                                 }
 
+                                                                setMaterialForm(
+                                                                    (prev) => ({
+                                                                        ...prev,
+                                                                        kodeMaterial:
+                                                                            m.kd_material,
+                                                                        namaMaterial:
+                                                                            m.material,
+                                                                        satuan: m.unit,
+                                                                        lastStock:
+                                                                            m.stok,
+                                                                        priceEstimate,
+                                                                        totalPrice:
+                                                                            parseNumber(
+                                                                                prev.quantity,
+                                                                            ) *
+                                                                            parseNumber(
+                                                                                priceEstimate,
+                                                                            ),
+                                                                    }),
+                                                                );
                                                                 setIsMaterialModalOpen(false);
                                                             }}
                                                         >
@@ -1695,6 +1789,17 @@ export default function PurchaseRequirementCreate() {
                     </DialogContent>
                 </Dialog>
             </form>
+            <OverdueInvoiceWarningDialog
+                open={overdueWarningOpen}
+                onOpenChange={setOverdueWarningOpen}
+                data={overdueWarningData}
+                isSubmitting={isSubmitting}
+                onConfirm={() => {
+                    setHasConfirmedOverdue(true);
+                    setOverdueWarningOpen(false);
+                    submitPurchaseRequirement();
+                }}
+            />
         </>
     );
 }

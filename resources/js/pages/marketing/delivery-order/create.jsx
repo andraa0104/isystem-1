@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import OverdueInvoiceWarningDialog from '@/components/OverdueInvoiceWarningDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
@@ -45,6 +46,9 @@ export default function DeliveryOrderCreate() {
     const { auth } = usePage().props;
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [overdueWarningOpen, setOverdueWarningOpen] = useState(false);
+    const [overdueWarningData, setOverdueWarningData] = useState(null);
+    const [hasConfirmedOverdue, setHasConfirmedOverdue] = useState(false);
 
     // Form Data
     const [formData, setFormData] = useState({
@@ -72,11 +76,15 @@ export default function DeliveryOrderCreate() {
         kd_material: '',
         material: '',
         qty: '',
+        max_qty: 0,
         unit: '',
         remark: '',
         last_stock: 0,
         stock_now: 0,
     });
+    const isSelectedMaterialOutOfStock =
+        Number(inputItem.last_stock) === 0 && Number(inputItem.stock_now) === -1;
+    const hasMinusStockNow = Number(inputItem.stock_now) < 0;
 
     // --- Step 1 Handler ---
     const fetchPrs = async (page = 1) => {
@@ -111,6 +119,8 @@ export default function DeliveryOrderCreate() {
     const handleSelectPr = async (poin) => {
         if (!poin) return;
         setSelectedPrNo(poin.no_poin);
+        setHasConfirmedOverdue(false);
+        setOverdueWarningData(null);
 
         try {
             const response = await axios.get(
@@ -146,6 +156,7 @@ export default function DeliveryOrderCreate() {
             kd_material: item.kd_material,
             material: item.material,
             qty: qty,
+            max_qty: Number(qty || 0),
             unit: item.unit,
             remark: item.remark,
             last_stock: lastStock,
@@ -158,7 +169,15 @@ export default function DeliveryOrderCreate() {
         setInputItem((prev) => {
             const newValue = { ...prev, [name]: value };
             if (name === 'qty') {
-                const qtyVal = Number(value || 0);
+                const maxQty = Number(prev.max_qty || 0);
+                let qtyVal = Number(value || 0);
+                if (qtyVal <= 0) {
+                    qtyVal = 1;
+                }
+                if (maxQty > 0 && qtyVal > maxQty) {
+                    qtyVal = maxQty;
+                }
+                newValue.qty = qtyVal;
                 newValue.stock_now = prev.last_stock - qtyVal;
             }
             return newValue;
@@ -176,6 +195,7 @@ export default function DeliveryOrderCreate() {
             kd_material: '',
             material: '',
             qty: '',
+            max_qty: 0,
             unit: '',
             remark: '',
             last_stock: 0,
@@ -194,39 +214,69 @@ export default function DeliveryOrderCreate() {
     const nextStep = () => setStep((s) => s + 1);
     const prevStep = () => setStep((s) => s - 1);
 
-    const handleSubmit = () => {
+    const buildSubmitPayload = () => ({
+        date: formData.date,
+        kode_poin: formData.kode_poin,
+        ref_po: formData.ref_po,
+        kd_cs: formData.kd_cs,
+        nm_cs: formData.nm_cs,
+        items: formData.items.map((item, index) => ({
+            no: index + 1,
+            kd_material: item.kd_material,
+            material: item.material,
+            qty: item.qty,
+            unit: item.unit,
+            remark: item.remark,
+            stock_now: item.stock_now,
+        })),
+    });
+
+    const submitDeliveryOrder = () => {
+        router.post('/marketing/delivery-order', buildSubmitPayload(), {
+            onStart: () => setIsSubmitting(true),
+            onError: () => setIsSubmitting(false),
+            onSuccess: (page) => {
+                if (page?.props?.flash?.error) {
+                    setIsSubmitting(false);
+                }
+            },
+        });
+    };
+
+    const handleSubmit = async () => {
         if (!selectedPrNo || formData.items.length === 0) {
             return;
         }
 
-        router.post(
-            '/marketing/delivery-order',
-            {
-                date: formData.date,
-                kode_poin: formData.kode_poin,
-                ref_po: formData.ref_po,
-                kd_cs: formData.kd_cs,
-                nm_cs: formData.nm_cs,
-                items: formData.items.map((item, index) => ({
-                    no: index + 1,
-                    kd_material: item.kd_material,
-                    material: item.material,
-                    qty: item.qty,
-                    unit: item.unit,
-                    remark: item.remark,
-                    stock_now: item.stock_now,
-                })),
-            },
-            {
-                onStart: () => setIsSubmitting(true),
-                onError: () => setIsSubmitting(false),
-                onSuccess: (page) => {
-                    if (page?.props?.flash?.error) {
-                        setIsSubmitting(false);
-                    }
+        if (hasConfirmedOverdue) {
+            submitDeliveryOrder();
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const response = await axios.get(
+                '/marketing/purchase-requirement/overdue-invoices',
+                {
+                    params: { customer: formData.nm_cs },
                 },
-            },
-        );
+            );
+
+            if (
+                Array.isArray(response.data?.invoices) &&
+                response.data.invoices.length > 0
+            ) {
+                setOverdueWarningData(response.data);
+                setOverdueWarningOpen(true);
+                setIsSubmitting(false);
+                return;
+            }
+
+            submitDeliveryOrder();
+        } catch (error) {
+            console.error('Error checking overdue invoices', error);
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -456,10 +506,19 @@ export default function DeliveryOrderCreate() {
                                             value={inputItem.stock_now}
                                         />
                                     </div>
-                                    <div className="flex items-end justify-end lg:col-span-4">
+                                    <div className="flex flex-col items-end justify-end gap-2 lg:col-span-4">
+                                        {hasMinusStockNow && (
+                                            <p className="text-xs font-semibold text-destructive">
+                                                Stock now tidak boleh minus.
+                                            </p>
+                                        )}
                                         <Button
                                             onClick={handleAddItem}
-                                            disabled={!inputItem.material}
+                                            disabled={
+                                                !inputItem.material ||
+                                                isSelectedMaterialOutOfStock ||
+                                                hasMinusStockNow
+                                            }
                                         >
                                             <Plus className="mr-2 h-4 w-4" />
                                             Tambah Material
@@ -714,6 +773,17 @@ export default function DeliveryOrderCreate() {
                     )}
                 </DialogContent>
             </Dialog>
+            <OverdueInvoiceWarningDialog
+                open={overdueWarningOpen}
+                onOpenChange={setOverdueWarningOpen}
+                data={overdueWarningData}
+                isSubmitting={isSubmitting}
+                onConfirm={() => {
+                    setHasConfirmedOverdue(true);
+                    setOverdueWarningOpen(false);
+                    submitDeliveryOrder();
+                }}
+            />
         </>
     );
 }

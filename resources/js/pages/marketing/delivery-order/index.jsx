@@ -30,6 +30,9 @@ const breadcrumbs = [
 const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
+const normalizeCustomerName = (value) =>
+    String(value ?? '').trim().toLowerCase();
+
 const toNumber = (value) => {
     const number = Number(value);
     return Number.isNaN(number) ? 0 : number;
@@ -78,6 +81,39 @@ export default function DeliveryOrderIndex({
     const [detailError, setDetailError] = useState('');
     const [detailPageSize, setDetailPageSize] = useState(5);
     const [detailCurrentPage, setDetailCurrentPage] = useState(1);
+    const [overdueCustomers, setOverdueCustomers] = useState(new Set());
+
+    const renderCustomerWithOverdueMarker = (customer) => {
+        const value = renderValue(customer);
+        const hasOverdue = overdueCustomers.has(normalizeCustomerName(customer));
+
+        return (
+            <div className="flex flex-wrap items-center gap-2">
+                <span>{value}</span>
+                {hasOverdue && (
+                    <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                        Overdue
+                    </span>
+                )}
+            </div>
+        );
+    };
+
+    useEffect(() => {
+        fetch('/penjualan/review-tagihan/overdue-customer-names', {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => (response.ok ? response.json() : null))
+            .then((data) => {
+                const names = Array.isArray(data?.customers)
+                    ? data.customers
+                    : [];
+                setOverdueCustomers(
+                    new Set(names.map((name) => normalizeCustomerName(name))),
+                );
+            })
+            .catch(() => setOverdueCustomers(new Set()));
+    }, []);
     const [detailSearch, setDetailSearch] = useState('');
     const [debouncedDetailSearch, setDebouncedDetailSearch] = useState('');
     const [outstandingList, setOutstandingList] = useState([]);
@@ -886,7 +922,9 @@ export default function DeliveryOrderIndex({
                                             {item.ref_po}
                                         </td>
                                         <td className="px-4 py-3">
-                                            {item.nm_cs}
+                                            {renderCustomerWithOverdueMarker(
+                                                item.nm_cs,
+                                            )}
                                         </td>
                                         <td className="px-4 py-3">
                                             <div className="flex items-center gap-2">
@@ -1359,7 +1397,9 @@ export default function DeliveryOrderIndex({
                                                     {item.ref_po}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {item.nm_cs}
+                                                    {renderCustomerWithOverdueMarker(
+                                                        item.nm_cs,
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-2">
@@ -1580,7 +1620,9 @@ export default function DeliveryOrderIndex({
                                                     {item.ref_po}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {item.nm_cs}
+                                                    {renderCustomerWithOverdueMarker(
+                                                        item.nm_cs,
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <button
