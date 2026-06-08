@@ -169,6 +169,9 @@ class ReviewTagihanController
         $customer = trim((string) $request->query('customer', ''));
         $today = Carbon::today()->toDateString();
         $dueDateExpr = $this->dueDateExpr();
+        $ageSelectExpr = $scope === 'near_due'
+            ? "datediff('{$today}', {$dueDateExpr})"
+            : "greatest(datediff('{$today}', {$dueDateExpr}), 0)";
 
         $query = $this->baseInvoiceQuery()
             ->select(
@@ -184,7 +187,7 @@ class ReviewTagihanController
                 'saldo_piutang',
                 'jth_tempo',
                 'nm_cs',
-                DB::raw("greatest(datediff('{$today}', {$dueDateExpr}), 0) as umur_tempo")
+                DB::raw("{$ageSelectExpr} as umur_tempo")
             );
 
         if ($customer !== '') {
