@@ -160,7 +160,7 @@ export default function Dashboard({
     });
 
     const deliveryRequest = useCachedRequest({
-        key: 'delivery',
+        key: 'delivery:v2',
         enabled: deliveryView.inView,
         ttlMs: 120_000,
         initialData:
@@ -188,7 +188,7 @@ export default function Dashboard({
 
     // === TAMBAHKAN BLOK INI ===
     const stockSummaryRequest = useCachedRequest({
-        key: 'stockSummary',
+        key: 'stockSummary:v2',
         enabled: true, // atau sesuaikan dengan inView jika ingin lazy load
         ttlMs: 120_000,
         fetcher: async () => {

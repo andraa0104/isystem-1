@@ -124,6 +124,15 @@ class DashboardController
         return DB::table('tb_do as d');
     }
 
+    private function normalizedDateSql(string $column): string
+    {
+        return "COALESCE(
+            STR_TO_DATE(NULLIF(TRIM($column), ''), '%Y-%m-%d'),
+            STR_TO_DATE(NULLIF(TRIM($column), ''), '%d.%m.%Y'),
+            STR_TO_DATE(NULLIF(TRIM($column), ''), '%d-%m-%Y')
+        )";
+    }
+
     public function index()
     {
         // Initial props dikosongkan untuk mempercepat load. Data akan di-fetch per-card.
@@ -181,7 +190,9 @@ class DashboardController
 
     public function deliveryStats(Request $request)
     {
-        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('delivery', [], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildDeliveryStats());
+        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('delivery', [
+            'date_parser' => 2,
+        ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildDeliveryStats());
 
         return response()->json($stats);
     }
@@ -513,9 +524,10 @@ class DashboardController
         }
 
         // Single query: sum, count, and max date in one pass
+        $dateSql = $this->normalizedDateSql('Tgl_Posting');
         $row = DB::table('tb_kdpdb')
             ->where('Sisa', '>', 0)
-            ->selectRaw('SUM(Sisa) as total, COUNT(*) as cnt, MAX(Tgl_Posting) as last_update')
+            ->selectRaw("SUM(Sisa) as total, COUNT(*) as cnt, MAX($dateSql) as last_update")
             ->first();
 
         return [
@@ -532,9 +544,10 @@ class DashboardController
         }
 
         // Single query: sum, count, and max date in one pass
+        $dateSql = $this->normalizedDateSql('posting_date');
         $row = DB::table('tb_kdpdo')
             ->where('sisa_pdo', '>', 0)
-            ->selectRaw('SUM(sisa_pdo) as total, COUNT(*) as cnt, MAX(posting_date) as last_update')
+            ->selectRaw("SUM(sisa_pdo) as total, COUNT(*) as cnt, MAX($dateSql) as last_update")
             ->first();
 
         return [
@@ -928,7 +941,11 @@ class DashboardController
             }
 
             // Ambil nilai MAX dari kolom tanggal buat khusus untuk Last Update Stok Buku
-            $maxBookDate = DB::table('tb_kas')->where($accountField, '1105AD')->max($tglBuatField);
+            $bookDateSql = $this->normalizedDateSql($tglBuatField);
+            $maxBookDate = DB::table('tb_kas')
+                ->where($accountField, '1105AD')
+                ->selectRaw("MAX($bookDateSql) as last_update")
+                ->value('last_update');
             if ($maxBookDate) {
                 $result['book_last_update'] = $this->normalizeDate($maxBookDate);
             }
@@ -975,23 +992,75 @@ class DashboardController
         }
 
         // 3. HITUNG LAST UPDATE KHUSUS STOK FISIK
-        $lastUpdateMi = null;
+        $physicalDates = [];
+
         if (Schema::hasTable('tb_mi')) {
-            $lastUpdateMi = DB::table('tb_mi')->max('posting_tgl');
+            $postingTglSql = $this->normalizedDateSql('posting_tgl');
+            $lastUpdateMi = DB::table('tb_mi')
+                ->selectRaw("MAX($postingTglSql) as last_update")
+                ->value('last_update');
+            if ($lastUpdateMi) {
+                $physicalDates[] = $this->normalizeDate($lastUpdateMi);
+            }
         }
 
-        $lastUpdateMib = null;
         if (Schema::hasTable('tb_kdmib') && Schema::hasTable('tb_mib')) {
+            $postingTglSql = $this->normalizedDateSql('tb_kdmib.posting_tgl');
             $lastUpdateMib = DB::table('tb_kdmib')
                 ->join('tb_mib', 'tb_kdmib.no_doc', '=', 'tb_mib.no_doc')
-                ->max('tb_kdmib.posting_tgl');
+                ->selectRaw("MAX($postingTglSql) as last_update")
+                ->value('last_update');
+            if ($lastUpdateMib) {
+                $physicalDates[] = $this->normalizeDate($lastUpdateMib);
+            }
         }
 
-        // Normalisasikan format tanggal mi dan kdmib ke format standar YYYY-MM-DD
-        $dateMiNorm = $lastUpdateMi ? $this->normalizeDate($lastUpdateMi) : null;
-        $dateMibNorm = $lastUpdateMib ? $this->normalizeDate($lastUpdateMib) : null;
+        if (Schema::hasTable('tb_material') && Schema::hasColumn('tb_material', 'tgl_buat')) {
+            $tglBuatSql = $this->normalizedDateSql('tgl_buat');
+            $lastUpdateMaterial = DB::table('tb_material')
+                ->selectRaw("MAX($tglBuatSql) as last_update")
+                ->value('last_update');
+            if ($lastUpdateMaterial) {
+                $physicalDates[] = $this->normalizeDate($lastUpdateMaterial);
+            }
+        }
 
-        $physicalDates = array_filter([$dateMiNorm, $dateMibNorm]);
+        if (Schema::hasTable('tb_do') && Schema::hasColumn('tb_do', 'pos_tgl')) {
+            $posTglSql = $this->normalizedDateSql('pos_tgl');
+            $lastUpdateDo = DB::table('tb_do')
+                ->where(function ($query) {
+                    $query->where('Val_inv', '<>', 1)->orWhereNull('Val_inv');
+                })
+                ->selectRaw("MAX($posTglSql) as last_update")
+                ->value('last_update');
+            if ($lastUpdateDo) {
+                $physicalDates[] = $this->normalizeDate($lastUpdateDo);
+            }
+        }
+
+        if (Schema::hasTable('tb_dobi') && Schema::hasColumn('tb_dobi', 'pos_tgl')) {
+            $posTglSql = $this->normalizedDateSql('pos_tgl');
+            $lastUpdateDobi = DB::table('tb_dobi')
+                ->where('status', 0)
+                ->selectRaw("MAX($posTglSql) as last_update")
+                ->value('last_update');
+            if ($lastUpdateDobi) {
+                $physicalDates[] = $this->normalizeDate($lastUpdateDobi);
+            }
+        }
+
+        if (Schema::hasTable('tb_dob') && Schema::hasColumn('tb_dob', 'pos_tgl')) {
+            $posTglSql = $this->normalizedDateSql('pos_tgl');
+            $lastUpdateDob = DB::table('tb_dob')
+                ->where('status', 0)
+                ->selectRaw("MAX($posTglSql) as last_update")
+                ->value('last_update');
+            if ($lastUpdateDob) {
+                $physicalDates[] = $this->normalizeDate($lastUpdateDob);
+            }
+        }
+
+        $physicalDates = array_filter($physicalDates);
         if (!empty($physicalDates)) {
             rsort($physicalDates); // Urutkan dari yang paling baru
             $result['physical_last_update'] = $physicalDates[0];
@@ -1031,7 +1100,9 @@ class DashboardController
     public function stockSummaryStats(Request $request)
     {
         $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember(
-            $this->dashboardCacheKey('stock-summary', [], $request), 
+            $this->dashboardCacheKey('stock-summary', [
+                'date_parser' => 2,
+            ], $request),
             self::DASHBOARD_CACHE_TTL, 
             fn () => $this->buildStockSummary()
         );
