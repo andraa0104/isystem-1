@@ -183,7 +183,9 @@ class DashboardController
 
     public function receivablePayableStats(Request $request)
     {
-        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('receivable-payable', [], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildReceivablePayableStats());
+        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('receivable-payable', [
+            'source' => 'latest-nabbrekap-v2',
+        ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildReceivablePayableStats());
 
         return response()->json($stats);
     }
@@ -441,15 +443,65 @@ class DashboardController
         $result = [
             'piutang' => ['total' => 0.0, 'last_update' => null],
             'hutang' => ['total' => 0.0, 'last_update' => null],
-            'meta' => ['source' => 'tb_nabb.saldo + tb_kas.tgl_voucher'],
+            'meta' => ['source' => 'tb_nabbrekap.latest_saldo'],
         ];
 
-        if (!Schema::hasTable('tb_nabb') || !Schema::hasTable('tb_kas')) {
+        $accountCodes = [
+            'piutang' => '1109AD',
+            'hutang' => '2101AK',
+        ];
+
+        if (Schema::hasTable('tb_nabbrekap')) {
+            $rekapCols = Schema::getColumnListing('tb_nabbrekap');
+            $hasRekapRequired = in_array('Kode_Akun', $rekapCols, true)
+                && in_array('Saldo', $rekapCols, true);
+
+            if ($hasRekapRequired) {
+                $dateOrderParts = [];
+                if (in_array('End_Date', $rekapCols, true)) {
+                    $dateOrderParts[] = 'End_Date';
+                }
+                if (in_array('Posting_Date', $rekapCols, true)) {
+                    $dateOrderParts[] = 'Posting_Date';
+                }
+
+                $orderDateSql = count($dateOrderParts) > 0
+                    ? 'COALESCE(' . implode(',', $dateOrderParts) . ')'
+                    : 'Kode_Akun';
+
+                foreach ($accountCodes as $key => $code) {
+                    $row = DB::table('tb_nabbrekap')
+                        ->whereRaw('LOWER(TRIM(Kode_Akun)) = ?', [strtolower($code)])
+                        ->select('Saldo')
+                        ->when(in_array('End_Date', $rekapCols, true), fn ($query) => $query->addSelect('End_Date'))
+                        ->when(in_array('Posting_Date', $rekapCols, true), fn ($query) => $query->addSelect('Posting_Date'))
+                        ->orderByRaw("{$orderDateSql} desc")
+                        ->when(in_array('Posting_Date', $rekapCols, true), fn ($query) => $query->orderByDesc('Posting_Date'))
+                        ->when(in_array('Kode_NaBB', $rekapCols, true), fn ($query) => $query->orderByDesc('Kode_NaBB'))
+                        ->first();
+
+                    if ($row) {
+                        $result[$key] = [
+                            'total' => (float) ($row->Saldo ?? 0),
+                            'last_update' => $row->Posting_Date ?? $row->End_Date ?? null,
+                        ];
+                    }
+                }
+
+                if (($result['piutang']['total'] ?? 0) !== 0.0 || ($result['hutang']['total'] ?? 0) !== 0.0) {
+                    return $result;
+                }
+            }
+        }
+
+        $result['meta']['source'] = 'tb_nabb.saldo + tb_kas.tgl_voucher';
+
+        if (!Schema::hasTable('tb_nabb')) {
             return $result;
         }
 
         $nabbCols = Schema::getColumnListing('tb_nabb');
-        $kasCols = Schema::getColumnListing('tb_kas');
+        $kasCols = Schema::hasTable('tb_kas') ? Schema::getColumnListing('tb_kas') : [];
         $lastUpdateAccountColumns = array_values(array_filter(
             ['Kode_Akun1', 'Kode_Akun2', 'Kode_Akun3'],
             fn (string $col) => in_array($col, $kasCols, true)
@@ -457,8 +509,13 @@ class DashboardController
 
         $hasRequired = in_array('Kode_Akun', $nabbCols, true)
             && in_array('Saldo', $nabbCols, true)
-            && in_array('Tgl_Voucher', $kasCols, true)
-            && count($lastUpdateAccountColumns) > 0;
+            && (
+                !Schema::hasTable('tb_kas')
+                || (
+                    in_array('Tgl_Voucher', $kasCols, true)
+                    && count($lastUpdateAccountColumns) > 0
+                )
+            );
 
         if (!$hasRequired) {
             return $result;
@@ -474,7 +531,7 @@ class DashboardController
         $hutangTotal = (float) ($stats->hutang_total ?? 0);
 
         $lastUpdateFromKas = function (array $accountCodes) use ($lastUpdateAccountColumns): ?string {
-            if (count($accountCodes) === 0) {
+            if (!Schema::hasTable('tb_kas') || count($accountCodes) === 0 || count($lastUpdateAccountColumns) === 0) {
                 return null;
             }
 
