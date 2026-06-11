@@ -1,3 +1,4 @@
+import InvoiceDetailDialog from '@/components/InvoiceDetailDialog';
 import OverdueInvoiceWarningDialog from '@/components/OverdueInvoiceWarningDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -83,6 +84,8 @@ export default function ReviewTagihanIndex() {
     const [modalData, setModalData] = useState(null);
     const [modalTitle, setModalTitle] = useState('Review Tagihan');
     const [invoicePaymentFilter, setInvoicePaymentFilter] = useState('all');
+    const [selectedInvoiceNo, setSelectedInvoiceNo] = useState('');
+    const [invoiceDetailOpen, setInvoiceDetailOpen] = useState(false);
 
     const totalPages = useMemo(
         () => Math.max(1, Math.ceil(customerTotal / pageSize)),
@@ -481,6 +484,10 @@ export default function ReviewTagihanIndex() {
                 open={modalOpen}
                 onOpenChange={setModalOpen}
                 data={filteredModalData}
+                onInvoiceClick={(invoice) => {
+                    setSelectedInvoiceNo(invoice.no_fakturpenjualan);
+                    setInvoiceDetailOpen(true);
+                }}
                 showActions={false}
                 title={modalTitle}
                 description="Daftar faktur penjualan yang masih memiliki saldo piutang."
@@ -502,6 +509,11 @@ export default function ReviewTagihanIndex() {
                         </label>
                     ) : null
                 }
+            />
+            <InvoiceDetailDialog
+                open={invoiceDetailOpen}
+                onOpenChange={setInvoiceDetailOpen}
+                invoiceNo={selectedInvoiceNo}
             />
         </>
     );
