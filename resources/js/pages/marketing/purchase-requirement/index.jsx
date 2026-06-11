@@ -1,4 +1,5 @@
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
+import OverdueInvoiceWarningDialog from '@/components/OverdueInvoiceWarningDialog';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -157,7 +158,7 @@ export default function PurchaseRequirementIndex({
     const [purchaseRequirementsList, setPurchaseRequirementsList] = useState([]);
     
     const [statusFilter, setStatusFilter] = useState('outstanding');
-    const [tableDateFilter, setTableDateFilter] = useState('today');
+    const [tableDateFilter, setTableDateFilter] = useState('all');
     const [tableStartDate, setTableStartDate] = useState('');
     const [tableEndDate, setTableEndDate] = useState('');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
@@ -220,6 +221,47 @@ export default function PurchaseRequirementIndex({
     
     const [isDeleting, setIsDeleting] = useState(false);
     const [overdueCustomers, setOverdueCustomers] = useState(new Set());
+    const [overdueDialogOpen, setOverdueDialogOpen] = useState(false);
+    const [overdueDialogData, setOverdueDialogData] = useState(null);
+    const [overdueDialogLoading, setOverdueDialogLoading] = useState(false);
+
+    const handleOpenOverdueDialog = useCallback(async (customer) => {
+        const normalizedCustomer = String(customer ?? '').trim();
+        if (!normalizedCustomer) return;
+
+        setOverdueDialogOpen(true);
+        setOverdueDialogLoading(true);
+        setOverdueDialogData({
+            customer: normalizedCustomer,
+            total_overdue: 0,
+            oldest_overdue_days: 0,
+            invoices: [],
+        });
+
+        try {
+            const params = new URLSearchParams({ customer: normalizedCustomer });
+            const response = await fetch(
+                `/marketing/purchase-requirement/overdue-invoices?${params.toString()}`,
+                { headers: { Accept: 'application/json' } },
+            );
+
+            if (!response.ok) {
+                throw new Error('Failed to load overdue invoices.');
+            }
+
+            setOverdueDialogData(await response.json());
+        } catch (error) {
+            console.error('Error fetching overdue invoices:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal memuat tunggakan',
+                text: 'Data tunggakan tagihan customer tidak dapat dimuat.',
+            });
+            setOverdueDialogOpen(false);
+        } finally {
+            setOverdueDialogLoading(false);
+        }
+    }, []);
 
     const renderCustomerWithOverdueMarker = (customer) => {
         const value = renderValue(customer);
@@ -229,9 +271,15 @@ export default function PurchaseRequirementIndex({
             <div className="flex flex-wrap items-center gap-2">
                 <span>{value}</span>
                 {hasOverdue && (
-                    <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                    <button
+                        type="button"
+                        className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 transition hover:border-red-300 hover:bg-red-100"
+                        onClick={() => handleOpenOverdueDialog(customer)}
+                        disabled={overdueDialogLoading}
+                        title="Lihat tunggakan tagihan"
+                    >
                         Overdue
-                    </span>
+                    </button>
                 )}
             </div>
         );
@@ -301,7 +349,7 @@ export default function PurchaseRequirementIndex({
             }
 
             // JIKA BUKAN TEREALISASI, AMBIL DARI ENDPOINT TABEL BIASA
-            let url = `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=table`;
+            let url = `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=table&status=${currentStatus}`;
             if (newPeriod === 'range' && startDate && endDate) {
                 url += `&start_date=${startDate}&end_date=${endDate}`;
             }
@@ -359,25 +407,12 @@ export default function PurchaseRequirementIndex({
         }
     }, [period, fetchSummaryData]);
 
-    const isSummaryInitialMount = useRef(true);
-    useEffect(() => {
-        if (isSummaryInitialMount.current) {
-            isSummaryInitialMount.current = false;
-            if (!purchaseRequirements || purchaseRequirements.length === 0) {
-                setSummaryLoading(true);
-                fetchSummaryData(period ?? 'today');
-            }
-        } else {
-            fetchSummaryData(period ?? 'today');
-        }
-    }, [period, fetchSummaryData]);
-
     // Effect 2: Mengurus Data Tabel (Akan Fetch saat Tanggal ATAU Status diubah)
     const isTableMounted = useRef(false);
     useEffect(() => {
         if (!isTableMounted.current) {
             isTableMounted.current = true;
-            if (purchaseRequirements?.length > 0 && tableDateFilter === 'today' && statusFilter === 'outstanding') {
+            if (purchaseRequirements?.length > 0 && tableDateFilter === 'all' && statusFilter === 'outstanding') {
                 return;
             }
         }
@@ -1706,6 +1741,18 @@ export default function PurchaseRequirementIndex({
                         )}
                     </DialogContent>
                 </Dialog>
+                <OverdueInvoiceWarningDialog
+                    open={overdueDialogOpen}
+                    onOpenChange={setOverdueDialogOpen}
+                    data={overdueDialogData}
+                    showActions={false}
+                    title="Tunggakan Tagihan Customer"
+                    description={
+                        overdueDialogLoading
+                            ? 'Memuat data tunggakan tagihan customer...'
+                            : 'Daftar tagihan customer yang sudah melewati jatuh tempo.'
+                    }
+                />
             </div>
         </>
     );

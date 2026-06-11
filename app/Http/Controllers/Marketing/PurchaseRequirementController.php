@@ -82,6 +82,7 @@ class PurchaseRequirementController
     {
         $period = $request->query('period', 'today');
         $fetchType = $request->query('fetch_type');
+        $status = $request->query('status', 'all');
 
         $response = [];
 
@@ -96,7 +97,7 @@ class PurchaseRequirementController
         }
 
         if ($fetchType === 'table' || !$fetchType) {
-            $response['purchaseRequirements'] = $this->getPurchaseRequirementList($period);
+            $response['purchaseRequirements'] = $this->getPurchaseRequirementList($period, $status);
         }
 
         return response()->json($response);
@@ -245,10 +246,14 @@ class PurchaseRequirementController
         });
     }
 
-    private function getPurchaseRequirementList($period)
+    private function getPurchaseRequirementList($period, $status = 'all')
     {
+        if (!in_array($status, ['all', 'outstanding', 'sisa_po', 'realized'], true)) {
+            $status = 'all';
+        }
+
         // [PERBAIKAN] Buat cache key yang dinamis
-        $cacheKey = 'pr_list_' . $period;
+        $cacheKey = 'pr_list_' . $period . '_' . $status;
         $now = \Carbon\Carbon::now();
         
         if ($period === 'today') {
@@ -262,13 +267,31 @@ class PurchaseRequirementController
         }
 
         // [CACHE] Simpan seluruh list PR
-        return Cache::tags(['pr_data'])->remember($cacheKey, 86400, function () use ($period) {
-            $common = $this->getCommonQueries($period);
-            $detailAgg = $common['detailAgg'];
-            $poAgg = $common['poAgg'];
-            $periodFilterRaw = $common['periodFilterRaw'];
+        return Cache::tags(['pr_data'])->remember($cacheKey, 86400, function () use ($period, $status) {
+            $detailAgg = DB::table('tb_detailpr')
+                ->select(
+                    'no_pr',
+                    DB::raw('count(*) as total_items'),
+                    DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) >= coalesce(cast(qty as decimal(18,4)), 0) and coalesce(cast(qty as decimal(18,4)), 0) > 0 then 1 else 0 end) as untouched_items'),
+                    DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), 0) <= 0 then 1 else 0 end) as realized_items')
+                )
+                ->groupBy('no_pr');
 
-            $purchaseRequirements = DB::table('tb_pr as pr')
+            $needsPoDate = in_array($status, ['all', 'realized'], true);
+            $periodFilterRaw = '1=1';
+
+            if ($needsPoDate) {
+                $common = $this->getCommonQueries($period);
+                $poAgg = $common['poAgg'];
+                $periodFilterRaw = $common['periodFilterRaw'];
+            } else {
+                $poAgg = DB::table('tb_po')
+                    ->select('ref_pr')
+                    ->whereNotNull('ref_pr')
+                    ->groupBy('ref_pr');
+            }
+
+            $query = DB::table('tb_pr as pr')
                 ->leftJoinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
                 ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
                 ->select(
@@ -282,7 +305,25 @@ class PurchaseRequirementController
                     DB::raw("case when detail.no_pr is not null and detail.total_items > 0 and detail.realized_items = detail.total_items and {$periodFilterRaw} then 1 else 0 end as realized_count"),
                     DB::raw('case when detail.no_pr is not null and detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then 1 else 0 end as sisa_po_count'),
                     DB::raw('case when po.ref_pr is null then 1 else 0 end as can_delete')
-                )
+                );
+
+            if ($status === 'outstanding') {
+                $query->where('detail.total_items', '>', 0)
+                    ->whereColumn('detail.untouched_items', '=', 'detail.total_items');
+            } elseif ($status === 'sisa_po') {
+                $query->where('detail.total_items', '>', 0)
+                    ->whereColumn('detail.untouched_items', '<', 'detail.total_items')
+                    ->whereColumn('detail.realized_items', '<', 'detail.total_items');
+            } elseif ($status === 'realized') {
+                $query->where('detail.total_items', '>', 0)
+                    ->whereColumn('detail.realized_items', '=', 'detail.total_items');
+
+                if ($periodFilterRaw !== '1=1') {
+                    $query->whereRaw(str_replace('latest_po_date', 'po.latest_po_date', $periodFilterRaw));
+                }
+            }
+
+            $purchaseRequirements = $query
                 ->orderBy('pr.date', 'desc')
                 ->orderBy('pr.no_pr', 'desc')
                 ->get();

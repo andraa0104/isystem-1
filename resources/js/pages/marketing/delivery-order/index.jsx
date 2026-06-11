@@ -1,4 +1,5 @@
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
+import OverdueInvoiceWarningDialog from '@/components/OverdueInvoiceWarningDialog';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -82,6 +83,47 @@ export default function DeliveryOrderIndex({
     const [detailPageSize, setDetailPageSize] = useState(5);
     const [detailCurrentPage, setDetailCurrentPage] = useState(1);
     const [overdueCustomers, setOverdueCustomers] = useState(new Set());
+    const [overdueDialogOpen, setOverdueDialogOpen] = useState(false);
+    const [overdueDialogData, setOverdueDialogData] = useState(null);
+    const [overdueDialogLoading, setOverdueDialogLoading] = useState(false);
+
+    const handleOpenOverdueDialog = useCallback(async (customer) => {
+        const normalizedCustomer = String(customer ?? '').trim();
+        if (!normalizedCustomer) return;
+
+        setOverdueDialogOpen(true);
+        setOverdueDialogLoading(true);
+        setOverdueDialogData({
+            customer: normalizedCustomer,
+            total_overdue: 0,
+            oldest_overdue_days: 0,
+            invoices: [],
+        });
+
+        try {
+            const params = new URLSearchParams({ customer: normalizedCustomer });
+            const response = await fetch(
+                `/marketing/purchase-requirement/overdue-invoices?${params.toString()}`,
+                { headers: { Accept: 'application/json' } },
+            );
+
+            if (!response.ok) {
+                throw new Error('Failed to load overdue invoices.');
+            }
+
+            setOverdueDialogData(await response.json());
+        } catch (error) {
+            console.error('Error fetching overdue invoices:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal memuat tunggakan',
+                text: 'Data tunggakan tagihan customer tidak dapat dimuat.',
+            });
+            setOverdueDialogOpen(false);
+        } finally {
+            setOverdueDialogLoading(false);
+        }
+    }, []);
 
     const renderCustomerWithOverdueMarker = (customer) => {
         const value = renderValue(customer);
@@ -91,9 +133,15 @@ export default function DeliveryOrderIndex({
             <div className="flex flex-wrap items-center gap-2">
                 <span>{value}</span>
                 {hasOverdue && (
-                    <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700">
+                    <button
+                        type="button"
+                        className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 transition hover:border-red-300 hover:bg-red-100"
+                        onClick={() => handleOpenOverdueDialog(customer)}
+                        disabled={overdueDialogLoading}
+                        title="Lihat tunggakan tagihan"
+                    >
                         Overdue
-                    </span>
+                    </button>
                 )}
             </div>
         );
@@ -1712,6 +1760,18 @@ export default function DeliveryOrderIndex({
                             )}
                     </DialogContent>
                 </Dialog>
+                <OverdueInvoiceWarningDialog
+                    open={overdueDialogOpen}
+                    onOpenChange={setOverdueDialogOpen}
+                    data={overdueDialogData}
+                    showActions={false}
+                    title="Tunggakan Tagihan Customer"
+                    description={
+                        overdueDialogLoading
+                            ? 'Memuat data tunggakan tagihan customer...'
+                            : 'Daftar tagihan customer yang sudah melewati jatuh tempo.'
+                    }
+                />
             </div>
         </>
     );
