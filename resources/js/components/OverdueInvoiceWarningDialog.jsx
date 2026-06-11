@@ -37,6 +37,7 @@ export default function OverdueInvoiceWarningDialog({
     open,
     onOpenChange,
     data,
+    onInvoiceClick = null,
     onConfirm,
     isSubmitting = false,
     showActions = true,
@@ -181,8 +182,21 @@ export default function OverdueInvoiceWarningDialog({
                                         key={invoice.no_fakturpenjualan}
                                     >
                                         <TableCell>
-                                            {renderValue(
-                                                invoice.no_fakturpenjualan,
+                                            {onInvoiceClick &&
+                                            invoice.no_fakturpenjualan ? (
+                                                <button
+                                                    type="button"
+                                                    className="font-medium text-primary underline-offset-4 hover:underline"
+                                                    onClick={() =>
+                                                        onInvoiceClick(invoice)
+                                                    }
+                                                >
+                                                    {invoice.no_fakturpenjualan}
+                                                </button>
+                                            ) : (
+                                                renderValue(
+                                                    invoice.no_fakturpenjualan,
+                                                )
                                             )}
                                         </TableCell>
                                         <TableCell>

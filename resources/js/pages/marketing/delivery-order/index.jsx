@@ -1,4 +1,5 @@
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
+import InvoiceDetailDialog from '@/components/InvoiceDetailDialog';
 import OverdueInvoiceWarningDialog from '@/components/OverdueInvoiceWarningDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -86,6 +87,8 @@ export default function DeliveryOrderIndex({
     const [overdueDialogOpen, setOverdueDialogOpen] = useState(false);
     const [overdueDialogData, setOverdueDialogData] = useState(null);
     const [overdueDialogLoading, setOverdueDialogLoading] = useState(false);
+    const [selectedInvoiceNo, setSelectedInvoiceNo] = useState('');
+    const [invoiceDetailOpen, setInvoiceDetailOpen] = useState(false);
 
     const handleOpenOverdueDialog = useCallback(async (customer) => {
         const normalizedCustomer = String(customer ?? '').trim();
@@ -1764,13 +1767,22 @@ export default function DeliveryOrderIndex({
                     open={overdueDialogOpen}
                     onOpenChange={setOverdueDialogOpen}
                     data={overdueDialogData}
+                    onInvoiceClick={(invoice) => {
+                        setSelectedInvoiceNo(invoice.no_fakturpenjualan);
+                        setInvoiceDetailOpen(true);
+                    }}
                     showActions={false}
                     title="Tunggakan Tagihan Customer"
                     description={
                         overdueDialogLoading
                             ? 'Memuat data tunggakan tagihan customer...'
-                            : 'Daftar tagihan customer yang sudah melewati jatuh tempo.'
+                        : 'Daftar tagihan customer yang sudah melewati jatuh tempo.'
                     }
+                />
+                <InvoiceDetailDialog
+                    open={invoiceDetailOpen}
+                    onOpenChange={setInvoiceDetailOpen}
+                    invoiceNo={selectedInvoiceNo}
                 />
             </div>
         </>
