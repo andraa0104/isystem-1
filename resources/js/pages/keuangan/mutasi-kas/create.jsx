@@ -172,11 +172,14 @@ export default function MutasiKasCreate({
 
         if (label.includes('KAS TUNAI')) return 'CV';
         if (label.includes('KAS BANK GIRO')) return 'GV';
+        if (label.includes('KAS BANK 2')) return 'SC';
         if (label.includes('KAS BANK')) return 'BV';
 
         // fallback
         if (v === '1101AD' || v.startsWith('1101')) return 'CV';
         if (v === '1102AD' || v.startsWith('1102')) return 'GV';
+        if (v === '1103AD' || v.startsWith('1103')) return 'BV';
+        if (v === '1104AD' || v.startsWith('1104')) return 'SC';
         return 'BV';
     };
 
@@ -256,6 +259,25 @@ export default function MutasiKasCreate({
         if (hasPpn && ppnNumber > 0) return 2;
         return 3;
     }, [mode, hasPpn, ppnNumber]);
+
+    const normalizeVisibleLines = (rawLines) => {
+        const fallback = {
+            akun: '',
+            jenis: mode === 'in' ? 'Kredit' : 'Debit',
+            nominal: 0,
+        };
+        const source = Array.isArray(rawLines) ? rawLines : [];
+        const next = source
+            .slice(0, maxLines)
+            .filter((line) => {
+                const akun = String(line?.akun ?? '').trim();
+                const nominal = Number(line?.nominal ?? 0);
+                return !akun || nominal > 0;
+            });
+        return next.length > 0 ? next : [fallback];
+    };
+
+    const linesEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
     const getSlotLabel = (idx) => {
         if (mode === 'transfer') return 1;
@@ -546,7 +568,7 @@ export default function MutasiKasCreate({
     // Keep lines count under maxLines and keep DPP allocation consistent
     useEffect(() => {
         setLines((prev) => {
-            const next = Array.isArray(prev) ? prev.slice(0, maxLines) : [];
+            const next = normalizeVisibleLines(prev);
             if (next.length === 0) {
                 return [
                     {
@@ -569,9 +591,19 @@ export default function MutasiKasCreate({
                 ...next[next.length - 1],
                 nominal: lastNom,
             };
-            return next;
+            return linesEqual(prev, next) ? prev : next;
         });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dppTarget, maxLines, mode]);
+
+    useEffect(() => {
+        if (mode === 'transfer') return;
+        setLines((prev) => {
+            const next = normalizeVisibleLines(prev);
+            return linesEqual(prev, next) ? prev : next;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lines, mode, maxLines]);
 
     // Disable PPN for transfer
     useEffect(() => {
@@ -638,6 +670,15 @@ export default function MutasiKasCreate({
                 has_ppn: mode === 'transfer' ? false : hasPpn,
                 ppn_akun: hasPpn && ppnNumber > 0 ? ppnAkun : null,
                 ppn_nominal: hasPpn && ppnNumber > 0 ? ppnNumber : 0,
+                payment_cost:
+                    mode === 'out' && selectedPayRow
+                        ? {
+                              kode_bayar: String(
+                                  selectedPayRow?.Kode_Bayar ?? '',
+                              ),
+                              no: selectedPayRow?.No ?? selectedPayRow?.no,
+                          }
+                        : null,
                 lines:
                     mode === 'transfer'
                         ? [
@@ -654,7 +695,8 @@ export default function MutasiKasCreate({
                                       (mode === 'in' ? 'Kredit' : 'Debit'),
                               ),
                               nominal: Number(l?.nominal ?? 0),
-                          })),
+                          }))
+                              .filter((l) => Number(l.nominal ?? 0) > 0),
             },
             {
                 preserveScroll: true,

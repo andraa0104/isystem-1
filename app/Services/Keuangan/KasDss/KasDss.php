@@ -20,10 +20,12 @@ class KasDss
         // Company rule:
         // - CV = Cash Voucher -> kas tunai
         // - GV = Giro Voucher -> kas bank giro
-        // - BV = Bank Voucher -> kas bank 1/2 (and others)
+        // - BV = Bank Voucher -> kas bank 1
+        // - SC = Second cash/bank table in the legacy VB6 flow -> kas bank 2
         if (str_starts_with($a, '1101')) return 'CV';
         if (str_starts_with($a, '1102')) return 'GV';
-        if (str_starts_with($a, '1103') || str_starts_with($a, '1104')) return 'BV';
+        if (str_starts_with($a, '1103')) return 'BV';
+        if (str_starts_with($a, '1104')) return 'SC';
         return 'BV';
     }
 
@@ -778,7 +780,7 @@ class KasDss
                     $cashTopL = trim((string) ($j['kode_akun'] ?? ''));
                     if ($cashTopL !== '') $cashTop = $cashTopL;
                     $vtL = trim((string) ($j['voucher_type'] ?? ''));
-                    if (in_array($vtL, ['CV', 'GV', 'BV'], true)) $voucherType = $vtL;
+                    if (in_array($vtL, ['CV', 'GV', 'BV', 'SC'], true)) $voucherType = $vtL;
                     $linesL = $j['lines'] ?? null;
                     if (is_array($linesL) && count($linesL)) {
                         $lines = [];

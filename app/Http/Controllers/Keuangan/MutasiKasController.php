@@ -594,8 +594,10 @@ class MutasiKasController
             if (count($tokenWeights) === 0) $rowScore = 0.5;
 
             if ($kv !== '') {
+                if (str_contains($kv, '/CV/')) $typeCounts['CV'] = ($typeCounts['CV'] ?? 0) + $rowScore;
                 if (str_contains($kv, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + $rowScore;
                 if (str_contains($kv, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + $rowScore;
+                if (str_contains($kv, '/SC/')) $typeCounts['SC'] = ($typeCounts['SC'] ?? 0) + $rowScore;
             }
 
             if ($ket !== '' && $rowScore > $bestKetScore) {
@@ -869,7 +871,30 @@ class MutasiKasController
         $last = (string) (DB::table('tb_kas')
             ->where('Kode_Voucher', 'like', $prefix . '%')
             ->orderByDesc('Kode_Voucher')
+            ->lockForUpdate()
             ->value('Kode_Voucher') ?? '');
+
+        $seq = 0;
+        if ($last !== '' && str_starts_with($last, $prefix)) {
+            $tail = substr($last, strlen($prefix));
+            if (preg_match('/^\\d{8}$/', $tail)) $seq = (int) $tail;
+        }
+        $seq++;
+        return $prefix . str_pad((string) $seq, 8, '0', STR_PAD_LEFT);
+    }
+
+    private function nextKodeJurnal(string $dbCode): string
+    {
+        if (!Schema::hasTable('tb_jurnal') || !Schema::hasColumn('tb_jurnal', 'Kode_Jurnal')) {
+            return '';
+        }
+
+        $prefix = strtoupper(trim($dbCode)) . '/JU/';
+        $last = (string) (DB::table('tb_jurnal')
+            ->where('Kode_Jurnal', 'like', $prefix . '%')
+            ->orderByDesc('Kode_Jurnal')
+            ->lockForUpdate()
+            ->value('Kode_Jurnal') ?? '');
 
         $seq = 0;
         if ($last !== '' && str_starts_with($last, $prefix)) {
@@ -888,6 +913,7 @@ class MutasiKasController
         $last = (string) (DB::table('tb_kas')
             ->where('Kode_Voucher', 'like', $prefix . '%')
             ->orderByDesc('Kode_Voucher')
+            ->lockForUpdate()
             ->value('Kode_Voucher') ?? '');
 
         $seq = 0;
@@ -913,6 +939,104 @@ class MutasiKasController
         return (float) ($row->Saldo ?? 0);
     }
 
+    private function journalAvailable(): bool
+    {
+        if (!Schema::hasTable('tb_jurnal') || !Schema::hasTable('tb_jurnaldetail')) return false;
+        foreach (['Kode_Jurnal', 'Tgl_Jurnal'] as $c) {
+            if (!Schema::hasColumn('tb_jurnal', $c)) return false;
+        }
+        foreach (['Kode_Jurnal', 'Kode_Akun', 'Debit', 'Kredit'] as $c) {
+            if (!Schema::hasColumn('tb_jurnaldetail', $c)) return false;
+        }
+        return true;
+    }
+
+    private function insertJurnalHeader(string $kodeJurnal, string $kodeVoucher, string $tglVoucher, string $keterangan): void
+    {
+        if ($kodeJurnal === '' || !Schema::hasTable('tb_jurnal')) return;
+
+        $cols = Schema::getColumnListing('tb_jurnal');
+        $row = ['Kode_Jurnal' => $kodeJurnal, 'Tgl_Jurnal' => $tglVoucher];
+        if (in_array('Kode_Voucher', $cols, true)) $row['Kode_Voucher'] = $kodeVoucher;
+        if (in_array('Tgl_Buat', $cols, true)) $row['Tgl_Buat'] = Carbon::now()->toDateString();
+        if (in_array('Remark', $cols, true)) $row['Remark'] = $keterangan;
+
+        DB::table('tb_jurnal')->updateOrInsert(['Kode_Jurnal' => $kodeJurnal], $row);
+    }
+
+    /**
+     * @param array<int,array{akun:string,debit:float,kredit:float,saldo:float}> $details
+     */
+    private function insertJurnalDetailsAndUpdateNabb(string $kodeJurnal, array $details): void
+    {
+        if ($kodeJurnal === '' || !Schema::hasTable('tb_jurnaldetail')) return;
+
+        foreach ($details as $d) {
+            $akun = trim((string) ($d['akun'] ?? ''));
+            if ($akun === '') continue;
+            $debit = round(max(0.0, (float) ($d['debit'] ?? 0)), 2);
+            $kredit = round(max(0.0, (float) ($d['kredit'] ?? 0)), 2);
+
+            DB::table('tb_jurnaldetail')->updateOrInsert(
+                ['Kode_Jurnal' => $kodeJurnal, 'Kode_Akun' => $akun],
+                ['Debit' => $debit > 0 ? $debit : null, 'Kredit' => $kredit > 0 ? $kredit : null]
+            );
+
+            $this->updateNabbBalance($akun, $debit, $kredit, (float) ($d['saldo'] ?? 0));
+        }
+    }
+
+    private function updateNabbBalance(string $kodeAkun, float $debit, float $kredit, float $saldo): void
+    {
+        if (!Schema::hasTable('tb_nabb') || !Schema::hasColumn('tb_nabb', 'Kode_Akun')) return;
+
+        $cols = Schema::getColumnListing('tb_nabb');
+        $row = [];
+        if (in_array('BB_Debit', $cols, true)) {
+            $row['BB_Debit'] = DB::raw('COALESCE(BB_Debit,0) + ' . round($debit, 2));
+        }
+        if (in_array('BB_Kredit', $cols, true)) {
+            $row['BB_Kredit'] = DB::raw('COALESCE(BB_Kredit,0) + ' . round($kredit, 2));
+        }
+        if (in_array('Saldo', $cols, true)) {
+            $row['Saldo'] = round($saldo, 2);
+        }
+        if (count($row) === 0) return;
+
+        DB::table('tb_nabb')->where('Kode_Akun', $kodeAkun)->update($row);
+    }
+
+    private function saldoAfterJournalLine(string $kodeAkun, string $jenis, float $nominal): float
+    {
+        $saldo = 0.0;
+        if (Schema::hasTable('tb_nabb') && Schema::hasColumn('tb_nabb', 'Kode_Akun') && Schema::hasColumn('tb_nabb', 'Saldo')) {
+            $saldo = (float) (DB::table('tb_nabb')->where('Kode_Akun', $kodeAkun)->value('Saldo') ?? 0);
+        }
+
+        $isDebit = $this->normalizeJenis($jenis, 'Debit') === 'Debit';
+        $isAsset = strtoupper(substr($kodeAkun, 4, 2)) === 'AK';
+        if ($isDebit) return $saldo + ($isAsset ? -abs($nominal) : abs($nominal));
+        return $saldo + ($isAsset ? abs($nominal) : -abs($nominal));
+    }
+
+    private function markPaymentCostBooked(Request $request): void
+    {
+        $kodeBayar = trim((string) $request->input('payment_cost.kode_bayar', ''));
+        $no = $request->input('payment_cost.no');
+        if ($kodeBayar === '' || $no === null || !Schema::hasTable('tb_bayar')) return;
+
+        $cols = Schema::getColumnListing('tb_bayar');
+        $updates = [];
+        if (in_array('beban_akun', $cols, true)) $updates['beban_akun'] = ' ';
+        if (in_array('Status', $cols, true)) $updates['Status'] = 'Y';
+        if (count($updates) === 0) return;
+
+        DB::table('tb_bayar')
+            ->where('Kode_Bayar', $kodeBayar)
+            ->where('No', $no)
+            ->update($updates);
+    }
+
     public function store(Request $request)
     {
         $payload = $request->validate([
@@ -927,6 +1051,9 @@ class MutasiKasController
             'has_ppn' => ['nullable', 'boolean'],
             'ppn_akun' => ['nullable', 'string'],
             'ppn_nominal' => ['nullable', 'numeric', 'min:0'],
+            'payment_cost' => ['nullable', 'array'],
+            'payment_cost.kode_bayar' => ['nullable', 'string'],
+            'payment_cost.no' => ['nullable'],
             'lines' => ['nullable', 'array', 'max:3'],
             'lines.*.akun' => ['required_with:lines', 'string'],
             'lines.*.jenis' => ['nullable', 'string'],
@@ -1082,6 +1209,15 @@ class MutasiKasController
                     DB::table('tb_kas')->insert($rowOut);
                     DB::table('tb_kas')->insert($rowIn);
 
+                    if ($this->journalAvailable()) {
+                        $kodeJurnal = $this->nextKodeJurnal($dbCode);
+                        $this->insertJurnalHeader($kodeJurnal, $voucherOut, $tglVoucher, $ketOut);
+                        $this->insertJurnalDetailsAndUpdateNabb($kodeJurnal, [
+                            ['akun' => $source, 'debit' => 0, 'kredit' => abs($nominal), 'saldo' => $rowOut['Saldo']],
+                            ['akun' => $dest, 'debit' => abs($nominal), 'kredit' => 0, 'saldo' => $rowIn['Saldo']],
+                        ]);
+                    }
+
                     return redirect()
                         ->route('keuangan.mutasi-kas.index', [
                             'account' => $source,
@@ -1110,8 +1246,17 @@ class MutasiKasController
                     'Keterangan' => $keterangan,
                     'Mutasi_Kas' => $mutasi,
                     'Saldo' => $saldo,
+                    'Kode_Akun1' => null,
+                    'Nominal1' => null,
+                    'Kode_Akun2' => null,
+                    'Nominal2' => null,
+                    'Kode_Akun3' => null,
+                    'Nominal3' => null,
                 ];
                 if (in_array('Tgl_Buat', $kasCols, true)) $row['Tgl_Buat'] = Carbon::now()->toDateString();
+                if (in_array('Jenis_Beban1', $kasCols, true)) $row['Jenis_Beban1'] = null;
+                if (in_array('Jenis_Beban2', $kasCols, true)) $row['Jenis_Beban2'] = null;
+                if (in_array('Jenis_Beban3', $kasCols, true)) $row['Jenis_Beban3'] = null;
 
                 $lines = is_array($request->input('lines')) ? $request->input('lines') : [];
                 $lines = array_values($lines);
@@ -1124,8 +1269,9 @@ class MutasiKasController
                     $jenisDefault = $mode === 'in' ? 'Kredit' : 'Debit';
                     $jenis = $this->normalizeJenis((string) ($line['jenis'] ?? ''), $jenisDefault);
                     $nom = (float) ($line['nominal'] ?? 0);
-                    if ($akun === '') return redirect()->back()->with('error', 'Akun lawan wajib diisi.');
                     if ($nom < 0) return redirect()->back()->with('error', 'Nominal tidak boleh negatif.');
+                    if ($nom <= 0) continue;
+                    if ($akun === '') return redirect()->back()->with('error', 'Akun lawan wajib diisi.');
                     $sum += $nom;
                     $clean[] = ['akun' => $akun, 'jenis' => $jenis, 'nominal' => $nom];
                 }
@@ -1133,7 +1279,7 @@ class MutasiKasController
                 if (count($clean) === 0) return redirect()->back()->with('error', 'Minimal 1 baris akun lawan (DPP) wajib diisi.');
 
                 $sum = round($sum, 2);
-                if (count($lines) > 0 && round($dppTarget, 2) !== $sum) {
+                if (round($dppTarget, 2) !== $sum) {
                     return redirect()->back()->with('error', 'Total DPP harus sama dengan target DPP: ' . $dppTarget);
                 }
                 if ($hasPpn && $ppnNominal > 0 && count($clean) > 2) {
@@ -1156,6 +1302,51 @@ class MutasiKasController
                 }
 
                 DB::table('tb_kas')->insert($row);
+
+                if ($this->journalAvailable()) {
+                    $kodeJurnal = $this->nextKodeJurnal($dbCode);
+                    $this->insertJurnalHeader($kodeJurnal, $kodeVoucher, $tglVoucher, $keterangan);
+
+                    $details = [[
+                        'akun' => $kodeAkun,
+                        'debit' => $mode === 'in' ? abs($nominal) : 0,
+                        'kredit' => $mode === 'out' ? abs($nominal) : 0,
+                        'saldo' => $saldo,
+                    ]];
+
+                    foreach ($clean as $line) {
+                        $jenis = $this->normalizeJenis((string) $line['jenis'], $mode === 'in' ? 'Kredit' : 'Debit');
+                        $nom = abs((float) $line['nominal']);
+                        $details[] = [
+                            'akun' => (string) $line['akun'],
+                            'debit' => $jenis === 'Debit' ? $nom : 0,
+                            'kredit' => $jenis === 'Kredit' ? $nom : 0,
+                            'saldo' => $this->saldoAfterJournalLine((string) $line['akun'], $jenis, $nom),
+                        ];
+                    }
+
+                    if ($hasPpn && $ppnNominal > 0 && $ppnAkun !== '') {
+                        $ppnJenis = $mode === 'in' ? 'Kredit' : 'Debit';
+                        $details[] = [
+                            'akun' => $ppnAkun,
+                            'debit' => $ppnJenis === 'Debit' ? abs($ppnNominal) : 0,
+                            'kredit' => $ppnJenis === 'Kredit' ? abs($ppnNominal) : 0,
+                            'saldo' => $this->saldoAfterJournalLine($ppnAkun, $ppnJenis, abs($ppnNominal)),
+                        ];
+                    }
+
+                    $debitTotal = round(array_sum(array_map(fn ($d) => (float) $d['debit'], $details)), 2);
+                    $kreditTotal = round(array_sum(array_map(fn ($d) => (float) $d['kredit'], $details)), 2);
+                    if ($debitTotal !== $kreditTotal) {
+                        return redirect()->back()->with('error', 'Jurnal tidak balance. Debit: ' . $debitTotal . ', Kredit: ' . $kreditTotal);
+                    }
+
+                    $this->insertJurnalDetailsAndUpdateNabb($kodeJurnal, $details);
+                }
+
+                if ($mode === 'out') {
+                    $this->markPaymentCostBooked($request);
+                }
 
                 return redirect()
                     ->route('keuangan.mutasi-kas.index', [
