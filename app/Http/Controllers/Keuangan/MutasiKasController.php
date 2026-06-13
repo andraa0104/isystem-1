@@ -123,11 +123,34 @@ class MutasiKasController
         return $db !== '' ? $db : 'SJA';
     }
 
+    /**
+     * Menentukan tipe voucher berdasarkan urutan akun kas sesuai logika VB6 (BuatKodeVoucher)
+     */
+    private function getVoucherTypeByAccountIndex(string $kodeAkun): string
+    {
+        $opts = $this->getAccountOptions();
+        $index = 0;
+        foreach ($opts as $i => $opt) {
+            if ($opt['value'] === $kodeAkun) {
+                $index = $i + 1; // ListIndex di VB6 berbasis 1
+                break;
+            }
+        }
+
+        return match ($index) {
+            1 => 'CV', // Kas Tunai
+            2 => 'GV', // Giro
+            3 => 'BV', // Kas Bank 1
+            4 => 'SC', // Kas Bank 2
+            default => (new KasDss())->voucherTypeForAkun($kodeAkun)
+        };
+    }
+
     private function getVoucherInfo(Request $request, string $kodeAkun): array
     {
         $dbCode = $this->getDatabaseCode($request);
         $kodeAkun = trim($kodeAkun);
-        $type = (new KasDss())->voucherTypeForAkun($kodeAkun);
+        $type = $this->getVoucherTypeByAccountIndex($kodeAkun);
 
         return [
             'type' => $type,
@@ -137,25 +160,38 @@ class MutasiKasController
 
     private function guessVoucherType(string $kodeAkun): string
     {
-        return (new KasDss())->voucherTypeForAkun($kodeAkun);
+        return $this->getVoucherTypeByAccountIndex($kodeAkun);
     }
 
-    private function getAccountOptions(): array
+    public function getAccountOptions(): array
     {
         if (!Schema::hasTable('tb_kas') || !Schema::hasColumn('tb_kas', 'Kode_Akun')) return [];
 
         $nabbName = $this->nabbNameAvailable();
         try {
-            $codes = DB::table('tb_kas as k')
-                ->selectRaw('DISTINCT TRIM(k.Kode_Akun) as Kode_Akun')
-                ->whereNotNull('k.Kode_Akun')
-                ->whereRaw("TRIM(COALESCE(k.Kode_Akun,'')) <> ''")
+            // Sesuai sub Awal() di VB6: Mengambil dari tb_nabb order by kode_akun limit 1, 4 (lewati record pertama)
+            $codes = DB::table('tb_nabb')
                 ->orderBy('Kode_Akun', 'asc')
+                ->skip(1)
+                ->take(4)
                 ->pluck('Kode_Akun')
                 ->map(fn ($c) => (string) $c)
                 ->filter()
                 ->values()
                 ->all();
+
+            if (count($codes) === 0) {
+                $codes = DB::table('tb_kas as k')
+                    ->selectRaw('DISTINCT TRIM(k.Kode_Akun) as Kode_Akun')
+                    ->whereNotNull('k.Kode_Akun')
+                    ->whereRaw("TRIM(COALESCE(k.Kode_Akun,'')) <> ''")
+                    ->orderBy('Kode_Akun', 'asc')
+                    ->pluck('Kode_Akun')
+                    ->map(fn ($c) => (string) $c)
+                    ->filter()
+                    ->values()
+                    ->all();
+            }
 
             if (!$nabbName || count($codes) === 0) {
                 return array_map(fn ($c) => ['value' => $c, 'label' => $c], $codes);
@@ -179,12 +215,7 @@ class MutasiKasController
 
     private function getDefaultAccount(): ?string
     {
-        $preferred = ['1101AD', '1102AD', '1103AD', '1104AD'];
         $opts = $this->getAccountOptions();
-        $values = collect($opts)->pluck('value')->map(fn ($v) => (string) $v)->all();
-        foreach ($preferred as $code) {
-            if (in_array($code, $values, true)) return $code;
-        }
         return $opts[0]['value'] ?? null;
     }
 
@@ -392,9 +423,6 @@ class MutasiKasController
 
             $q = DB::table('tb_bayar');
 
-            // Requirement: show only Payment Cost rows that are not yet booked to cash/bank.
-            // In this DB, `beban_akun` is NOT NULL and when "already booked" it is stored as a single space.
-            // So pending rows are: TRIM(beban_akun) <> ''.
             if (Schema::hasColumn('tb_bayar', 'beban_akun')) {
                 $q->whereRaw("TRIM(COALESCE(beban_akun,'')) <> ''");
             }
@@ -439,11 +467,6 @@ class MutasiKasController
 
     /**
      * Tokenize with weights (simple "ML-lite" feature extraction).
-     *
-     * - Tokens inside parentheses (...) get higher weight.
-     * - Adds light synonym expansion for common finance words.
-     *
-     * @return array<string,float> token => weight
      */
     private function tokenizeWeighted(string $text): array
     {
@@ -452,7 +475,6 @@ class MutasiKasController
 
         $rawLower = strtolower($raw);
 
-        // Parentheses terms are strong signals (e.g., BPJS, JHT, Kesehatan).
         $strongText = '';
         if (preg_match_all('/\\(([^\\)]{1,120})\\)/', $rawLower, $m)) {
             $strongText = implode(' ', $m[1] ?? []);
@@ -480,7 +502,6 @@ class MutasiKasController
             $tokens[$t] = max($tokens[$t] ?? 0, $w);
         }
 
-        // Light synonym expansion (keep small, deterministic).
         $expand = function (string $token): array {
             return match ($token) {
                 'bpjs' => ['bpjs', 'asuransi'],
@@ -505,9 +526,6 @@ class MutasiKasController
         return array_slice($expanded, 0, 12, true);
     }
 
-    /**
-     * @return string[] basic tokens (used for transfer pair heuristic)
-     */
     private function tokenize(string $text): array
     {
         $raw = strtolower(trim((string) $text));
@@ -521,262 +539,6 @@ class MutasiKasController
             $out[] = $p;
         }
         return array_values(array_unique(array_slice($out, 0, 12)));
-    }
-
-    private function suggestFromKasHistory(
-        string $mode,
-        string $kodeAkun,
-        string $keterangan,
-        bool $hasPpn,
-        float $ppnNominal,
-        ?string $seedAkun = null
-    ): array
-    {
-        $mode = in_array($mode, ['in', 'out', 'transfer'], true) ? $mode : 'out';
-        $kodeAkun = trim($kodeAkun);
-        $tokenWeights = $this->tokenizeWeighted($keterangan);
-        $tokens = array_keys($tokenWeights);
-
-        $q = DB::table('tb_kas as k');
-        if ($kodeAkun !== '' && $kodeAkun !== 'all') {
-            $q->whereRaw('TRIM(k.Kode_Akun) = ?', [$kodeAkun]);
-        }
-        if ($mode === 'in') $q->whereRaw('COALESCE(k.Mutasi_Kas,0) > 0');
-        if ($mode === 'out') $q->whereRaw('COALESCE(k.Mutasi_Kas,0) < 0');
-
-        if (count($tokens)) {
-            $q->where(function ($w) use ($tokens) {
-                foreach (array_slice($tokens, 0, 6) as $t) {
-                    $w->orWhereRaw('LOWER(k.Keterangan) like ?', ['%' . $t . '%']);
-                }
-            });
-        }
-
-        $cols = Schema::getColumnListing('tb_kas');
-        $select = [
-            'k.Kode_Voucher',
-            'k.Kode_Akun',
-            'k.Keterangan',
-            'k.Mutasi_Kas',
-            'k.Kode_Akun1', 'k.Nominal1', in_array('Jenis_Beban1', $cols, true) ? 'k.Jenis_Beban1' : DB::raw("'' as Jenis_Beban1"),
-            'k.Kode_Akun2', 'k.Nominal2', in_array('Jenis_Beban2', $cols, true) ? 'k.Jenis_Beban2' : DB::raw("'' as Jenis_Beban2"),
-            'k.Kode_Akun3', 'k.Nominal3', in_array('Jenis_Beban3', $cols, true) ? 'k.Jenis_Beban3' : DB::raw("'' as Jenis_Beban3"),
-        ];
-
-        $rows = $q->orderByDesc('k.Tgl_Voucher')
-            ->orderByDesc('k.Kode_Voucher')
-            ->limit(160)
-            ->get($select);
-
-        $nabbWeights = $this->getNaBBAccountWeights();
-
-        $typeCounts = [];
-        $ppnCounts = [];
-        $lawanCounts = [];
-        $jenisMap = [];
-        $bestKet = '';
-        $bestKetScore = -1.0;
-        $seedAkun = trim((string) $seedAkun);
-
-        foreach ($rows as $r) {
-            $kv = trim((string) ($r->Kode_Voucher ?? ''));
-            $ket = trim((string) ($r->Keterangan ?? ''));
-            $ketLower = strtolower($ket);
-
-            // Row match score based on weighted token hits.
-            $rowScore = 0.0;
-            foreach ($tokenWeights as $t => $w) {
-                if ($t !== '' && $ketLower !== '' && str_contains($ketLower, $t)) {
-                    $rowScore += (float) $w;
-                }
-            }
-            // If no query tokens, still allow some learning with low score.
-            if (count($tokenWeights) === 0) $rowScore = 0.5;
-
-            if ($kv !== '') {
-                if (str_contains($kv, '/CV/')) $typeCounts['CV'] = ($typeCounts['CV'] ?? 0) + $rowScore;
-                if (str_contains($kv, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + $rowScore;
-                if (str_contains($kv, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + $rowScore;
-                if (str_contains($kv, '/SC/')) $typeCounts['SC'] = ($typeCounts['SC'] ?? 0) + $rowScore;
-            }
-
-            if ($ket !== '' && $rowScore > $bestKetScore) {
-                $bestKet = $ket;
-                $bestKetScore = $rowScore;
-            }
-
-            $nom2 = (float) ($r->Nominal2 ?? 0);
-            $a2 = trim((string) ($r->Kode_Akun2 ?? ''));
-            if ($nom2 > 0 && $a2 !== '') {
-                $ppnCounts[$a2] = ($ppnCounts[$a2] ?? 0) + $rowScore;
-            }
-
-            $slots = ($hasPpn && $ppnNominal > 0) ? [1, 3] : [1, 2, 3];
-            foreach ($slots as $slot) {
-                $akun = trim((string) ($r->{'Kode_Akun' . $slot} ?? ''));
-                $nom = (float) ($r->{'Nominal' . $slot} ?? 0);
-                $jenis = trim((string) ($r->{'Jenis_Beban' . $slot} ?? ''));
-                if ($akun === '' || $nom <= 0) continue;
-                $lawanCounts[$akun] = ($lawanCounts[$akun] ?? 0) + $rowScore;
-                if (!isset($jenisMap[$akun]) && $jenis !== '') {
-                    $jenisMap[$akun] = $this->normalizeJenis($jenis, $mode === 'in' ? 'Kredit' : 'Debit');
-                }
-            }
-        }
-
-        $voucherType = '';
-        if (count($typeCounts)) {
-            arsort($typeCounts);
-            $voucherType = (string) array_key_first($typeCounts);
-        }
-
-        $ppnAkun = '';
-        if ($hasPpn && $ppnNominal > 0 && count($ppnCounts)) {
-            $ranked = $this->rankAccountsWithNaBB($ppnCounts, $nabbWeights, 1);
-            $ppnAkun = (string) ($ranked[0] ?? '');
-        }
-
-        $maxLines = ($hasPpn && $ppnNominal > 0) ? 2 : 3;
-        $lines = [];
-        if (count($lawanCounts)) {
-            // Seed account from external source (e.g. tb_bayar.beban_akun) should be strongly preferred.
-            if ($seedAkun !== '') {
-                $lawanCounts[$seedAkun] = ($lawanCounts[$seedAkun] ?? 0) + 50;
-            }
-
-            $top = $this->rankAccountsWithNaBB($lawanCounts, $nabbWeights, $maxLines);
-            foreach ($top as $akun) {
-                $lines[] = [
-                    'akun' => $akun,
-                    'jenis' => (string) (($jenisMap[$akun] ?? '') ?: ($mode === 'in' ? 'Kredit' : 'Debit')),
-                    'nominal' => 0,
-                    'score' => (float) ($lawanCounts[$akun] ?? 0),
-                ];
-            }
-        } elseif ($seedAkun !== '') {
-            $lines[] = ['akun' => $seedAkun, 'jenis' => ($mode === 'in' ? 'Kredit' : 'Debit'), 'nominal' => 0, 'score' => 100.0];
-        }
-
-        return [
-            'voucher_type' => $voucherType,
-            'ppn_akun' => $ppnAkun,
-            'keterangan' => $bestKet,
-            'lines' => $lines,
-        ];
-    }
-
-    private function suggestCashAccount(string $mode, string $keterangan): string
-    {
-        $mode = in_array($mode, ['in', 'out'], true) ? $mode : 'out';
-        $tokenWeights = $this->tokenizeWeighted($keterangan);
-        $tokens = array_keys($tokenWeights);
-        if (count($tokens) === 0) return '';
-
-        try {
-            $q = DB::table('tb_kas as k')
-                ->whereNotNull('k.Kode_Akun')
-                ->whereRaw("TRIM(COALESCE(k.Kode_Akun,'')) <> ''");
-
-            if ($mode === 'in') $q->whereRaw('COALESCE(k.Mutasi_Kas,0) > 0');
-            if ($mode === 'out') $q->whereRaw('COALESCE(k.Mutasi_Kas,0) < 0');
-
-            $q->where(function ($w) use ($tokens) {
-                foreach (array_slice($tokens, 0, 6) as $t) {
-                    $w->orWhereRaw('LOWER(k.Keterangan) like ?', ['%' . $t . '%']);
-                }
-            });
-
-            $rows = $q->orderByDesc('k.Tgl_Voucher')
-                ->orderByDesc('k.Kode_Voucher')
-                ->limit(200)
-                ->pluck('k.Kode_Akun')
-                ->map(fn ($v) => trim((string) $v))
-                ->filter()
-                ->all();
-
-            if (count($rows) === 0) return '';
-
-            $counts = [];
-            foreach ($rows as $a) $counts[$a] = ($counts[$a] ?? 0) + 1;
-
-            $ranked = $this->rankAccountsWithNaBB($counts, $this->getNaBBAccountWeights(), 1);
-            return (string) ($ranked[0] ?? '');
-        } catch (\Throwable) {
-            return '';
-        }
-    }
-
-    private function suggestTransferPair(string $keterangan): array
-    {
-        if (!Schema::hasTable('tb_kas')) return ['source' => '', 'dest' => ''];
-        if (!Schema::hasColumn('tb_kas', 'Kode_Akun') || !Schema::hasColumn('tb_kas', 'Kode_Akun1')) {
-            return ['source' => '', 'dest' => ''];
-        }
-
-        $tokens = $this->tokenize($keterangan);
-        if (count($tokens) === 0) return ['source' => '', 'dest' => ''];
-
-        try {
-            $q = DB::table('tb_kas as k')
-                ->whereRaw('COALESCE(k.Mutasi_Kas,0) < 0') // source row
-                ->whereNotNull('k.Kode_Akun')
-                ->whereNotNull('k.Kode_Akun1')
-                ->whereRaw("TRIM(COALESCE(k.Kode_Akun,'')) <> ''")
-                ->whereRaw("TRIM(COALESCE(k.Kode_Akun1,'')) <> ''");
-
-            $q->where(function ($w) use ($tokens) {
-                foreach (array_slice($tokens, 0, 6) as $t) {
-                    $w->orWhereRaw('LOWER(k.Keterangan) like ?', ['%' . $t . '%']);
-                }
-            });
-
-            $rows = $q->orderByDesc('k.Tgl_Voucher')
-                ->orderByDesc('k.Kode_Voucher')
-                ->limit(220)
-                ->get(['k.Kode_Akun', 'k.Kode_Akun1']);
-
-            $pairCounts = [];
-            foreach ($rows as $r) {
-                $src = trim((string) ($r->Kode_Akun ?? ''));
-                $dst = trim((string) ($r->Kode_Akun1 ?? ''));
-                if ($src === '' || $dst === '' || $src === $dst) continue;
-                $key = $src . '|' . $dst;
-                $pairCounts[$key] = ($pairCounts[$key] ?? 0) + 1;
-            }
-            if (count($pairCounts) === 0) return ['source' => '', 'dest' => ''];
-
-            arsort($pairCounts);
-            $best = (string) array_key_first($pairCounts);
-            [$src, $dst] = array_pad(explode('|', $best, 2), 2, '');
-            return ['source' => $src, 'dest' => $dst];
-        } catch (\Throwable) {
-            return ['source' => '', 'dest' => ''];
-        }
-    }
-
-    private function suggestTransferKeterangan(string $source, string $dest): string
-    {
-        $source = trim($source);
-        $dest = trim($dest);
-        if ($source === '' || $dest === '') return '';
-
-        $srcLabel = $source;
-        $dstLabel = $dest;
-        if (Schema::hasTable('tb_nabb') && Schema::hasColumn('tb_nabb', 'Kode_Akun') && Schema::hasColumn('tb_nabb', 'Nama_Akun')) {
-            try {
-                $names = DB::table('tb_nabb')
-                    ->whereIn('Kode_Akun', [$source, $dest])
-                    ->pluck('Nama_Akun', 'Kode_Akun');
-                $srcName = trim((string) ($names[$source] ?? ''));
-                $dstName = trim((string) ($names[$dest] ?? ''));
-                if ($srcName !== '') $srcLabel = $srcName;
-                if ($dstName !== '') $dstLabel = $dstName;
-            } catch (\Throwable) {
-                // ignore and fallback to codes
-            }
-        }
-
-        return "PEMINDAHAN DANA DARI {$srcLabel} KE {$dstLabel}";
     }
 
     public function suggest(Request $request)
@@ -812,7 +574,6 @@ class MutasiKasController
                 $finalSource = (string) ($suggestSource ?: $source);
                 $finalDest = (string) ($suggestDest ?: $dest);
 
-                // If caller sent unrelated keterangan (e.g. from previous mode), replace with transfer redaction.
                 $keteranganOut = trim((string) $keterangan);
                 $looksTransfer = $keteranganOut !== '' && (
                     str_contains(strtolower($keteranganOut), 'transfer')
@@ -853,7 +614,7 @@ class MutasiKasController
 
             return response()->json([
                 'kode_akun' => (string) ($dssOut['kode_akun'] ?? ''),
-                'voucher_type' => (string) ($dssOut['voucher_type'] ?? $this->guessVoucherType($kodeAkun)),
+                'voucher_type' => (string) ($this->guessVoucherType($kodeAkun)),
                 'keterangan' => (string) ($dssOut['keterangan'] ?? ''),
                 'ppn_akun' => (string) ($dssOut['ppn_akun'] ?? ''),
                 'ppn_jenis' => (string) ($dssOut['ppn_jenis'] ?? $ppnJenis),
@@ -877,7 +638,7 @@ class MutasiKasController
         $seq = 0;
         if ($last !== '' && str_starts_with($last, $prefix)) {
             $tail = substr($last, strlen($prefix));
-            if (preg_match('/^\\d{8}$/', $tail)) $seq = (int) $tail;
+            if (preg_match('/^\\d+$/', $tail)) $seq = (int) $tail;
         }
         $seq++;
         return $prefix . str_pad((string) $seq, 8, '0', STR_PAD_LEFT);
@@ -889,7 +650,7 @@ class MutasiKasController
             return '';
         }
 
-        $prefix = strtoupper(trim($dbCode)) . '/JU/';
+        $prefix = strtoupper(trim($dbCode)) . '/JR/'; // Sesuai format BuatKodeJurnal di VB6
         $last = (string) (DB::table('tb_jurnal')
             ->where('Kode_Jurnal', 'like', $prefix . '%')
             ->orderByDesc('Kode_Jurnal')
@@ -899,7 +660,7 @@ class MutasiKasController
         $seq = 0;
         if ($last !== '' && str_starts_with($last, $prefix)) {
             $tail = substr($last, strlen($prefix));
-            if (preg_match('/^\\d{8}$/', $tail)) $seq = (int) $tail;
+            if (preg_match('/^\\d+$/', $tail)) $seq = (int) $tail;
         }
         $seq++;
         return $prefix . str_pad((string) $seq, 8, '0', STR_PAD_LEFT);
@@ -919,7 +680,7 @@ class MutasiKasController
         $seq = 0;
         if ($last !== '' && str_starts_with($last, $prefix)) {
             $tail = substr($last, strlen($prefix));
-            if (preg_match('/^\\d{8}$/', $tail)) $seq = (int) $tail;
+            if (preg_match('/^\\d+$/', $tail)) $seq = (int) $tail;
         }
 
         $out = $prefix . str_pad((string) ($seq + 1), 8, '0', STR_PAD_LEFT);
@@ -1082,7 +843,7 @@ class MutasiKasController
             $nominal = max(0.0, (float) ($payload['nominal'] ?? 0));
             if ($nominal <= 0) return redirect()->back()->with('error', 'Nominal harus > 0.');
 
-            $voucherType = ''; // Will be determined by getVoucherInfo based on account
+            $voucherType = '';
 
             $hasPpn = (bool) ($payload['has_ppn'] ?? false);
             $ppnNominal = $hasPpn ? max(0.0, (float) ($payload['ppn_nominal'] ?? 0)) : 0.0;

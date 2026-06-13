@@ -127,7 +127,7 @@ function AccountSearchDialog({
                                             }}
                                         >
                                             <div className="font-medium text-foreground">
-                                                {opt?.label ?? v}
+                                                ={opt?.label ?? v}
                                             </div>
                                             {opt?.label && opt?.label !== v ? (
                                                 <div className="text-xs text-muted-foreground">
@@ -172,10 +172,10 @@ export default function MutasiKasCreate({
 
         if (label.includes('KAS TUNAI')) return 'CV';
         if (label.includes('KAS BANK GIRO')) return 'GV';
-        if (label.includes('KAS BANK 2')) return 'SC';
+        if (label.includes('KAS BANK 2') || label.includes('SC')) return 'SC';
         if (label.includes('KAS BANK')) return 'BV';
 
-        // fallback
+        // fallback pencocokan awalan kode akun warisan VB6
         if (v === '1101AD' || v.startsWith('1101')) return 'CV';
         if (v === '1102AD' || v.startsWith('1102')) return 'GV';
         if (v === '1103AD' || v.startsWith('1103')) return 'BV';
@@ -338,8 +338,6 @@ export default function MutasiKasCreate({
             if (!isBayar) {
                 const acc = mode === 'transfer' ? sourceAkun : kodeAkun;
                 if (acc) params.set('account', acc);
-            } else {
-                // backend filters pending rows by `beban_akun` (NOT NULL; stored as single space when already booked)
             }
 
             const url = isBayar
@@ -356,7 +354,7 @@ export default function MutasiKasCreate({
             setHistError(readApiError(e));
             setHistRows([]);
             setHistTotal(0);
-        } finally {
+        } filll: {
             setHistLoading(false);
         }
     };
@@ -372,7 +370,7 @@ export default function MutasiKasCreate({
     }, [mode, kodeAkun, sourceAkun]);
 
     useEffect(() => {
-        if (mode !== 'out') return () => {};
+        if (mode !== 'out') return () => { };
         const t = window.setTimeout(() => fetchHistory(), 350);
         return () => window.clearTimeout(t);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -397,8 +395,7 @@ export default function MutasiKasCreate({
     } = {}) => {
         if (mode === 'transfer' && (!sourceAkun || !destAkun)) return;
         if ((mode === 'in' || mode === 'out') && !kodeAkun) return;
-        // Mode keluar: AI dan pengisian form berbasis Payment Cost (tb_bayar) yang dipilih.
-        // Jangan auto-isi saat halaman baru dibuka sebelum ada selection.
+
         const effectivePayRow =
             payRow ?? selectedPayRowRef.current ?? selectedPayRow;
         if (mode === 'out' && !effectivePayRow) return;
@@ -408,7 +405,6 @@ export default function MutasiKasCreate({
             !String(keterangan ?? '').trim() &&
             !(hasPpn && ppnNumber > 0)
         ) {
-            // Avoid pre-filling form on first open; only suggest after user provides a signal.
             return;
         }
 
@@ -428,7 +424,7 @@ export default function MutasiKasCreate({
                     : nominalNumber;
             if (effectiveNominal > 0)
                 params.set('nominal', String(effectiveNominal));
-            // For transfer, only send keterangan if user explicitly typed it (to avoid carrying unrelated text).
+
             const effectiveKeterangan =
                 typeof overrideKeterangan === 'string'
                     ? overrideKeterangan
@@ -438,7 +434,7 @@ export default function MutasiKasCreate({
                 !(mode === 'transfer' && !keteranganTouched)
             )
                 params.set('keterangan', effectiveKeterangan);
-            // For mode keluar with Payment Cost, give seed akun beban to AI so it can stay consistent.
+
             if (mode === 'out' && effectivePayRow?.beban_akun)
                 params.set('seedAkun', String(effectivePayRow.beban_akun));
             params.set('hasPpn', String(hasPpn && ppnNumber > 0));
@@ -480,8 +476,6 @@ export default function MutasiKasCreate({
                 ]);
             } else if (suggestedLines.length) {
                 setLines((prev) => {
-                    // Mode keluar + Payment Cost: always overwrite lines to keep balance,
-                    // but we do NOT override keterangan (source of truth = tb_bayar).
                     if (paymentSelected) {
                         return suggestedLines
                             .slice(0, maxLines)
@@ -494,7 +488,6 @@ export default function MutasiKasCreate({
                             }));
                     }
 
-                    // Other modes: only auto-fill if user hasn't manually set akun in first line yet
                     const prevTouched = (prev ?? []).some(
                         (l) => String(l?.akun ?? '').trim() !== '',
                     );
@@ -511,15 +504,14 @@ export default function MutasiKasCreate({
                 });
             }
         } catch {
-            // ignore suggest failure (non-blocking)
+            // ignore
         } finally {
             setSuggestLoading(false);
         }
     };
 
-    // Auto-suggest triggers
     useEffect(() => {
-        if (mode === 'out' && !selectedPay) return () => {};
+        if (mode === 'out' && !selectedPay) return () => { };
         const t = window.setTimeout(
             () => runSuggest({ reason: 'typing' }),
             500,
@@ -529,7 +521,7 @@ export default function MutasiKasCreate({
     }, [keterangan, mode]);
 
     useEffect(() => {
-        if (mode === 'out' && !selectedPay) return () => {};
+        if (mode === 'out' && !selectedPay) return () => { };
         const t = window.setTimeout(
             () => runSuggest({ reason: 'recalc' }),
             250,
@@ -546,14 +538,12 @@ export default function MutasiKasCreate({
         mode,
     ]);
 
-    // Keep default voucher type when account changes (if not touched)
     useEffect(() => {
         const acc = mode === 'transfer' ? sourceAkun : kodeAkun;
         setVoucherType(guessVoucherType(acc));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [kodeAkun, sourceAkun, mode]);
 
-    // Transfer: keep keterangan aligned with company redaction (unless user typed manual)
     useEffect(() => {
         if (mode !== 'transfer') return;
         if (keteranganTouched) return;
@@ -565,7 +555,6 @@ export default function MutasiKasCreate({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mode, sourceAkun, destAkun, keteranganTouched, accountOptions]);
 
-    // Keep lines count under maxLines and keep DPP allocation consistent
     useEffect(() => {
         setLines((prev) => {
             const next = normalizeVisibleLines(prev);
@@ -605,7 +594,6 @@ export default function MutasiKasCreate({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lines, mode, maxLines]);
 
-    // Disable PPN for transfer
     useEffect(() => {
         if (mode !== 'transfer') return;
         setHasPpn(false);
@@ -613,13 +601,11 @@ export default function MutasiKasCreate({
         setPpnAkun('');
         setPpnAkunTouched(false);
 
-        // Reset keterangan to allow transfer-specific suggestion (unless user already typed).
         if (!keteranganTouched) {
             setKeterangan('');
         }
     }, [mode]);
 
-    // Reset form fields when switching mode (avoid carrying unrelated previous values).
     useEffect(() => {
         setKeterangan('');
         setKeteranganTouched(false);
@@ -673,30 +659,30 @@ export default function MutasiKasCreate({
                 payment_cost:
                     mode === 'out' && selectedPayRow
                         ? {
-                              kode_bayar: String(
-                                  selectedPayRow?.Kode_Bayar ?? '',
-                              ),
-                              no: selectedPayRow?.No ?? selectedPayRow?.no,
-                          }
+                            kode_bayar: String(
+                                selectedPayRow?.Kode_Bayar ?? '',
+                            ),
+                            no: selectedPayRow?.No ?? selectedPayRow?.no,
+                        }
                         : null,
                 lines:
                     mode === 'transfer'
                         ? [
-                              {
-                                  akun: destAkun,
-                                  jenis: 'Debit',
-                                  nominal: nominalNumber,
-                              },
-                          ]
+                            {
+                                akun: destAkun,
+                                jenis: 'Debit',
+                                nominal: nominalNumber,
+                            },
+                        ]
                         : (lines ?? []).slice(0, maxLines).map((l) => ({
-                              akun: String(l?.akun ?? ''),
-                              jenis: String(
-                                  l?.jenis ??
-                                      (mode === 'in' ? 'Kredit' : 'Debit'),
-                              ),
-                              nominal: Number(l?.nominal ?? 0),
-                          }))
-                              .filter((l) => Number(l.nominal ?? 0) > 0),
+                            akun: String(l?.akun ?? ''),
+                            jenis: String(
+                                l?.jenis ??
+                                (mode === 'in' ? 'Kredit' : 'Debit'),
+                            ),
+                            nominal: Number(l?.nominal ?? 0),
+                        }))
+                            .filter((l) => Number(l.nominal ?? 0) > 0),
             },
             {
                 preserveScroll: true,
@@ -853,16 +839,14 @@ export default function MutasiKasCreate({
                                                             setSelectedPayRow(
                                                                 row,
                                                             );
-                                                            // Selecting a Payment Cost should become the new base (do not keep old values).
                                                             const nextKet =
                                                                 String(
                                                                     row?.Keterangan ??
-                                                                        '',
+                                                                    '',
                                                                 );
                                                             setKeterangan(
                                                                 nextKet,
                                                             );
-                                                            // Treat keterangan from tb_bayar as authoritative; do not let AI override it.
                                                             setKeteranganTouched(
                                                                 true,
                                                             );
@@ -876,13 +860,13 @@ export default function MutasiKasCreate({
                                                             setNominal(
                                                                 bayarAbs > 0
                                                                     ? String(
-                                                                          bayarAbs,
-                                                                      )
+                                                                        bayarAbs,
+                                                                    )
                                                                     : '',
                                                             );
                                                             const tgl = String(
                                                                 row?.Tgl_Bayar ??
-                                                                    '',
+                                                                '',
                                                             ).slice(0, 10);
                                                             if (tgl) {
                                                                 setTglVoucher(
@@ -890,11 +874,10 @@ export default function MutasiKasCreate({
                                                                 );
                                                             }
 
-                                                            // Prefer beban_akun from tb_bayar as the initial DPP line.
                                                             const beban =
                                                                 String(
                                                                     row?.beban_akun ??
-                                                                        '',
+                                                                    '',
                                                                 ).trim();
                                                             if (beban) {
                                                                 setLines([
@@ -916,7 +899,6 @@ export default function MutasiKasCreate({
                                                                 ]);
                                                             }
 
-                                                            // Ensure suggest can update kas/bank + voucher type based on tb_kas history.
                                                             setKodeAkunTouched(
                                                                 false,
                                                             );
@@ -945,7 +927,7 @@ export default function MutasiKasCreate({
                                                         <TableCell className="font-mono text-xs whitespace-pre-wrap">
                                                             {String(
                                                                 row?.Kode_Bayar ??
-                                                                    '-',
+                                                                '-',
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="whitespace-nowrap">
@@ -956,13 +938,13 @@ export default function MutasiKasCreate({
                                                         <TableCell className="text-sm break-words whitespace-normal">
                                                             {String(
                                                                 row?.Keterangan ??
-                                                                    '',
+                                                                '',
                                                             ) || '-'}
                                                         </TableCell>
                                                         <TableCell className="text-sm whitespace-nowrap">
                                                             {String(
                                                                 row?.Penanggung ??
-                                                                    '-',
+                                                                '-',
                                                             ) || '-'}
                                                         </TableCell>
                                                         <TableCell className="text-right whitespace-nowrap text-destructive">
@@ -974,15 +956,15 @@ export default function MutasiKasCreate({
                                                         <TableCell className="font-mono text-sm whitespace-nowrap">
                                                             {row?.beban_akun
                                                                 ? getAccountLabel(
-                                                                      glAccountOptions,
-                                                                      row.beban_akun,
-                                                                  )
+                                                                    glAccountOptions,
+                                                                    row.beban_akun,
+                                                                )
                                                                 : '-'}
                                                         </TableCell>
                                                         <TableCell className="font-mono text-sm whitespace-nowrap">
                                                             {String(
                                                                 row?.noduk_beban ??
-                                                                    '-',
+                                                                '-',
                                                             ) || '-'}
                                                         </TableCell>
                                                     </TableRow>
@@ -1262,8 +1244,8 @@ export default function MutasiKasCreate({
                                     {mode === 'in'
                                         ? 'masuk'
                                         : mode === 'out'
-                                          ? 'keluar'
-                                          : 'transfer'}{' '}
+                                            ? 'keluar'
+                                            : 'transfer'}{' '}
                                     otomatis dihitung dari nominal.
                                 </div>
                             </div>
@@ -1405,7 +1387,7 @@ export default function MutasiKasCreate({
                                             />
                                             <div className="text-[11px] text-muted-foreground">
                                                 Jenis PPN otomatis:{' '}
-                                                <span className="font-medium">
+                                                <span className="font-medium text-foreground">
                                                     {mode === 'in'
                                                         ? 'Kredit'
                                                         : 'Debit'}
@@ -1416,7 +1398,9 @@ export default function MutasiKasCreate({
                                 ) : null}
                             </div>
 
-                            <div className="space-y-2">
+                            <div
+                                className={`rounded-md border p-3 ${mode === 'transfer' ? 'opacity-60' : ''}`}
+                            >
                                 <div className="flex items-center justify-between">
                                     <div>
                                         {mode !== 'transfer' ? (
@@ -1472,8 +1456,7 @@ export default function MutasiKasCreate({
                                             <div className="rounded-md border p-3">
                                                 <div className="flex items-center justify-between">
                                                     <div className="text-sm font-medium">
-                                                        Akun sumber (dana
-                                                        keluar)
+                                                        Akun sumber (dana keluar)
                                                     </div>
                                                     <div className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
                                                         Jenis otomatis:{' '}
@@ -1498,8 +1481,7 @@ export default function MutasiKasCreate({
                                             <div className="rounded-md border p-3">
                                                 <div className="flex items-center justify-between">
                                                     <div className="text-sm font-medium">
-                                                        Akun tujuan (penerima
-                                                        dana)
+                                                        Akun tujuan (penerima dana)
                                                     </div>
                                                     <div className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
                                                         Jenis otomatis:{' '}
@@ -1534,20 +1516,19 @@ export default function MutasiKasCreate({
                                                             {mode === 'transfer'
                                                                 ? 'Akun tujuan (penerima dana)'
                                                                 : mode === 'in'
-                                                                  ? 'Pendapatan'
-                                                                  : 'Beban'}{' '}
+                                                                    ? 'Pendapatan'
+                                                                    : 'Beban'}{' '}
                                                             {mode === 'transfer'
                                                                 ? ''
                                                                 : getSlotLabel(
-                                                                      idx,
-                                                                  )}
+                                                                    idx,
+                                                                )}
                                                         </div>
                                                         <div className="flex items-center gap-2">
                                                             {mode ===
-                                                            'transfer' ? (
+                                                                'transfer' ? (
                                                                 <div className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
-                                                                    Jenis
-                                                                    otomatis:
+                                                                    Jenis otomatis:
                                                                     <span className="ml-1 font-medium text-foreground">
                                                                         Debit
                                                                     </span>
@@ -1556,10 +1537,10 @@ export default function MutasiKasCreate({
                                                                 <Select
                                                                     value={String(
                                                                         l?.jenis ??
-                                                                            (mode ===
+                                                                        (mode ===
                                                                             'in'
-                                                                                ? 'Kredit'
-                                                                                : 'Debit'),
+                                                                            ? 'Kredit'
+                                                                            : 'Debit'),
                                                                     )}
                                                                     onValueChange={(
                                                                         v,
@@ -1576,12 +1557,12 @@ export default function MutasiKasCreate({
                                                                                 next[
                                                                                     idx
                                                                                 ] =
-                                                                                    {
-                                                                                        ...next[
-                                                                                            idx
-                                                                                        ],
-                                                                                        jenis: v,
-                                                                                    };
+                                                                                {
+                                                                                    ...next[
+                                                                                    idx
+                                                                                    ],
+                                                                                    jenis: v,
+                                                                                };
                                                                                 return next;
                                                                             },
                                                                         )
@@ -1601,7 +1582,7 @@ export default function MutasiKasCreate({
                                                                 </Select>
                                                             )}
                                                             {mode !==
-                                                            'transfer' ? (
+                                                                'transfer' ? (
                                                                 <Button
                                                                     type="button"
                                                                     variant="outline"
@@ -1619,7 +1600,7 @@ export default function MutasiKasCreate({
                                                                 </Button>
                                                             ) : null}
                                                             {mode !==
-                                                            'transfer' ? (
+                                                                'transfer' ? (
                                                                 <Button
                                                                     type="button"
                                                                     variant="ghost"
@@ -1669,7 +1650,7 @@ export default function MutasiKasCreate({
                                                             inputMode="numeric"
                                                             value={String(
                                                                 l?.nominal ??
-                                                                    '',
+                                                                '',
                                                             )}
                                                             onChange={(e) =>
                                                                 setLines(
@@ -1683,19 +1664,19 @@ export default function MutasiKasCreate({
                                                                             idx
                                                                         ] = {
                                                                             ...next[
-                                                                                idx
+                                                                            idx
                                                                             ],
                                                                             nominal:
                                                                                 e
                                                                                     .target
                                                                                     .value ===
-                                                                                ''
+                                                                                    ''
                                                                                     ? 0
                                                                                     : Number(
-                                                                                          e
-                                                                                              .target
-                                                                                              .value,
-                                                                                      ),
+                                                                                        e
+                                                                                            .target
+                                                                                            .value,
+                                                                                    ),
                                                                         };
                                                                         return next;
                                                                     },
@@ -1712,36 +1693,36 @@ export default function MutasiKasCreate({
                                             ))
                                     )}
                                 </div>
+                            </div>
 
-                                <div className="rounded-md bg-muted/30 p-3 text-sm">
-                                    <div className="flex items-center justify-between">
-                                        <span>
-                                            {mode === 'transfer'
-                                                ? 'Target transfer'
-                                                : 'Target DPP'}
-                                        </span>
-                                        <span className="font-medium">
-                                            Rp {formatNumber(dppTarget)}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <span>
-                                            {mode === 'transfer'
-                                                ? 'Total transfer'
-                                                : 'Total DPP'}
-                                        </span>
-                                        <span className="font-medium">
-                                            Rp {formatNumber(linesSum)}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center justify-between">
-                                        <span>Selisih</span>
-                                        <span
-                                            className={`font-medium ${linesDiff === 0 ? 'text-emerald-500' : 'text-destructive'}`}
-                                        >
-                                            Rp {formatNumber(linesDiff)}
-                                        </span>
-                                    </div>
+                            <div className="rounded-md bg-muted/30 p-3 text-sm">
+                                <div className="flex items-center justify-between">
+                                    <span>
+                                        {mode === 'transfer'
+                                            ? 'Target transfer'
+                                            : 'Target DPP'}
+                                    </span>
+                                    <span className="font-medium">
+                                        Rp {formatNumber(dppTarget)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>
+                                        {mode === 'transfer'
+                                            ? 'Total transfer'
+                                            : 'Total DPP'}
+                                    </span>
+                                    <span className="font-medium">
+                                        Rp {formatNumber(linesSum)}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span>Selisih</span>
+                                    <span
+                                        className={`font-medium ${linesDiff === 0 ? 'text-emerald-500' : 'text-destructive'}`}
+                                    >
+                                        Rp {formatNumber(linesDiff)}
+                                    </span>
                                 </div>
                             </div>
 

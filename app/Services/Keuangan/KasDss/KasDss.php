@@ -239,7 +239,6 @@ class KasDss
                     $akun = trim((string) ($r->{'Kode_Akun' . $slot} ?? ''));
                     $nom = (float) ($r->{'Nominal' . $slot} ?? 0);
                     if ($akun === '' || $nom <= 0) continue;
-                    // Treat slot2 as PPN if it has nominal > 0 (common company standard).
                     if ($slot === 2) continue;
                     $lawanCount[$akun] = ($lawanCount[$akun] ?? 0) + 1;
                 }
@@ -267,7 +266,6 @@ class KasDss
                 $tokenTf = KasText::tokens($text, 28);
                 $tri = KasText::trigrams($text, 40);
 
-                // Build hashed feature list (repeat by tf for multinomial).
                 $features = [];
                 foreach ($tokenTf as $t => $tf) {
                     $features[] = ['f' => "t:$t", 'tf' => (int) $tf];
@@ -288,7 +286,6 @@ class KasDss
                     continue;
                 }
 
-                // counterpart label(s): slot1/slot3 only
                 $targets = [];
                 foreach ([1, 3] as $slot) {
                     $akun = trim((string) ($r->{'Kode_Akun' . $slot} ?? ''));
@@ -370,7 +367,6 @@ class KasDss
             if ($tf <= 0) continue;
             $id = (float) ($idf[$t] ?? 0.0);
             $den = $tf + $k1 * (1 - $b + $b * ($docLen / max(1.0, $avgLen)));
-            // Use query term weight (qtf) so emphasized tokens (e.g. from parentheses) matter more.
             $qWeight = 1.0 + log(1.0 + max(0.0, (float) $qtf));
             $score += $qWeight * $id * ($tf * ($k1 + 1) / $den);
         }
@@ -392,8 +388,6 @@ class KasDss
 
     /**
      * Main recommendation API (kNN + Naive Bayes ensemble).
-     *
-     * @return array{kode_akun:string,voucher_type:string,ppn_akun:string,ppn_jenis:string,keterangan:string,lines:array<int,array{akun:string,jenis:string,nominal:float}>,confidence:array<string,float>,evidence:array<int,array<string,mixed>>}
      */
     public function suggest(array $input): array
     {
@@ -412,7 +406,6 @@ class KasDss
         $qTf = KasText::tokensWithEmphasis($keterangan, 16);
         $qTris = KasText::trigrams($normQ, 60);
 
-        // Candidate pruning from tb_kas
         $q = DB::table('tb_kas as k')
             ->whereNotNull('k.Kode_Akun')
             ->whereRaw("TRIM(COALESCE(k.Kode_Akun,'')) <> ''");
@@ -423,7 +416,6 @@ class KasDss
         $pruneTokens = array_values(array_filter($queryTokens, function ($t) {
             $t = (string) $t;
             if ($t === '') return false;
-            // Avoid placeholders like {#}, {doc}, {voucher} for pruning.
             if (preg_match('/^\\{[^}]+\\}$/', $t)) return false;
             return true;
         }));
@@ -463,8 +455,6 @@ class KasDss
             ->limit(800)
             ->get($sel);
 
-        // If token-pruning yields no candidates, fallback to recent rows by mode.
-        // This avoids empty evidence and "random" defaults when wording differs from stored redactions.
         if ($candRows->count() === 0 && $normQ !== '') {
             try {
                 $q2 = DB::table('tb_kas as k')
@@ -481,7 +471,6 @@ class KasDss
             }
         }
 
-        // If query is empty, don't force random similarity — fallback to most frequent.
         $hasQuery = ($normQ !== '' && (count($qTf) || count($qTris)));
 
         $docs = [];
@@ -493,7 +482,6 @@ class KasDss
             $dTf = KasText::tokens($normD, 40);
             $dLen = (float) array_sum($dTf);
             $docLens[] = $dLen;
-            // DF only for query tokens
             foreach ($qTf as $t => $_tf) {
                 if (isset($dTf[$t])) $df[$t] = ($df[$t] ?? 0) + 1;
             }
@@ -502,7 +490,7 @@ class KasDss
                 'norm' => $normD,
                 'tf' => $dTf,
                 'len' => $dLen,
-                'tris' => null, // lazy
+                'tris' => null,
             ];
         }
 
@@ -534,7 +522,6 @@ class KasDss
             $scored[$i]['final'] = $final;
         }
 
-        // Top-K candidates for kNN voting
         $finalScores = [];
         foreach ($scored as $i => $s) {
             $finalScores[$i] = (float) ($s['final'] ?? 0.0);
@@ -546,9 +533,9 @@ class KasDss
         $voucherVotes = [];
         $ppnVotes = [];
         $lawanVotes = [];
-        $jenisVotes = []; // akun => ['Debit'=>w,'Kredit'=>w]
-        $ratioSum = []; // akun => weighted ratio sum
-        $ratioW = []; // akun => weighted weight
+        $jenisVotes = [];
+        $ratioSum = [];
+        $ratioW = [];
         $bestKet = '';
         $bestKetScore = -1.0;
         $evidence = [];
@@ -577,17 +564,15 @@ class KasDss
                 $ppnVotes[$a2] = ($ppnVotes[$a2] ?? 0) + $w;
             }
 
-            // Determine DPP slots from history row: treat slot2 as PPN when it has nominal > 0.
-            $dppSlots = $nom2 > 0 ? [1, 3] : [1, 2, 3];
+            $browseSlots = $nom2 > 0 ? [1, 3] : [1, 2, 3];
             $dppTotal = 0.0;
-            foreach ($dppSlots as $slot) {
+            foreach ($browseSlots as $slot) {
                 $dppTotal += (float) ($r->{'Nominal' . $slot} ?? 0);
             }
             $dppTotal = max(1.0, $dppTotal);
 
             $targetSlots = ($hasPpn && $ppnNominal > 0) ? [1, 3] : [1, 2, 3];
             foreach ($targetSlots as $slot) {
-                // Exclude slot2 from history when it is PPN.
                 if ($slot === 2 && $nom2 > 0) continue;
                 $akun = trim((string) ($r->{'Kode_Akun' . $slot} ?? ''));
                 $nom = (float) ($r->{'Nominal' . $slot} ?? 0);
@@ -616,20 +601,17 @@ class KasDss
             }
         }
 
-        // Seed akun (e.g. tb_bayar.beban_akun) is a strong hint; keep it on top.
         if ($seedAkun !== '') {
             $lawanVotes[$seedAkun] = ($lawanVotes[$seedAkun] ?? 0) + 3.0;
         }
 
-        // Learn also from jurnal history (fallback for new/unseen wording).
         $jv = $this->jurnalVotes($mode, $keterangan);
         $cashVotesJ = $jv['cash'] ?? [];
         $lawanVotesJ = $jv['lawan'] ?? [];
 
-        // NB scores
-        $alpha = 0.60; // tb_kas kNN
-        $beta = 0.15; // jurnal votes
-        $gamma = max(0.0, 1.0 - $alpha - $beta); // NB
+        $alpha = 0.60;
+        $beta = 0.15;
+        $gamma = max(0.0, 1.0 - $alpha - $beta);
         $cashModel = $this->getNbModel($mode, 'cash');
         $lawanModel = $this->getNbModel($mode, 'lawan');
         $cashNb = $this->softmax01($this->nbScore($cashModel, $keterangan));
@@ -658,7 +640,6 @@ class KasDss
 
         $cashTop = (string) (array_key_first($cashFinal) ?? '');
         if ($cashTop === '') {
-            // Fallback: most frequent in votes or NB
             $cashTop = (string) (array_key_first($cashVotes) ?? array_key_first($cashNb) ?? '');
         }
         if ($cashTop === '') {
@@ -673,7 +654,6 @@ class KasDss
             $cashTop = $best;
         }
 
-        // voucher type: prefer explicit votes, else derive from cash account
         $voucherType = '';
         if (count($voucherVotes)) {
             arsort($voucherVotes);
@@ -691,7 +671,6 @@ class KasDss
         $lineAccounts = array_slice(array_keys($lawanFinal), 0, $maxLines);
         if (count($lineAccounts) === 0 && $seedAkun !== '') $lineAccounts = [$seedAkun];
         if (count($lineAccounts) === 0) {
-            // Fallback: most frequent lawan akun
             $best = [];
             foreach (($lawanModel['docCount'] ?? []) as $a => $c) {
                 if ((int) $c <= 0) continue;
@@ -704,7 +683,6 @@ class KasDss
         $defaultJenis = $mode === 'in' ? 'Kredit' : 'Debit';
         $dppTarget = max(0.0, $nominal - ($hasPpn ? $ppnNominal : 0.0));
 
-        // Allocate by learned ratio (if available) otherwise put everything in line1.
         $ratios = [];
         $sumRat = 0.0;
         foreach ($lineAccounts as $a) {
@@ -733,7 +711,6 @@ class KasDss
                 $nom = round($dppTarget - $running, 2);
             } else {
                 $ratio = $sumRat > 0 ? ((float) $ratios[$a] / $sumRat) : ($i === 0 ? 1.0 : 0.0);
-                // If no ratio knowledge, default to putting everything to the first line.
                 if ($sumRat <= 0) $ratio = $i === 0 ? 1.0 : 0.0;
                 $nom = round($dppTarget * $ratio, 2);
             }
@@ -741,7 +718,6 @@ class KasDss
             $lines[] = ['akun' => $a, 'jenis' => $jenis, 'nominal' => $nom];
         }
 
-        // Confidence: margin of top1 vs top2
         $conf = function (array $scores): float {
             $vals = array_values($scores);
             if (count($vals) === 0) return 0.0;
@@ -759,7 +735,6 @@ class KasDss
         ];
         $confidence['overall'] = round((0.5 * $confidence['cash'] + 0.5 * $confidence['lawan']), 4);
 
-        // Optional LLM reranker when confidence is low.
         $llmUrl = trim((string) env('DSS_LLM_URL', ''));
         $llmToken = trim((string) env('DSS_LLM_TOKEN', ''));
         $llmThreshold = (float) env('DSS_LLM_CONF_THRESHOLD', 0.12);

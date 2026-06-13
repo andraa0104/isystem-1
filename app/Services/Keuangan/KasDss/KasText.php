@@ -18,7 +18,8 @@ class KasText
         $t = mb_strtolower($t);
 
         // Common document / voucher patterns (keep generic, not module-specific).
-        $t = preg_replace('/\\b[a-z0-9]{2,8}\\/(cv|gv|bv)\\/\\d{4,}\\b/i', '{voucher}', $t) ?? $t;
+        // Ditambahkan pattern '/sc/' untuk Kas Bank 2 agar dibaca sebagai {voucher}
+        $t = preg_replace('/\\b[a-z0-9]{2,8}\\/(cv|gv|bv|sc)\\/\\d{4,}\\b/i', '{voucher}', $t) ?? $t;
         $t = preg_replace('/\\b[a-z0-9]{2,8}\\/pc\\/\\d{4,}\\b/i', '{pay}', $t) ?? $t;
 
         // FI / INV / PO / etc with long trailing digits.
@@ -45,7 +46,7 @@ class KasText
 
         $stop = [
             'dan', 'atau', 'yang', 'untuk', 'dari', 'ke', 'di', 'pada', 'dengan', 'tanpa',
-            'pt', 'cv', 'gv', 'bv', 'pc', 'sja',
+            'pt', 'cv', 'gv', 'bv', 'sc', 'pc', 'sja',
             'the', 'a', 'an', 'of', 'to', 'in',
         ];
 
@@ -59,15 +60,16 @@ class KasText
         }
 
         if (count($out) <= $limit) return $out;
-        arsort($out);
-        return array_slice($out, 0, $limit, true);
+        $all = $out;
+        arsort($all);
+        return array_slice($all, 0, $limit, true);
     }
 
     /**
      * Tokenize with light emphasis for high-signal parts of text.
      *
      * - Terms inside parentheses (...) get extra weight, because they often carry specific tags
-     *   (e.g. BPJS, JHT, Kesehatan, Ketenagakerjaan).
+     * (e.g. BPJS, JHT, Kesehatan, Ketenagakerjaan).
      *
      * @return array<string,int> token => weighted tf
      */
@@ -122,6 +124,9 @@ class KasText
         return array_keys($set);
     }
 
+    /**
+     * Mengekstrak tipe voucher dari kode voucher termasuk dukungan Kas Bank 2 (SC)
+     */
     public static function extractVoucherType(string $kodeVoucher): string
     {
         $kv = strtoupper(trim((string) $kodeVoucher));
@@ -129,6 +134,7 @@ class KasText
         if (str_contains($kv, '/CV/')) return 'CV';
         if (str_contains($kv, '/GV/')) return 'GV';
         if (str_contains($kv, '/BV/')) return 'BV';
+        if (str_contains($kv, '/SC/')) return 'SC'; // Penyesuaian Kas Bank 2
         return '';
     }
 }
