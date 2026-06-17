@@ -47,6 +47,19 @@ def is_valid_account_seed(account):
     a = str(account or "").strip().upper()
     return bool(a) and "XX" not in a and a not in ["1100AD", "1200AD"]
 
+def safe_float(value, default=0.0):
+    try:
+        if pd.isna(value):
+            return default
+        n = float(value)
+        if pd.isna(n):
+            return default
+        if n == float("inf") or n == float("-inf"):
+            return default
+        return n
+    except Exception:
+        return default
+
 def account_name(account):
     return str(models.get("account_names", {}).get(str(account or "").strip(), "")).lower()
 
@@ -130,7 +143,7 @@ def build_history_lines(row, dpp, max_lines, mode, cleaned_input):
     candidates = []
     for slot in [1, 3]:
         akun = str(row.get(f"Kode_Akun{slot}") or "").strip()
-        nominal = float(row.get(f"Nominal{slot}") or 0)
+        nominal = safe_float(row.get(f"Nominal{slot}"), 0.0)
         if nominal <= 0 or not account_allowed_for_text(akun, cleaned_input):
             continue
         candidates.append({"akun": akun, "hist_nominal": nominal})
@@ -151,6 +164,7 @@ def build_history_lines(row, dpp, max_lines, mode, cleaned_input):
         else:
             nominal = round(dpp * (item["hist_nominal"] / total), 2)
             running += nominal
+        nominal = safe_float(nominal, 0.0)
         lines.append({
             "akun": item["akun"],
             "jenis": "Debit" if mode == "out" else "Kredit",
@@ -273,6 +287,8 @@ def startup_event():
 
 @app.post("/predict")
 def predict(req: SuggestRequest):
+    req_nominal = safe_float(req.nominal, 0.0)
+    req_ppn_nominal = safe_float(req.ppnNominal, 0.0)
     resp = {
         "kode_akun": "",
         "voucher_type": "BV",
@@ -330,7 +346,7 @@ def predict(req: SuggestRequest):
                 lines.append({"akun": a, "jenis": "Debit" if req.mode == "out" else "Kredit", "nominal": 0.0})
                 break
             
-    dpp = req.nominal - (req.ppnNominal if req.hasPpn else 0.0)
+    dpp = req_nominal - (req_ppn_nominal if req.hasPpn else 0.0)
     dpp = max(0.0, dpp)
 
     history_suggest = suggest_from_history(mode, cleaned_input, dpp, max_lines)
