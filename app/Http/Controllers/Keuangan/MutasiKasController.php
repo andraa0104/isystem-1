@@ -613,9 +613,12 @@ class MutasiKasController
                 'seedAkun' => $seedAkun,
             ]);
 
+            $suggestedKodeAkun = (string) ($dssOut['kode_akun'] ?? '');
+            $voucherAkun = $suggestedKodeAkun !== '' ? $suggestedKodeAkun : $kodeAkun;
+
             return response()->json([
-                'kode_akun' => (string) ($dssOut['kode_akun'] ?? ''),
-                'voucher_type' => (string) ($this->guessVoucherType($kodeAkun)),
+                'kode_akun' => $suggestedKodeAkun,
+                'voucher_type' => (string) ($this->guessVoucherType($voucherAkun)),
                 'keterangan' => (string) ($dssOut['keterangan'] ?? ''),
                 'ppn_akun' => (string) ($dssOut['ppn_akun'] ?? ''),
                 'ppn_jenis' => (string) ($dssOut['ppn_jenis'] ?? $ppnJenis),

@@ -804,3 +804,19 @@
 2026-06-11 01:58:25,222 INFO spawned: 'nginx' with pid 14
 2026-06-11 01:58:26,293 INFO success: php-fpm entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
 2026-06-11 01:58:26,294 INFO success: nginx entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:16:46,696 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2026-06-17 09:16:46,701 INFO supervisord started with pid 12
+2026-06-17 09:16:47,705 INFO spawned: 'php-fpm' with pid 13
+2026-06-17 09:16:47,709 INFO spawned: 'nginx' with pid 14
+2026-06-17 09:16:47,712 INFO spawned: 'python_ml' with pid 15
+2026-06-17 09:16:48,775 INFO success: php-fpm entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:16:48,775 INFO success: nginx entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:16:48,775 INFO success: python_ml entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:20:20,724 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2026-06-17 09:20:20,728 INFO supervisord started with pid 12
+2026-06-17 09:20:21,733 INFO spawned: 'php-fpm' with pid 13
+2026-06-17 09:20:21,737 INFO spawned: 'nginx' with pid 14
+2026-06-17 09:20:21,741 INFO spawned: 'python_ml' with pid 15
+2026-06-17 09:20:23,306 INFO success: php-fpm entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:20:23,319 INFO success: nginx entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:20:23,319 INFO success: python_ml entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)

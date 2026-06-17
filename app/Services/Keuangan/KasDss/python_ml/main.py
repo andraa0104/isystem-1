@@ -2,15 +2,19 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import os
 import re
+from pathlib import Path
 import pandas as pd
 import mysql.connector
 from dotenv import load_dotenv
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import SGDClassifier
 from sklearn.pipeline import make_pipeline
+from sklearn.metrics.pairwise import cosine_similarity
 
-# Load parent generic .env to connect to DB
-load_dotenv('/root/isystem-1/.env')
+# Load Laravel .env from the active project path. The app may run from
+# /var/www/html in Docker or /root/isystem-1 locally.
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
+load_dotenv(PROJECT_ROOT / '.env')
 
 app = FastAPI()
 
@@ -39,12 +43,85 @@ def clean_text(t):
     t = re.sub(r'[^a-zA-Z0-9]+', ' ', t)
     return ' '.join([w for w in t.split() if len(w)>2])
 
+def is_valid_account_seed(account):
+    a = str(account or "").strip().upper()
+    return bool(a) and "XX" not in a and a not in ["1100AD", "1200AD"]
+
+def build_history_lines(row, dpp, max_lines, mode):
+    candidates = []
+    for slot in [1, 3]:
+        akun = str(row.get(f"Kode_Akun{slot}") or "").strip()
+        nominal = float(row.get(f"Nominal{slot}") or 0)
+        if not is_valid_account_seed(akun) or nominal <= 0:
+            continue
+        candidates.append({"akun": akun, "hist_nominal": nominal})
+
+    if not candidates:
+        return []
+
+    total = sum(item["hist_nominal"] for item in candidates)
+    if total <= 0:
+        return []
+
+    selected = candidates[:max_lines]
+    running = 0.0
+    lines = []
+    for idx, item in enumerate(selected):
+        if idx == len(selected) - 1:
+            nominal = max(0.0, round(dpp - running, 2))
+        else:
+            nominal = round(dpp * (item["hist_nominal"] / total), 2)
+            running += nominal
+        lines.append({
+            "akun": item["akun"],
+            "jenis": "Debit" if mode == "out" else "Kredit",
+            "nominal": nominal
+        })
+    return lines
+
+def suggest_from_history(mode, cleaned_input, dpp, max_lines):
+    hist = models.get(f"history_{mode}")
+    if not hist or cleaned_input == "":
+        return None
+
+    try:
+        vectorizer = hist["vectorizer"]
+        matrix = hist["matrix"]
+        df = hist["df"]
+        query_vec = vectorizer.transform([cleaned_input])
+        sims = cosine_similarity(query_vec, matrix)[0]
+        if len(sims) == 0:
+            return None
+        idx = int(sims.argmax())
+        score = float(sims[idx])
+        if score < 0.12:
+            return None
+
+        row = df.iloc[idx]
+        lines = build_history_lines(row, dpp, max_lines, mode)
+        if not lines:
+            return None
+
+        return {
+            "lines": lines,
+            "score": score,
+            "evidence": {
+                "Kode_Voucher": str(row.get("Kode_Voucher") or ""),
+                "Tgl_Voucher": str(row.get("Tgl_Voucher") or ""),
+                "Keterangan": str(row.get("Keterangan") or ""),
+                "score": round(score, 4)
+            }
+        }
+    except Exception:
+        return None
+
 def train_models():
     for mode in ["out", "in"]:
         conn = get_db_connection()
         op = ">" if mode == "in" else "<"
         query = f"""
-        SELECT Keterangan, Kode_Akun, Kode_Akun1, Kode_Akun3, Mutasi_Kas 
+        SELECT Kode_Voucher, Tgl_Voucher, Keterangan, Kode_Akun,
+               Kode_Akun1, Nominal1, Kode_Akun3, Nominal3, Mutasi_Kas
         FROM tb_kas 
         WHERE Keterangan IS NOT NULL AND Kode_Akun IS NOT NULL AND Kode_Akun != ''
         AND Mutasi_Kas {op} 0
@@ -57,6 +134,17 @@ def train_models():
             continue
             
         df['X'] = df['Keterangan'].apply(clean_text)
+        df = df[df['X'].str.len() > 0].copy()
+        if len(df) < 10:
+            continue
+
+        hist_vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=8000)
+        hist_matrix = hist_vectorizer.fit_transform(df['X'])
+        models[f"history_{mode}"] = {
+            "vectorizer": hist_vectorizer,
+            "matrix": hist_matrix,
+            "df": df.reset_index(drop=True)
+        }
         
         df_cash = df[df['Kode_Akun'].str.strip() != '']
         if len(df_cash) > 5:
@@ -134,7 +222,7 @@ def predict(req: SuggestRequest):
     max_lines = 2 if (req.hasPpn and req.ppnNominal > 0) else 3
     lines = []
     
-    if req.seedAkun and req.seedAkun not in ['1100AD', '1200AD']:
+    if is_valid_account_seed(req.seedAkun):
         lines.append({"akun": req.seedAkun, "jenis": "Debit" if req.mode == "out" else "Kredit", "nominal": 0.0})
         
     for a, p in best_lawan:
@@ -147,6 +235,26 @@ def predict(req: SuggestRequest):
             
     dpp = req.nominal - (req.ppnNominal if req.hasPpn else 0.0)
     dpp = max(0.0, dpp)
+
+    history_suggest = suggest_from_history(mode, cleaned_input, dpp, max_lines)
+    if history_suggest:
+        resp["lines"] = history_suggest["lines"]
+        resp["confidence"]["lawan"] = max(
+            float(resp["confidence"]["lawan"]),
+            float(history_suggest["score"])
+        )
+        resp["confidence"]["overall"] = (
+            float(resp["confidence"]["cash"]) + float(resp["confidence"]["lawan"])
+        ) / 2.0
+        resp["evidence"] = [history_suggest["evidence"]]
+
+        ka = resp["kode_akun"]
+        if ka.startswith("1101"): resp["voucher_type"] = "CV"
+        elif ka.startswith("1102"): resp["voucher_type"] = "GV"
+        elif ka.startswith("1103"): resp["voucher_type"] = "BV"
+        elif ka.startswith("1104"): resp["voucher_type"] = "SC"
+
+        return resp
     
     if len(lines) > 0:
         # Give all nominal to the first matched line for simplicity, just like KasDss often does

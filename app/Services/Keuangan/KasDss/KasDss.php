@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Symfony\Component\Process\Process;
 
 class KasDss
 {
@@ -388,6 +389,204 @@ class KasDss
         return $union > 0 ? ($inter / $union) : 0.0;
     }
 
+    private function topKey(array $scores): string
+    {
+        if (count($scores) === 0) return '';
+        arsort($scores);
+        $key = array_key_first($scores);
+        return is_string($key) ? $key : '';
+    }
+
+    private function addScores(array &$target, array $scores, float $weight): void
+    {
+        foreach ($scores as $key => $score) {
+            $key = trim((string) $key);
+            $score = (float) $score;
+            if ($key === '' || $score <= 0) continue;
+            $target[$key] = ($target[$key] ?? 0.0) + ($score * $weight);
+        }
+    }
+
+    private function isValidAccountSeed(string $akun): bool
+    {
+        $akun = strtoupper(trim($akun));
+        return $akun !== '' && !str_contains($akun, 'XX') && !in_array($akun, ['1100AD', '1200AD'], true);
+    }
+
+    private function pythonPredictUrl(): string
+    {
+        return rtrim((string) env('KAS_DSS_PYTHON_URL', 'http://127.0.0.1:8000'), '/') . '/predict';
+    }
+
+    private function startPythonServiceIfNeeded(string $url): void
+    {
+        try {
+            Http::timeout(1)->acceptJson()->post($url, [
+                'mode' => 'out',
+                'keterangan' => '__healthcheck__',
+                'nominal' => 0,
+                'hasPpn' => false,
+                'ppnNominal' => 0,
+                'seedAkun' => '',
+            ]);
+            return;
+        } catch (\Throwable) {
+            // Try to start the optional Python service below.
+        }
+
+        $dir = base_path('app/Services/Keuangan/KasDss/python_ml');
+        $python = $dir . '/venv/bin/python';
+        $main = $dir . '/main.py';
+        if (!is_file($python) || !is_file($main)) return;
+
+        try {
+            $log = storage_path('logs/kas-dss-python.log');
+            $sitePackages = glob($dir . '/venv/lib/python*/site-packages');
+            $pythonPath = is_array($sitePackages) && isset($sitePackages[0]) ? (string) $sitePackages[0] : '';
+            $cmd = sprintf(
+                'cd %s && PYTHONPATH=%s nohup %s -m uvicorn main:app --host 127.0.0.1 --port 8000 >> %s 2>&1 &',
+                escapeshellarg($dir),
+                escapeshellarg($pythonPath),
+                escapeshellarg($python),
+                escapeshellarg($log)
+            );
+            Process::fromShellCommandline($cmd)->setTimeout(3)->run();
+            for ($i = 0; $i < 10; $i++) {
+                usleep(500000);
+                try {
+                    Http::timeout(1)->acceptJson()->post($url, [
+                        'mode' => 'out',
+                        'keterangan' => '__healthcheck__',
+                        'nominal' => 0,
+                        'hasPpn' => false,
+                        'ppnNominal' => 0,
+                        'seedAkun' => '',
+                    ]);
+                    return;
+                } catch (\Throwable) {
+                    // Keep waiting until the startup window expires.
+                }
+            }
+        } catch (\Throwable) {
+            // The caller will fall back to the PHP recommender.
+        }
+    }
+
+    /**
+     * Fallback in-process recommender. Keeps AI suggestions working when the
+     * optional Python prediction service is not running.
+     */
+    private function suggestLocal(array $input, array $defaultResp): array
+    {
+        $mode = in_array(($input['mode'] ?? ''), ['in', 'out'], true) ? $input['mode'] : 'out';
+        $keterangan = trim((string) ($input['keterangan'] ?? ''));
+        $nominal = max(0.0, (float) ($input['nominal'] ?? 0));
+        $hasPpn = (bool) ($input['hasPpn'] ?? false);
+        $ppnNominal = max(0.0, (float) ($input['ppnNominal'] ?? 0));
+        $seedAkun = trim((string) ($input['seedAkun'] ?? ''));
+
+        $cashScores = [];
+        $lawanScores = [];
+        $evidence = [];
+
+        $jurnal = $this->jurnalVotes($mode, $keterangan);
+        $this->addScores($cashScores, $this->normalizeTo01($jurnal['cash'] ?? []), 0.35);
+        $this->addScores($lawanScores, $this->normalizeTo01($jurnal['lawan'] ?? []), 0.35);
+        $evidence = array_slice($jurnal['evidence'] ?? [], 0, 3);
+
+        if (Schema::hasTable('tb_kas')) {
+            $cashNb = $this->softmax01($this->nbScore($this->getNbModel($mode, 'cash'), $keterangan));
+            $lawanNb = $this->softmax01($this->nbScore($this->getNbModel($mode, 'lawan'), $keterangan));
+            $this->addScores($cashScores, $cashNb, 0.45);
+            $this->addScores($lawanScores, $lawanNb, 0.45);
+
+            try {
+                $cols = Schema::getColumnListing('tb_kas');
+                $hasNom2 = in_array('Nominal2', $cols, true);
+                $hasNom3 = in_array('Nominal3', $cols, true);
+
+                $q = DB::table('tb_kas as k')
+                    ->whereNotNull('k.Kode_Akun')
+                    ->whereRaw("TRIM(COALESCE(k.Kode_Akun,'')) <> ''");
+                if ($mode === 'in') $q->whereRaw('COALESCE(k.Mutasi_Kas,0) > 0');
+                if ($mode === 'out') $q->whereRaw('COALESCE(k.Mutasi_Kas,0) < 0');
+
+                $tokens = KasText::tokens(KasText::normalize($keterangan), 12);
+                if (count($tokens) > 0) {
+                    $q->where(function ($w) use ($tokens) {
+                        foreach (array_slice(array_keys($tokens), 0, 6) as $t) {
+                            $w->orWhereRaw('LOWER(k.Keterangan) like ?', ['%' . $t . '%']);
+                        }
+                    });
+                }
+
+                $rows = $q->orderByDesc('k.Tgl_Voucher')
+                    ->orderByDesc('k.Kode_Voucher')
+                    ->limit(120)
+                    ->get([
+                        'k.Kode_Voucher', 'k.Tgl_Voucher', 'k.Kode_Akun', 'k.Keterangan',
+                        'k.Kode_Akun1', 'k.Nominal1',
+                        'k.Kode_Akun2', $hasNom2 ? 'k.Nominal2' : DB::raw('0 as Nominal2'),
+                        'k.Kode_Akun3', $hasNom3 ? 'k.Nominal3' : DB::raw('0 as Nominal3'),
+                    ]);
+
+                foreach ($rows as $idx => $r) {
+                    $weight = max(0.2, 1.0 - ((float) $idx / 160.0));
+                    $cash = trim((string) ($r->Kode_Akun ?? ''));
+                    if ($cash !== '') $cashScores[$cash] = ($cashScores[$cash] ?? 0.0) + (0.20 * $weight);
+
+                    foreach ([1, 3] as $slot) {
+                        $akun = trim((string) ($r->{'Kode_Akun' . $slot} ?? ''));
+                        $nom = (float) ($r->{'Nominal' . $slot} ?? 0);
+                        if ($akun === '' || $nom <= 0 || in_array($akun, ['1100AD', '1200AD'], true)) continue;
+                        $lawanScores[$akun] = ($lawanScores[$akun] ?? 0.0) + (0.20 * $weight);
+                    }
+
+                    if (count($evidence) < 3) {
+                        $evidence[] = [
+                            'Kode_Voucher' => (string) ($r->Kode_Voucher ?? ''),
+                            'Tgl_Voucher' => (string) ($r->Tgl_Voucher ?? ''),
+                            'Keterangan' => (string) ($r->Keterangan ?? ''),
+                            'score' => round($weight, 4),
+                        ];
+                    }
+                }
+            } catch (\Throwable) {
+                // Keep the default response if local history cannot be queried.
+            }
+        }
+
+        if ($this->isValidAccountSeed($seedAkun)) $lawanScores[$seedAkun] = ($lawanScores[$seedAkun] ?? 0.0) + 0.5;
+
+        $cash = $this->topKey($cashScores);
+        $lawan = $this->topKey($lawanScores);
+        $cashConfidence = count($cashScores) ? min(0.95, max($cashScores)) : 0.0;
+        $lawanConfidence = count($lawanScores) ? min(0.95, max($lawanScores)) : 0.0;
+
+        $lines = [];
+        if ($lawan !== '') {
+            $lines[] = [
+                'akun' => $lawan,
+                'jenis' => $mode === 'in' ? 'Kredit' : 'Debit',
+                'nominal' => $nominal,
+            ];
+        }
+
+        return array_merge($defaultResp, [
+            'kode_akun' => $cash,
+            'voucher_type' => $cash !== '' ? $this->voucherTypeForAkun($cash) : $defaultResp['voucher_type'],
+            'ppn_akun' => ($hasPpn && $ppnNominal > 0) ? ($defaultResp['ppn_akun'] ?: $seedAkun) : '',
+            'lines' => $lines,
+            'confidence' => [
+                'overall' => max($cashConfidence, $lawanConfidence),
+                'cash' => $cashConfidence,
+                'lawan' => $lawanConfidence,
+                'ppn' => ($hasPpn && $ppnNominal > 0 && ($defaultResp['ppn_akun'] ?: $seedAkun) !== '') ? 0.5 : 0.0,
+            ],
+            'evidence' => $evidence,
+        ]);
+    }
+
     /**
      * Main recommendation API (kNN + Naive Bayes ensemble).
      */
@@ -417,7 +616,8 @@ class KasDss
         ];
 
         try {
-            $url = 'http://127.0.0.1:8000/predict';
+            $url = $this->pythonPredictUrl();
+            $this->startPythonServiceIfNeeded($url);
             $payload = [
                 'mode' => $mode,
                 'keterangan' => $keterangan,
@@ -444,7 +644,7 @@ class KasDss
         } catch (\Throwable $e) {
             // fallback gracefully
         }
-        
-        return $defaultResp;
+
+        return $this->suggestLocal($input, $defaultResp);
     }
 }

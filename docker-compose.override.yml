@@ -23,6 +23,7 @@ services:
     volumes:
       - ./:/var/www/html
       - storage-data:/var/www/html/storage
+      - ./docker/supervisord.conf:/etc/supervisor/conf.d/supervisord.conf
       - ./docker/php/opcache.ini:/usr/local/etc/php/conf.d/opcache.ini
       - /var/www/html/vendor
       - /var/www/html/node_modules

@@ -36,6 +36,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
     nginx \
     supervisor \
+    python3 \
     libicu-dev \
     && rm -rf /etc/nginx/sites-enabled/default \
     && rm -rf /var/lib/apt/lists/*

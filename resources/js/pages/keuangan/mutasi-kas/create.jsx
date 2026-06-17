@@ -43,6 +43,14 @@ const formatNumber = (value) =>
         value ?? 0,
     );
 
+const parseRupiahInput = (value) => String(value ?? '').replace(/\D/g, '');
+
+const formatRupiahInput = (value) => {
+    const digits = parseRupiahInput(value);
+    if (!digits) return '';
+    return `Rp ${formatNumber(Number(digits))}`;
+};
+
 const formatDate = (value) => {
     if (!value) return '-';
     const date = new Date(value);
@@ -182,6 +190,9 @@ export default function MutasiKasCreate({
         if (v === '1104AD' || v.startsWith('1104')) return 'SC';
         return 'BV';
     };
+
+    const isPlaceholderAkun = (kodeAkun) =>
+        /XX/i.test(String(kodeAkun ?? '').trim());
 
     const [histSearch, setHistSearch] = useState(filters?.search ?? '');
     const [histPageSize, setHistPageSize] = useState(10);
@@ -398,7 +409,6 @@ export default function MutasiKasCreate({
 
         const effectivePayRow =
             payRow ?? selectedPayRowRef.current ?? selectedPayRow;
-        if (mode === 'out' && !effectivePayRow) return;
         if (
             mode !== 'out' &&
             nominalNumber <= 0 &&
@@ -435,8 +445,13 @@ export default function MutasiKasCreate({
             )
                 params.set('keterangan', effectiveKeterangan);
 
-            if (mode === 'out' && effectivePayRow?.beban_akun)
+            if (
+                mode === 'out' &&
+                effectivePayRow?.beban_akun &&
+                !isPlaceholderAkun(effectivePayRow.beban_akun)
+            ) {
                 params.set('seedAkun', String(effectivePayRow.beban_akun));
+            }
             params.set('hasPpn', String(hasPpn && ppnNumber > 0));
             if (ppnNumber > 0) params.set('ppnNominal', String(ppnNumber));
 
@@ -879,7 +894,12 @@ export default function MutasiKasCreate({
                                                                     row?.beban_akun ??
                                                                     '',
                                                                 ).trim();
-                                                            if (beban) {
+                                                            if (
+                                                                beban &&
+                                                                !isPlaceholderAkun(
+                                                                    beban,
+                                                                )
+                                                            ) {
                                                                 setLines([
                                                                     {
                                                                         akun: beban,
@@ -1235,9 +1255,13 @@ export default function MutasiKasCreate({
                                 </div>
                                 <Input
                                     inputMode="numeric"
-                                    value={nominal}
-                                    onChange={(e) => setNominal(e.target.value)}
-                                    placeholder="Contoh: 1500000"
+                                    value={formatRupiahInput(nominal)}
+                                    onChange={(e) =>
+                                        setNominal(
+                                            parseRupiahInput(e.target.value),
+                                        )
+                                    }
+                                    placeholder="Rp 0"
                                 />
                                 <div className="text-[11px] text-muted-foreground">
                                     Mutasi{' '}
@@ -1377,13 +1401,17 @@ export default function MutasiKasCreate({
                                             </Label>
                                             <Input
                                                 inputMode="numeric"
-                                                value={ppnNominal}
+                                                value={formatRupiahInput(
+                                                    ppnNominal,
+                                                )}
                                                 onChange={(e) =>
                                                     setPpnNominal(
-                                                        e.target.value,
+                                                        parseRupiahInput(
+                                                            e.target.value,
+                                                        ),
                                                     )
                                                 }
-                                                placeholder="0"
+                                                placeholder="Rp 0"
                                             />
                                             <div className="text-[11px] text-muted-foreground">
                                                 Jenis PPN otomatis:{' '}
@@ -1648,7 +1676,7 @@ export default function MutasiKasCreate({
                                                         </div>
                                                         <Input
                                                             inputMode="numeric"
-                                                            value={String(
+                                                            value={formatRupiahInput(
                                                                 l?.nominal ??
                                                                 '',
                                                             )}
@@ -1667,22 +1695,26 @@ export default function MutasiKasCreate({
                                                                             idx
                                                                             ],
                                                                             nominal:
-                                                                                e
-                                                                                    .target
-                                                                                    .value ===
+                                                                                parseRupiahInput(
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                                ) ===
                                                                                     ''
                                                                                     ? 0
                                                                                     : Number(
-                                                                                        e
-                                                                                            .target
-                                                                                            .value,
-                                                                                    ),
+                                                                                          parseRupiahInput(
+                                                                                              e
+                                                                                                  .target
+                                                                                                  .value,
+                                                                                          ),
+                                                                                      ),
                                                                         };
                                                                         return next;
                                                                     },
                                                                 )
                                                             }
-                                                            placeholder="0"
+                                                            placeholder="Rp 0"
                                                             disabled={
                                                                 mode ===
                                                                 'transfer'
