@@ -231,6 +231,7 @@ class MutasiKasController
                     ])
                     ->whereNotNull('Kode_Akun')
                     ->whereRaw("TRIM(COALESCE(Kode_Akun,'')) <> ''")
+                    ->whereNotIn('Kode_Akun', ['1100AD', '1200AD'])
                     ->orderBy('Kode_Akun', 'asc')
                     ->limit(5000)
                     ->get()
@@ -627,18 +628,18 @@ class MutasiKasController
         }
     }
 
-    private function nextVoucher(string $prefix): string
+    private function nextVoucher(string $prefix, string $type): string
     {
         $last = (string) (DB::table('tb_kas')
-            ->where('Kode_Voucher', 'like', $prefix . '%')
+            ->whereRaw('MID(Kode_Voucher, 5, 2) = ?', [$type])
             ->orderByDesc('Kode_Voucher')
             ->lockForUpdate()
             ->value('Kode_Voucher') ?? '');
 
         $seq = 0;
-        if ($last !== '' && str_starts_with($last, $prefix)) {
-            $tail = substr($last, strlen($prefix));
-            if (preg_match('/^\\d+$/', $tail)) $seq = (int) $tail;
+        if ($last !== '') {
+            $tail = substr($last, -8);
+            if (preg_match('/^\d+$/', $tail)) $seq = (int) $tail;
         }
         $seq++;
         return $prefix . str_pad((string) $seq, 8, '0', STR_PAD_LEFT);
@@ -650,17 +651,17 @@ class MutasiKasController
             return '';
         }
 
-        $prefix = strtoupper(trim($dbCode)) . '/JR/'; // Sesuai format BuatKodeJurnal di VB6
+        $unitUsaha = substr(strtoupper(trim($dbCode)), 0, 3);
+        $prefix = $unitUsaha . '/JR/';
         $last = (string) (DB::table('tb_jurnal')
-            ->where('Kode_Jurnal', 'like', $prefix . '%')
             ->orderByDesc('Kode_Jurnal')
             ->lockForUpdate()
             ->value('Kode_Jurnal') ?? '');
 
         $seq = 0;
-        if ($last !== '' && str_starts_with($last, $prefix)) {
-            $tail = substr($last, strlen($prefix));
-            if (preg_match('/^\\d+$/', $tail)) $seq = (int) $tail;
+        if ($last !== '') {
+            $tail = substr($last, -8);
+            if (preg_match('/^\d+$/', $tail)) $seq = (int) $tail;
         }
         $seq++;
         return $prefix . str_pad((string) $seq, 8, '0', STR_PAD_LEFT);
@@ -669,18 +670,18 @@ class MutasiKasController
     /**
      * @return array{0:string,1:string}
      */
-    private function nextVoucherPair(string $prefix): array
+    private function nextVoucherPair(string $prefix, string $type): array
     {
         $last = (string) (DB::table('tb_kas')
-            ->where('Kode_Voucher', 'like', $prefix . '%')
+            ->whereRaw('MID(Kode_Voucher, 5, 2) = ?', [$type])
             ->orderByDesc('Kode_Voucher')
             ->lockForUpdate()
             ->value('Kode_Voucher') ?? '');
 
         $seq = 0;
-        if ($last !== '' && str_starts_with($last, $prefix)) {
-            $tail = substr($last, strlen($prefix));
-            if (preg_match('/^\\d+$/', $tail)) $seq = (int) $tail;
+        if ($last !== '') {
+            $tail = substr($last, -8);
+            if (preg_match('/^\d+$/', $tail)) $seq = (int) $tail;
         }
 
         $out = $prefix . str_pad((string) ($seq + 1), 8, '0', STR_PAD_LEFT);
@@ -904,7 +905,7 @@ class MutasiKasController
 
                     $infoS = $this->getVoucherInfo($request, $source);
                     $prefix = $infoS['prefix'];
-                    [$voucherOut, $voucherIn] = $this->nextVoucherPair($prefix);
+                    [$voucherOut, $voucherIn] = $this->nextVoucherPair($prefix, $infoS['type']);
 
                     $sourceLabel = $this->getAccountDisplayLabel($source);
                     $sourceNameOnly = $this->getAccountNameOnly($source);
@@ -995,7 +996,7 @@ class MutasiKasController
 
                 $infoK = $this->getVoucherInfo($request, $kodeAkun);
                 $prefix = $infoK['prefix'];
-                $kodeVoucher = $this->nextVoucher($prefix);
+                $kodeVoucher = $this->nextVoucher($prefix, $infoK['type']);
 
                 $mutasi = $mode === 'in' ? abs($nominal) : (-1 * abs($nominal));
                 $saldo = $this->getLastSaldo($kodeAkun) + $mutasi;

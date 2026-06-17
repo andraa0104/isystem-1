@@ -152,11 +152,11 @@ class KasDss
                 if ($mode === 'out') {
                     // Cash out journal: credit cash/bank, debit expense.
                     if ($kredit > 0) $cashVotes[$akun] = ($cashVotes[$akun] ?? 0) + $w;
-                    if ($debit > 0) $lawanVotes[$akun] = ($lawanVotes[$akun] ?? 0) + $w;
+                    if ($debit > 0 && !in_array($akun, ['1100AD', '1200AD'], true)) $lawanVotes[$akun] = ($lawanVotes[$akun] ?? 0) + $w;
                 } else {
                     // Cash in journal: debit cash/bank, credit revenue.
                     if ($debit > 0) $cashVotes[$akun] = ($cashVotes[$akun] ?? 0) + $w;
-                    if ($kredit > 0) $lawanVotes[$akun] = ($lawanVotes[$akun] ?? 0) + $w;
+                    if ($kredit > 0 && !in_array($akun, ['1100AD', '1200AD'], true)) $lawanVotes[$akun] = ($lawanVotes[$akun] ?? 0) + $w;
                 }
             }
 
@@ -240,6 +240,7 @@ class KasDss
                     $nom = (float) ($r->{'Nominal' . $slot} ?? 0);
                     if ($akun === '' || $nom <= 0) continue;
                     if ($slot === 2) continue;
+                    if (in_array($akun, ['1100AD', '1200AD'], true)) continue;
                     $lawanCount[$akun] = ($lawanCount[$akun] ?? 0) + 1;
                 }
             }
@@ -291,6 +292,7 @@ class KasDss
                     $akun = trim((string) ($r->{'Kode_Akun' . $slot} ?? ''));
                     $nom = (float) ($r->{'Nominal' . $slot} ?? 0);
                     if ($akun === '' || $nom <= 0) continue;
+                    if (in_array($akun, ['1100AD', '1200AD'], true)) continue;
                     if (isset($docCount[$akun])) $targets[$akun] = true;
                 }
                 if (count($targets) === 0) continue;
@@ -401,389 +403,48 @@ class KasDss
         $seedAkun = trim((string) ($input['seedAkun'] ?? ''));
 
         $ppnJenis = $mode === 'in' ? 'Kredit' : 'Debit';
+        $keteranganSuggest = $keterangan !== '' ? $keterangan : ($mode === 'in' ? 'Mutasi Kas Masuk' : 'Mutasi Kas Keluar');
 
-        $normQ = KasText::normalize($keterangan);
-        $qTf = KasText::tokensWithEmphasis($keterangan, 16);
-        $qTris = KasText::trigrams($normQ, 60);
-
-        $q = DB::table('tb_kas as k')
-            ->whereNotNull('k.Kode_Akun')
-            ->whereRaw("TRIM(COALESCE(k.Kode_Akun,'')) <> ''");
-        if ($mode === 'in') $q->whereRaw('COALESCE(k.Mutasi_Kas,0) > 0');
-        if ($mode === 'out') $q->whereRaw('COALESCE(k.Mutasi_Kas,0) < 0');
-
-        $queryTokens = array_keys($qTf);
-        $pruneTokens = array_values(array_filter($queryTokens, function ($t) {
-            $t = (string) $t;
-            if ($t === '') return false;
-            if (preg_match('/^\\{[^}]+\\}$/', $t)) return false;
-            return true;
-        }));
-        usort($pruneTokens, function ($a, $b) use ($qTf) {
-            $la = strlen((string) $a);
-            $lb = strlen((string) $b);
-            if ($la !== $lb) return $lb <=> $la;
-            return ((int) ($qTf[$b] ?? 0)) <=> ((int) ($qTf[$a] ?? 0));
-        });
-        $pruneTokens = array_slice($pruneTokens, 0, 6);
-
-        if (count($pruneTokens)) {
-            $q->where(function ($w) use ($pruneTokens) {
-                foreach ($pruneTokens as $t) {
-                    $w->orWhereRaw('LOWER(k.Keterangan) like ?', ['%' . $t . '%']);
-                }
-            });
-        }
-
-        $cols = Schema::getColumnListing('tb_kas');
-        $sel = [
-            'k.Kode_Voucher',
-            'k.Kode_Akun',
-            'k.Tgl_Voucher',
-            'k.Keterangan',
-            DB::raw('COALESCE(k.Mutasi_Kas,0) as Mutasi_Kas'),
-            'k.Kode_Akun1', 'k.Nominal1',
-            'k.Kode_Akun2', in_array('Nominal2', $cols, true) ? 'k.Nominal2' : DB::raw('0 as Nominal2'),
-            'k.Kode_Akun3', in_array('Nominal3', $cols, true) ? 'k.Nominal3' : DB::raw('0 as Nominal3'),
-            in_array('Jenis_Beban1', $cols, true) ? 'k.Jenis_Beban1' : DB::raw("'' as Jenis_Beban1"),
-            in_array('Jenis_Beban2', $cols, true) ? 'k.Jenis_Beban2' : DB::raw("'' as Jenis_Beban2"),
-            in_array('Jenis_Beban3', $cols, true) ? 'k.Jenis_Beban3' : DB::raw("'' as Jenis_Beban3"),
-        ];
-
-        $candRows = $q->orderByDesc('k.Tgl_Voucher')
-            ->orderByDesc('k.Kode_Voucher')
-            ->limit(800)
-            ->get($sel);
-
-        if ($candRows->count() === 0 && $normQ !== '') {
-            try {
-                $q2 = DB::table('tb_kas as k')
-                    ->whereNotNull('k.Kode_Akun')
-                    ->whereRaw("TRIM(COALESCE(k.Kode_Akun,'')) <> ''");
-                if ($mode === 'in') $q2->whereRaw('COALESCE(k.Mutasi_Kas,0) > 0');
-                if ($mode === 'out') $q2->whereRaw('COALESCE(k.Mutasi_Kas,0) < 0');
-                $candRows = $q2->orderByDesc('k.Tgl_Voucher')
-                    ->orderByDesc('k.Kode_Voucher')
-                    ->limit(800)
-                    ->get($sel);
-            } catch (\Throwable) {
-                // ignore
-            }
-        }
-
-        $hasQuery = ($normQ !== '' && (count($qTf) || count($qTris)));
-
-        $docs = [];
-        $df = [];
-        $docLens = [];
-        foreach ($candRows as $r) {
-            $ket = (string) ($r->Keterangan ?? '');
-            $normD = KasText::normalize($ket);
-            $dTf = KasText::tokens($normD, 40);
-            $dLen = (float) array_sum($dTf);
-            $docLens[] = $dLen;
-            foreach ($qTf as $t => $_tf) {
-                if (isset($dTf[$t])) $df[$t] = ($df[$t] ?? 0) + 1;
-            }
-            $docs[] = [
-                'row' => $r,
-                'norm' => $normD,
-                'tf' => $dTf,
-                'len' => $dLen,
-                'tris' => null,
-            ];
-        }
-
-        $N = max(1, count($docs));
-        $avgLen = count($docLens) ? (array_sum($docLens) / max(1, count($docLens))) : 1.0;
-        $idf = [];
-        foreach ($qTf as $t => $_) {
-            $dft = (int) ($df[$t] ?? 0);
-            $idf[$t] = log((($N - $dft + 0.5) / ($dft + 0.5)) + 1.0);
-        }
-
-        $scored = [];
-        $maxBm = 0.0;
-        foreach ($docs as $i => $d) {
-            $bm = $hasQuery ? $this->bm25Score($qTf, $d['tf'], (float) $d['len'], (float) $avgLen, $idf) : 0.0;
-            $maxBm = max($maxBm, $bm);
-            $scored[$i] = ['bm' => $bm, 'tri' => 0.0, 'final' => 0.0];
-        }
-
-        foreach ($docs as $i => $d) {
-            $bm01 = ($maxBm > 0) ? ($scored[$i]['bm'] / $maxBm) : 0.0;
-            $tri01 = 0.0;
-            if ($hasQuery && count($qTris)) {
-                $dTris = KasText::trigrams($d['norm'], 60);
-                $tri01 = $this->jaccard($qTris, $dTris);
-            }
-            $final = 0.7 * $bm01 + 0.3 * $tri01;
-            $scored[$i]['tri'] = $tri01;
-            $scored[$i]['final'] = $final;
-        }
-
-        $finalScores = [];
-        foreach ($scored as $i => $s) {
-            $finalScores[$i] = (float) ($s['final'] ?? 0.0);
-        }
-        arsort($finalScores);
-        $topIdx = array_slice(array_keys($finalScores), 0, 40);
-
-        $cashVotes = [];
-        $voucherVotes = [];
-        $ppnVotes = [];
-        $lawanVotes = [];
-        $jenisVotes = [];
-        $ratioSum = [];
-        $ratioW = [];
-        $bestKet = '';
-        $bestKetScore = -1.0;
-        $evidence = [];
-
-        foreach ($topIdx as $idx) {
-            $w = (float) ($finalScores[$idx] ?? 0.0);
-            if ($w <= 0) continue;
-            $r = $docs[$idx]['row'];
-
-            $cash = trim((string) ($r->Kode_Akun ?? ''));
-            if ($cash !== '') $cashVotes[$cash] = ($cashVotes[$cash] ?? 0) + $w;
-
-            $kv = trim((string) ($r->Kode_Voucher ?? ''));
-            $vt = KasText::extractVoucherType($kv);
-            if ($vt !== '') $voucherVotes[$vt] = ($voucherVotes[$vt] ?? 0) + $w;
-
-            $ket = trim((string) ($r->Keterangan ?? ''));
-            if ($ket !== '' && $w > $bestKetScore) {
-                $bestKet = $ket;
-                $bestKetScore = $w;
-            }
-
-            $nom2 = (float) ($r->Nominal2 ?? 0);
-            $a2 = trim((string) ($r->Kode_Akun2 ?? ''));
-            if ($nom2 > 0 && $a2 !== '') {
-                $ppnVotes[$a2] = ($ppnVotes[$a2] ?? 0) + $w;
-            }
-
-            $browseSlots = $nom2 > 0 ? [1, 3] : [1, 2, 3];
-            $dppTotal = 0.0;
-            foreach ($browseSlots as $slot) {
-                $dppTotal += (float) ($r->{'Nominal' . $slot} ?? 0);
-            }
-            $dppTotal = max(1.0, $dppTotal);
-
-            $targetSlots = ($hasPpn && $ppnNominal > 0) ? [1, 3] : [1, 2, 3];
-            foreach ($targetSlots as $slot) {
-                if ($slot === 2 && $nom2 > 0) continue;
-                $akun = trim((string) ($r->{'Kode_Akun' . $slot} ?? ''));
-                $nom = (float) ($r->{'Nominal' . $slot} ?? 0);
-                if ($akun === '' || $nom <= 0) continue;
-                $lawanVotes[$akun] = ($lawanVotes[$akun] ?? 0) + $w;
-
-                $jenisRaw = trim((string) ($r->{'Jenis_Beban' . $slot} ?? ''));
-                $jenis = strtoupper($jenisRaw) === 'KREDIT' ? 'Kredit' : (strtoupper($jenisRaw) === 'DEBIT' ? 'Debit' : '');
-                if ($jenis !== '') {
-                    $jenisVotes[$akun] = $jenisVotes[$akun] ?? ['Debit' => 0.0, 'Kredit' => 0.0];
-                    $jenisVotes[$akun][$jenis] = ($jenisVotes[$akun][$jenis] ?? 0) + $w;
-                }
-
-                $ratio = max(0.0, $nom / $dppTotal);
-                $ratioSum[$akun] = ($ratioSum[$akun] ?? 0) + ($w * $ratio);
-                $ratioW[$akun] = ($ratioW[$akun] ?? 0) + $w;
-            }
-
-            if (count($evidence) < 3) {
-                $evidence[] = [
-                    'Kode_Voucher' => $kv,
-                    'Kode_Akun' => $cash,
-                    'Keterangan' => $ket,
-                    'score' => round($w, 4),
-                ];
-            }
-        }
-
-        if ($seedAkun !== '') {
-            $lawanVotes[$seedAkun] = ($lawanVotes[$seedAkun] ?? 0) + 3.0;
-        }
-
-        $jv = $this->jurnalVotes($mode, $keterangan);
-        $cashVotesJ = $jv['cash'] ?? [];
-        $lawanVotesJ = $jv['lawan'] ?? [];
-
-        $alpha = 0.60;
-        $beta = 0.15;
-        $gamma = max(0.0, 1.0 - $alpha - $beta);
-        $cashModel = $this->getNbModel($mode, 'cash');
-        $lawanModel = $this->getNbModel($mode, 'lawan');
-        $cashNb = $this->softmax01($this->nbScore($cashModel, $keterangan));
-        $lawanNb = $this->softmax01($this->nbScore($lawanModel, $keterangan));
-
-        $cashKnn = $this->normalizeTo01($cashVotes);
-        $lawanKnn = $this->normalizeTo01($lawanVotes);
-        $cashJ = $this->normalizeTo01($cashVotesJ);
-        $lawanJ = $this->normalizeTo01($lawanVotesJ);
-
-        $cashFinal = [];
-        foreach (array_unique(array_merge(array_keys($cashKnn), array_keys($cashJ), array_keys($cashNb))) as $a) {
-            $cashFinal[$a] = $alpha * (float) ($cashKnn[$a] ?? 0)
-                + $beta * (float) ($cashJ[$a] ?? 0)
-                + $gamma * (float) ($cashNb[$a] ?? 0);
-        }
-        $lawanFinal = [];
-        foreach (array_unique(array_merge(array_keys($lawanKnn), array_keys($lawanJ), array_keys($lawanNb))) as $a) {
-            $lawanFinal[$a] = $alpha * (float) ($lawanKnn[$a] ?? 0)
-                + $beta * (float) ($lawanJ[$a] ?? 0)
-                + $gamma * (float) ($lawanNb[$a] ?? 0);
-        }
-
-        arsort($cashFinal);
-        arsort($lawanFinal);
-
-        $cashTop = (string) (array_key_first($cashFinal) ?? '');
-        if ($cashTop === '') {
-            $cashTop = (string) (array_key_first($cashVotes) ?? array_key_first($cashNb) ?? '');
-        }
-        if ($cashTop === '') {
-            $best = '';
-            $bestC = 0;
-            foreach (($cashModel['docCount'] ?? []) as $a => $c) {
-                if ((int) $c > $bestC) {
-                    $best = (string) $a;
-                    $bestC = (int) $c;
-                }
-            }
-            $cashTop = $best;
-        }
-
-        $voucherType = '';
-        if (count($voucherVotes)) {
-            arsort($voucherVotes);
-            $voucherType = (string) array_key_first($voucherVotes);
-        }
-        if ($voucherType === '') $voucherType = $this->voucherTypeForAkun($cashTop);
-
-        $ppnAkun = '';
-        if ($hasPpn && $ppnNominal > 0 && count($ppnVotes)) {
-            arsort($ppnVotes);
-            $ppnAkun = (string) array_key_first($ppnVotes);
-        }
-
-        $maxLines = ($hasPpn && $ppnNominal > 0) ? 2 : 3;
-        $lineAccounts = array_slice(array_keys($lawanFinal), 0, $maxLines);
-        if (count($lineAccounts) === 0 && $seedAkun !== '') $lineAccounts = [$seedAkun];
-        if (count($lineAccounts) === 0) {
-            $best = [];
-            foreach (($lawanModel['docCount'] ?? []) as $a => $c) {
-                if ((int) $c <= 0) continue;
-                $best[(string) $a] = (int) $c;
-            }
-            arsort($best);
-            $lineAccounts = array_slice(array_keys($best), 0, $maxLines);
-        }
-
-        $defaultJenis = $mode === 'in' ? 'Kredit' : 'Debit';
-        $dppTarget = max(0.0, $nominal - ($hasPpn ? $ppnNominal : 0.0));
-
-        $ratios = [];
-        $sumRat = 0.0;
-        foreach ($lineAccounts as $a) {
-            $r = 0.0;
-            if (isset($ratioSum[$a]) && isset($ratioW[$a]) && (float) $ratioW[$a] > 0) {
-                $r = (float) $ratioSum[$a] / (float) $ratioW[$a];
-            }
-            $r = max(0.0, $r);
-            $ratios[$a] = $r;
-            $sumRat += $r;
-        }
-
-        $lines = [];
-        $running = 0.0;
-        foreach ($lineAccounts as $i => $a) {
-            $jenis = $defaultJenis;
-            if (isset($jenisVotes[$a])) {
-                $d = (float) ($jenisVotes[$a]['Debit'] ?? 0);
-                $k = (float) ($jenisVotes[$a]['Kredit'] ?? 0);
-                $jenis = $d >= $k ? 'Debit' : 'Kredit';
-            }
-
-            if ($dppTarget <= 0) {
-                $nom = 0.0;
-            } elseif ($i === count($lineAccounts) - 1) {
-                $nom = round($dppTarget - $running, 2);
-            } else {
-                $ratio = $sumRat > 0 ? ((float) $ratios[$a] / $sumRat) : ($i === 0 ? 1.0 : 0.0);
-                if ($sumRat <= 0) $ratio = $i === 0 ? 1.0 : 0.0;
-                $nom = round($dppTarget * $ratio, 2);
-            }
-            $running += $nom;
-            $lines[] = ['akun' => $a, 'jenis' => $jenis, 'nominal' => $nom];
-        }
-
-        $conf = function (array $scores): float {
-            $vals = array_values($scores);
-            if (count($vals) === 0) return 0.0;
-            rsort($vals);
-            $s1 = (float) ($vals[0] ?? 0.0);
-            $s2 = (float) ($vals[1] ?? 0.0);
-            if (abs($s1) < 1e-9) return 0.0;
-            return max(0.0, min(1.0, ($s1 - $s2) / max(abs($s1), 1.0)));
-        };
-
-        $confidence = [
-            'cash' => $conf($cashFinal),
-            'lawan' => $conf($lawanFinal),
-            'ppn' => $hasPpn && $ppnNominal > 0 ? $conf($ppnVotes) : 0.0,
-        ];
-        $confidence['overall'] = round((0.5 * $confidence['cash'] + 0.5 * $confidence['lawan']), 4);
-
-        $llmUrl = trim((string) env('DSS_LLM_URL', ''));
-        $llmToken = trim((string) env('DSS_LLM_TOKEN', ''));
-        $llmThreshold = (float) env('DSS_LLM_CONF_THRESHOLD', 0.12);
-        if ($llmUrl !== '' && $confidence['overall'] < $llmThreshold) {
-            try {
-                $payload = [
-                    'mode' => $mode,
-                    'keterangan_normalized' => $normQ,
-                    'candidates_cash' => array_slice(array_keys($cashFinal), 0, 10),
-                    'candidates_lawan' => array_slice(array_keys($lawanFinal), 0, 15),
-                    'evidence' => $evidence,
-                ];
-                $req = Http::timeout(2)->acceptJson();
-                if ($llmToken !== '') $req = $req->withToken($llmToken);
-                $resp = $req->post($llmUrl, $payload);
-                if ($resp->ok()) {
-                    $j = $resp->json();
-                    $cashTopL = trim((string) ($j['kode_akun'] ?? ''));
-                    if ($cashTopL !== '') $cashTop = $cashTopL;
-                    $vtL = trim((string) ($j['voucher_type'] ?? ''));
-                    if (in_array($vtL, ['CV', 'GV', 'BV', 'SC'], true)) $voucherType = $vtL;
-                    $linesL = $j['lines'] ?? null;
-                    if (is_array($linesL) && count($linesL)) {
-                        $lines = [];
-                        foreach (array_slice($linesL, 0, $maxLines) as $l) {
-                            $a = trim((string) ($l['akun'] ?? ''));
-                            if ($a === '') continue;
-                            $jenis = strtoupper(trim((string) ($l['jenis'] ?? $defaultJenis))) === 'KREDIT' ? 'Kredit' : 'Debit';
-                            $nom = (float) ($l['nominal'] ?? 0);
-                            $lines[] = ['akun' => $a, 'jenis' => $jenis, 'nominal' => $nom];
-                        }
-                    }
-                }
-            } catch (\Throwable) {
-                // ignore LLM failures
-            }
-        }
-
-        $keteranganSuggest = $bestKet !== '' ? $bestKet : ($mode === 'in' ? 'Mutasi/Kas Masuk' : 'Mutasi/Kas Keluar');
-
-        return [
-            'kode_akun' => $cashTop,
-            'voucher_type' => $voucherType,
-            'ppn_akun' => ($hasPpn && $ppnNominal > 0) ? $ppnAkun : '',
+        $defaultResp = [
+            'kode_akun' => '',
+            'voucher_type' => 'BV',
+            'ppn_akun' => ($hasPpn && $ppnNominal > 0) ? $seedAkun : '',
             'ppn_jenis' => $ppnJenis,
             'keterangan' => $keteranganSuggest,
-            'lines' => $lines,
-            'confidence' => $confidence,
-            'evidence' => array_values(array_slice(array_merge($evidence, ($jv['evidence'] ?? [])), 0, 6)),
+            'lines' => [],
+            'confidence' => ['overall' => 0.0, 'cash' => 0.0, 'lawan' => 0.0, 'ppn' => 0.0],
+            'evidence' => [],
         ];
+
+        try {
+            $url = 'http://127.0.0.1:8000/predict';
+            $payload = [
+                'mode' => $mode,
+                'keterangan' => $keterangan,
+                'nominal' => $nominal,
+                'hasPpn' => $hasPpn,
+                'ppnNominal' => $ppnNominal,
+                'seedAkun' => $seedAkun
+            ];
+            $resp = Http::timeout(5)->acceptJson()->post($url, $payload);
+            
+            if ($resp->ok()) {
+                $j = $resp->json();
+                return [
+                    'kode_akun' => $j['kode_akun'] ?? '',
+                    'voucher_type' => $j['voucher_type'] ?? 'BV',
+                    'ppn_akun' => $j['ppn_akun'] ?? $defaultResp['ppn_akun'],
+                    'ppn_jenis' => $j['ppn_jenis'] ?? $ppnJenis,
+                    'keterangan' => $j['keterangan'] ?? $keteranganSuggest,
+                    'lines' => $j['lines'] ?? [],
+                    'confidence' => $j['confidence'] ?? $defaultResp['confidence'],
+                    'evidence' => $j['evidence'] ?? [],
+                ];
+            }
+        } catch (\Throwable $e) {
+            // fallback gracefully
+        }
+        
+        return $defaultResp;
     }
 }

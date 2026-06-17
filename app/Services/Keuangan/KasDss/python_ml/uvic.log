@@ -1,0 +1,13 @@
+INFO:     Started server process [1372]
+INFO:     Waiting for application startup.
+/var/www/html/app/Services/Keuangan/KasDss/python_ml/main.py:53: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+/var/www/html/app/Services/Keuangan/KasDss/python_ml/main.py:53: UserWarning: pandas only supports SQLAlchemy connectable (engine/connection) or database string URI or sqlite3 DBAPI2 connection. Other DBAPI2 objects are not tested. Please consider using SQLAlchemy.
+  df = pd.read_sql(query, conn)
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+Training ML Models from tb_kas...
+Training complete.
+INFO:     127.0.0.1:60138 - "POST /predict HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60144 - "POST /predict HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55492 - "POST /predict HTTP/1.1" 200 OK
