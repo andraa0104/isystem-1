@@ -47,12 +47,91 @@ def is_valid_account_seed(account):
     a = str(account or "").strip().upper()
     return bool(a) and "XX" not in a and a not in ["1100AD", "1200AD"]
 
-def build_history_lines(row, dpp, max_lines, mode):
+def account_name(account):
+    return str(models.get("account_names", {}).get(str(account or "").strip(), "")).lower()
+
+def has_any(text, words):
+    return any(w in text for w in words)
+
+def preferred_accounts(cleaned_input):
+    prefs = []
+    if has_any(cleaned_input, ["telp", "telepon", "telephone", "internet", "wifi", "indihome", "biznet"]):
+        prefs.append("5103AD")
+    if has_any(cleaned_input, ["kue", "snack", "makan", "minum", "konsumsi", "nasi", "kopi", "teh"]):
+        prefs.append("5122AD")
+    if has_any(cleaned_input, ["cleaning", "bersih", "dapur", "sabun", "sapu", "pel", "pembersih"]):
+        prefs.append("5121AD")
+    if has_any(cleaned_input, ["kirim", "pengiriman", "dokumen", "document", "dokument", "kurir", "pos", "jne", "jnt", "tiki", "gojek", "grab"]):
+        prefs.append("5125AD")
+    if has_any(cleaned_input, ["laptop", "komputer", "computer", "printer", "monitor", "keyboard", "mouse", "server", "it"]):
+        prefs.append("5117AD")
+    return prefs
+
+def account_allowed_for_text(account, cleaned_input, allow_liability=False):
+    a = str(account or "").strip().upper()
+    name = account_name(a)
+    if not is_valid_account_seed(a):
+        return False
+
+    if a.startswith("2") and not allow_liability:
+        return False
+    if a.startswith("11") or "kas " in name or "bank " in name:
+        return False
+
+    bank_charge = a == "5114AD" or "biaya bank" in name
+    vehicle_account = "kendaraan" in name or a in ["5118AD", "5119AD", "5106AD", "5107AD"]
+    liability_account = a.startswith("2") or "hutang" in name
+
+    food = ["kue", "snack", "makan", "minum", "konsumsi", "nasi", "kopi", "teh"]
+    if has_any(cleaned_input, food):
+        if a != "5122AD" and (bank_charge or vehicle_account or liability_account):
+            return False
+
+    cleaning = ["cleaning", "bersih", "dapur", "sabun", "sapu", "pel", "pembersih"]
+    if has_any(cleaned_input, cleaning):
+        if a != "5121AD" and (bank_charge or vehicle_account or liability_account):
+            return False
+
+    shipping = ["kirim", "pengiriman", "dokumen", "document", "dokument", "kurir", "pos", "jne", "jnt", "tiki", "gojek", "grab"]
+    if has_any(cleaned_input, shipping):
+        if a != "5125AD" and (bank_charge or vehicle_account or liability_account):
+            return False
+
+    electronics = ["laptop", "komputer", "computer", "printer", "monitor", "keyboard", "mouse", "server", "it"]
+    vehicle = ["mobil", "motor", "truck", "truk", "kendaraan", "angkut", "ban", "oli", "solar", "bengkel"]
+    if has_any(cleaned_input, electronics) and not has_any(cleaned_input, vehicle):
+        if vehicle_account:
+            return False
+
+    utilities = ["telp", "telepon", "telephone", "internet", "wifi", "indihome", "biznet", "listrik", "air"]
+    if has_any(cleaned_input, utilities):
+        if liability_account:
+            return False
+
+    return True
+
+def build_preferred_lines(cleaned_input, dpp, max_lines, mode):
+    lines = []
+    for akun in preferred_accounts(cleaned_input):
+        if len(lines) >= max_lines:
+            break
+        if account_allowed_for_text(akun, cleaned_input):
+            lines.append({
+                "akun": akun,
+                "jenis": "Debit" if mode == "out" else "Kredit",
+                "nominal": 0.0
+            })
+
+    if lines:
+        lines[0]["nominal"] = dpp
+    return lines
+
+def build_history_lines(row, dpp, max_lines, mode, cleaned_input):
     candidates = []
     for slot in [1, 3]:
         akun = str(row.get(f"Kode_Akun{slot}") or "").strip()
         nominal = float(row.get(f"Nominal{slot}") or 0)
-        if not is_valid_account_seed(akun) or nominal <= 0:
+        if nominal <= 0 or not account_allowed_for_text(akun, cleaned_input):
             continue
         candidates.append({"akun": akun, "hist_nominal": nominal})
 
@@ -92,30 +171,45 @@ def suggest_from_history(mode, cleaned_input, dpp, max_lines):
         sims = cosine_similarity(query_vec, matrix)[0]
         if len(sims) == 0:
             return None
-        idx = int(sims.argmax())
-        score = float(sims[idx])
-        if score < 0.12:
-            return None
+        for idx in sims.argsort()[-25:][::-1]:
+            idx = int(idx)
+            score = float(sims[idx])
+            if score < 0.12:
+                break
 
-        row = df.iloc[idx]
-        lines = build_history_lines(row, dpp, max_lines, mode)
-        if not lines:
-            return None
+            row = df.iloc[idx]
+            lines = build_history_lines(row, dpp, max_lines, mode, cleaned_input)
+            if not lines:
+                continue
 
-        return {
-            "lines": lines,
-            "score": score,
-            "evidence": {
-                "Kode_Voucher": str(row.get("Kode_Voucher") or ""),
-                "Tgl_Voucher": str(row.get("Tgl_Voucher") or ""),
-                "Keterangan": str(row.get("Keterangan") or ""),
-                "score": round(score, 4)
+            return {
+                "lines": lines,
+                "score": score,
+                "evidence": {
+                    "Kode_Voucher": str(row.get("Kode_Voucher") or ""),
+                    "Tgl_Voucher": str(row.get("Tgl_Voucher") or ""),
+                    "Keterangan": str(row.get("Keterangan") or ""),
+                    "score": round(score, 4)
+                }
             }
-        }
+
+        return None
     except Exception:
         return None
 
 def train_models():
+    try:
+        conn_names = get_db_connection()
+        names = pd.read_sql("SELECT Kode_Akun, Nama_Akun FROM tb_nabb", conn_names)
+        conn_names.close()
+        models["account_names"] = {
+            str(r["Kode_Akun"]).strip(): str(r["Nama_Akun"] or "").strip()
+            for _, r in names.iterrows()
+            if str(r["Kode_Akun"] or "").strip()
+        }
+    except Exception:
+        models["account_names"] = {}
+
     for mode in ["out", "in"]:
         conn = get_db_connection()
         op = ">" if mode == "in" else "<"
@@ -159,7 +253,7 @@ def train_models():
             a3 = str(row['Kode_Akun3']).strip() if pd.notna(row['Kode_Akun3']) else ""
             
             for a in [a1, a3]:
-                if a and a not in ['1100AD', '1200AD']:
+                if account_allowed_for_text(a, ket):
                     lawan_data.append({'X': ket, 'y': a})
                     
         if len(lawan_data) > 5:
@@ -227,11 +321,14 @@ def predict(req: SuggestRequest):
         
     for a, p in best_lawan:
         if len(lines) >= max_lines: break
-        if a not in [l['akun'] for l in lines]:
+        if a not in [l['akun'] for l in lines] and account_allowed_for_text(a, cleaned_input, allow_liability=is_valid_account_seed(req.seedAkun)):
             lines.append({"akun": a, "jenis": "Debit" if req.mode == "out" else "Kredit", "nominal": 0.0})
             
     if not lines and best_lawan:
-        lines.append({"akun": best_lawan[0][0], "jenis": "Debit" if req.mode == "out" else "Kredit", "nominal": 0.0})
+        for a, p in best_lawan:
+            if account_allowed_for_text(a, cleaned_input, allow_liability=is_valid_account_seed(req.seedAkun)):
+                lines.append({"akun": a, "jenis": "Debit" if req.mode == "out" else "Kredit", "nominal": 0.0})
+                break
             
     dpp = req.nominal - (req.ppnNominal if req.hasPpn else 0.0)
     dpp = max(0.0, dpp)
@@ -254,6 +351,20 @@ def predict(req: SuggestRequest):
         elif ka.startswith("1103"): resp["voucher_type"] = "BV"
         elif ka.startswith("1104"): resp["voucher_type"] = "SC"
 
+        return resp
+
+    preferred_lines = build_preferred_lines(cleaned_input, dpp, max_lines, mode)
+    if preferred_lines:
+        resp["lines"] = preferred_lines
+        resp["confidence"]["lawan"] = max(float(resp["confidence"]["lawan"]), 0.65)
+        resp["confidence"]["overall"] = (
+            float(resp["confidence"]["cash"]) + float(resp["confidence"]["lawan"])
+        ) / 2.0
+        resp["evidence"] = [{
+            "source": "rule",
+            "Keterangan": "keyword guard",
+            "score": 0.65
+        }]
         return resp
     
     if len(lines) > 0:

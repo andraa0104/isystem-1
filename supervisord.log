@@ -820,3 +820,19 @@
 2026-06-17 09:20:23,306 INFO success: php-fpm entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
 2026-06-17 09:20:23,319 INFO success: nginx entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
 2026-06-17 09:20:23,319 INFO success: python_ml entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:40:19,607 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2026-06-17 09:40:19,612 INFO supervisord started with pid 12
+2026-06-17 09:40:20,619 INFO spawned: 'php-fpm' with pid 13
+2026-06-17 09:40:20,623 INFO spawned: 'nginx' with pid 14
+2026-06-17 09:40:20,626 INFO spawned: 'python_ml' with pid 15
+2026-06-17 09:40:21,681 INFO success: php-fpm entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:40:21,681 INFO success: nginx entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:40:21,681 INFO success: python_ml entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:43:48,584 CRIT Supervisor is running as root.  Privileges were not dropped because no user is specified in the config file.  If you intend to run as root, you can set user=root in the config file to avoid this message.
+2026-06-17 09:43:48,589 INFO supervisord started with pid 12
+2026-06-17 09:43:49,594 INFO spawned: 'php-fpm' with pid 13
+2026-06-17 09:43:49,598 INFO spawned: 'nginx' with pid 14
+2026-06-17 09:43:49,603 INFO spawned: 'python_ml' with pid 15
+2026-06-17 09:43:50,776 INFO success: php-fpm entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:43:50,777 INFO success: nginx entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
+2026-06-17 09:43:50,777 INFO success: python_ml entered RUNNING state, process has stayed up for > than 1 seconds (startsecs)
