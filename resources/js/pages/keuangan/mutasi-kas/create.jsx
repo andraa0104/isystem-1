@@ -257,6 +257,7 @@ export default function MutasiKasCreate({
     const [activeLineIndex, setActiveLineIndex] = useState(null);
 
     const [suggestLoading, setSuggestLoading] = useState(false);
+    const [aiError, setAiError] = useState(null);
     const [saving, setSaving] = useState(false);
 
     const dppTarget = useMemo(() => {
@@ -419,6 +420,7 @@ export default function MutasiKasCreate({
         }
 
         setSuggestLoading(true);
+        setAiError(null);
         try {
             const params = new URLSearchParams();
             params.set('mode', mode);
@@ -518,8 +520,8 @@ export default function MutasiKasCreate({
                     }));
                 });
             }
-        } catch {
-            // ignore
+        } catch (e) {
+            setAiError(readApiError(e));
         } finally {
             setSuggestLoading(false);
         }
@@ -1328,6 +1330,11 @@ export default function MutasiKasCreate({
                                             Refresh AI
                                         </Button>
                                     </div>
+                                    {aiError ? (
+                                        <div className="text-xs text-destructive">
+                                            {aiError}
+                                        </div>
+                                    ) : null}
                                 </div>
                             )}
 

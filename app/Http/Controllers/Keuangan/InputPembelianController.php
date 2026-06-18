@@ -5,276 +5,127 @@ namespace App\Http\Controllers\Keuangan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
-use App\Services\Keuangan\KasDss\KasDss;
 
 class InputPembelianController
 {
+    private function n(float|int|string|null $value): float
+    {
+        return is_numeric($value) ? (float) $value : 0.0;
+    }
+
+    private function scalar(string $table, string $selectRaw, ?callable $where = null): float
+    {
+        if (!Schema::hasTable($table)) return 0.0;
+
+        try {
+            $q = DB::table($table);
+            if ($where) $where($q);
+            return $this->n($q->selectRaw($selectRaw . ' as v')->value('v'));
+        } catch (\Throwable) {
+            return 0.0;
+        }
+    }
+
+    private function nabbSaldo(string $akun): float
+    {
+        if (!Schema::hasTable('tb_nabb') || !Schema::hasColumn('tb_nabb', 'Saldo')) return 0.0;
+        return $this->n(DB::table('tb_nabb')->where('Kode_Akun', $akun)->value('Saldo'));
+    }
+
+    private function neracaValue(string $akun, string $column): float
+    {
+        if (!Schema::hasTable('tb_neracalajur') || !Schema::hasColumn('tb_neracalajur', $column)) return 0.0;
+        return $this->n(DB::table('tb_neracalajur')->where('Kode_Akun', $akun)->value($column));
+    }
+
+    private function latestKasByType(string $type): array
+    {
+        if (!Schema::hasTable('tb_kas')) return ['saldo' => 0.0, 'tgl' => null];
+        try {
+            $row = DB::table('tb_kas')
+                ->whereRaw('MID(Kode_Voucher, 5, 2) = ?', [$type])
+                ->orderByDesc('Kode_Voucher')
+                ->first(['Saldo', 'Tgl_Voucher']);
+            return [
+                'saldo' => $this->n($row->Saldo ?? 0),
+                'tgl' => $row->Tgl_Voucher ?? null,
+            ];
+        } catch (\Throwable) {
+            return ['saldo' => 0.0, 'tgl' => null];
+        }
+    }
+
+    private function getInfoHuSummary(): array
+    {
+        $huPo = $this->scalar('tb_kdinvin', 'SUM(sisa_bayar)');
+        $huBkp = $this->scalar('tb_biayakirimbeli', 'SUM(sisa)');
+        $huBkj = $this->scalar('tb_biayakirimjual', 'SUM(sisa)');
+        $hutangBb = $this->nabbSaldo('2101AK');
+
+        $mi = [
+            'mis' => $this->scalar('tb_mi', 'SUM(harga_mis)'),
+            'mib' => $this->scalar('tb_mi', 'SUM(harga_mib)'),
+            'mibs' => $this->scalar('tb_mib', 'SUM(total_price)'),
+            'material' => $this->scalar('tb_material', 'SUM(stok * harga)'),
+            'do_outstanding' => $this->scalar('tb_do', 'SUM(total)', fn ($q) => $q->whereRaw('COALESCE(Val_inv,0) <> 1')),
+            'dob' => $this->scalar('tb_dobi', 'SUM(total)', fn ($q) => $q->whereRaw('COALESCE(status,0) = 0')),
+            'dot' => $this->scalar('tb_dob', 'SUM(total)', fn ($q) => $q->whereRaw('COALESCE(status,0) = 0')),
+            'buku' => $this->nabbSaldo('1105AD'),
+        ];
+        $mi['fisik'] = $mi['mis'] + $mi['mib'] + $mi['mibs'] + $mi['material'] + $mi['do_outstanding'] + $mi['dob'] + $mi['dot'];
+        $mi['balance'] = $mi['fisik'] - $mi['buku'];
+
+        $kasTunai = $this->latestKasByType('CV');
+        $kasBank = $this->latestKasByType('BV');
+        $kasGiro = $this->latestKasByType('GV');
+
+        $belum = [
+            'invin' => $this->scalar('tb_kdinvin', 'SUM(sisa_bayar)', fn ($q) => $q->whereNull('ref_vc')->where('sisa_bayar', '>', 0)),
+            'faktur_jual' => $this->scalar('tb_kdfakturpenjualan', 'SUM(saldo_piutang)', fn ($q) => $q->whereRaw("TRIM(COALESCE(trx_jurnal,'')) = ''")->where('saldo_piutang', '>', 0)),
+            'do_tambah' => $mi['dot'],
+            'do_biaya' => $mi['dob'],
+            'bkb' => $this->scalar('tb_biayakirimbeli', 'SUM(sisa)', fn ($q) => $q->where('sisa', '>', 0)->whereRaw("TRIM(COALESCE(trx_kas,'')) = ''")),
+            'bkj' => $this->scalar('tb_biayakirimjual', 'SUM(sisa)', fn ($q) => $q->where('sisa', '>', 0)->whereRaw("TRIM(COALESCE(jurnal,'')) = ''")),
+            'lainnya' => $this->scalar('tb_bayar', 'SUM(sisa)', fn ($q) => $q->where('sisa', '>', 0)),
+        ];
+        $belum['total'] = array_sum($belum);
+
+        return [
+            'hutang' => [
+                'po' => $huPo,
+                'bkp' => $huBkp,
+                'bkj' => $huBkj,
+                'total' => $huPo + $huBkp + $huBkj,
+                'buku_besar' => $hutangBb,
+                'balance' => ($huPo + $huBkp + $huBkj) - $hutangBb,
+            ],
+            'persediaan' => $mi,
+            'dana' => [
+                'kas_tunai' => $kasTunai,
+                'kas_bank' => $kasBank,
+                'kas_giro' => $kasGiro,
+                'total_kas' => $kasTunai['saldo'] + $kasBank['saldo'] + $kasGiro['saldo'],
+                'piutang' => $this->nabbSaldo('1109AD'),
+                'pdo' => $this->scalar('tb_kdpdo', 'SUM(sisa_pdo)'),
+                'pdb' => $this->scalar('tb_kdpdb', 'SUM(sisa)'),
+            ],
+            'belum_jurnal' => $belum,
+            'laba_rugi' => [
+                'penjualan' => $this->nabbSaldo('4101AK'),
+                'penjualan_bl' => $this->neracaValue('4101AK', 'RL_Kredit'),
+                'hpp' => $this->nabbSaldo('6100AD'),
+                'hpp_bl' => $this->neracaValue('6100AD', 'RL_Debit'),
+            ],
+        ];
+    }
+
     private function normalizeJenisBeban(?string $jenis): string
     {
         $j = strtoupper(trim((string) $jenis));
         return $j === 'KREDIT' ? 'Kredit' : 'Debit';
-    }
-
-    private function nabbrekapAvailable(): bool
-    {
-        return Schema::hasTable('tb_nabbrekap')
-            && Schema::hasColumn('tb_nabbrekap', 'Kode_NaBB')
-            && Schema::hasColumn('tb_nabbrekap', 'Kode_Akun')
-            && Schema::hasColumn('tb_nabbrekap', 'Saldo');
-    }
-
-    /**
-     * @return array<string,float> akun => weight
-     */
-    private function getNaBBAccountWeights(int $maxPeriods = 24): array
-    {
-        // Updated requirement: do not use tb_nabbrekap weighting; DSS learns from tb_kas + tb_jurnal/tb_jurnaldetail.
-        return [];
-
-        $maxPeriods = max(1, min(60, $maxPeriods));
-        if (!$this->nabbrekapAvailable()) return [];
-
-        try {
-            $periods = DB::table('tb_nabbrekap')
-                ->selectRaw('DISTINCT RIGHT(Kode_NaBB, 6) as p')
-                ->whereNotNull('Kode_NaBB')
-                ->orderByDesc('p')
-                ->limit($maxPeriods)
-                ->pluck('p')
-                ->map(fn ($v) => (string) $v)
-                ->filter(fn ($v) => preg_match('/^\\d{6}$/', $v))
-                ->values()
-                ->all();
-
-            if (count($periods) === 0) return [];
-
-            $rows = DB::table('tb_nabbrekap as n')
-                ->whereNotNull('n.Kode_Akun')
-                ->whereRaw("TRIM(COALESCE(n.Kode_Akun,'')) <> ''")
-                ->whereRaw('RIGHT(n.Kode_NaBB, 6) in (' . implode(',', array_fill(0, count($periods), '?')) . ')', $periods)
-                ->selectRaw('TRIM(n.Kode_Akun) as akun')
-                ->selectRaw('SUM(ABS(COALESCE(n.Saldo,0))) as w')
-                ->groupBy('akun')
-                ->get();
-
-            $out = [];
-            foreach ($rows as $r) {
-                $akun = trim((string) ($r->akun ?? ''));
-                $w = (float) ($r->w ?? 0);
-                if ($akun === '' || $w <= 0) continue;
-                $out[$akun] = $w;
-            }
-            return $out;
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    /**
-     * @param array<string,int|float> $counts
-     * @param array<string,float> $weights
-     * @return string[]
-     */
-    private function rankAccountsWithNaBB(array $counts, array $weights, int $limit): array
-    {
-        $limit = max(1, min(10, $limit));
-        if (count($counts) === 0) return [];
-
-        $scored = [];
-        foreach ($counts as $akun => $cnt) {
-            $a = trim((string) $akun);
-            if ($a === '') continue;
-            $base = (float) $cnt;
-            $bonus = isset($weights[$a]) ? 0.25 : 0.0; // soft preference
-            $scored[] = ['akun' => $a, 'score' => $base + $bonus];
-        }
-        usort($scored, fn ($x, $y) => ($y['score'] <=> $x['score']));
-        return array_slice(array_map(fn ($r) => (string) $r['akun'], $scored), 0, $limit);
-    }
-
-    private function jurnalAvailable(): bool
-    {
-        return Schema::hasTable('tb_jurnal')
-            && Schema::hasTable('tb_jurnaldetail')
-            && Schema::hasColumn('tb_jurnal', 'Kode_Jurnal')
-            && Schema::hasColumn('tb_jurnal', 'Tgl_Jurnal')
-            && Schema::hasColumn('tb_jurnaldetail', 'Kode_Jurnal')
-            && Schema::hasColumn('tb_jurnaldetail', 'Kode_Akun')
-            && Schema::hasColumn('tb_jurnaldetail', 'Debit')
-            && Schema::hasColumn('tb_jurnaldetail', 'Kredit');
-    }
-
-    private function getTopAccountsFromJurnal(string $vendorKey, string $flow, int $limit): array
-    {
-        // flow: 'debit' or 'kredit'
-        $limit = max(1, min(10, $limit));
-        if (!$this->jurnalAvailable()) return [];
-
-        $flow = strtolower($flow) === 'kredit' ? 'kredit' : 'debit';
-        $hasRemark = Schema::hasColumn('tb_jurnal', 'Remark');
-        $hasVoucher = Schema::hasColumn('tb_jurnal', 'Kode_Voucher');
-
-        try {
-            $q = DB::table('tb_jurnal as j')
-                ->join('tb_jurnaldetail as d', 'd.Kode_Jurnal', '=', 'j.Kode_Jurnal')
-                ->whereBetween('j.Tgl_Jurnal', [
-                    Carbon::now()->subYears(3)->toDateString(),
-                    Carbon::now()->toDateString(),
-                ]);
-
-            if ($vendorKey !== '' && $hasRemark) {
-                $q->whereRaw('LOWER(j.Remark) like ?', ['%' . $vendorKey . '%']);
-            }
-
-            // If remark is not available, fall back to voucher search (FI usually appears there) when possible.
-            if ($vendorKey !== '' && !$hasRemark && $hasVoucher) {
-                $q->whereRaw('LOWER(j.Kode_Voucher) like ?', ['%' . $vendorKey . '%']);
-            }
-
-            $expr = $flow === 'kredit' ? 'COALESCE(d.Kredit,0)' : 'COALESCE(d.Debit,0)';
-            $q->whereRaw($expr . ' > 0');
-
-            $rows = $q->selectRaw('TRIM(d.Kode_Akun) as akun')
-                ->selectRaw('SUM(' . $expr . ') as total')
-                ->groupBy('akun')
-                ->orderByDesc('total')
-                ->limit($limit)
-                ->get();
-
-            return $rows->map(fn ($r) => (string) ($r->akun ?? ''))->filter()->values()->all();
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    private function suggestFromInvoiceHistory(string $vendorKey, bool $hasPpn, float $dppTarget, float $taxTarget): ?array
-    {
-        if (!Schema::hasTable('tb_kdinvin') || !Schema::hasColumn('tb_kdinvin', 'jurnal')) {
-            return null;
-        }
-        if (!Schema::hasTable('tb_kas') || !Schema::hasColumn('tb_kas', 'Kode_Voucher')) {
-            return null;
-        }
-        if (!$this->kasBreakdownAvailable()) {
-            return null;
-        }
-
-        $q = DB::table('tb_kdinvin as h')
-            ->whereRaw("TRIM(COALESCE(h.jurnal,'')) <> ''");
-
-        if ($vendorKey !== '' && Schema::hasColumn('tb_kdinvin', 'nm_vdr')) {
-            $q->whereRaw('LOWER(h.nm_vdr) like ?', ['%' . $vendorKey . '%']);
-        }
-
-        $hist = $q->orderByDesc('h.no_doc')
-            ->limit(160)
-            ->get(['h.no_doc', 'h.jurnal', 'h.tax', 'h.total']);
-
-        if ($hist->count() === 0) return null;
-
-        $vouchers = $hist->pluck('jurnal')->map(fn ($v) => trim((string) $v))->filter()->unique()->values()->all();
-        if (count($vouchers) === 0) return null;
-
-        $kasRows = DB::table('tb_kas')
-            ->whereIn('Kode_Voucher', $vouchers)
-            ->get([
-                'Kode_Voucher',
-                'Kode_Akun',
-                'Kode_Akun1', 'Nominal1', 'Jenis_Beban1',
-                'Kode_Akun2', 'Nominal2', 'Jenis_Beban2',
-                'Kode_Akun3', 'Nominal3', 'Jenis_Beban3',
-                'Keterangan',
-            ])
-            ->keyBy('Kode_Voucher');
-
-        if ($kasRows->count() === 0) return null;
-
-        $cashCounts = [];
-        $typeCounts = [];
-        $ppnCounts = [];
-        $dppCounts = [];
-        $jenisMap = [];
-        $nabbWeights = $this->getNaBBAccountWeights();
-
-        foreach ($hist as $hrow) {
-            $voucher = trim((string) ($hrow->jurnal ?? ''));
-            if ($voucher === '') continue;
-            $kas = $kasRows[$voucher] ?? null;
-            if (!$kas) continue;
-
-            $kodeKas = trim((string) ($kas->Kode_Akun ?? ''));
-            if ($kodeKas !== '') $cashCounts[$kodeKas] = ($cashCounts[$kodeKas] ?? 0) + 1;
-            if (str_contains($voucher, '/CV/')) $typeCounts['CV'] = ($typeCounts['CV'] ?? 0) + 1;
-            if (str_contains($voucher, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + 1;
-            if (str_contains($voucher, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + 1;
-
-            $histTax = max(0.0, (float) ($hrow->tax ?? 0));
-            $histHasPpn = $histTax > 0 || ((float) ($kas->Nominal2 ?? 0) > 0);
-
-            if ($hasPpn && $taxTarget > 0 && $histHasPpn) {
-                $kode2 = trim((string) ($kas->Kode_Akun2 ?? ''));
-                if ($kode2 !== '' && (float) ($kas->Nominal2 ?? 0) > 0) {
-                    $ppnCounts[$kode2] = ($ppnCounts[$kode2] ?? 0) + 1;
-                }
-            }
-
-            $slots = $histHasPpn ? [1, 3] : [1, 2, 3];
-            foreach ($slots as $slot) {
-                $kode = trim((string) ($kas->{'Kode_Akun' . $slot} ?? ''));
-                $nom = (float) ($kas->{'Nominal' . $slot} ?? 0);
-                $jenis = trim((string) ($kas->{'Jenis_Beban' . $slot} ?? ''));
-                if ($kode === '' || $nom <= 0) continue;
-                $dppCounts[$kode] = ($dppCounts[$kode] ?? 0) + 1;
-                if (!isset($jenisMap[$kode])) {
-                    $jenisMap[$kode] = $this->normalizeJenisBeban($jenis);
-                }
-            }
-        }
-
-        if (count($dppCounts) === 0) return null;
-
-        $limit = ($hasPpn && $taxTarget > 0) ? 2 : 3;
-        $top = $this->rankAccountsWithNaBB($dppCounts, $nabbWeights, $limit);
-        $running = 0.0;
-        $lines = [];
-        foreach ($top as $i => $akun) {
-            $nom = $i === (count($top) - 1)
-                ? round($dppTarget - $running, 2)
-                : round($dppTarget / count($top), 2);
-            $running += $nom;
-            $lines[] = [
-                'akun' => $akun,
-                'jenis' => (string) (($jenisMap[$akun] ?? '') ?: 'Debit'),
-                'nominal' => $nom,
-            ];
-        }
-
-        $ppnAkun = '';
-        if (count($ppnCounts)) {
-            $ranked = $this->rankAccountsWithNaBB($ppnCounts, $nabbWeights, 1);
-            $ppnAkun = (string) ($ranked[0] ?? '');
-        }
-
-        $kodeAkun = '';
-        if (count($cashCounts)) {
-            arsort($cashCounts);
-            $kodeAkun = (string) array_key_first($cashCounts);
-        }
-
-        $voucherType = '';
-        if (count($typeCounts)) {
-            arsort($typeCounts);
-            $voucherType = (string) array_key_first($typeCounts);
-        }
-
-        return [
-            'kode_akun' => $kodeAkun,
-            'voucher_type' => $voucherType,
-            'ppn_akun' => $ppnAkun,
-            'beban_lines' => $lines,
-        ];
     }
 
     private function buildDefaultKeterangan(object $fi): string
@@ -388,7 +239,115 @@ class InputPembelianController
 
     private function guessVoucherType(string $kodeAkun): string
     {
-        return (new KasDss())->voucherTypeForAkun($kodeAkun);
+        $a = strtoupper(trim((string) $kodeAkun));
+        if (str_starts_with($a, '1101')) return 'CV';
+        if (str_starts_with($a, '1102')) return 'GV';
+        if (str_starts_with($a, '1103')) return 'BV';
+        if (str_starts_with($a, '1104')) return 'SC';
+        return 'BV';
+    }
+
+    private function nextKodeJurnal(string $dbCode): string
+    {
+        if (!Schema::hasTable('tb_jurnal') || !Schema::hasColumn('tb_jurnal', 'Kode_Jurnal')) {
+            return '';
+        }
+
+        $unitUsaha = substr(strtoupper(trim($dbCode)), 0, 3);
+        $prefix = $unitUsaha . '/JR/';
+        $last = (string) (DB::table('tb_jurnal')
+            ->orderByDesc('Kode_Jurnal')
+            ->lockForUpdate()
+            ->value('Kode_Jurnal') ?? '');
+
+        $seq = 0;
+        if ($last !== '') {
+            $tail = substr($last, -8);
+            if (preg_match('/^\d+$/', $tail)) $seq = (int) $tail;
+        }
+
+        return $prefix . str_pad((string) ($seq + 1), 8, '0', STR_PAD_LEFT);
+    }
+
+    private function journalAvailable(): bool
+    {
+        if (!Schema::hasTable('tb_jurnal') || !Schema::hasTable('tb_jurnaldetail')) return false;
+        foreach (['Kode_Jurnal', 'Tgl_Jurnal'] as $c) {
+            if (!Schema::hasColumn('tb_jurnal', $c)) return false;
+        }
+        foreach (['Kode_Jurnal', 'Kode_Akun', 'Debit', 'Kredit'] as $c) {
+            if (!Schema::hasColumn('tb_jurnaldetail', $c)) return false;
+        }
+        return true;
+    }
+
+    private function insertJurnalHeader(string $kodeJurnal, string $kodeVoucher, string $tglVoucher, string $keterangan): void
+    {
+        if ($kodeJurnal === '' || !Schema::hasTable('tb_jurnal')) return;
+
+        $cols = Schema::getColumnListing('tb_jurnal');
+        $row = ['Kode_Jurnal' => $kodeJurnal, 'Tgl_Jurnal' => $tglVoucher];
+        if (in_array('Kode_Voucher', $cols, true)) $row['Kode_Voucher'] = $kodeVoucher;
+        if (in_array('Tgl_Buat', $cols, true)) $row['Tgl_Buat'] = Carbon::now()->toDateString();
+        if (in_array('Remark', $cols, true)) $row['Remark'] = $keterangan;
+
+        DB::table('tb_jurnal')->updateOrInsert(['Kode_Jurnal' => $kodeJurnal], $row);
+    }
+
+    /**
+     * @param array<int,array{akun:string,debit:float,kredit:float,saldo:float}> $details
+     */
+    private function insertJurnalDetailsAndUpdateNabb(string $kodeJurnal, array $details): void
+    {
+        if ($kodeJurnal === '' || !Schema::hasTable('tb_jurnaldetail')) return;
+
+        foreach ($details as $d) {
+            $akun = trim((string) ($d['akun'] ?? ''));
+            if ($akun === '') continue;
+
+            $debit = round(max(0.0, (float) ($d['debit'] ?? 0)), 2);
+            $kredit = round(max(0.0, (float) ($d['kredit'] ?? 0)), 2);
+
+            DB::table('tb_jurnaldetail')->updateOrInsert(
+                ['Kode_Jurnal' => $kodeJurnal, 'Kode_Akun' => $akun],
+                ['Debit' => $debit > 0 ? $debit : null, 'Kredit' => $kredit > 0 ? $kredit : null]
+            );
+
+            $this->updateNabbBalance($akun, $debit, $kredit, (float) ($d['saldo'] ?? 0));
+        }
+    }
+
+    private function updateNabbBalance(string $kodeAkun, float $debit, float $kredit, float $saldo): void
+    {
+        if (!Schema::hasTable('tb_nabb') || !Schema::hasColumn('tb_nabb', 'Kode_Akun')) return;
+
+        $cols = Schema::getColumnListing('tb_nabb');
+        $row = [];
+        if (in_array('BB_Debit', $cols, true)) {
+            $row['BB_Debit'] = DB::raw('COALESCE(BB_Debit,0) + ' . round($debit, 2));
+        }
+        if (in_array('BB_Kredit', $cols, true)) {
+            $row['BB_Kredit'] = DB::raw('COALESCE(BB_Kredit,0) + ' . round($kredit, 2));
+        }
+        if (in_array('Saldo', $cols, true)) {
+            $row['Saldo'] = round($saldo, 2);
+        }
+        if (count($row) === 0) return;
+
+        DB::table('tb_nabb')->where('Kode_Akun', $kodeAkun)->update($row);
+    }
+
+    private function saldoAfterJournalLine(string $kodeAkun, string $jenis, float $nominal): float
+    {
+        $saldo = 0.0;
+        if (Schema::hasTable('tb_nabb') && Schema::hasColumn('tb_nabb', 'Kode_Akun') && Schema::hasColumn('tb_nabb', 'Saldo')) {
+            $saldo = (float) (DB::table('tb_nabb')->where('Kode_Akun', $kodeAkun)->value('Saldo') ?? 0);
+        }
+
+        $isDebit = $this->normalizeJenisBeban($jenis) === 'Debit';
+        $isCreditNormal = strtoupper(substr($kodeAkun, 4, 2)) === 'AK';
+        if ($isDebit) return $saldo + ($isCreditNormal ? -abs($nominal) : abs($nominal));
+        return $saldo + ($isCreditNormal ? abs($nominal) : -abs($nominal));
     }
 
     private function buildKasSelect(): array
@@ -526,6 +485,7 @@ class InputPembelianController
             'accountOptions' => $this->getAccountOptions(),
             'defaultAccount' => $this->getDefaultAccount(),
             'expenseAccountOptions' => $this->getExpenseAccountOptions(),
+            'infoHu' => $this->getInfoHuSummary(),
         ]);
     }
 
@@ -727,171 +687,6 @@ class InputPembelianController
         }
     }
 
-    private function kasBreakdownAvailable(): bool
-    {
-        if (!Schema::hasTable('tb_kas')) return false;
-        $cols = Schema::getColumnListing('tb_kas');
-        foreach (['Kode_Akun1', 'Nominal1', 'Kode_Akun2', 'Nominal2', 'Kode_Akun3', 'Nominal3'] as $c) {
-            if (!in_array($c, $cols, true)) return false;
-        }
-        return true;
-    }
-
-    private function getDefaultPpnAccount(): string
-    {
-        if (!$this->kasBreakdownAvailable()) return '';
-
-        try {
-            $q = DB::table('tb_kas as k')
-                ->whereNotNull('k.Kode_Akun2')
-                ->whereRaw("TRIM(COALESCE(k.Kode_Akun2,'')) <> ''")
-                ->whereRaw('COALESCE(k.Nominal2,0) > 0')
-                ->selectRaw('TRIM(k.Kode_Akun2) as akun, COUNT(*) as cnt')
-                ->groupBy('akun')
-                ->orderByDesc('cnt')
-                ->limit(1)
-                ->first();
-
-            return $q ? (string) ($q->akun ?? '') : '';
-        } catch (\Throwable) {
-            return '';
-        }
-    }
-
-    private function getDefaultDppAccounts(bool $hasPpn, int $limit): array
-    {
-        if (!$this->kasBreakdownAvailable()) return [];
-        $limit = max(1, min(3, $limit));
-
-        try {
-            // Collect frequent DPP accounts from kas breakdown.
-            // 1) Prefer purchase history (keterangan starts with "Pembelian/FI").
-            // 2) Fallback to global breakdown history if none.
-            $base = DB::table('tb_kas as k')
-                ->orderByDesc('k.Tgl_Voucher')
-                ->orderByDesc('k.Kode_Voucher')
-                ->limit(800)
-                ->get([
-                    'k.Keterangan',
-                    'k.Kode_Akun1', 'k.Nominal1', 'k.Jenis_Beban1',
-                    'k.Kode_Akun2', 'k.Nominal2', 'k.Jenis_Beban2',
-                    'k.Kode_Akun3', 'k.Nominal3', 'k.Jenis_Beban3',
-                ]);
-
-            $purchaseRows = $base->filter(function ($r) {
-                $ket = trim((string) ($r->Keterangan ?? ''));
-                return str_starts_with($ket, 'Pembelian/FI ');
-            });
-            $rows = $purchaseRows->count() ? $purchaseRows : $base;
-
-            $counts = [];
-            $slots = $hasPpn ? [1, 3] : [1, 2, 3];
-            foreach ($rows as $r) {
-                foreach ($slots as $slot) {
-                    $kode = trim((string) ($r->{'Kode_Akun' . $slot} ?? ''));
-                    $nom = (float) ($r->{'Nominal' . $slot} ?? 0);
-                    $jenis = strtoupper(trim((string) ($r->{'Jenis_Beban' . $slot} ?? '')));
-                    if ($kode === '' || $nom <= 0) continue;
-                    // Jenis_Beban di data ini umumnya "Debit/Kredit", jadi tidak ada marker "PPN".
-
-                    $counts[$kode] = $counts[$kode] ?? ['count' => 0, 'jenis' => ''];
-                    $counts[$kode]['count']++;
-                    if ($counts[$kode]['jenis'] === '' && $jenis !== '') {
-                        $counts[$kode]['jenis'] = $this->normalizeJenisBeban($jenis);
-                    }
-                }
-            }
-
-            if (!count($counts)) return [];
-
-            // If history exists but too sparse, supplement from jurnal (debit side) for vendor-agnostic fallback.
-            if (count($counts) < $limit) {
-                $jurnalTop = $this->getTopAccountsFromJurnal('', 'debit', $limit);
-                foreach ($jurnalTop as $akun) {
-                    if (isset($counts[$akun])) continue;
-                    $counts[$akun] = ['count' => 0, 'jenis' => 'Debit'];
-                }
-            }
-            uasort($counts, fn ($a, $b) => ($b['count'] ?? 0) <=> ($a['count'] ?? 0));
-            $top = array_slice(array_keys($counts), 0, $limit);
-
-            $out = [];
-            foreach ($top as $akun) {
-                $out[] = [
-                    'akun' => (string) $akun,
-                    'jenis' => (string) ($counts[$akun]['jenis'] ?? ''),
-                ];
-            }
-            return $out;
-        } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    private function getFallbackExpenseAccount(): string
-    {
-        // If no usable history, choose a reasonable default from chart of accounts.
-        if (!Schema::hasTable('tb_nabb') || !Schema::hasColumn('tb_nabb', 'Kode_Akun')) {
-            // Fallback: try jurnal debit-heavy accounts.
-            $top = $this->getTopAccountsFromJurnal('', 'debit', 1);
-            return $top[0] ?? '';
-        }
-
-        try {
-            // Prefer non-cash/bank accounts (avoid 11xx if possible).
-            $first = (string) (DB::table('tb_nabb')
-                ->whereNotNull('Kode_Akun')
-                ->whereRaw("TRIM(COALESCE(Kode_Akun,'')) <> ''")
-                ->whereRaw("TRIM(COALESCE(Kode_Akun,'')) NOT LIKE '11%'")
-                ->orderBy('Kode_Akun', 'asc')
-                ->value('Kode_Akun') ?? '');
-
-            if (trim($first) !== '') return trim($first);
-
-            $any = (string) (DB::table('tb_nabb')
-                ->whereNotNull('Kode_Akun')
-                ->whereRaw("TRIM(COALESCE(Kode_Akun,'')) <> ''")
-                ->orderBy('Kode_Akun', 'asc')
-                ->value('Kode_Akun') ?? '');
-
-            return trim($any);
-        } catch (\Throwable) {
-            $top = $this->getTopAccountsFromJurnal('', 'debit', 1);
-            return $top[0] ?? '';
-        }
-    }
-
-    private function buildDefaultDppLines(bool $hasPpn, float $dppTarget, float $taxTarget): array
-    {
-        if ($dppTarget <= 0) {
-            return [];
-        }
-
-        $limit = ($hasPpn && $taxTarget > 0) ? 2 : 3;
-        $accounts = $this->getDefaultDppAccounts($hasPpn, $limit);
-        if (count($accounts) === 0) {
-            return [
-                ['akun' => '', 'jenis' => 'Debit', 'nominal' => $dppTarget],
-            ];
-        }
-
-        $lines = [];
-        $running = 0.0;
-        foreach ($accounts as $i => $a) {
-            $nom = $i === (count($accounts) - 1)
-                ? round($dppTarget - $running, 2)
-                : round($dppTarget / count($accounts), 2);
-            $running += $nom;
-            $jenis = trim((string) ($a['jenis'] ?? ''));
-            $lines[] = [
-                'akun' => (string) ($a['akun'] ?? ''),
-                'jenis' => $jenis !== '' ? $this->normalizeJenisBeban($jenis) : 'Debit',
-                'nominal' => $nom,
-            ];
-        }
-        return $lines;
-    }
-
     private function computeAllocation(object $fiHeader, float $cashNominal): array
     {
         $headerTotal = (float) ($fiHeader->total ?? 0);
@@ -915,444 +710,42 @@ class InputPembelianController
         return $vendor;
     }
 
-    private function suggestFromHistory(string $vendorKey, bool $hasPpn, float $dppTarget, float $taxTarget): array
+    private function suggestFromPython(object $fi, array $alloc, bool $hasPpn): ?array
     {
-        $result = [
-            'kode_akun' => '',
-            'voucher_type' => '',
-            'ppn_akun' => '',
-            'beban_lines' => [],
-        ];
-
-        if (!$this->kasBreakdownAvailable()) {
-            return $result;
-        }
-
-        // Prefer history where keterangan starts with "Pembelian/FI" and contains vendor text.
-        $base = DB::table('tb_kas as k')
-            ->where('k.Keterangan', 'like', 'Pembelian/FI %');
-
-        if ($vendorKey !== '') {
-            $base->whereRaw('LOWER(k.Keterangan) like ?', ['%' . $vendorKey . '%']);
-        }
-
-        $rows = (clone $base)
-            ->orderByDesc('k.Tgl_Voucher')
-            ->orderByDesc('k.Kode_Voucher')
-            ->limit(60)
-            ->get([
-                'k.Kode_Akun',
-                'k.Kode_Voucher',
-                'k.Kode_Akun1',
-                'k.Nominal1',
-                'k.Jenis_Beban1',
-                'k.Kode_Akun2',
-                'k.Nominal2',
-                'k.Jenis_Beban2',
-                'k.Kode_Akun3',
-                'k.Nominal3',
-                'k.Jenis_Beban3',
-            ]);
-
-        // Cash/bank account & voucher type suggestion.
-        $cashCounts = [];
-        $typeCounts = [];
-        foreach ($rows as $r) {
-            $kodeKas = trim((string) ($r->Kode_Akun ?? ''));
-            if ($kodeKas !== '') {
-                $cashCounts[$kodeKas] = ($cashCounts[$kodeKas] ?? 0) + 1;
-            }
-            $kv = trim((string) ($r->Kode_Voucher ?? ''));
-            if ($kv !== '') {
-                if (str_contains($kv, '/CV/')) $typeCounts['CV'] = ($typeCounts['CV'] ?? 0) + 1;
-                if (str_contains($kv, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + 1;
-                if (str_contains($kv, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + 1;
-            }
-        }
-        if (count($cashCounts)) {
-            arsort($cashCounts);
-            $result['kode_akun'] = (string) array_key_first($cashCounts);
-        }
-        if (count($typeCounts)) {
-            arsort($typeCounts);
-            $result['voucher_type'] = (string) array_key_first($typeCounts);
-        }
-
-        $nabbWeights = $this->getNaBBAccountWeights();
-
-        // PPN account suggestion: most frequent Kode_Akun2 where Nominal2 > 0.
-        if ($hasPpn && $taxTarget > 0) {
-            $ppnCounts = [];
-            foreach ($rows as $r) {
-                $kode2 = trim((string) ($r->Kode_Akun2 ?? ''));
-                $nom2 = (float) ($r->Nominal2 ?? 0);
-                if ($kode2 === '') continue;
-                if ($nom2 > 0) {
-                    $ppnCounts[$kode2] = ($ppnCounts[$kode2] ?? 0) + 1;
-                }
-            }
-            if (count($ppnCounts)) {
-                $ranked = $this->rankAccountsWithNaBB($ppnCounts, $nabbWeights, 1);
-                $result['ppn_akun'] = (string) ($ranked[0] ?? '');
-            }
-        }
-
-        // Beban suggestion:
-        // - If has PPN: use patterns of (slot1 + slot3) from history where slot2 is PPN-like.
-        // - Else: use most common up to 3 accounts across slots 1..3.
-        if ($dppTarget <= 0) {
-            return $result;
-        }
-
-        $patterns = [];
-        foreach ($rows as $r) {
-            $a1 = trim((string) ($r->Kode_Akun1 ?? ''));
-            $a2 = trim((string) ($r->Kode_Akun2 ?? ''));
-            $a3 = trim((string) ($r->Kode_Akun3 ?? ''));
-            $n1 = (float) ($r->Nominal1 ?? 0);
-            $n2 = (float) ($r->Nominal2 ?? 0);
-            $n3 = (float) ($r->Nominal3 ?? 0);
-            $j1 = trim((string) ($r->Jenis_Beban1 ?? ''));
-            $j2 = trim((string) ($r->Jenis_Beban2 ?? ''));
-            $j3 = trim((string) ($r->Jenis_Beban3 ?? ''));
-
-            if ($hasPpn) {
-                if ($a1 === '' || $a3 === '') continue;
-                $isPpnLike = $n2 > 0;
-                if (!$isPpnLike) continue;
-
-                $sum = $n1 + $n3;
-                if ($sum <= 0) continue;
-                $key = $a1 . '|' . $a3;
-                $patterns[$key] = $patterns[$key] ?? [
-                    'count' => 0,
-                    'a1' => $a1,
-                    'a3' => $a3,
-                    'r1' => 0,
-                    'r3' => 0,
-                    'j1' => $j1,
-                    'j3' => $j3,
-                    'bonus' => 0.0,
-                ];
-                $patterns[$key]['count']++;
-                $patterns[$key]['r1'] += $n1 / $sum;
-                $patterns[$key]['r3'] += $n3 / $sum;
-                $patterns[$key]['bonus'] += (isset($nabbWeights[$a1]) ? 0.25 : 0.0) + (isset($nabbWeights[$a3]) ? 0.25 : 0.0);
-            } else {
-                $accounts = [];
-                if ($a1 !== '' && $n1 > 0) $accounts[] = ['akun' => $a1, 'jenis' => $this->normalizeJenisBeban($j1), 'nom' => $n1];
-                if ($a2 !== '' && $n2 > 0) $accounts[] = ['akun' => $a2, 'jenis' => $this->normalizeJenisBeban($j2), 'nom' => $n2];
-                if ($a3 !== '' && $n3 > 0) $accounts[] = ['akun' => $a3, 'jenis' => $this->normalizeJenisBeban($j3), 'nom' => $n3];
-                if (count($accounts) === 0) continue;
-
-                // Normalize ratios across whatever lines exist
-                $sum = array_sum(array_map(fn ($x) => (float) $x['nom'], $accounts));
-                if ($sum <= 0) continue;
-                $key = implode('|', array_map(fn ($x) => $x['akun'], $accounts));
-                $patterns[$key] = $patterns[$key] ?? ['count' => 0, 'lines' => []];
-                $patterns[$key]['count']++;
-                foreach ($accounts as $idx => $a) {
-                    $patterns[$key]['lines'][$idx] = $patterns[$key]['lines'][$idx] ?? [
-                        'akun' => $a['akun'],
-                        'jenis' => $a['jenis'],
-                        'ratio' => 0,
-                    ];
-                    $patterns[$key]['lines'][$idx]['ratio'] += ((float) $a['nom']) / $sum;
-                }
-            }
-        }
-
-        if (count($patterns) === 0) {
-            // Fallback: pick most frequent DPP account from history.
-            $counts = [];
-            foreach ($rows as $r) {
-                $slots = $hasPpn ? [1, 3] : [1, 2, 3];
-                foreach ($slots as $slot) {
-                    $kode = trim((string) ($r->{'Kode_Akun' . $slot} ?? ''));
-                    $nom = (float) ($r->{'Nominal' . $slot} ?? 0);
-                    $jenis = trim((string) ($r->{'Jenis_Beban' . $slot} ?? ''));
-                    if ($kode === '' || $nom <= 0) continue;
-                    $counts[$kode] = $counts[$kode] ?? ['count' => 0, 'jenis' => $jenis];
-                    $counts[$kode]['count']++;
-                    if ($counts[$kode]['jenis'] === '' && $jenis !== '') {
-                        $counts[$kode]['jenis'] = $jenis;
-                    }
-                }
-            }
-            if (count($counts)) {
-                $flat = [];
-                foreach ($counts as $akun => $meta) {
-                    $flat[(string) $akun] = (int) ($meta['count'] ?? 0);
-                }
-                $ranked = $this->rankAccountsWithNaBB($flat, $nabbWeights, 1);
-                $akun = (string) ($ranked[0] ?? '');
-                $jenis = $akun !== '' ? (string) ($counts[$akun]['jenis'] ?? '') : '';
-                $result['beban_lines'] = [
-                    ['akun' => $akun, 'jenis' => $jenis !== '' ? $this->normalizeJenisBeban($jenis) : 'Debit', 'nominal' => $dppTarget],
-                ];
-            } else {
-                $result['beban_lines'] = [
-                    ['akun' => '', 'jenis' => 'Debit', 'nominal' => $dppTarget],
-                ];
-            }
-            return $result;
-        }
-
-        usort($patterns, function ($a, $b) {
-            $sa = (float) (($a['count'] ?? 0) + ($a['bonus'] ?? 0));
-            $sb = (float) (($b['count'] ?? 0) + ($b['bonus'] ?? 0));
-            return $sb <=> $sa;
-        });
-        $best = array_values($patterns)[0];
-
-        if ($hasPpn) {
-            $r1 = ($best['count'] ?? 1) > 0 ? (($best['r1'] ?? 0) / ($best['count'] ?? 1)) : 0.7;
-            $r3 = 1 - $r1;
-            $n1 = round($dppTarget * $r1, 2);
-            $n3 = round($dppTarget - $n1, 2);
-            $result['beban_lines'] = [
-                ['akun' => (string) ($best['a1'] ?? ''), 'jenis' => (string) ($best['j1'] ?? 'Debit'), 'nominal' => $n1],
-                ['akun' => (string) ($best['a3'] ?? ''), 'jenis' => (string) ($best['j3'] ?? 'Debit'), 'nominal' => $n3],
-            ];
-            return $result;
-        }
-
-        $lines = [];
-        $count = (int) ($best['count'] ?? 1);
-        foreach (($best['lines'] ?? []) as $l) {
-            $ratio = $count > 0 ? ((float) ($l['ratio'] ?? 0) / $count) : 0;
-            $lines[] = [
-                'akun' => (string) ($l['akun'] ?? ''),
-                'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? '')),
-                'ratio' => $ratio,
-            ];
-        }
-        if (count($lines) === 0) {
-            $result['beban_lines'] = [
-                ['akun' => '', 'jenis' => 'Debit', 'nominal' => $dppTarget],
-            ];
-            return $result;
-        }
-
-        // Allocate DPP by ratio, keep rounding consistent.
-        $allocated = [];
-        $running = 0.0;
-        foreach ($lines as $i => $l) {
-            $nom = $i === (count($lines) - 1)
-                ? round($dppTarget - $running, 2)
-                : round($dppTarget * (float) $l['ratio'], 2);
-            $running += $nom;
-            $allocated[] = [
-                'akun' => $l['akun'],
-                'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? '')),
-                'nominal' => $nom,
-            ];
-        }
-        $result['beban_lines'] = $allocated;
-        return $result;
-    }
-
-    private function getPoMaterialColumn(): ?string
-    {
-        if (!Schema::hasTable('tb_detailpo')) return null;
-        if (Schema::hasColumn('tb_detailpo', 'kd_mat')) return 'kd_mat';
-        if (Schema::hasColumn('tb_detailpo', 'no_material')) return 'no_material';
-        if (Schema::hasColumn('tb_detailpo', 'material')) return 'material';
-        return null;
-    }
-
-    private function fetchPoKeys(string $noPo): array
-    {
-        $col = $this->getPoMaterialColumn();
-        if (!$col || trim($noPo) === '') return [];
         try {
-            return DB::table('tb_detailpo')
-                ->where('no_po', $noPo)
-                ->whereNotNull($col)
-                ->pluck($col)
-                ->map(fn ($v) => strtolower(trim((string) $v)))
-                ->filter()
-                ->unique()
-                ->values()
-                ->all();
+            $base = rtrim((string) env('KAS_DSS_PYTHON_URL', 'http://127.0.0.1:8000'), '/');
+            $resp = Http::timeout(8)->acceptJson()->post($base . '/predict-input-pembelian', [
+                'no_doc' => (string) ($fi->no_doc ?? ''),
+                'vendor' => (string) ($fi->nm_vdr ?? ''),
+                'ref_po' => (string) ($fi->ref_po ?? ''),
+                'total' => (float) ($fi->total ?? 0),
+                'tax' => (float) ($alloc['tax'] ?? 0),
+                'cashNominal' => (float) ($alloc['cash'] ?? 0),
+                'dppTarget' => (float) ($alloc['dpp'] ?? 0),
+                'hasPpn' => $hasPpn,
+            ]);
+            if (!$resp->ok()) return null;
+
+            $j = $resp->json();
+            if (!is_array($j)) return null;
+            $lines = is_array($j['beban_lines'] ?? null) ? $j['beban_lines'] : [];
+            if (count($lines) === 0) return null;
+
+            return [
+                'kode_akun' => (string) ($j['kode_akun'] ?? ''),
+                'voucher_type' => (string) ($j['voucher_type'] ?? ''),
+                'ppn_akun' => (string) ($j['ppn_akun'] ?? ''),
+                'beban_lines' => collect($lines)->map(fn ($l) => [
+                    'akun' => trim((string) ($l['akun'] ?? '')),
+                    'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? 'Debit')),
+                    'nominal' => (float) ($l['nominal'] ?? 0),
+                ])->values()->all(),
+                'confidence' => $j['confidence'] ?? null,
+                'evidence' => $j['evidence'] ?? [],
+            ];
         } catch (\Throwable) {
-            return [];
-        }
-    }
-
-    private function suggestFromPoDetail(string $vendorKey, string $refPo, bool $hasPpn, float $dppTarget, float $taxTarget): ?array
-    {
-        $poKeys = $this->fetchPoKeys($refPo);
-        if (count($poKeys) === 0 || !$this->kasBreakdownAvailable()) {
             return null;
         }
-
-        // Pull recent FI history (same vendor) that has been journaled.
-        if (!Schema::hasTable('tb_kdinvin') || !Schema::hasColumn('tb_kdinvin', 'jurnal') || !Schema::hasColumn('tb_kdinvin', 'ref_po')) {
-            return null;
-        }
-
-        $fiQ = DB::table('tb_kdinvin')
-            ->whereRaw("TRIM(COALESCE(jurnal,'')) <> ''")
-            ->whereNotNull('ref_po')
-            ->whereRaw("TRIM(COALESCE(ref_po,'')) <> ''");
-
-        if ($vendorKey !== '' && Schema::hasColumn('tb_kdinvin', 'nm_vdr')) {
-            $fiQ->whereRaw('LOWER(nm_vdr) like ?', ['%' . $vendorKey . '%']);
-        }
-
-        $fiRows = $fiQ->orderByDesc('no_doc')->limit(120)->get(['ref_po', 'jurnal', 'tax', 'total']);
-        if ($fiRows->count() === 0) return null;
-
-        $voucherCodes = $fiRows->pluck('jurnal')->map(fn ($v) => trim((string) $v))->filter()->unique()->values()->all();
-        $poNos = $fiRows->pluck('ref_po')->map(fn ($v) => trim((string) $v))->filter()->unique()->values()->all();
-        if (count($voucherCodes) === 0 || count($poNos) === 0) return null;
-
-        // Fetch kas breakdown by voucher.
-        $kasByVoucher = DB::table('tb_kas')
-            ->whereIn('Kode_Voucher', $voucherCodes)
-            ->get([
-                'Kode_Voucher',
-                'Kode_Akun',
-                'Kode_Akun1', 'Nominal1', 'Jenis_Beban1',
-                'Kode_Akun2', 'Nominal2', 'Jenis_Beban2',
-                'Kode_Akun3', 'Nominal3', 'Jenis_Beban3',
-            ])
-            ->keyBy('Kode_Voucher');
-
-        if ($kasByVoucher->count() === 0) return null;
-
-        // Fetch PO detail keys for those PO numbers and group by PO.
-        $col = $this->getPoMaterialColumn();
-        if (!$col) return null;
-
-        $detailRows = DB::table('tb_detailpo')
-            ->whereIn('no_po', $poNos)
-            ->whereNotNull($col)
-            ->get(['no_po', $col]);
-
-        $poKeyMap = [];
-        foreach ($detailRows as $dr) {
-            $po = trim((string) ($dr->no_po ?? ''));
-            $key = strtolower(trim((string) ($dr->{$col} ?? '')));
-            if ($po === '' || $key === '') continue;
-            $poKeyMap[$po] = $poKeyMap[$po] ?? [];
-            $poKeyMap[$po][$key] = true;
-        }
-
-        // Vote accounts by overlapping material keys.
-        $accountVotes = [];
-        $ppnCounts = [];
-        $cashCounts = [];
-        $typeCounts = [];
-        $nabbWeights = $this->getNaBBAccountWeights();
-
-        foreach ($fiRows as $fi) {
-            $po = trim((string) ($fi->ref_po ?? ''));
-            $voucher = trim((string) ($fi->jurnal ?? ''));
-            if ($po === '' || $voucher === '') continue;
-            if (!isset($poKeyMap[$po])) continue;
-
-            // overlap?
-            $overlap = 0;
-            foreach ($poKeys as $k) {
-                if (isset($poKeyMap[$po][$k])) $overlap++;
-            }
-            if ($overlap === 0) continue;
-
-            $kas = $kasByVoucher[$voucher] ?? null;
-            if (!$kas) continue;
-
-            // Determine whether that historical voucher likely had PPN.
-            $histTax = max(0.0, (float) ($fi->tax ?? 0));
-            $histHasPpn = $histTax > 0 || ((float) ($kas->Nominal2 ?? 0) > 0);
-
-            $kodeKas = trim((string) ($kas->Kode_Akun ?? ''));
-            if ($kodeKas !== '') {
-                $cashCounts[$kodeKas] = ($cashCounts[$kodeKas] ?? 0) + $overlap;
-            }
-            if (str_contains($voucher, '/CV/')) $typeCounts['CV'] = ($typeCounts['CV'] ?? 0) + $overlap;
-            if (str_contains($voucher, '/GV/')) $typeCounts['GV'] = ($typeCounts['GV'] ?? 0) + $overlap;
-            if (str_contains($voucher, '/BV/')) $typeCounts['BV'] = ($typeCounts['BV'] ?? 0) + $overlap;
-
-            // PPN account vote (slot2).
-            if ($hasPpn && $histHasPpn) {
-                $kode2 = trim((string) ($kas->Kode_Akun2 ?? ''));
-                if ($kode2 !== '') {
-                    $ppnCounts[$kode2] = ($ppnCounts[$kode2] ?? 0) + $overlap;
-                }
-            }
-
-            // DPP accounts: follow company standard mapping (slot2 reserved for PPN when exists).
-            $dppSlots = $histHasPpn ? [1, 3] : [1, 2, 3];
-            foreach ($dppSlots as $slot) {
-                $kode = trim((string) ($kas->{'Kode_Akun' . $slot} ?? ''));
-                $nom = (float) ($kas->{'Nominal' . $slot} ?? 0);
-                $jenis = trim((string) ($kas->{'Jenis_Beban' . $slot} ?? ''));
-                if ($kode === '' || $nom <= 0) continue;
-                $accountVotes[$kode] = $accountVotes[$kode] ?? [
-                    'score' => 0,
-                    'jenis' => $this->normalizeJenisBeban($jenis),
-                ];
-                $accountVotes[$kode]['score'] += $overlap;
-                if ($accountVotes[$kode]['jenis'] === '' && $jenis !== '') {
-                    $accountVotes[$kode]['jenis'] = $this->normalizeJenisBeban($jenis);
-                }
-            }
-        }
-
-        if (count($accountVotes) === 0) return null;
-
-        $ranked = [];
-        foreach ($accountVotes as $akun => $meta) {
-            $bonus = isset($nabbWeights[(string) $akun]) ? 0.25 : 0.0;
-            $ranked[] = [
-                'akun' => (string) $akun,
-                'score' => (float) ($meta['score'] ?? 0) + $bonus,
-                'jenis' => (string) ($meta['jenis'] ?? ''),
-            ];
-        }
-        usort($ranked, fn ($a, $b) => ($b['score'] <=> $a['score']));
-        $maxLines = $hasPpn && $taxTarget > 0 ? 2 : 3;
-        $top = array_slice($ranked, 0, $maxLines);
-
-        // Even split DPP across selected accounts if we don't have ratios.
-        $lines = [];
-        $remaining = $dppTarget;
-        foreach ($top as $i => $row) {
-            $nom = $i === (count($top) - 1) ? round($remaining, 2) : round($dppTarget / count($top), 2);
-            $remaining = round($remaining - $nom, 2);
-            $jenis = (string) ($row['jenis'] ?? '');
-            $lines[] = [
-                'akun' => (string) ($row['akun'] ?? ''),
-                'jenis' => $jenis !== '' ? $this->normalizeJenisBeban($jenis) : 'Debit',
-                'nominal' => $nom,
-            ];
-        }
-
-        $ppnAkun = '';
-        if ($hasPpn && $taxTarget > 0 && count($ppnCounts)) {
-            $rankedPpn = $this->rankAccountsWithNaBB($ppnCounts, $nabbWeights, 1);
-            $ppnAkun = (string) ($rankedPpn[0] ?? '');
-        }
-
-        $kodeAkun = '';
-        if (count($cashCounts)) {
-            arsort($cashCounts);
-            $kodeAkun = (string) array_key_first($cashCounts);
-        }
-        $voucherType = '';
-        if (count($typeCounts)) {
-            arsort($typeCounts);
-            $voucherType = (string) array_key_first($typeCounts);
-        }
-
-        return [
-            'kode_akun' => $kodeAkun,
-            'voucher_type' => $voucherType,
-            'ppn_akun' => $ppnAkun,
-            'beban_lines' => $lines,
-        ];
     }
 
     public function suggest(Request $request, string $noDoc)
@@ -1377,120 +770,29 @@ class InputPembelianController
             }
 
             $alloc = $this->computeAllocation($fi, (float) $cashNominal);
-            $vendorKey = $this->buildVendorKey((string) ($fi->nm_vdr ?? ''));
-
             $hasPpn = ($alloc['tax'] ?? 0) > 0;
-            $refPo = trim((string) ($fi->ref_po ?? ''));
-            $poSuggest = $refPo !== '' ? $this->suggestFromPoDetail($vendorKey, $refPo, $hasPpn, (float) ($alloc['dpp'] ?? 0), (float) ($alloc['tax'] ?? 0)) : null;
-            $invSuggest = $this->suggestFromInvoiceHistory($vendorKey, $hasPpn, (float) ($alloc['dpp'] ?? 0), (float) ($alloc['tax'] ?? 0));
-            $suggest = $poSuggest
-                ?? $invSuggest
-                ?? $this->suggestFromHistory($vendorKey, $hasPpn, (float) ($alloc['dpp'] ?? 0), (float) ($alloc['tax'] ?? 0));
-            $suggestSource = $poSuggest ? 'po' : ($invSuggest ? 'invoice' : 'kas');
-
-            // DSS (generic) based on similarity of keterangan:
-            // - learns from tb_kas (kNN), tb_jurnal/tb_jurnaldetail (fallback), and can be softly guided by FI history.
-            $seedAkun = '';
-            $seedFrom = is_array($suggest['beban_lines'] ?? null) ? $suggest['beban_lines'] : [];
-            if (is_array($seedFrom) && count($seedFrom) > 0) {
-                $seedAkun = trim((string) ($seedFrom[0]['akun'] ?? ''));
-            }
-
-            // Use FI fields (tb_kdinvin) to enrich the query text for DSS scoring.
-            // IMPORTANT: do not change the user-facing redaction; only enrich the internal query.
+            $pythonSuggest = $this->suggestFromPython($fi, $alloc, $hasPpn);
             $keteranganDisplay = $this->suggestKeterangan($fi);
-            $keteranganForDss = trim(
-                $keteranganDisplay . ' '
-                    . (string) ($fi->nm_vdr ?? '') . ' '
-                    . (string) ($fi->ref_po ?? '') . ' '
-                    . (string) ($fi->no_doc ?? '')
-            );
 
-            $dss = (new KasDss())->suggest([
-                'mode' => 'out',
-                'keterangan' => $keteranganForDss,
-                'nominal' => (float) ($alloc['cash'] ?? 0),
-                'hasPpn' => $hasPpn,
-                'ppnNominal' => (float) ($alloc['tax'] ?? 0),
-                'seedAkun' => $seedAkun,
-            ]);
-
-            if (is_array($dss) && count($dss)) {
-                $confOverall = (float) ($dss['confidence']['overall'] ?? 0);
-                $allowOverrideLines = $suggestSource === 'kas' || $confOverall >= 0.35;
-
-                $dssKas = trim((string) ($dss['kode_akun'] ?? ''));
-                if ($dssKas !== '') {
-                    $suggest['kode_akun'] = $dssKas;
-                }
-
-                $dssVoucher = trim((string) ($dss['voucher_type'] ?? ''));
-                if ($dssVoucher !== '') {
-                    $suggest['voucher_type'] = $dssVoucher;
-                }
-
-                if ($hasPpn && trim((string) ($suggest['ppn_akun'] ?? '')) === '') {
-                    $dssPpn = trim((string) ($dss['ppn_akun'] ?? ''));
-                    if ($dssPpn !== '') $suggest['ppn_akun'] = $dssPpn;
-                }
-
-                $dssLines = is_array($dss['lines'] ?? null) ? $dss['lines'] : [];
-                if ($allowOverrideLines && count($dssLines) > 0) {
-                    $limit = $hasPpn ? 2 : 3;
-                    $suggest['beban_lines'] = collect(array_slice($dssLines, 0, $limit))
-                        ->map(fn ($l) => [
-                            'akun' => trim((string) ($l['akun'] ?? '')),
-                            'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? 'Debit')),
-                            'nominal' => (float) ($l['nominal'] ?? 0),
-                        ])
-                        ->values()
-                        ->all();
-                }
-            }
-
-            if ($hasPpn && trim((string) ($suggest['ppn_akun'] ?? '')) === '') {
-                $suggest['ppn_akun'] = $this->getDefaultPpnAccount();
-            }
-
-            $lines = is_array($suggest['beban_lines'] ?? null) ? $suggest['beban_lines'] : [];
-            $needsDefaultLines = count($lines) === 0;
-            if (!$needsDefaultLines) {
-                foreach ($lines as $l) {
-                    $akun = trim((string) ($l['akun'] ?? ''));
-                    if ($akun === '') {
-                        $needsDefaultLines = true;
-                        break;
-                    }
-                }
-            }
-            if ($needsDefaultLines) {
-                $suggest['beban_lines'] = $this->buildDefaultDppLines($hasPpn, (float) ($alloc['dpp'] ?? 0), (float) ($alloc['tax'] ?? 0));
-            }
-
-            // Final fallback: ensure akun beban tidak kosong agar user tidak perlu pilih manual.
-            $fallbackExpense = $this->getFallbackExpenseAccount();
-            if ($fallbackExpense !== '') {
-                $filled = [];
-                foreach (($suggest['beban_lines'] ?? []) as $l) {
-                    $akun = trim((string) ($l['akun'] ?? ''));
-                    $filled[] = [
-                        'akun' => $akun !== '' ? $akun : $fallbackExpense,
-                        'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? '')),
-                        'nominal' => (float) ($l['nominal'] ?? 0),
-                    ];
-                }
-                $suggest['beban_lines'] = $filled;
+            if (!$pythonSuggest) {
+                return response()->json([
+                    'error' => 'AI Python tidak memberi saran. Pastikan service Python aktif dan histori pembelian tersedia.',
+                    'allocation' => $alloc,
+                    'keterangan' => $keteranganDisplay,
+                    'source' => 'python',
+                ], 503);
             }
 
             return response()->json([
                 'allocation' => $alloc,
-                'kode_akun' => (string) ($suggest['kode_akun'] ?? ''),
-                'voucher_type' => (string) ($suggest['voucher_type'] ?? ''),
-                'ppn_akun' => (string) ($suggest['ppn_akun'] ?? ''),
-                'beban_lines' => $suggest['beban_lines'] ?? [],
+                'kode_akun' => (string) ($pythonSuggest['kode_akun'] ?? ''),
+                'voucher_type' => (string) ($pythonSuggest['voucher_type'] ?? ''),
+                'ppn_akun' => (string) ($pythonSuggest['ppn_akun'] ?? ''),
+                'beban_lines' => $pythonSuggest['beban_lines'] ?? [],
                 'keterangan' => $keteranganDisplay,
-                'confidence' => $dss['confidence'] ?? null,
-                'evidence' => $dss['evidence'] ?? [],
+                'confidence' => $pythonSuggest['confidence'] ?? null,
+                'evidence' => $pythonSuggest['evidence'] ?? [],
+                'source' => 'python',
             ]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
@@ -1540,9 +842,6 @@ class InputPembelianController
             }
 
             $existingJurnal = trim((string) ($header->jurnal ?? ''));
-            if ($existingJurnal !== '') {
-                return redirect()->back()->with('error', 'FI ini sudah dijurnal: ' . $existingJurnal);
-            }
 
             $kodeAkun = (string) $payload['kode_akun'];
             $ppnAkun = trim((string) ($payload['ppn_akun'] ?? ''));
@@ -1608,10 +907,10 @@ class InputPembelianController
                     . ($refPo !== '' ? (' (PO ' . $refPo . ')') : '');
             }
 
-            return DB::transaction(function () use ($request, $kasCols, $kodeAkun, $ppnAkun, $cleanBeban, $tglVoucher, $nominal, $taxNominal, $keterangan, $header) {
+            return DB::transaction(function () use ($request, $kasCols, $kodeAkun, $ppnAkun, $cleanBeban, $tglVoucher, $nominal, $taxNominal, $keterangan, $header, $existingJurnal) {
                 $dbCode = $this->getDatabaseCode($request);
                 $voucherType = strtoupper(trim((string) $request->input('voucher_type', '')));
-                $voucherType = in_array($voucherType, ['CV', 'GV', 'BV'], true) ? $voucherType : $this->guessVoucherType($kodeAkun);
+                $voucherType = in_array($voucherType, ['CV', 'GV', 'BV', 'SC'], true) ? $voucherType : $this->guessVoucherType($kodeAkun);
 
                 $prefix = $dbCode . '/' . $voucherType . '/';
                 $last = '';
@@ -1688,13 +987,13 @@ class InputPembelianController
                     if (isset($cleanBeban[0])) $assign(1, $cleanBeban[0]);
                     if (isset($cleanBeban[1])) $assign(3, $cleanBeban[1]);
 
-                if ($ppnAkun !== '' && $hasB2) {
-                    $row['Kode_Akun2'] = $ppnAkun;
-                    $row['Nominal2'] = (float) $taxNominal;
-                }
-                if ($hasJ2) {
-                    $row['Jenis_Beban2'] = 'Debit';
-                }
+                    if ($ppnAkun !== '' && $hasB2) {
+                        $row['Kode_Akun2'] = $ppnAkun;
+                        $row['Nominal2'] = (float) $taxNominal;
+                    }
+                    if ($hasJ2) {
+                        $row['Jenis_Beban2'] = 'Debit';
+                    }
                 } else {
                     if (isset($cleanBeban[0])) $assign(1, $cleanBeban[0]);
                     if (isset($cleanBeban[1])) $assign(2, $cleanBeban[1]);
@@ -1703,10 +1002,69 @@ class InputPembelianController
 
                 DB::table('tb_kas')->insert($row);
 
-                if (Schema::hasColumn('tb_kdinvin', 'jurnal')) {
+                if ($this->journalAvailable()) {
+                    $kodeJurnal = $this->nextKodeJurnal($dbCode);
+                    $this->insertJurnalHeader($kodeJurnal, $kodeVoucher, $tglVoucher, $keterangan);
+
+                    $details = [[
+                        'akun' => $kodeAkun,
+                        'debit' => 0,
+                        'kredit' => abs($nominal),
+                        'saldo' => $this->saldoAfterJournalLine($kodeAkun, 'Kredit', abs($nominal)),
+                    ]];
+
+                    foreach ($cleanBeban as $line) {
+                        $jenis = $this->normalizeJenisBeban((string) ($line['jenis'] ?? 'Debit'));
+                        $nom = abs((float) ($line['nominal'] ?? 0));
+                        $details[] = [
+                            'akun' => (string) $line['akun'],
+                            'debit' => $jenis === 'Debit' ? $nom : 0,
+                            'kredit' => $jenis === 'Kredit' ? $nom : 0,
+                            'saldo' => $this->saldoAfterJournalLine((string) $line['akun'], $jenis, $nom),
+                        ];
+                    }
+
+                    if ($taxNominal > 0 && $ppnAkun !== '') {
+                        $details[] = [
+                            'akun' => $ppnAkun,
+                            'debit' => abs($taxNominal),
+                            'kredit' => 0,
+                            'saldo' => $this->saldoAfterJournalLine($ppnAkun, 'Debit', abs($taxNominal)),
+                        ];
+                    }
+
+                    $debitTotal = round(array_sum(array_map(fn ($d) => (float) $d['debit'], $details)), 2);
+                    $kreditTotal = round(array_sum(array_map(fn ($d) => (float) $d['kredit'], $details)), 2);
+                    if ($debitTotal !== $kreditTotal) {
+                        throw new \RuntimeException('Jurnal tidak balance. Debit: ' . $debitTotal . ', Kredit: ' . $kreditTotal);
+                    }
+
+                    $this->insertJurnalDetailsAndUpdateNabb($kodeJurnal, $details);
+                }
+
+                $fiCols = Schema::getColumnListing('tb_kdinvin');
+                $sisaBayar = (float) ($header->sisa_bayar ?? $header->total ?? 0);
+                $wasHutang = in_array(strtoupper($existingJurnal), ['2101', '2101AK'], true);
+                $isFullPayment = abs($nominal) + 0.01 >= max(0.0, $sisaBayar);
+                $ketJurnalFi = (!$isFullPayment || $wasHutang) ? '2101AK' : '';
+
+                $updates = [];
+                if (in_array('jurnal', $fiCols, true)) $updates['jurnal'] = $ketJurnalFi;
+                if (in_array('pembayaran', $fiCols, true)) {
+                    $updates['pembayaran'] = DB::raw('COALESCE(pembayaran,0) + ' . round(abs($nominal), 2));
+                }
+                if (in_array('sisa_bayar', $fiCols, true)) {
+                    $updates['sisa_bayar'] = DB::raw('GREATEST(COALESCE(sisa_bayar,0) - ' . round(abs($nominal), 2) . ', 0)');
+                }
+                if (in_array('tgl_bayar', $fiCols, true)) $updates['tgl_bayar'] = $tglVoucher;
+                if (!$wasHutang && in_array('ref_vc', $fiCols, true)) {
+                    $updates['ref_vc'] = Carbon::parse($tglVoucher)->format('Y-m-01');
+                }
+
+                if (count($updates) > 0) {
                     DB::table('tb_kdinvin')
                         ->where('no_doc', (string) $header->no_doc)
-                        ->update(['jurnal' => $kodeVoucher]);
+                        ->update($updates);
                 }
 
                 return redirect()

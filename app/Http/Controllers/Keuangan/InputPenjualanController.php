@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Keuangan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
-use App\Services\Keuangan\KasDss\KasDss;
 
 class InputPenjualanController
 {
@@ -168,7 +168,12 @@ class InputPenjualanController
 
     private function guessVoucherType(string $kodeAkun): string
     {
-        return (new KasDss())->voucherTypeForAkun($kodeAkun);
+        $a = strtoupper(trim((string) $kodeAkun));
+        if (str_starts_with($a, '1101')) return 'CV';
+        if (str_starts_with($a, '1102')) return 'GV';
+        if (str_starts_with($a, '1103')) return 'BV';
+        if (str_starts_with($a, '1104')) return 'SC';
+        return 'BV';
     }
 
     private function kasBreakdownAvailable(): bool
@@ -531,6 +536,16 @@ class InputPenjualanController
     {
         $total = (float) ($header->g_total ?? 0);
         $tax = max(0.0, (float) ($header->h_ppn ?? 0));
+        $trxJurnal = trim((string) ($header->trx_jurnal ?? ''));
+
+        if ($trxJurnal !== '') {
+            return [
+                'cash' => max(0.0, $cashNominal),
+                'dpp' => round(max(0.0, $cashNominal), 2),
+                'tax' => 0.0,
+            ];
+        }
+
         $dpp = max(0.0, $total - $tax);
 
         $cashNominal = max(0.0, $cashNominal);
@@ -955,6 +970,48 @@ class InputPenjualanController
         return $out;
     }
 
+    private function suggestFromPython(object $header, array $alloc, bool $hasPpn): ?array
+    {
+        try {
+            $base = rtrim((string) env('KAS_DSS_PYTHON_URL', 'http://127.0.0.1:8000'), '/');
+            $resp = Http::timeout(8)->acceptJson()->post($base . '/predict-input-penjualan', [
+                'no_faktur' => (string) ($header->no_fakturpenjualan ?? ''),
+                'customer' => (string) ($header->nm_cs ?? ''),
+                'ref_po' => (string) ($header->ref_po ?? ''),
+                'total' => (float) ($header->g_total ?? 0),
+                'tax' => (float) ($alloc['tax'] ?? 0),
+                'cashNominal' => (float) ($alloc['cash'] ?? 0),
+                'dppTarget' => (float) ($alloc['dpp'] ?? 0),
+                'hpp' => (float) ($header->HPP ?? 0),
+                'trx_jurnal' => (string) ($header->trx_jurnal ?? ''),
+                'saldo_piutang' => (float) ($header->saldo_piutang ?? 0),
+                'hasPpn' => $hasPpn,
+            ]);
+            if (!$resp->ok()) return null;
+
+            $j = $resp->json();
+            if (!is_array($j)) return null;
+            $lines = is_array($j['beban_lines'] ?? null) ? $j['beban_lines'] : [];
+            if (count($lines) === 0) return null;
+
+            return [
+                'kode_akun' => (string) ($j['kode_akun'] ?? ''),
+                'voucher_type' => (string) ($j['voucher_type'] ?? ''),
+                'ppn_akun' => (string) ($j['ppn_akun'] ?? ''),
+                'beban_lines' => collect($lines)->map(fn ($l) => [
+                    'akun' => trim((string) ($l['akun'] ?? '')),
+                    'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? 'Kredit')),
+                    'nominal' => (float) ($l['nominal'] ?? 0),
+                ])->values()->all(),
+                'keterangan' => (string) ($j['keterangan'] ?? ''),
+                'confidence' => $j['confidence'] ?? null,
+                'evidence' => $j['evidence'] ?? [],
+            ];
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     public function suggest(Request $request, string $noFaktur)
     {
         try {
@@ -974,122 +1031,15 @@ class InputPenjualanController
             }
 
             $alloc = $this->computeAllocation($header, (float) $cashNominal);
-            $customerKey = strtolower(trim((string) ($header->nm_cs ?? '')));
-            $customerKey = preg_replace('/\\s+/', ' ', $customerKey);
-
             $hasPpn = ($alloc['tax'] ?? 0) > 0;
-            $fakturSuggest = $this->suggestFromFakturHistory($customerKey, $hasPpn, (float) ($alloc['dpp'] ?? 0), (float) ($alloc['tax'] ?? 0));
-            $suggest = $fakturSuggest
-                ?? $this->suggestFromHistory($customerKey, $hasPpn, (float) ($alloc['dpp'] ?? 0), (float) ($alloc['tax'] ?? 0));
-            $suggestSource = $fakturSuggest ? 'faktur' : 'kas';
-
-            if ($hasPpn && trim((string) ($suggest['ppn_akun'] ?? '')) === '') {
-                $suggest['ppn_akun'] = $this->getDefaultPpnKeluaranAccount();
+            $suggest = $this->suggestFromPython($header, $alloc, $hasPpn);
+            if (!$suggest) {
+                return response()->json([
+                    'error' => 'AI Python tidak memberi saran. Pastikan service Python aktif dan histori penjualan tersedia.',
+                    'allocation' => $alloc,
+                    'source' => 'python',
+                ], 503);
             }
-
-            $lines = is_array($suggest['beban_lines'] ?? null) ? $suggest['beban_lines'] : [];
-            $needsDefaultLines = count($lines) === 0;
-            if (!$needsDefaultLines) {
-                foreach ($lines as $l) {
-                    if (trim((string) ($l['akun'] ?? '')) === '') {
-                        $needsDefaultLines = true;
-                        break;
-                    }
-                }
-            }
-            if ($needsDefaultLines) {
-                // Use journal (credit side) to find top revenue accounts if possible; fallback to tb_nabb.
-                $top = $this->getTopAccountsFromJurnal($customerKey, 'kredit', $hasPpn && (float) ($alloc['tax'] ?? 0) > 0 ? 2 : 3);
-                if (count($top)) {
-                    $running = 0.0;
-                    $linesOut = [];
-                    foreach ($top as $i => $akun) {
-                        $nom = $i === (count($top) - 1)
-                            ? round((float) ($alloc['dpp'] ?? 0) - $running, 2)
-                            : round(((float) ($alloc['dpp'] ?? 0)) / count($top), 2);
-                        $running += $nom;
-                        $linesOut[] = ['akun' => $akun, 'jenis' => 'Kredit', 'nominal' => $nom];
-                    }
-                    $suggest['beban_lines'] = $linesOut;
-                } else {
-                    $suggest['beban_lines'] = $this->buildDefaultRevenueLines($hasPpn, (float) ($alloc['dpp'] ?? 0), (float) ($alloc['tax'] ?? 0));
-                }
-            }
-
-            if (trim((string) ($suggest['keterangan'] ?? '')) === '') {
-                $suggest['keterangan'] = $this->buildDefaultKeterangan($header);
-            }
-
-            // DSS (generic) based on similarity of keterangan:
-            // - learns from tb_kas (kNN) + tb_jurnal/tb_jurnaldetail fallback.
-            $seedAkun = '';
-            $seedFrom = is_array($suggest['beban_lines'] ?? null) ? $suggest['beban_lines'] : [];
-            if (is_array($seedFrom) && count($seedFrom) > 0) {
-                $seedAkun = trim((string) ($seedFrom[0]['akun'] ?? ''));
-            }
-
-            // Enrich internal DSS query using tb_kdfakturpenjualan fields (aligned with FakturPenjualanController).
-            // IMPORTANT: keep it neutral (do not force "Penjualan/INV ..."), so DSS can pick the best wording for paid/lunas cases too.
-            $ppnPct = '';
-            if (Schema::hasColumn('tb_kdfakturpenjualan', 'ppn')) {
-                $ppnPct = (string) ($header->ppn ?? '');
-            }
-            $keteranganForDss = trim(
-                (string) ($header->no_fakturpenjualan ?? '') . ' '
-                    . (string) ($header->nm_cs ?? '') . ' '
-                    . (string) ($header->ref_po ?? '') . ' '
-                    . (string) ($header->no_fakturpenjualan ?? '') . ' '
-                    . (string) ($header->trx_jurnal ?? '') . ' '
-                    . (string) ($header->no_kwitansi ?? '') . ' '
-                    . $ppnPct
-            );
-
-            $dss = (new KasDss())->suggest([
-                'mode' => 'in',
-                'keterangan' => $keteranganForDss,
-                'nominal' => (float) ($alloc['cash'] ?? 0),
-                'hasPpn' => $hasPpn,
-                'ppnNominal' => (float) ($alloc['tax'] ?? 0),
-                'seedAkun' => $seedAkun,
-            ]);
-
-            if (is_array($dss) && count($dss)) {
-                $confOverall = (float) ($dss['confidence']['overall'] ?? 0);
-                $allowOverride = $suggestSource === 'kas' || $confOverall >= 0.35;
-
-                if ($allowOverride) {
-                    $dssKas = trim((string) ($dss['kode_akun'] ?? ''));
-                    if ($dssKas !== '') $suggest['kode_akun'] = $dssKas;
-
-                    $dssVoucher = trim((string) ($dss['voucher_type'] ?? ''));
-                    if ($dssVoucher !== '') $suggest['voucher_type'] = $dssVoucher;
-
-                    if ($hasPpn && trim((string) ($suggest['ppn_akun'] ?? '')) === '') {
-                        $dssPpn = trim((string) ($dss['ppn_akun'] ?? ''));
-                        if ($dssPpn !== '') $suggest['ppn_akun'] = $dssPpn;
-                    }
-
-                    $dssLines = is_array($dss['lines'] ?? null) ? $dss['lines'] : [];
-                    if (count($dssLines) > 0) {
-                        $limit = $hasPpn ? 2 : 3;
-                        $suggest['beban_lines'] = collect(array_slice($dssLines, 0, $limit))
-                            ->map(fn ($l) => [
-                                'akun' => trim((string) ($l['akun'] ?? '')),
-                                'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? 'Kredit')),
-                                'nominal' => (float) ($l['nominal'] ?? 0),
-                            ])
-                            ->values()
-                            ->all();
-                    }
-                }
-            }
-
-            // Keterangan uses DSS evidence (most similar) so wording follows history.
-            $suggest['keterangan'] = $this->suggestKeteranganFromDss(
-                $header,
-                is_array($dss) ? $dss : [],
-                (string) ($suggest['keterangan'] ?? '')
-            );
 
             return response()->json([
                 'allocation' => $alloc,
@@ -1098,8 +1048,9 @@ class InputPenjualanController
                 'ppn_akun' => (string) ($suggest['ppn_akun'] ?? ''),
                 'beban_lines' => $suggest['beban_lines'] ?? [],
                 'keterangan' => (string) ($suggest['keterangan'] ?? ''),
-                'confidence' => $dss['confidence'] ?? null,
-                'evidence' => $dss['evidence'] ?? [],
+                'confidence' => $suggest['confidence'] ?? null,
+                'evidence' => $suggest['evidence'] ?? [],
+                'source' => 'python',
             ]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);

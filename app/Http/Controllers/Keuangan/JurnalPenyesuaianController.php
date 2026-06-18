@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Keuangan;
 
-use App\Services\Keuangan\JurnalPenyesuaianDss\JpDss;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
@@ -622,18 +622,43 @@ class JurnalPenyesuaianController
                 ]);
             }
 
-            $out = (new JpDss())->suggest([
+            $base = rtrim((string) env('KAS_DSS_PYTHON_URL', 'http://127.0.0.1:8000'), '/');
+            $resp = Http::timeout(8)->acceptJson()->post($base . '/predict-jurnal-penyesuaian', [
                 'remark' => $remark,
                 'seedAkun' => $kodeAkun,
                 'nominal' => $nominal,
                 'seedJenis' => $jenis,
             ]);
 
+            if (!$resp->ok()) {
+                return response()->json([
+                    'error' => 'AI Python tidak tersedia untuk jurnal penyesuaian.',
+                    'lines' => [],
+                    'remark_suggest' => '',
+                    'confidence' => ['overall' => 0.0],
+                    'evidence' => [],
+                    'source' => 'python',
+                ], 503);
+            }
+
+            $out = $resp->json();
+            if (!is_array($out)) {
+                return response()->json([
+                    'error' => 'Response AI Python jurnal penyesuaian tidak valid.',
+                    'lines' => [],
+                    'remark_suggest' => '',
+                    'confidence' => ['overall' => 0.0],
+                    'evidence' => [],
+                    'source' => 'python',
+                ], 503);
+            }
+
             return response()->json([
                 'lines' => $out['lines'] ?? [],
                 'remark_suggest' => (string) ($out['remark_suggest'] ?? ''),
                 'confidence' => $out['confidence'] ?? ['overall' => 0.0],
                 'evidence' => $out['evidence'] ?? [],
+                'source' => 'python',
             ]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);

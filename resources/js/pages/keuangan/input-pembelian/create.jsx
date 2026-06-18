@@ -183,6 +183,7 @@ export default function InputPembelianCreate({
     accountOptions = [],
     defaultAccount = null,
     expenseAccountOptions = [],
+    infoHu = null,
 }) {
     const guessVoucherType = (kodeAkun) => {
         const v = String(kodeAkun ?? '').trim();
@@ -311,6 +312,20 @@ export default function InputPembelianCreate({
         return Math.max(1, Math.ceil((total ?? 0) / pageSize));
     }, [total, pageSize]);
 
+    const InfoLine = ({ label, value, date = null, danger = false }) => (
+        <div className="flex items-start justify-between gap-3 text-xs">
+            <span className="text-muted-foreground">
+                {label}
+                {date ? ` ${formatDate(date)}` : ''}
+            </span>
+            <span
+                className={`text-right font-medium ${danger ? 'text-destructive' : 'text-foreground'}`}
+            >
+                Rp {formatNumber(value ?? 0)}
+            </span>
+        </div>
+    );
+
     const fetchRows = async () => {
         setLoading(true);
         setError(null);
@@ -400,6 +415,7 @@ export default function InputPembelianCreate({
     const applySuggestion = async ({ noDoc, cashNominal }) => {
         if (!noDoc) return;
         setSuggestLoading(true);
+        setError(null);
         try {
             const params = new URLSearchParams();
             if (cashNominal) params.set('nominal', String(cashNominal));
@@ -450,6 +466,8 @@ export default function InputPembelianCreate({
                 if (ppn) setPpnAkun(ppn);
                 else setPpnAkun('');
             }
+        } catch (e) {
+            setError(readApiError(e));
         } finally {
             setSuggestLoading(false);
         }
@@ -510,6 +528,171 @@ export default function InputPembelianCreate({
             <Head title="Input Pembelian - Input Baru" />
 
             <div className="flex flex-col gap-4 p-4">
+                {infoHu ? (
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+                        <Card>
+                            <CardHeader className="py-3">
+                                <CardTitle className="text-sm">
+                                    Hutang Usaha
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-1.5">
+                                <InfoLine
+                                    label="Hutang PO"
+                                    value={infoHu?.hutang?.po}
+                                />
+                                <InfoLine
+                                    label="Hutang BKP"
+                                    value={infoHu?.hutang?.bkp}
+                                />
+                                <InfoLine
+                                    label="Hutang BKJ"
+                                    value={infoHu?.hutang?.bkj}
+                                />
+                                <InfoLine
+                                    label="Total Hutang"
+                                    value={infoHu?.hutang?.total}
+                                />
+                                <InfoLine
+                                    label="Buku Besar"
+                                    value={infoHu?.hutang?.buku_besar}
+                                />
+                                <InfoLine
+                                    label="Balance"
+                                    value={infoHu?.hutang?.balance}
+                                    danger={
+                                        Number(infoHu?.hutang?.balance ?? 0) !==
+                                        0
+                                    }
+                                />
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="py-3">
+                                <CardTitle className="text-sm">
+                                    Persediaan
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-1.5">
+                                <InfoLine
+                                    label="MIS"
+                                    value={infoHu?.persediaan?.mis}
+                                />
+                                <InfoLine
+                                    label="MIB"
+                                    value={infoHu?.persediaan?.mib}
+                                />
+                                <InfoLine
+                                    label="MIBS"
+                                    value={infoHu?.persediaan?.mibs}
+                                />
+                                <InfoLine
+                                    label="MI"
+                                    value={infoHu?.persediaan?.material}
+                                />
+                                <InfoLine
+                                    label="Stok Fisik"
+                                    value={infoHu?.persediaan?.fisik}
+                                />
+                                <InfoLine
+                                    label="Stok Buku"
+                                    value={infoHu?.persediaan?.buku}
+                                />
+                                <InfoLine
+                                    label="Balance"
+                                    value={infoHu?.persediaan?.balance}
+                                    danger={
+                                        Number(
+                                            infoHu?.persediaan?.balance ?? 0,
+                                        ) !== 0
+                                    }
+                                />
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="py-3">
+                                <CardTitle className="text-sm">
+                                    Persediaan Dana
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-1.5">
+                                <InfoLine
+                                    label="Kas Tunai"
+                                    date={infoHu?.dana?.kas_tunai?.tgl}
+                                    value={infoHu?.dana?.kas_tunai?.saldo}
+                                />
+                                <InfoLine
+                                    label="Kas Bank"
+                                    date={infoHu?.dana?.kas_bank?.tgl}
+                                    value={infoHu?.dana?.kas_bank?.saldo}
+                                />
+                                <InfoLine
+                                    label="Kas Giro"
+                                    date={infoHu?.dana?.kas_giro?.tgl}
+                                    value={infoHu?.dana?.kas_giro?.saldo}
+                                />
+                                <InfoLine
+                                    label="Total Kas"
+                                    value={infoHu?.dana?.total_kas}
+                                />
+                                <InfoLine
+                                    label="Piutang Usaha"
+                                    value={infoHu?.dana?.piutang}
+                                />
+                                <InfoLine
+                                    label="Sisa PDO"
+                                    value={infoHu?.dana?.pdo}
+                                />
+                                <InfoLine
+                                    label="Sisa PDB"
+                                    value={infoHu?.dana?.pdb}
+                                />
+                            </CardContent>
+                        </Card>
+                        <Card>
+                            <CardHeader className="py-3">
+                                <CardTitle className="text-sm">
+                                    Belum Dibukukan
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-1.5">
+                                <InfoLine
+                                    label="FI Masuk"
+                                    value={infoHu?.belum_jurnal?.invin}
+                                />
+                                <InfoLine
+                                    label="Invoice Keluar"
+                                    value={infoHu?.belum_jurnal?.faktur_jual}
+                                />
+                                <InfoLine
+                                    label="DO Tambah"
+                                    value={infoHu?.belum_jurnal?.do_tambah}
+                                />
+                                <InfoLine
+                                    label="DO Biaya"
+                                    value={infoHu?.belum_jurnal?.do_biaya}
+                                />
+                                <InfoLine
+                                    label="Biaya Kirim Beli"
+                                    value={infoHu?.belum_jurnal?.bkb}
+                                />
+                                <InfoLine
+                                    label="Biaya Kirim Jual"
+                                    value={infoHu?.belum_jurnal?.bkj}
+                                />
+                                <InfoLine
+                                    label="Biaya Lainnya"
+                                    value={infoHu?.belum_jurnal?.lainnya}
+                                />
+                                <InfoLine
+                                    label="Total"
+                                    value={infoHu?.belum_jurnal?.total}
+                                />
+                            </CardContent>
+                        </Card>
+                    </div>
+                ) : null}
+
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
                     <Card className="lg:col-span-3">
                         <CardHeader className="space-y-3">

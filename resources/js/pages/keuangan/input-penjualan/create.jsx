@@ -247,6 +247,7 @@ export default function InputPenjualanCreate({
 
     const [suggestLoading, setSuggestLoading] = useState(false);
     const [autoSuggestedNo, setAutoSuggestedNo] = useState('');
+    const [aiError, setAiError] = useState(null);
 
     const calc = useMemo(() => {
         const totalInv = Number(
@@ -369,6 +370,7 @@ export default function InputPenjualanCreate({
     const applySuggestion = async ({ noFaktur, cashNominal }) => {
         if (!noFaktur) return;
         setSuggestLoading(true);
+        setAiError(null);
         try {
             const params = new URLSearchParams();
             if (cashNominal) params.set('nominal', String(cashNominal));
@@ -422,6 +424,8 @@ export default function InputPenjualanCreate({
                 if (ppn) setPpnAkun(ppn);
                 else setPpnAkun('');
             }
+        } catch (e) {
+            setAiError(readApiError(e));
         } finally {
             setSuggestLoading(false);
         }
@@ -1080,6 +1084,11 @@ export default function InputPenjualanCreate({
                                     }}
                                     placeholder="Keterangan transaksi..."
                                 />
+                                {aiError ? (
+                                    <div className="text-xs text-destructive">
+                                        {aiError}
+                                    </div>
+                                ) : null}
                             </div>
 
                             <div className="space-y-2">

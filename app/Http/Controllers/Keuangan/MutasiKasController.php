@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Keuangan;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
-use App\Services\Keuangan\KasDss\KasDss;
 
 class MutasiKasController
 {
@@ -142,8 +142,18 @@ class MutasiKasController
             2 => 'GV', // Giro
             3 => 'BV', // Kas Bank 1
             4 => 'SC', // Kas Bank 2
-            default => (new KasDss())->voucherTypeForAkun($kodeAkun)
+            default => $this->voucherTypeForAkun($kodeAkun)
         };
+    }
+
+    private function voucherTypeForAkun(string $kodeAkun): string
+    {
+        $a = strtoupper(trim((string) $kodeAkun));
+        if (str_starts_with($a, '1101')) return 'CV';
+        if (str_starts_with($a, '1102')) return 'GV';
+        if (str_starts_with($a, '1103')) return 'BV';
+        if (str_starts_with($a, '1104')) return 'SC';
+        return 'BV';
     }
 
     private function getVoucherInfo(Request $request, string $kodeAkun): array
@@ -542,6 +552,52 @@ class MutasiKasController
         return array_values(array_unique(array_slice($out, 0, 12)));
     }
 
+    private function suggestFromPython(array $payload): ?array
+    {
+        try {
+            $base = rtrim((string) env('KAS_DSS_PYTHON_URL', 'http://127.0.0.1:8000'), '/');
+            $resp = Http::timeout(8)->acceptJson()->post($base . '/predict', [
+                'mode' => (string) ($payload['mode'] ?? 'out'),
+                'keterangan' => (string) ($payload['keterangan'] ?? ''),
+                'nominal' => (float) ($payload['nominal'] ?? 0),
+                'hasPpn' => (bool) ($payload['hasPpn'] ?? false),
+                'ppnNominal' => (float) ($payload['ppnNominal'] ?? 0),
+                'seedAkun' => (string) ($payload['seedAkun'] ?? ''),
+            ]);
+
+            if (!$resp->ok()) return null;
+            $json = $resp->json();
+            if (!is_array($json)) return null;
+
+            $lines = is_array($json['lines'] ?? null) ? $json['lines'] : [];
+            $hasUsableLine = false;
+            foreach ($lines as $line) {
+                if (trim((string) ($line['akun'] ?? '')) !== '') {
+                    $hasUsableLine = true;
+                    break;
+                }
+            }
+            if (!$hasUsableLine) return null;
+
+            return [
+                'kode_akun' => trim((string) ($json['kode_akun'] ?? '')),
+                'voucher_type' => trim((string) ($json['voucher_type'] ?? '')),
+                'keterangan' => (string) ($json['keterangan'] ?? ''),
+                'ppn_akun' => trim((string) ($json['ppn_akun'] ?? '')),
+                'ppn_jenis' => (string) ($json['ppn_jenis'] ?? ''),
+                'lines' => collect($lines)->map(fn ($line) => [
+                    'akun' => trim((string) ($line['akun'] ?? '')),
+                    'jenis' => $this->normalizeJenis((string) ($line['jenis'] ?? ''), 'Debit'),
+                    'nominal' => (float) ($line['nominal'] ?? 0),
+                ])->values()->all(),
+                'confidence' => $json['confidence'] ?? null,
+                'evidence' => $json['evidence'] ?? [],
+            ];
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     public function suggest(Request $request)
     {
         try {
@@ -603,8 +659,7 @@ class MutasiKasController
                 ]);
             }
 
-            $dss = new KasDss();
-            $dssOut = $dss->suggest([
+            $pythonOut = $this->suggestFromPython([
                 'mode' => $mode,
                 'keterangan' => $keterangan,
                 'nominal' => $nominal,
@@ -613,18 +668,32 @@ class MutasiKasController
                 'seedAkun' => $seedAkun,
             ]);
 
-            $suggestedKodeAkun = (string) ($dssOut['kode_akun'] ?? '');
+            if (!$pythonOut) {
+                return response()->json([
+                    'error' => 'AI Python tidak memberi saran. Pastikan service Python aktif dan histori mutasi kas tersedia.',
+                    'source' => 'python',
+                    'confidence' => ['overall' => 0.0],
+                    'evidence' => [],
+                ], 503);
+            }
+
+            $suggestedKodeAkun = (string) ($pythonOut['kode_akun'] ?? '');
             $voucherAkun = $suggestedKodeAkun !== '' ? $suggestedKodeAkun : $kodeAkun;
+            $voucherType = trim((string) ($pythonOut['voucher_type'] ?? ''));
+            if ($voucherType === '') {
+                $voucherType = $this->guessVoucherType($voucherAkun);
+            }
 
             return response()->json([
                 'kode_akun' => $suggestedKodeAkun,
-                'voucher_type' => (string) ($this->guessVoucherType($voucherAkun)),
-                'keterangan' => (string) ($dssOut['keterangan'] ?? ''),
-                'ppn_akun' => (string) ($dssOut['ppn_akun'] ?? ''),
-                'ppn_jenis' => (string) ($dssOut['ppn_jenis'] ?? $ppnJenis),
-                'lines' => $dssOut['lines'] ?? [],
-                'confidence' => $dssOut['confidence'] ?? ['overall' => 0.0],
-                'evidence' => $dssOut['evidence'] ?? [],
+                'voucher_type' => $voucherType,
+                'keterangan' => (string) ($pythonOut['keterangan'] ?? ''),
+                'ppn_akun' => (string) ($pythonOut['ppn_akun'] ?? ''),
+                'ppn_jenis' => (string) (($pythonOut['ppn_jenis'] ?? '') ?: $ppnJenis),
+                'lines' => $pythonOut['lines'] ?? [],
+                'confidence' => $pythonOut['confidence'] ?? ['overall' => 0.0],
+                'evidence' => $pythonOut['evidence'] ?? [],
+                'source' => 'python',
             ]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
