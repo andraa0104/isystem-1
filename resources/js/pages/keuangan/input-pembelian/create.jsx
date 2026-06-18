@@ -132,9 +132,11 @@ function AccountSearchDialog({
             <DialogContent className="max-w-xl">
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
-                    {description ? (
-                        <DialogDescription>{description}</DialogDescription>
-                    ) : null}
+                    <DialogDescription
+                        className={description ? undefined : 'sr-only'}
+                    >
+                        {description || 'Pilih akun dari daftar.'}
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
                     <Input
@@ -443,6 +445,8 @@ export default function InputPembelianCreate({
             );
             if (!res.ok) throw await normalizeApiError(res);
             const json = await res.json();
+            const warning = String(json?.warning ?? '').trim();
+            if (warning) setError(warning);
 
             const suggestedKet = String(json?.keterangan ?? '').trim();
             if (keteranganAuto && suggestedKet) {
@@ -471,7 +475,7 @@ export default function InputPembelianCreate({
                 setBebanLines([
                     {
                         akun: '',
-                        jenis: 'DPP',
+                        jenis: 'Debit',
                         nominal: calc.dppCash,
                     },
                 ]);

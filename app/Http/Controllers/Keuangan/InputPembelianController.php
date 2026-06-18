@@ -11,6 +11,8 @@ use Inertia\Inertia;
 
 class InputPembelianController
 {
+    private ?string $pythonSuggestError = null;
+
     private function n(float|int|string|null $value): float
     {
         return is_numeric($value) ? (float) $value : 0.0;
@@ -712,6 +714,8 @@ class InputPembelianController
 
     private function suggestFromPython(object $fi, array $alloc, bool $hasPpn): ?array
     {
+        $this->pythonSuggestError = null;
+
         try {
             $base = rtrim((string) env('KAS_DSS_PYTHON_URL', 'http://127.0.0.1:8000'), '/');
             $resp = Http::timeout(8)->acceptJson()->post($base . '/predict-input-pembelian', [
@@ -724,12 +728,17 @@ class InputPembelianController
                 'dppTarget' => (float) ($alloc['dpp'] ?? 0),
                 'hasPpn' => $hasPpn,
             ]);
-            if (!$resp->ok()) return null;
+            if (!$resp->ok()) {
+                $this->pythonSuggestError = 'AI Python HTTP ' . $resp->status() . ': ' . substr($resp->body(), 0, 500);
+                return null;
+            }
 
             $j = $resp->json();
-            if (!is_array($j)) return null;
+            if (!is_array($j)) {
+                $this->pythonSuggestError = 'AI Python mengembalikan response yang bukan JSON.';
+                return null;
+            }
             $lines = is_array($j['beban_lines'] ?? null) ? $j['beban_lines'] : [];
-            if (count($lines) === 0) return null;
 
             return [
                 'kode_akun' => (string) ($j['kode_akun'] ?? ''),
@@ -743,7 +752,8 @@ class InputPembelianController
                 'confidence' => $j['confidence'] ?? null,
                 'evidence' => $j['evidence'] ?? [],
             ];
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            $this->pythonSuggestError = $e->getMessage();
             return null;
         }
     }
@@ -776,11 +786,27 @@ class InputPembelianController
 
             if (!$pythonSuggest) {
                 return response()->json([
-                    'error' => 'AI Python tidak memberi saran. Pastikan service Python aktif dan histori pembelian tersedia.',
+                    'error' => 'AI Python tidak bisa dihubungi atau endpoint Python error. Pastikan service Python aktif dan KAS_DSS_PYTHON_URL benar.',
+                    'detail' => $this->pythonSuggestError,
                     'allocation' => $alloc,
                     'keterangan' => $keteranganDisplay,
                     'source' => 'python',
                 ], 503);
+            }
+
+            if (count($pythonSuggest['beban_lines'] ?? []) === 0) {
+                return response()->json([
+                    'warning' => 'AI Python aktif, tetapi belum menemukan pola histori pembelian yang cocok untuk FI ini.',
+                    'allocation' => $alloc,
+                    'kode_akun' => (string) ($pythonSuggest['kode_akun'] ?? ''),
+                    'voucher_type' => (string) ($pythonSuggest['voucher_type'] ?? ''),
+                    'ppn_akun' => (string) ($pythonSuggest['ppn_akun'] ?? ''),
+                    'beban_lines' => [],
+                    'keterangan' => $keteranganDisplay,
+                    'confidence' => $pythonSuggest['confidence'] ?? null,
+                    'evidence' => $pythonSuggest['evidence'] ?? [],
+                    'source' => 'python',
+                ]);
             }
 
             return response()->json([
