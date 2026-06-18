@@ -43,6 +43,22 @@ const formatNumber = (value) =>
         value ?? 0,
     );
 
+const parseRupiahInput = (value) => {
+    const digits = String(value ?? '').replace(/[^\d]/g, '');
+    return digits === '' ? '' : digits;
+};
+
+const parseRupiahNumber = (value) => {
+    const digits = parseRupiahInput(value);
+    return digits === '' ? 0 : Number(digits);
+};
+
+const formatRupiahInput = (value) => {
+    const n = Number(value ?? 0);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return `Rp ${formatNumber(n)}`;
+};
+
 const formatDate = (value) => {
     if (!value) return '-';
     const date = new Date(value);
@@ -967,14 +983,14 @@ export default function InputPenjualanCreate({
                                                     </Label>
                                                     <Input
                                                         inputMode="numeric"
-                                                        value={String(
-                                                            line?.nominal ?? '',
+                                                        value={formatRupiahInput(
+                                                            line?.nominal ?? 0,
                                                         )}
                                                         onChange={(e) => {
                                                             const v =
-                                                                e.target.value.replace(
-                                                                    /[^\d.]/g,
-                                                                    '',
+                                                                parseRupiahNumber(
+                                                                    e.target
+                                                                        .value,
                                                                 );
                                                             setLines((prev) =>
                                                                 (
@@ -984,12 +1000,7 @@ export default function InputPenjualanCreate({
                                                                         ? {
                                                                               ...l,
                                                                               nominal:
-                                                                                  v ===
-                                                                                  ''
-                                                                                      ? 0
-                                                                                      : Number(
-                                                                                            v,
-                                                                                        ),
+                                                                                  v,
                                                                           }
                                                                         : l,
                                                                 ),
@@ -1021,7 +1032,7 @@ export default function InputPenjualanCreate({
                                     </div>
                                     {calc.taxCash > 0 ? (
                                         <div className="text-xs text-muted-foreground">
-                                            Catatan: PPN masuk ke{' '}
+                                            Catatan: PPN keluaran masuk ke{' '}
                                             <span className="font-mono">
                                                 Kode_Akun2
                                             </span>
@@ -1097,13 +1108,10 @@ export default function InputPenjualanCreate({
                                 </div>
                                 <Input
                                     inputMode="numeric"
-                                    value={nominal}
+                                    value={formatRupiahInput(nominal)}
                                     onChange={(e) =>
                                         setNominal(
-                                            e.target.value.replace(
-                                                /[^\d.]/g,
-                                                '',
-                                            ),
+                                            parseRupiahInput(e.target.value),
                                         )
                                     }
                                     placeholder="Contoh: 2500000"

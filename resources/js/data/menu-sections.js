@@ -100,7 +100,7 @@ export const menuSections = [
             { title: 'Input Pembelian', href: '/keuangan/input-pembelian' },
             { title: 'Input Penjualan', href: '/keuangan/input-penjualan' },
             { title: 'Penyesuaian', href: '/keuangan/penyesuaian' },
-            { title: 'Jurnal Lainnya', href: '#' },
+            { title: 'Jurnal Lainnya', href: '/keuangan/jurnal-lainnya' },
         ],
     },
     {

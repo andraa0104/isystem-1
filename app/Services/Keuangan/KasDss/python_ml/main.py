@@ -47,6 +47,7 @@ class SalesSuggestRequest(BaseModel):
     hpp: float = 0.0
     trx_jurnal: str = ""
     saldo_piutang: float = 0.0
+    total_bayaran: float = 0.0
     hasPpn: bool = False
 
 class AdjustmentSuggestRequest(BaseModel):
@@ -917,7 +918,8 @@ def predict_input_pembelian(req: PurchaseSuggestRequest):
 @app.post("/predict-input-penjualan")
 def predict_input_penjualan(req: SalesSuggestRequest):
     tax = max(0.0, safe_float(req.tax, 0.0))
-    already_journaled = bool(str(req.trx_jurnal or "").strip())
+    total_bayaran = max(0.0, safe_float(req.total_bayaran, 0.0))
+    already_journaled = bool(str(req.trx_jurnal or "").strip()) and total_bayaran > 0
     has_ppn = bool(req.hasPpn and tax > 0 and not already_journaled)
     dpp = safe_float(req.dppTarget, 0.0)
     if already_journaled:
@@ -936,9 +938,34 @@ def predict_input_penjualan(req: SalesSuggestRequest):
         "evidence": []
     }
 
+    def sales_default_response(score=0.35):
+        ppn_akun = ""
+        if has_ppn:
+            ppn_akun = fetch_sales_ppn_account() or "2107AK"
+
+        ket = "TERIMA BAYAR FAKTUR No. " + str(req.no_faktur or "").strip() if already_journaled else "PENJUALAN TUNAI No. " + str(req.no_faktur or "").strip()
+        if str(req.customer or "").strip():
+            ket += " - " + str(req.customer or "").strip()
+        if str(req.ref_po or "").strip():
+            ket += (" - Ref. PO " if already_journaled else " - Ref PO. ") + str(req.ref_po or "").strip()
+
+        return {
+            "kode_akun": "",
+            "voucher_type": "",
+            "ppn_akun": "" if already_journaled else ppn_akun,
+            "beban_lines": (
+                [{"akun": "1109AD", "jenis": "Kredit", "nominal": safe_float(req.cashNominal, dpp)}]
+                if already_journaled
+                else [{"akun": "4101AK", "jenis": "Kredit", "nominal": dpp}]
+            ),
+            "keterangan": ket,
+            "confidence": {"overall": score, "sales": score},
+            "evidence": [{"source": "sales_default", "score": score}]
+        }
+
     df = fetch_sales_history(req.customer, req.ref_po)
     if len(df) == 0:
-        return resp
+        return sales_default_response(0.25)
 
     query = build_sales_query(req)
     df = df.copy()
@@ -950,7 +977,7 @@ def predict_input_penjualan(req: SalesSuggestRequest):
     ).apply(clean_text)
     df = df[df["X"].str.len() > 0].reset_index(drop=True)
     if len(df) == 0:
-        return resp
+        return sales_default_response(0.25)
 
     vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=6000)
     matrix = vectorizer.fit_transform(df["X"])
@@ -976,7 +1003,7 @@ def predict_input_penjualan(req: SalesSuggestRequest):
             break
 
     if not best:
-        return resp
+        return sales_default_response(0.25)
 
     row, lines, score = best
     cash_account = str(row.get("Kode_Akun") or "").strip()

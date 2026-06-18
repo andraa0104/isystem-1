@@ -176,6 +176,96 @@ class InputPenjualanController
         return 'BV';
     }
 
+    private function nextKodeJurnal(string $dbCode): string
+    {
+        if (!Schema::hasTable('tb_jurnal') || !Schema::hasColumn('tb_jurnal', 'Kode_Jurnal')) {
+            return '';
+        }
+
+        $unitUsaha = substr(strtoupper(trim($dbCode)), 0, 3);
+        $prefix = $unitUsaha . '/JR/';
+        $last = (string) (DB::table('tb_jurnal')
+            ->orderByDesc('Kode_Jurnal')
+            ->lockForUpdate()
+            ->value('Kode_Jurnal') ?? '');
+
+        $seq = 0;
+        if ($last !== '') {
+            $tail = substr($last, -8);
+            if (preg_match('/^\d+$/', $tail)) $seq = (int) $tail;
+        }
+
+        return $prefix . str_pad((string) ($seq + 1), 8, '0', STR_PAD_LEFT);
+    }
+
+    private function insertJurnalHeader(string $kodeJurnal, string $kodeVoucher, string $tglVoucher, string $keterangan): void
+    {
+        if ($kodeJurnal === '' || !Schema::hasTable('tb_jurnal')) return;
+
+        $cols = Schema::getColumnListing('tb_jurnal');
+        $row = ['Kode_Jurnal' => $kodeJurnal, 'Tgl_Jurnal' => $tglVoucher];
+        if (in_array('Kode_Voucher', $cols, true)) $row['Kode_Voucher'] = $kodeVoucher;
+        if (in_array('Tgl_Buat', $cols, true)) $row['Tgl_Buat'] = Carbon::now()->toDateString();
+        if (in_array('Remark', $cols, true)) $row['Remark'] = $keterangan;
+
+        DB::table('tb_jurnal')->updateOrInsert(['Kode_Jurnal' => $kodeJurnal], $row);
+    }
+
+    /**
+     * @param array<int,array{akun:string,debit:float,kredit:float,saldo:float}> $details
+     */
+    private function insertJurnalDetailsAndUpdateNabb(string $kodeJurnal, array $details): void
+    {
+        if ($kodeJurnal === '' || !Schema::hasTable('tb_jurnaldetail')) return;
+
+        foreach ($details as $d) {
+            $akun = trim((string) ($d['akun'] ?? ''));
+            if ($akun === '') continue;
+            $debit = round(max(0.0, (float) ($d['debit'] ?? 0)), 2);
+            $kredit = round(max(0.0, (float) ($d['kredit'] ?? 0)), 2);
+
+            DB::table('tb_jurnaldetail')->updateOrInsert(
+                ['Kode_Jurnal' => $kodeJurnal, 'Kode_Akun' => $akun],
+                ['Debit' => $debit > 0 ? $debit : null, 'Kredit' => $kredit > 0 ? $kredit : null]
+            );
+
+            $this->updateNabbBalance($akun, $debit, $kredit, (float) ($d['saldo'] ?? 0));
+        }
+    }
+
+    private function updateNabbBalance(string $kodeAkun, float $debit, float $kredit, float $saldo): void
+    {
+        if (!Schema::hasTable('tb_nabb') || !Schema::hasColumn('tb_nabb', 'Kode_Akun')) return;
+
+        $cols = Schema::getColumnListing('tb_nabb');
+        $row = [];
+        if (in_array('BB_Debit', $cols, true)) {
+            $row['BB_Debit'] = DB::raw('COALESCE(BB_Debit,0) + ' . round($debit, 2));
+        }
+        if (in_array('BB_Kredit', $cols, true)) {
+            $row['BB_Kredit'] = DB::raw('COALESCE(BB_Kredit,0) + ' . round($kredit, 2));
+        }
+        if (in_array('Saldo', $cols, true)) {
+            $row['Saldo'] = round($saldo, 2);
+        }
+        if (count($row) === 0) return;
+
+        DB::table('tb_nabb')->where('Kode_Akun', $kodeAkun)->update($row);
+    }
+
+    private function saldoAfterJournalLine(string $kodeAkun, string $jenis, float $nominal): float
+    {
+        $saldo = 0.0;
+        if (Schema::hasTable('tb_nabb') && Schema::hasColumn('tb_nabb', 'Kode_Akun') && Schema::hasColumn('tb_nabb', 'Saldo')) {
+            $saldo = (float) (DB::table('tb_nabb')->where('Kode_Akun', $kodeAkun)->value('Saldo') ?? 0);
+        }
+
+        $isDebit = $this->normalizeJenisBeban($jenis) === 'Debit';
+        $isCreditNormal = strtoupper(substr($kodeAkun, 4, 2)) === 'AK';
+        if ($isDebit) return $saldo + ($isCreditNormal ? -abs($nominal) : abs($nominal));
+        return $saldo + ($isCreditNormal ? abs($nominal) : -abs($nominal));
+    }
+
     private function kasBreakdownAvailable(): bool
     {
         if (!Schema::hasTable('tb_kas')) return false;
@@ -537,8 +627,9 @@ class InputPenjualanController
         $total = (float) ($header->g_total ?? 0);
         $tax = max(0.0, (float) ($header->h_ppn ?? 0));
         $trxJurnal = trim((string) ($header->trx_jurnal ?? ''));
+        $totalBayaran = max(0.0, (float) ($header->total_bayaran ?? 0));
 
-        if ($trxJurnal !== '') {
+        if ($trxJurnal !== '' && $totalBayaran > 0) {
             return [
                 'cash' => max(0.0, $cashNominal),
                 'dpp' => round(max(0.0, $cashNominal), 2),
@@ -985,6 +1076,7 @@ class InputPenjualanController
                 'hpp' => (float) ($header->HPP ?? 0),
                 'trx_jurnal' => (string) ($header->trx_jurnal ?? ''),
                 'saldo_piutang' => (float) ($header->saldo_piutang ?? 0),
+                'total_bayaran' => (float) ($header->total_bayaran ?? 0),
                 'hasPpn' => $hasPpn,
             ]);
             if (!$resp->ok()) return null;
@@ -994,15 +1086,39 @@ class InputPenjualanController
             $lines = is_array($j['beban_lines'] ?? null) ? $j['beban_lines'] : [];
             if (count($lines) === 0) return null;
 
+            $dppTarget = round((float) ($alloc['dpp'] ?? 0), 2);
+            $taxTarget = round((float) ($alloc['tax'] ?? 0), 2);
+            $cashTarget = round((float) ($alloc['cash'] ?? 0), 2);
+            $normalizedLines = collect($lines)->map(fn ($l) => [
+                'akun' => trim((string) ($l['akun'] ?? '')),
+                'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? 'Kredit')),
+                'nominal' => (float) ($l['nominal'] ?? 0),
+            ])->values()->all();
+
+            // Guard untuk service Python lama / histori keliru:
+            // Faktur dengan PPN harus mengisi pendapatan sebesar DPP, bukan piutang sebesar total invoice.
+            if ($hasPpn && $taxTarget > 0 && $dppTarget > 0 && count($normalizedLines) === 1) {
+                $only = $normalizedLines[0];
+                $akun = strtoupper(trim((string) ($only['akun'] ?? '')));
+                $nom = round((float) ($only['nominal'] ?? 0), 2);
+                if ($akun === '1109AD' || ($cashTarget > 0 && abs($nom - $cashTarget) < 0.01)) {
+                    $normalizedLines = $this->buildDefaultRevenueLines(true, $dppTarget, $taxTarget);
+                }
+            }
+
+            $ppnAkun = (string) ($j['ppn_akun'] ?? '');
+            if ($hasPpn && $taxTarget > 0 && trim($ppnAkun) === '') {
+                $ppnAkun = $this->getDefaultPpnKeluaranAccount();
+                if (trim($ppnAkun) === '') {
+                    $ppnAkun = '2107AK';
+                }
+            }
+
             return [
                 'kode_akun' => (string) ($j['kode_akun'] ?? ''),
                 'voucher_type' => (string) ($j['voucher_type'] ?? ''),
-                'ppn_akun' => (string) ($j['ppn_akun'] ?? ''),
-                'beban_lines' => collect($lines)->map(fn ($l) => [
-                    'akun' => trim((string) ($l['akun'] ?? '')),
-                    'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? 'Kredit')),
-                    'nominal' => (float) ($l['nominal'] ?? 0),
-                ])->values()->all(),
+                'ppn_akun' => $ppnAkun,
+                'beban_lines' => $normalizedLines,
                 'keterangan' => (string) ($j['keterangan'] ?? ''),
                 'confidence' => $j['confidence'] ?? null,
                 'evidence' => $j['evidence'] ?? [],
@@ -1214,6 +1330,46 @@ class InputPenjualanController
                 }
 
                 DB::table('tb_kas')->insert($row);
+
+                if ($this->jurnalAvailable()) {
+                    $kodeJurnal = $this->nextKodeJurnal($dbCode);
+                    $this->insertJurnalHeader($kodeJurnal, $kodeVoucher, $tglVoucher, $keterangan);
+
+                    $details = [[
+                        'akun' => $kodeAkun,
+                        'debit' => abs($nominal),
+                        'kredit' => 0,
+                        'saldo' => $this->saldoAfterJournalLine($kodeAkun, 'Debit', abs($nominal)),
+                    ]];
+
+                    foreach ($clean as $line) {
+                        $jenis = $this->normalizeJenisBeban((string) ($line['jenis'] ?? 'Kredit'));
+                        $nom = abs((float) ($line['nominal'] ?? 0));
+                        $details[] = [
+                            'akun' => (string) $line['akun'],
+                            'debit' => $jenis === 'Debit' ? $nom : 0,
+                            'kredit' => $jenis === 'Kredit' ? $nom : 0,
+                            'saldo' => $this->saldoAfterJournalLine((string) $line['akun'], $jenis, $nom),
+                        ];
+                    }
+
+                    if ($taxNominal > 0 && $ppnAkun !== '') {
+                        $details[] = [
+                            'akun' => $ppnAkun,
+                            'debit' => 0,
+                            'kredit' => abs($taxNominal),
+                            'saldo' => $this->saldoAfterJournalLine($ppnAkun, 'Kredit', abs($taxNominal)),
+                        ];
+                    }
+
+                    $debitTotal = round(array_sum(array_map(fn ($d) => (float) $d['debit'], $details)), 2);
+                    $kreditTotal = round(array_sum(array_map(fn ($d) => (float) $d['kredit'], $details)), 2);
+                    if ($debitTotal !== $kreditTotal) {
+                        throw new \RuntimeException('Jurnal tidak balance. Debit: ' . $debitTotal . ', Kredit: ' . $kreditTotal);
+                    }
+
+                    $this->insertJurnalDetailsAndUpdateNabb($kodeJurnal, $details);
+                }
 
                 // Standar perusahaan: update tb_kdfakturpenjualan.trx_jurnal dengan nomor jurnal/voucher kas.
                 if (Schema::hasColumn('tb_kdfakturpenjualan', 'trx_jurnal')) {

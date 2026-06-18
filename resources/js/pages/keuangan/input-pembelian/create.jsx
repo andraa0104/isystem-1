@@ -60,6 +60,22 @@ const formatNumber = (value) =>
         value ?? 0,
     );
 
+const parseRupiahInput = (value) => {
+    const digits = String(value ?? '').replace(/[^\d]/g, '');
+    return digits === '' ? '' : digits;
+};
+
+const parseRupiahNumber = (value) => {
+    const digits = parseRupiahInput(value);
+    return digits === '' ? 0 : Number(digits);
+};
+
+const formatRupiahInput = (value) => {
+    const n = Number(value ?? 0);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return `Rp ${formatNumber(n)}`;
+};
+
 const getInvoiceStatus = (row) => {
     const pembayaran = Number(row?.pembayaran ?? 0);
     const jurnal = String(row?.jurnal ?? '').trim();
@@ -1202,15 +1218,15 @@ export default function InputPembelianCreate({
                                                         </Label>
                                                         <Input
                                                             inputMode="numeric"
-                                                            value={String(
+                                                            value={formatRupiahInput(
                                                                 line?.nominal ??
-                                                                    '',
+                                                                    0,
                                                             )}
                                                             onChange={(e) => {
                                                                 const v =
-                                                                    e.target.value.replace(
-                                                                        /[^\d.]/g,
-                                                                        '',
+                                                                    parseRupiahNumber(
+                                                                        e.target
+                                                                            .value,
                                                                     );
                                                                 setBebanLines(
                                                                     (prev) =>
@@ -1227,12 +1243,7 @@ export default function InputPembelianCreate({
                                                                                     ? {
                                                                                           ...l,
                                                                                           nominal:
-                                                                                              v ===
-                                                                                              ''
-                                                                                                  ? 0
-                                                                                                  : Number(
-                                                                                                        v,
-                                                                                                    ),
+                                                                                              v,
                                                                                       }
                                                                                     : l,
                                                                         ),
@@ -1337,13 +1348,10 @@ export default function InputPembelianCreate({
                                 </div>
                                 <Input
                                     inputMode="numeric"
-                                    value={nominal}
+                                    value={formatRupiahInput(nominal)}
                                     onChange={(e) =>
                                         setNominal(
-                                            e.target.value.replace(
-                                                /[^\d.]/g,
-                                                '',
-                                            ),
+                                            parseRupiahInput(e.target.value),
                                         )
                                     }
                                     placeholder="Contoh: 3500000"

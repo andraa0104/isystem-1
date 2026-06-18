@@ -46,6 +46,7 @@ use App\Http\Controllers\Laporan\AuditRekonsiliasiController;
 use App\Http\Controllers\Keuangan\InputPembelianController;
 use App\Http\Controllers\Keuangan\InputPenjualanController;
 use App\Http\Controllers\Keuangan\MutasiKasController;
+use App\Http\Controllers\Keuangan\JurnalLainnyaController;
 use App\Http\Controllers\Keuangan\JurnalPenyesuaianController as KeuanganJurnalPenyesuaianController;
 use Laravel\Fortify\Features;
 use Illuminate\Support\Facades\Cache;
@@ -670,6 +671,17 @@ Route::get('keuangan/mutasi-kas/suggest', [MutasiKasController::class, 'suggest'
     ->name('keuangan.mutasi-kas.suggest');
 Route::post('keuangan/mutasi-kas', [MutasiKasController::class, 'store'])
     ->name('keuangan.mutasi-kas.store');
+
+Route::get('keuangan/jurnal-lainnya', [JurnalLainnyaController::class, 'index'])
+    ->name('keuangan.jurnal-lainnya.index');
+Route::get('keuangan/jurnal-lainnya/create', [JurnalLainnyaController::class, 'create'])
+    ->name('keuangan.jurnal-lainnya.create');
+Route::get('keuangan/jurnal-lainnya/rows', [JurnalLainnyaController::class, 'rows'])
+    ->name('keuangan.jurnal-lainnya.rows');
+Route::get('keuangan/jurnal-lainnya/ref-rows', [JurnalLainnyaController::class, 'refRows'])
+    ->name('keuangan.jurnal-lainnya.ref-rows');
+Route::post('keuangan/jurnal-lainnya', [JurnalLainnyaController::class, 'store'])
+    ->name('keuangan.jurnal-lainnya.store');
 
 Route::get('keuangan/penyesuaian', [KeuanganJurnalPenyesuaianController::class, 'index'])
     ->name('keuangan.penyesuaian.index');

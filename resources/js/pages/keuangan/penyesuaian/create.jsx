@@ -36,6 +36,22 @@ const formatRupiah = (value) => {
     }).format(n)}`;
 };
 
+const parseRupiahInput = (value) => {
+    const digits = String(value ?? '').replace(/[^\d]/g, '');
+    return digits === '' ? '' : digits;
+};
+
+const parseRupiahNumber = (value) => {
+    const digits = parseRupiahInput(value);
+    return digits === '' ? 0 : Number(digits);
+};
+
+const formatRupiahInput = (value) => {
+    const n = Number(value ?? 0);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return formatRupiah(n);
+};
+
 const getAccountLabel = (options, value) => {
     const v = String(value ?? '').trim();
     if (!v) return '';
@@ -522,9 +538,11 @@ export default function KeuanganPenyesuaianCreate({
                                 <Label>Jumlah</Label>
                                 <Input
                                     inputMode="numeric"
-                                    value={headerNominal}
+                                    value={formatRupiahInput(headerNominal)}
                                     onChange={(e) =>
-                                        setHeaderNominal(e.target.value)
+                                        setHeaderNominal(
+                                            parseRupiahInput(e.target.value),
+                                        )
                                     }
                                     placeholder="Contoh: 545938"
                                 />
@@ -787,24 +805,15 @@ export default function KeuanganPenyesuaianCreate({
                                                     <div className="mt-2">
                                                         <Input
                                                             inputMode="numeric"
-                                                            value={
-                                                                l?.nominal === 0
-                                                                    ? ''
-                                                                    : String(
-                                                                          l?.nominal ??
-                                                                              '',
-                                                                      )
-                                                            }
+                                                            value={formatRupiahInput(
+                                                                l?.nominal ?? 0,
+                                                            )}
                                                             onChange={(e) => {
-                                                                const raw =
-                                                                    e.target
-                                                                        .value;
                                                                 const num =
-                                                                    raw === ''
-                                                                        ? 0
-                                                                        : Number(
-                                                                              raw,
-                                                                          );
+                                                                    parseRupiahNumber(
+                                                                        e.target
+                                                                            .value,
+                                                                    );
                                                                 setLines(
                                                                     (prev) => {
                                                                         const next =
