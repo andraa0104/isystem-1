@@ -568,6 +568,7 @@ class InputPenjualanController
                 in_array('g_total', $cols, true) ? 'g_total' : null,
                 in_array('saldo_piutang', $cols, true) ? 'saldo_piutang' : null,
                 in_array('total_bayaran', $cols, true) ? 'total_bayaran' : null,
+                in_array('trx_jurnal', $cols, true) ? 'trx_jurnal' : null,
             ]));
 
             if (count($select) === 0) {
@@ -614,6 +615,7 @@ class InputPenjualanController
                     'g_total' => (float) ($header->g_total ?? 0),
                     'saldo_piutang' => (float) ($header->saldo_piutang ?? 0),
                     'total_bayaran' => (float) ($header->total_bayaran ?? 0),
+                    'trx_jurnal' => (string) ($header->trx_jurnal ?? ''),
                 ],
                 'items' => $items,
             ]);
@@ -624,12 +626,7 @@ class InputPenjualanController
 
     private function computeAllocation(object $header, float $cashNominal): array
     {
-        $total = (float) ($header->g_total ?? 0);
-        $tax = max(0.0, (float) ($header->h_ppn ?? 0));
-        $trxJurnal = trim((string) ($header->trx_jurnal ?? ''));
-        $totalBayaran = max(0.0, (float) ($header->total_bayaran ?? 0));
-
-        if ($trxJurnal !== '' && $totalBayaran > 0) {
+        if ($this->isPiutangPenjualan($header)) {
             return [
                 'cash' => max(0.0, $cashNominal),
                 'dpp' => round(max(0.0, $cashNominal), 2),
@@ -637,6 +634,8 @@ class InputPenjualanController
             ];
         }
 
+        $total = (float) ($header->g_total ?? 0);
+        $tax = max(0.0, (float) ($header->h_ppn ?? 0));
         $dpp = max(0.0, $total - $tax);
 
         $cashNominal = max(0.0, $cashNominal);
@@ -651,23 +650,79 @@ class InputPenjualanController
 
     private function getDefaultPpnKeluaranAccount(): string
     {
-        if (!$this->kasBreakdownAvailable()) return '';
-
         try {
-            $q = DB::table('tb_kas as k')
-                ->whereNotNull('k.Kode_Akun2')
-                ->whereRaw("TRIM(COALESCE(k.Kode_Akun2,'')) <> ''")
-                ->whereRaw('COALESCE(k.Nominal2,0) > 0')
-                ->selectRaw('TRIM(k.Kode_Akun2) as akun, COUNT(*) as cnt')
-                ->groupBy('akun')
-                ->orderByDesc('cnt')
-                ->limit(1)
-                ->first();
+            if ($this->kasBreakdownAvailable()) {
+                $q = DB::table('tb_kas as k')
+                    ->leftJoin('tb_nabb as n', 'n.Kode_Akun', '=', 'k.Kode_Akun2')
+                    ->whereNotNull('k.Kode_Akun2')
+                    ->whereRaw("TRIM(COALESCE(k.Kode_Akun2,'')) <> ''")
+                    ->whereRaw('COALESCE(k.Nominal2,0) > 0')
+                    ->selectRaw("
+                        TRIM(k.Kode_Akun2) as akun,
+                        COALESCE(n.Nama_Akun,'') as nama,
+                        COUNT(*) as cnt,
+                        SUM(COALESCE(k.Nominal2,0)) as total
+                    ")
+                    ->groupBy('akun', 'nama')
+                    ->orderByRaw("
+                        CASE
+                            WHEN UPPER(COALESCE(n.Nama_Akun,'')) LIKE '%PPN%' AND (TRIM(k.Kode_Akun2) LIKE '2%' OR UPPER(COALESCE(n.Nama_Akun,'')) LIKE '%HUTANG%') THEN 0
+                            WHEN UPPER(COALESCE(n.Nama_Akun,'')) LIKE '%PPN%' THEN 1
+                            ELSE 2
+                        END
+                    ")
+                    ->orderByDesc('cnt')
+                    ->orderByDesc('total')
+                    ->limit(1)
+                    ->first();
 
-            return $q ? (string) ($q->akun ?? '') : '';
+                $akun = trim((string) ($q->akun ?? ''));
+                if ($akun !== '') return $akun;
+            }
+
+            if (Schema::hasTable('tb_nabb')) {
+                $row = DB::table('tb_nabb')
+                    ->whereRaw("UPPER(COALESCE(Nama_Akun,'')) LIKE '%PPN%'")
+                    ->where(function ($q) {
+                        $q->whereRaw("TRIM(COALESCE(Kode_Akun,'')) LIKE '2%'")
+                            ->orWhereRaw("UPPER(COALESCE(Nama_Akun,'')) LIKE '%HUTANG%'")
+                            ->orWhereRaw("UPPER(COALESCE(Nama_Akun,'')) LIKE '%KELUARAN%'");
+                    })
+                    ->orderByRaw("
+                        CASE
+                            WHEN UPPER(COALESCE(Nama_Akun,'')) LIKE '%KELUARAN%' THEN 0
+                            WHEN UPPER(COALESCE(Nama_Akun,'')) LIKE '%HUTANG%' THEN 1
+                            ELSE 2
+                        END
+                    ")
+                    ->orderBy('Kode_Akun')
+                    ->first(['Kode_Akun']);
+
+                $akun = trim((string) ($row->Kode_Akun ?? ''));
+                if ($akun !== '') return $akun;
+            }
         } catch (\Throwable) {
-            return '';
+            // Fallback below keeps PPN invoices usable even when history lookup fails.
         }
+
+        return '2107AK';
+    }
+
+    private function isPiutangPenjualan(object $header): bool
+    {
+        return trim((string) ($header->trx_jurnal ?? '')) !== '';
+    }
+
+    private function piutangCashNominal(object $header): float
+    {
+        $total = (float) ($header->g_total ?? 0);
+        $paid = (float) ($header->total_bayaran ?? 0);
+        $saldo = (float) ($header->saldo_piutang ?? 0);
+        $remaining = $total - $paid;
+
+        if ($saldo > 0) return $saldo;
+        if ($remaining > 0) return $remaining;
+        return max(0.0, $total);
     }
 
     private function suggestFromHistory(string $customerKey, bool $hasPpn, float $dppTarget, float $taxTarget): array
@@ -1095,6 +1150,14 @@ class InputPenjualanController
                 'nominal' => (float) ($l['nominal'] ?? 0),
             ])->values()->all();
 
+            if ($this->isPiutangPenjualan($header)) {
+                $normalizedLines = [[
+                    'akun' => '1109AD',
+                    'jenis' => 'Kredit',
+                    'nominal' => $cashTarget,
+                ]];
+            }
+
             // Guard untuk service Python lama / histori keliru:
             // Faktur dengan PPN harus mengisi pendapatan sebesar DPP, bukan piutang sebesar total invoice.
             if ($hasPpn && $taxTarget > 0 && $dppTarget > 0 && count($normalizedLines) === 1) {
@@ -1107,7 +1170,9 @@ class InputPenjualanController
             }
 
             $ppnAkun = (string) ($j['ppn_akun'] ?? '');
-            if ($hasPpn && $taxTarget > 0 && trim($ppnAkun) === '') {
+            if ($this->isPiutangPenjualan($header)) {
+                $ppnAkun = '';
+            } elseif ($hasPpn && $taxTarget > 0 && trim($ppnAkun) === '') {
                 $ppnAkun = $this->getDefaultPpnKeluaranAccount();
                 if (trim($ppnAkun) === '') {
                     $ppnAkun = '2107AK';
@@ -1143,7 +1208,9 @@ class InputPenjualanController
             $cashNominal = $request->query('nominal');
             $cashNominal = $cashNominal === null || $cashNominal === '' ? null : (float) $cashNominal;
             if ($cashNominal === null) {
-                $cashNominal = (float) (($header->total_bayaran ?? 0) > 0 ? $header->total_bayaran : ($header->g_total ?? 0));
+                $cashNominal = $this->isPiutangPenjualan($header)
+                    ? $this->piutangCashNominal($header)
+                    : (float) (($header->total_bayaran ?? 0) > 0 ? $header->total_bayaran : ($header->g_total ?? 0));
             }
 
             $alloc = $this->computeAllocation($header, (float) $cashNominal);
@@ -1155,6 +1222,10 @@ class InputPenjualanController
                     'allocation' => $alloc,
                     'source' => 'python',
                 ], 503);
+            }
+
+            if ($hasPpn && ($alloc['tax'] ?? 0) > 0 && trim((string) ($suggest['ppn_akun'] ?? '')) === '') {
+                $suggest['ppn_akun'] = $this->getDefaultPpnKeluaranAccount();
             }
 
             return response()->json([
@@ -1220,7 +1291,9 @@ class InputPenjualanController
 
             $nominal = array_key_exists('nominal', $payload) && $payload['nominal'] !== null
                 ? (float) $payload['nominal']
-                : (float) (($header->total_bayaran ?? 0) > 0 ? $header->total_bayaran : ($header->g_total ?? 0));
+                : ($this->isPiutangPenjualan($header)
+                    ? $this->piutangCashNominal($header)
+                    : (float) (($header->total_bayaran ?? 0) > 0 ? $header->total_bayaran : ($header->g_total ?? 0)));
             $nominal = max(0.0, $nominal);
             if ($nominal <= 0) {
                 return redirect()->back()->with('error', 'Nominal harus > 0.');
@@ -1371,11 +1444,33 @@ class InputPenjualanController
                     $this->insertJurnalDetailsAndUpdateNabb($kodeJurnal, $details);
                 }
 
-                // Standar perusahaan: update tb_kdfakturpenjualan.trx_jurnal dengan nomor jurnal/voucher kas.
-                if (Schema::hasColumn('tb_kdfakturpenjualan', 'trx_jurnal')) {
+                $fakturCols = Schema::getColumnListing('tb_kdfakturpenjualan');
+                $saldoPiutangBefore = max(0.0, (float) ($header->saldo_piutang ?? $header->g_total ?? 0));
+                $piutangPenjualan = $this->isPiutangPenjualan($header);
+                $remaining = max(0.0, $saldoPiutangBefore - abs($nominal));
+                $ketJurnal = ($piutangPenjualan || $remaining > 0.01) ? '1109AD' : '';
+
+                $fakturUpdates = [];
+                if (in_array('trx_jurnal', $fakturCols, true)) {
+                    $fakturUpdates['trx_jurnal'] = $ketJurnal;
+                }
+                if (in_array('total_bayaran', $fakturCols, true)) {
+                    $fakturUpdates['total_bayaran'] = DB::raw('COALESCE(total_bayaran,0) + ' . round(abs($nominal), 2));
+                }
+                if (in_array('saldo_piutang', $fakturCols, true)) {
+                    $fakturUpdates['saldo_piutang'] = DB::raw('GREATEST(COALESCE(saldo_piutang,0) - ' . round(abs($nominal), 2) . ', 0)');
+                }
+                if (in_array('tgl_bayar', $fakturCols, true)) {
+                    $fakturUpdates['tgl_bayar'] = $tglVoucher;
+                }
+                if (in_array('month_report', $fakturCols, true)) {
+                    $fakturUpdates['month_report'] = Carbon::parse($tglVoucher)->format('Ym');
+                }
+
+                if (count($fakturUpdates) > 0) {
                     DB::table('tb_kdfakturpenjualan')
                         ->where('no_fakturpenjualan', (string) $header->no_fakturpenjualan)
-                        ->update(['trx_jurnal' => $kodeVoucher]);
+                        ->update($fakturUpdates);
                 }
 
                 return redirect()

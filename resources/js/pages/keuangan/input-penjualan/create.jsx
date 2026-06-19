@@ -94,6 +94,39 @@ const getAccountLabel = (options, value) => {
     return found?.label ?? v;
 };
 
+const findDefaultPpnKeluaranAccount = (options) => {
+    const scored = (options ?? [])
+        .map((opt) => {
+            const value = String(opt?.value ?? '').trim();
+            const label = String(opt?.label ?? '').toLowerCase();
+            if (!value || !label.includes('ppn')) return null;
+
+            let score = 0;
+            if (label.includes('keluaran')) score += 100;
+            if (label.includes('hutang')) score += 50;
+            if (value.startsWith('2')) score += 25;
+            if (label.includes('masukan')) score -= 100;
+            if (value.startsWith('11')) score -= 25;
+
+            return { value, score };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score);
+
+    return scored[0]?.value ?? '2107AK';
+};
+
+const getPiutangCashNominal = (row) => {
+    const total = Number(row?.g_total ?? 0);
+    const paid = Number(row?.total_bayaran ?? 0);
+    const saldo = Number(row?.saldo_piutang ?? 0);
+    const remaining = total - paid;
+
+    if (Number.isFinite(saldo) && saldo > 0) return saldo;
+    if (Number.isFinite(remaining) && remaining > 0) return remaining;
+    return Number.isFinite(total) && total > 0 ? total : 0;
+};
+
 const mergeLinesByAccount = (inputLines) => {
     const map = new Map();
     for (const line of inputLines ?? []) {
@@ -273,19 +306,45 @@ export default function InputPenjualanCreate({
             0,
             Number(selectedDetail?.h_ppn ?? selected?.h_ppn ?? 0),
         );
+        const trxJurnal = String(
+            selectedDetail?.trx_jurnal ?? selected?.trx_jurnal ?? '',
+        ).trim();
         const dppInv = Math.max(0, totalInv - taxInv);
         const bayar = Number(
             selectedDetail?.total_bayaran ?? selected?.total_bayaran ?? 0,
         );
+        const piutangCash = getPiutangCashNominal({
+            ...(selected ?? {}),
+            ...(selectedDetail ?? {}),
+        });
         const cashNominal =
-            nominal === '' ? (bayar > 0 ? bayar : totalInv) : Number(nominal);
+            nominal === ''
+                ? trxJurnal !== ''
+                    ? piutangCash
+                    : bayar > 0
+                      ? bayar
+                      : totalInv
+                : Number(nominal);
+        const cash = Number.isFinite(cashNominal) ? cashNominal : 0;
+        if (trxJurnal !== '') {
+            return {
+                totalInv,
+                taxInv,
+                dppInv,
+                cashNominal: cash,
+                ratio: 1,
+                dppCash: Math.round(cash * 100) / 100,
+                taxCash: 0,
+            };
+        }
+
         const ratio =
             totalInv > 0 ? Math.min(1, Math.max(0, cashNominal / totalInv)) : 1;
         return {
             totalInv,
             taxInv,
             dppInv,
-            cashNominal: Number.isFinite(cashNominal) ? cashNominal : 0,
+            cashNominal: cash,
             ratio,
             dppCash: Math.round(dppInv * ratio * 100) / 100,
             taxCash: Math.round(taxInv * ratio * 100) / 100,
@@ -311,6 +370,68 @@ export default function InputPenjualanCreate({
             return [{ ...first, nominal: calc.dppCash, jenis: 'Kredit' }];
         });
     }, [calc.dppCash]);
+
+    useEffect(() => {
+        const trxJurnal = String(
+            selectedDetail?.trx_jurnal ?? selected?.trx_jurnal ?? '',
+        ).trim();
+        if (trxJurnal === '' || calc.dppCash <= 0) return;
+
+        if (ppnAkunAuto && ppnAkun !== '') setPpnAkun('');
+
+        setLines((prev) => {
+            const current = Array.isArray(prev) ? (prev[0] ?? {}) : {};
+            const currentNominal =
+                Math.round(Number(current?.nominal ?? 0) * 100) / 100;
+            const target = Math.round(Number(calc.dppCash ?? 0) * 100) / 100;
+            const currentAkun = String(current?.akun ?? '').trim().toUpperCase();
+            const currentJenis = String(current?.jenis ?? '').trim();
+
+            if (
+                Array.isArray(prev) &&
+                prev.length === 1 &&
+                currentAkun === '1109AD' &&
+                currentJenis === 'Kredit' &&
+                currentNominal === target
+            ) {
+                return prev;
+            }
+
+            return [{ akun: '1109AD', jenis: 'Kredit', nominal: target }];
+        });
+    }, [
+        selectedDetail?.trx_jurnal,
+        selected?.trx_jurnal,
+        calc.dppCash,
+        ppnAkun,
+        ppnAkunAuto,
+    ]);
+
+    useEffect(() => {
+        if (calc.taxCash <= 0) return;
+
+        if (ppnAkunAuto && !String(ppnAkun ?? '').trim()) {
+            setPpnAkun(findDefaultPpnKeluaranAccount(glAccountOptions));
+        }
+
+        setLines((prev) => {
+            if (!Array.isArray(prev) || prev.length !== 1) return prev;
+            const first = prev[0] ?? {};
+            const current = Math.round(Number(first?.nominal ?? 0) * 100) / 100;
+            const dpp = Math.round(Number(calc.dppCash ?? 0) * 100) / 100;
+            if (dpp <= 0 || current === dpp) return prev;
+
+            const akun = String(first?.akun ?? '').trim().toUpperCase();
+            return [
+                {
+                    ...first,
+                    akun: akun === '' || akun === '1109AD' ? '4101AK' : first.akun,
+                    jenis: 'Kredit',
+                    nominal: dpp,
+                },
+            ];
+        });
+    }, [calc.taxCash, calc.dppCash, glAccountOptions, ppnAkun, ppnAkunAuto]);
 
     const linesSum = useMemo(
         () =>
@@ -438,6 +559,8 @@ export default function InputPenjualanCreate({
             const ppn = String(json?.ppn_akun ?? '').trim();
             if (ppnAkunAuto) {
                 if (ppn) setPpnAkun(ppn);
+                else if (calc.taxCash > 0)
+                    setPpnAkun(findDefaultPpnKeluaranAccount(glAccountOptions));
                 else setPpnAkun('');
             }
         } catch (e) {
@@ -457,9 +580,15 @@ export default function InputPenjualanCreate({
         if (!no) return;
         if (autoSuggestedNo === no) return;
 
+        const trxJurnal = String(selected?.trx_jurnal ?? '').trim();
         const paid = Number(selected?.total_bayaran ?? 0);
         const totalInv = Number(selected?.g_total ?? 0);
-        const cashNominal = paid > 0 ? paid : totalInv;
+        const cashNominal =
+            trxJurnal !== ''
+                ? getPiutangCashNominal(selected)
+                : paid > 0
+                  ? paid
+                  : totalInv;
 
         setAutoSuggestedNo(no);
         applySuggestion({ noFaktur: no, cashNominal });
@@ -479,7 +608,13 @@ export default function InputPenjualanCreate({
 
         const paid = Number(row?.total_bayaran ?? 0);
         const totalInv = Number(row?.g_total ?? 0);
-        const value = paid > 0 ? paid : totalInv;
+        const trxJurnal = String(row?.trx_jurnal ?? '').trim();
+        const value =
+            trxJurnal !== ''
+                ? getPiutangCashNominal(row)
+                : paid > 0
+                  ? paid
+                  : totalInv;
         setNominal(value > 0 ? String(value) : '');
         setTglVoucher(new Date().toISOString().slice(0, 10));
         setLines([{ akun: '', jenis: 'Kredit', nominal: 0 }]);
