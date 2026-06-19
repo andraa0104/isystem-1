@@ -102,6 +102,32 @@ const getAccountLabel = (options, value) => {
     return found?.label ?? v;
 };
 
+const isPpnMasukanOption = (opt) => {
+    const label = String(opt?.label ?? '').toLowerCase();
+    if (!label.includes('ppn')) return false;
+    if (label.includes('keluaran') || label.includes('hutang')) return false;
+    if (label.includes('persediaan')) return false;
+    return true;
+};
+
+const findDefaultPpnMasukanAccount = (options) => {
+    const scored = (options ?? [])
+        .map((opt) => {
+            const value = String(opt?.value ?? '').trim();
+            const label = String(opt?.label ?? '').toLowerCase();
+            if (!value || !isPpnMasukanOption(opt)) return null;
+
+            let score = 0;
+            if (label.includes('masukan')) score += 100;
+            if (value.startsWith('11')) score += 25;
+            return { value, score };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score);
+
+    return scored[0]?.value ?? '';
+};
+
 function AccountSearchDialog({
     title,
     description,
@@ -254,6 +280,11 @@ export default function InputPembelianCreate({
     const [autoSuggestedNoDoc, setAutoSuggestedNoDoc] = useState('');
     const [ppnAkunAuto, setPpnAkunAuto] = useState(true);
 
+    const ppnMasukanOptions = useMemo(
+        () => (expenseAccountOptions ?? []).filter(isPpnMasukanOption),
+        [expenseAccountOptions],
+    );
+
     const calc = useMemo(() => {
         const totalInv = Number(selectedDetail?.total ?? selected?.total ?? 0);
         const taxInv = Math.max(
@@ -288,6 +319,20 @@ export default function InputPembelianCreate({
             nominal: 0,
         },
     ]);
+
+    useEffect(() => {
+        if (calc.taxCash <= 0 || !ppnAkunAuto) return;
+
+        const current = String(ppnAkun ?? '').trim();
+        const currentIsValid = isPpnMasukanOption(
+            expenseAccountOptions.find(
+                (opt) => String(opt?.value ?? '') === current,
+            ),
+        );
+        if (current !== '' && currentIsValid) return;
+
+        setPpnAkun(findDefaultPpnMasukanAccount(expenseAccountOptions));
+    }, [calc.taxCash, expenseAccountOptions, ppnAkun, ppnAkunAuto]);
 
     useEffect(() => {
         // Auto set default nominal beban 1 = DPP target when user selects FI.
@@ -483,7 +528,16 @@ export default function InputPembelianCreate({
 
             const ppn = String(json?.ppn_akun ?? '').trim();
             if (ppnAkunAuto) {
-                if (ppn) setPpnAkun(ppn);
+                const ppnIsValid = isPpnMasukanOption(
+                    expenseAccountOptions.find(
+                        (opt) => String(opt?.value ?? '') === ppn,
+                    ),
+                );
+                if (ppn && ppnIsValid) setPpnAkun(ppn);
+                else if (calc.taxCash > 0)
+                    setPpnAkun(
+                        findDefaultPpnMasukanAccount(expenseAccountOptions),
+                    );
                 else setPpnAkun('');
             }
         } catch (e) {
@@ -1438,7 +1492,7 @@ export default function InputPembelianCreate({
                 description="Wajib diisi jika nilai PPN > 0."
                 open={ppnDialogOpen}
                 onOpenChange={setPpnDialogOpen}
-                options={expenseAccountOptions}
+                options={ppnMasukanOptions}
                 value={ppnAkun}
                 onSelect={(v) => {
                     setPpnAkunAuto(false);

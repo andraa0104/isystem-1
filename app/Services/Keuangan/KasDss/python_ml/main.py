@@ -351,9 +351,12 @@ def fetch_purchase_ppn_account():
             nama = str(row.get("nama") or "").lower()
             if not akun:
                 continue
+            if "ppn" not in nama:
+                continue
+            if "keluaran" in nama or "hutang" in nama or "persediaan" in nama:
+                continue
             score = safe_float(row.get("cnt"), 0.0)
-            if "ppn" in nama:
-                score += 1000.0
+            score += 1000.0
             # PPN masukan pembelian dicatat sebagai aset/piutang, bukan hutang PPN keluaran.
             if akun.startswith("11"):
                 score += 100.0
@@ -370,8 +373,14 @@ def fetch_purchase_ppn_account():
         SELECT Kode_Akun
         FROM tb_nabb
         WHERE UPPER(COALESCE(Nama_Akun,'')) LIKE '%PPN%'
+          AND UPPER(COALESCE(Nama_Akun,'')) NOT LIKE '%KELUARAN%'
+          AND UPPER(COALESCE(Nama_Akun,'')) NOT LIKE '%HUTANG%'
+          AND UPPER(COALESCE(Nama_Akun,'')) NOT LIKE '%PERSEDIAAN%'
           AND TRIM(COALESCE(Kode_Akun,'')) LIKE '11%'
-        ORDER BY Kode_Akun
+        ORDER BY CASE
+            WHEN UPPER(COALESCE(Nama_Akun,'')) LIKE '%MASUKAN%' THEN 0
+            ELSE 1
+        END, Kode_Akun
         LIMIT 1
         """, conn)
         if len(fallback) > 0:

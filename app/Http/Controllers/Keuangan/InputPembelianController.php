@@ -739,11 +739,15 @@ class InputPembelianController
                 return null;
             }
             $lines = is_array($j['beban_lines'] ?? null) ? $j['beban_lines'] : [];
+            $ppnAkun = (string) ($j['ppn_akun'] ?? '');
+            if ($hasPpn && (float) ($alloc['tax'] ?? 0) > 0) {
+                $ppnAkun = $this->normalizePpnMasukanAccount($ppnAkun);
+            }
 
             return [
                 'kode_akun' => (string) ($j['kode_akun'] ?? ''),
                 'voucher_type' => (string) ($j['voucher_type'] ?? ''),
-                'ppn_akun' => (string) ($j['ppn_akun'] ?? ''),
+                'ppn_akun' => $ppnAkun,
                 'beban_lines' => collect($lines)->map(fn ($l) => [
                     'akun' => trim((string) ($l['akun'] ?? '')),
                     'jenis' => $this->normalizeJenisBeban((string) ($l['jenis'] ?? 'Debit')),
@@ -756,6 +760,57 @@ class InputPembelianController
             $this->pythonSuggestError = $e->getMessage();
             return null;
         }
+    }
+
+    private function normalizePpnMasukanAccount(?string $akun): string
+    {
+        $akun = trim((string) $akun);
+        if ($akun !== '' && $this->isPpnMasukanAccount($akun)) {
+            return $akun;
+        }
+
+        return $this->getDefaultPpnMasukanAccount();
+    }
+
+    private function isPpnMasukanAccount(string $akun): bool
+    {
+        if (!Schema::hasTable('tb_nabb') || !Schema::hasColumn('tb_nabb', 'Kode_Akun')) return false;
+        if (!Schema::hasColumn('tb_nabb', 'Nama_Akun')) return false;
+
+        $row = DB::table('tb_nabb')
+            ->where('Kode_Akun', $akun)
+            ->first(['Kode_Akun', 'Nama_Akun']);
+        if (!$row) return false;
+
+        $nama = strtoupper((string) ($row->Nama_Akun ?? ''));
+        if (!str_contains($nama, 'PPN')) return false;
+        if (str_contains($nama, 'KELUARAN') || str_contains($nama, 'HUTANG')) return false;
+        if (str_contains($nama, 'PERSEDIAAN')) return false;
+
+        return true;
+    }
+
+    private function getDefaultPpnMasukanAccount(): string
+    {
+        if (!Schema::hasTable('tb_nabb') || !Schema::hasColumn('tb_nabb', 'Kode_Akun')) return '';
+        if (!Schema::hasColumn('tb_nabb', 'Nama_Akun')) return '';
+
+        $row = DB::table('tb_nabb')
+            ->whereRaw("UPPER(COALESCE(Nama_Akun,'')) LIKE '%PPN%'")
+            ->whereRaw("UPPER(COALESCE(Nama_Akun,'')) NOT LIKE '%KELUARAN%'")
+            ->whereRaw("UPPER(COALESCE(Nama_Akun,'')) NOT LIKE '%HUTANG%'")
+            ->whereRaw("UPPER(COALESCE(Nama_Akun,'')) NOT LIKE '%PERSEDIAAN%'")
+            ->orderByRaw("
+                CASE
+                    WHEN UPPER(COALESCE(Nama_Akun,'')) LIKE '%MASUKAN%' THEN 0
+                    WHEN TRIM(COALESCE(Kode_Akun,'')) LIKE '11%' THEN 1
+                    ELSE 2
+                END
+            ")
+            ->orderBy('Kode_Akun')
+            ->first(['Kode_Akun']);
+
+        return trim((string) ($row->Kode_Akun ?? ''));
     }
 
     public function suggest(Request $request, string $noDoc)
@@ -895,6 +950,13 @@ class InputPembelianController
 
             if ($taxNominal > 0 && $ppnAkun === '') {
                 return redirect()->back()->with('error', 'Akun PPN wajib diisi karena FI memiliki PPN.');
+            }
+            if ($taxNominal > 0) {
+                $normalizedPpnAkun = $this->normalizePpnMasukanAccount($ppnAkun);
+                if ($normalizedPpnAkun === '') {
+                    return redirect()->back()->with('error', 'Akun PPN Masukan tidak ditemukan di master akun.');
+                }
+                $ppnAkun = $normalizedPpnAkun;
             }
 
             // Validasi beban lines: total beban harus sama dengan DPP (alokasi proporsional bila bayar parsial).
