@@ -210,6 +210,12 @@ export default function PurchaseOrderInIndex({
     const [loading, setLoading] = useState(true);
     const [tableLoading, setTableLoading] = useState(false);
     const [summary, setSummary] = useState(initialSummary);
+    const [summaryLoading, setSummaryLoading] = useState({
+        outstanding: true,
+        sisa: true,
+        realized: true,
+        total: true,
+    });
     const [outstandingPurchaseOrderIns, setOutstandingPurchaseOrderIns] =
         useState(initialOutstandingPoIns);
     const [outstandingDoPurchaseOrderIns, setOutstandingDoPurchaseOrderIns] =
@@ -323,8 +329,8 @@ export default function PurchaseOrderInIndex({
         }
     };
 
-    const fetchPoInSummary = async () => {
-        setLoading(true);
+    const fetchPoInSummaryScope = async (scope) => {
+        setSummaryLoading((prev) => ({ ...prev, [scope]: true }));
         try {
             const queryParams = new URLSearchParams({
                 search: '',
@@ -333,6 +339,7 @@ export default function PurchaseOrderInIndex({
                 date_filter: 'all',
                 page: '1',
                 summary_only: '1',
+                summary_scope: scope,
             });
 
             const response = await fetch(
@@ -340,12 +347,19 @@ export default function PurchaseOrderInIndex({
                 { headers: { Accept: 'application/json' } },
             );
             const data = await response.json();
-            setSummary(data.summary || {});
+            setSummary((prev) => ({ ...prev, ...(data.summary || {}) }));
         } catch (error) {
-            console.error('Error fetching PO In summary:', error);
+            console.error(`Error fetching PO In ${scope} summary:`, error);
         } finally {
-            setLoading(false);
+            setSummaryLoading((prev) => ({ ...prev, [scope]: false }));
         }
+    };
+
+    const fetchPoInSummary = () => {
+        setLoading(false);
+        ['outstanding', 'sisa', 'realized', 'total'].forEach((scope) => {
+            fetchPoInSummaryScope(scope);
+        });
     };
 
     useEffect(() => {
@@ -770,7 +784,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Belum PR"
                                 value={summary.outstanding_pr ?? 0}
-                                loading={loading}
+                                loading={summaryLoading.outstanding}
                                 onClick={() => {
                                     setActiveModal('outstanding');
                                     setActiveModalTab('pr');
@@ -782,7 +796,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Belum DO"
                                 value={summary.outstanding_do ?? 0}
-                                loading={loading}
+                                loading={summaryLoading.outstanding}
                                 onClick={() => {
                                     setActiveModal('outstanding');
                                     setActiveModalTab('do');
@@ -841,7 +855,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Sisa PR"
                                 value={summary.sisa_pr ?? 0}
-                                loading={loading}
+                                loading={summaryLoading.sisa}
                                 onClick={() => {
                                     setActiveModal('sisa');
                                     setActiveModalTab('pr');
@@ -853,7 +867,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Sisa DO"
                                 value={summary.sisa_do ?? 0}
-                                loading={loading}
+                                loading={summaryLoading.sisa}
                                 onClick={() => {
                                     setActiveModal('sisa');
                                     setActiveModalTab('do');
@@ -933,7 +947,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="PR Selesai"
                                 value={realizedPrCount}
-                                loading={loading}
+                                loading={summaryLoading.realized}
                                 onClick={() => {
                                     setActiveModal('realized');
                                     setActiveModalTab('pr');
@@ -945,7 +959,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="DO Selesai"
                                 value={realizedDoCount}
-                                loading={loading}
+                                loading={summaryLoading.realized}
                                 onClick={() => {
                                     setActiveModal('realized');
                                     setActiveModalTab('do');
@@ -1067,7 +1081,7 @@ export default function PurchaseOrderInIndex({
                         </p>
                         <div className="mt-1 flex items-baseline gap-2">
                             <div className="text-2xl font-bold">
-                                {loading ? (
+                                {summaryLoading.total ? (
                                     <Skeleton className="h-8 w-12" />
                                 ) : (
                                     dataPoInCount
@@ -1179,26 +1193,26 @@ export default function PurchaseOrderInIndex({
                         </div>
                     </div>
                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                        <table className="w-full min-w-[760px] text-sm">
+                        <table className="w-full min-w-[720px] table-auto text-sm">
                             <thead className="bg-muted/40 text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 text-left">No</th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="w-12 px-2 py-2 text-left">No</th>
+                                    <th className="w-44 px-2 py-2 text-left">
                                         Kode PO In
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="w-40 px-2 py-2 text-left">
                                         No PO In
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="w-28 px-2 py-2 text-left">
                                         Date Input
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="px-2 py-2 text-left">
                                         Customer
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="w-36 px-2 py-2 text-right">
                                         Grand Total
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="w-24 px-2 py-2 text-left">
                                         Action
                                     </th>
                                 </tr>
@@ -1222,7 +1236,7 @@ export default function PurchaseOrderInIndex({
                                             key={item.id ?? item.no_poin}
                                             className="border-t border-sidebar-border/70"
                                         >
-                                            <td className="px-4 py-3">
+                                            <td className="whitespace-nowrap px-2 py-2">
                                                 {pagination.per_page === 'all'
                                                     ? index + 1
                                                     : (Number(
@@ -1236,25 +1250,25 @@ export default function PurchaseOrderInIndex({
                                                       index +
                                                       1}
                                             </td>
-                                            <td className="px-4 py-3 font-semibold">
+                                            <td className="whitespace-nowrap px-2 py-2 font-semibold">
                                                 {item.kode_poin}
                                             </td>
-                                            <td className="px-4 py-3 font-semibold">
+                                            <td className="whitespace-nowrap px-2 py-2 font-semibold">
                                                 {item.no_poin}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="whitespace-nowrap px-2 py-2">
                                                 {formatDateDisplay(
                                                     item.created_at ||
                                                         item.date_poin,
                                                 )}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-2 py-2">
                                                 {item.customer_name}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="whitespace-nowrap px-2 py-2 text-right">
                                                 {formatRupiah(item.grand_total)}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-2 py-2">
                                                 <div className="flex items-center gap-2">
                                                     <Button
                                                         type="button"
@@ -1391,7 +1405,7 @@ export default function PurchaseOrderInIndex({
                                 </DialogClose>
                             </div>
                         </DialogHeader>
-                        <div className="p-4">
+                        <div className="p-3">
                             {detailLoading && (
                                 <div className="py-10 text-center text-sm text-muted-foreground">
                                     Memuat detail PO In...
@@ -1403,40 +1417,40 @@ export default function PurchaseOrderInIndex({
                                 </div>
                             )}
                             {!detailLoading && !detailError && detailHeader && (
-                                <div className="space-y-4">
-                                    <div className="grid gap-3 md:grid-cols-3">
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                <div className="space-y-3">
+                                    <div className="flex flex-wrap gap-1.5">
+                                        <div className="min-w-36 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs text-muted-foreground">
                                                 Kode PO In
                                             </p>
-                                            <p className="font-semibold">
+                                            <p className="text-sm font-semibold whitespace-nowrap">
                                                 {detailHeader.kode_poin ?? '-'}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                        <div className="min-w-32 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs text-muted-foreground">
                                                 No PO In
                                             </p>
-                                            <p className="font-semibold">
+                                            <p className="text-sm font-semibold whitespace-nowrap">
                                                 {detailHeader.no_poin ?? '-'}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                        <div className="min-w-56 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs text-muted-foreground">
                                                 Customer
                                             </p>
-                                            <p className="font-semibold">
+                                            <p className="text-sm font-semibold">
                                                 {detailHeader.customer_name ??
                                                     '-'}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                        <div className="min-w-32 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                                 Tgl Buat
                                             </p>
                                             <input
                                                 type="date"
-                                                className="h-6 w-full border-none bg-transparent p-0 text-sm font-semibold focus:ring-0"
+                                                className="h-5 w-full border-none bg-transparent p-0 text-sm font-semibold focus:ring-0"
                                                 value={
                                                     detailHeader.created_at
                                                         ? detailHeader.created_at.split(
@@ -1452,49 +1466,49 @@ export default function PurchaseOrderInIndex({
                                                 readOnly
                                             />
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                        <div className="min-w-36 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                                 Term of Payment
                                             </p>
-                                            <p className="text-sm font-semibold">
+                                            <p className="text-sm font-semibold whitespace-nowrap">
                                                 {detailHeader.payment_term ??
                                                     '-'}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                        <div className="min-w-36 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                                 Franco / Loco
                                             </p>
-                                            <p className="text-sm font-semibold">
+                                            <p className="text-sm font-semibold whitespace-nowrap">
                                                 {detailHeader.franco_loco ??
                                                     '-'}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                        <div className="min-w-32 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                                 Date PO In
                                             </p>
-                                            <p className="text-sm font-semibold">
+                                            <p className="text-sm font-semibold whitespace-nowrap">
                                                 {formatDateDisplay(
                                                     detailHeader.date_poin,
                                                 )}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                        <div className="min-w-32 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                                 Delivery Date
                                             </p>
-                                            <p className="text-sm font-semibold">
+                                            <p className="text-sm font-semibold whitespace-nowrap">
                                                 {formatDateDisplay(
                                                     detailHeader.delivery_date,
                                                 )}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                        <div className="min-w-20 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                                 PPN
                                             </p>
-                                            <p className="text-sm font-semibold">
+                                            <p className="text-sm font-semibold whitespace-nowrap">
                                                 {detailHeader.ppn_input_percent ??
                                                     0}
                                                 %
@@ -1549,32 +1563,32 @@ export default function PurchaseOrderInIndex({
                                         </label>
                                     </div>
 
-                                    <div className="overflow-x-hidden rounded-xl border border-sidebar-border/70">
-                                        <table className="w-full table-fixed text-sm">
+                                    <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                                        <table className="w-full min-w-[860px] table-auto text-sm">
                                             <thead className="bg-muted/40 text-muted-foreground">
                                                 <tr>
-                                                    <th className="px-4 py-3 text-left">
+                                                    <th className="w-12 px-2 py-2 text-left">
                                                         No
                                                     </th>
-                                                    <th className="px-4 py-3 text-left">
+                                                    <th className="px-2 py-2 text-left">
                                                         Material
                                                     </th>
-                                                    <th className="px-4 py-3 text-left">
+                                                    <th className="w-28 px-2 py-2 text-right">
                                                         Qty
                                                     </th>
-                                                    <th className="px-4 py-3 text-left">
+                                                    <th className="w-32 px-2 py-2 text-right">
                                                         Price PO In
                                                     </th>
-                                                    <th className="px-4 py-3 text-left">
+                                                    <th className="w-36 px-2 py-2 text-right">
                                                         Total Price
                                                     </th>
-                                                    <th className="px-4 py-3 text-left">
+                                                    <th className="w-24 px-2 py-2 text-right">
                                                         Sisa PR
                                                     </th>
-                                                    <th className="px-4 py-3 text-left">
+                                                    <th className="w-24 px-2 py-2 text-right">
                                                         Sisa DO
                                                     </th>
-                                                    <th className="px-4 py-3 text-left">
+                                                    <th className="w-44 px-2 py-2 text-left">
                                                         Remark
                                                     </th>
                                                 </tr>
@@ -1604,7 +1618,7 @@ export default function PurchaseOrderInIndex({
                                                                 }
                                                                 className="border-t border-sidebar-border/70"
                                                             >
-                                                                <td className="px-4 py-3">
+                                                                <td className="whitespace-nowrap px-2 py-2">
                                                                     {detailPagination.per_page ===
                                                                     'all'
                                                                         ? index +
@@ -1621,34 +1635,34 @@ export default function PurchaseOrderInIndex({
                                                                           index +
                                                                           1}
                                                                 </td>
-                                                                <td className="px-4 py-3 break-words">
+                                                                <td className="px-2 py-2">
                                                                     {row.material ??
                                                                         '-'}
                                                                 </td>
-                                                                <td className="px-4 py-3">
+                                                                <td className="whitespace-nowrap px-2 py-2 text-right">
                                                                     {`${row.qty ?? 0} ${row.satuan ?? ''}`}
                                                                 </td>
-                                                                <td className="px-4 py-3">
+                                                                <td className="whitespace-nowrap px-2 py-2 text-right">
                                                                     {formatRupiah(
                                                                         row.price_po_in ??
                                                                             0,
                                                                     )}
                                                                 </td>
-                                                                <td className="px-4 py-3">
+                                                                <td className="whitespace-nowrap px-2 py-2 text-right">
                                                                     {formatRupiah(
                                                                         row.total_price_po_in ??
                                                                             0,
                                                                     )}
                                                                 </td>
-                                                                <td className="px-4 py-3">
+                                                                <td className="whitespace-nowrap px-2 py-2 text-right">
                                                                     {row.sisa_qtypr ??
                                                                         0}
                                                                 </td>
-                                                                <td className="px-4 py-3">
+                                                                <td className="whitespace-nowrap px-2 py-2 text-right">
                                                                     {row.sisa_qtydo ??
                                                                         0}
                                                                 </td>
-                                                                <td className="px-4 py-3 break-words">
+                                                                <td className="px-2 py-2">
                                                                     {row.remark ||
                                                                         '-'}
                                                                 </td>
@@ -1723,8 +1737,8 @@ export default function PurchaseOrderInIndex({
                                         )}
                                     </div>
 
-                                    <div className="grid gap-3 md:grid-cols-4">
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                    <div className="grid gap-2 md:grid-cols-4">
+                                        <div className="rounded-lg border border-sidebar-border/70 p-2">
                                             <p className="text-xs text-muted-foreground">
                                                 Total Price
                                             </p>
@@ -1735,7 +1749,7 @@ export default function PurchaseOrderInIndex({
                                                 )}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                        <div className="rounded-lg border border-sidebar-border/70 p-2">
                                             <p className="text-xs text-muted-foreground">
                                                 DPP
                                             </p>
@@ -1745,7 +1759,7 @@ export default function PurchaseOrderInIndex({
                                                 )}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                        <div className="rounded-lg border border-sidebar-border/70 p-2">
                                             <p className="text-xs text-muted-foreground">
                                                 PPN
                                             </p>
@@ -1756,7 +1770,7 @@ export default function PurchaseOrderInIndex({
                                                 )}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-3">
+                                        <div className="rounded-lg border border-sidebar-border/70 p-2">
                                             <p className="text-xs text-muted-foreground">
                                                 Grand Total
                                             </p>
@@ -1887,16 +1901,16 @@ export default function PurchaseOrderInIndex({
                             <table className="w-full table-auto text-sm">
                                 <thead className="bg-muted/40 text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="w-12 px-2 py-2 text-left">
                                             No
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="w-44 px-2 py-2 text-left">
                                             Kode PO In
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="w-40 px-2 py-2 text-left">
                                             No PO In
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="w-32 px-2 py-2 text-left">
                                             {activeModal === 'realized' &&
                                             activeModalTab === 'do'
                                                 ? 'Tgl DO Terakhir'
@@ -1905,13 +1919,13 @@ export default function PurchaseOrderInIndex({
                                                   ? 'Tgl PR Terakhir'
                                                 : 'Date Input'}
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="px-2 py-2 text-left">
                                             Customer
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="w-36 px-2 py-2 text-right">
                                             Grand Total
                                         </th>
-                                        <th className="px-4 py-3 text-left">
+                                        <th className="w-24 px-2 py-2 text-left">
                                             Action
                                         </th>
                                     </tr>
@@ -1932,7 +1946,7 @@ export default function PurchaseOrderInIndex({
                                             key={`${item.no_poin}-${index}`}
                                             className="border-t border-sidebar-border/70"
                                         >
-                                            <td className="px-4 py-3">
+                                            <td className="whitespace-nowrap px-2 py-2">
                                                 {modalPageSize === Infinity
                                                     ? index + 1
                                                     : (modalPage - 1) *
@@ -1940,13 +1954,13 @@ export default function PurchaseOrderInIndex({
                                                       index +
                                                       1}
                                             </td>
-                                            <td className="px-4 py-3 font-semibold">
+                                            <td className="whitespace-nowrap px-2 py-2 font-semibold">
                                                 {item.kode_poin}
                                             </td>
-                                            <td className="px-4 py-3 font-semibold">
+                                            <td className="whitespace-nowrap px-2 py-2 font-semibold">
                                                 {item.no_poin}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="whitespace-nowrap px-2 py-2">
                                                 {formatDateDisplay(
                                                     activeModal === 'realized' &&
                                                     activeModalTab === 'do'
@@ -1960,13 +1974,13 @@ export default function PurchaseOrderInIndex({
                                                               item.date_poin,
                                                 )}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-2 py-2">
                                                 {item.customer_name}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="whitespace-nowrap px-2 py-2 text-right">
                                                 {formatRupiah(item.grand_total)}
                                             </td>
-                                            <td className="px-4 py-3">
+                                            <td className="px-2 py-2">
                                                 {activeModal ===
                                                     'outstanding' ||
                                                 activeModal === 'sisa' ? (

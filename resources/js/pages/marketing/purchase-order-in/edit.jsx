@@ -35,6 +35,10 @@ const toNumber = (value) => {
 
 const formatRupiah = (value) =>
     `Rp ${new Intl.NumberFormat('id-ID').format(toNumber(value))}`;
+const formatInteger = (value) =>
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        Math.trunc(toNumber(value)),
+    );
 const toDisplayDate = (value) => {
     const text = String(value ?? '').trim();
     if (!text) {
@@ -1428,23 +1432,40 @@ export default function PurchaseOrderInEdit({
                     </div>
 
                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                        <table className="w-full text-sm">
+                        <table className="w-full table-auto text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="w-32 px-2 py-2 text-left" rowSpan={2}>
                                         Kode Material
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="px-2 py-2 text-left" rowSpan={2}>
                                         Nama Material
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="px-2 py-2 text-center" colSpan={5}>
                                         Stok
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="w-20 px-2 py-2 text-left" rowSpan={2}>
                                         Satuan
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="w-20 px-2 py-2 text-left" rowSpan={2}>
                                         Action
+                                    </th>
+                                </tr>
+                                <tr>
+                                    <th className="w-16 px-2 py-2 text-right">
+                                        G1
+                                    </th>
+                                    <th className="w-16 px-2 py-2 text-right">
+                                        G2
+                                    </th>
+                                    <th className="w-16 px-2 py-2 text-right">
+                                        G3
+                                    </th>
+                                    <th className="w-16 px-2 py-2 text-right">
+                                        G4
+                                    </th>
+                                    <th className="w-20 px-2 py-2 text-right">
+                                        Total
                                     </th>
                                 </tr>
                             </thead>
@@ -1453,7 +1474,7 @@ export default function PurchaseOrderInEdit({
                                     <tr>
                                         <td
                                             className="px-4 py-6 text-center text-muted-foreground"
-                                            colSpan={5}
+                                            colSpan={9}
                                         >
                                             {materialLoading
                                                 ? 'Memuat data material...'
@@ -1467,19 +1488,31 @@ export default function PurchaseOrderInEdit({
                                         key={item.kd_material}
                                         className="border-t border-sidebar-border/70"
                                     >
-                                        <td className="px-4 py-3">
+                                        <td className="whitespace-nowrap px-2 py-2">
                                             {item.kd_material ?? '-'}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-2 py-2">
                                             {item.material ?? '-'}
                                         </td>
-                                        <td className="px-4 py-3">
-                                            {item.stok ?? '-'}
+                                        <td className="whitespace-nowrap px-2 py-2 text-right">
+                                            {formatInteger(item.stok_g1)}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="whitespace-nowrap px-2 py-2 text-right">
+                                            {formatInteger(item.stok_g2)}
+                                        </td>
+                                        <td className="whitespace-nowrap px-2 py-2 text-right">
+                                            {formatInteger(item.stok_g3)}
+                                        </td>
+                                        <td className="whitespace-nowrap px-2 py-2 text-right">
+                                            {formatInteger(item.stok_g4)}
+                                        </td>
+                                        <td className="whitespace-nowrap px-2 py-2 text-right">
+                                            {formatInteger(item.stok)}
+                                        </td>
+                                        <td className="whitespace-nowrap px-2 py-2">
                                             {item.unit ?? '-'}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-2 py-2">
                                             <Button
                                                 size="sm"
                                                 variant="outline"
@@ -1616,19 +1649,19 @@ export default function PurchaseOrderInEdit({
                     </div>
 
                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                        <table className="w-full text-sm">
+                        <table className="w-full table-auto text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="w-28 px-2 py-2 text-left">
                                         Kode CS
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="px-2 py-2 text-left">
                                         Customer
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="w-40 px-2 py-2 text-left">
                                         Kota
                                     </th>
-                                    <th className="px-4 py-3 text-left">
+                                    <th className="w-20 px-2 py-2 text-left">
                                         Action
                                     </th>
                                 </tr>
@@ -1652,16 +1685,16 @@ export default function PurchaseOrderInEdit({
                                         key={item.kd_cs}
                                         className="border-t border-sidebar-border/70"
                                     >
-                                        <td className="px-4 py-3">
+                                        <td className="whitespace-nowrap px-2 py-2">
                                             {item.kd_cs ?? '-'}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-2 py-2">
                                             {item.nm_cs ?? '-'}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="whitespace-nowrap px-2 py-2">
                                             {item.kota_cs ?? '-'}
                                         </td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-2 py-2">
                                             <Button
                                                 size="sm"
                                                 variant="outline"

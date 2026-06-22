@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Throwable;
@@ -105,6 +106,38 @@ class PurchaseOrderInController
         return $prefix.'.POIN-'.str_pad((string) $nextNumber, 8, '0', STR_PAD_LEFT);
     }
 
+    private function firstExistingColumn(string $table, array $columns, string $fallback): string
+    {
+        foreach ($columns as $column) {
+            if (Schema::hasColumn($table, $column)) {
+                return $column;
+            }
+        }
+
+        return $fallback;
+    }
+
+    private function barangStockTotalExpression(string $alias = ''): string
+    {
+        $prefix = $alias !== '' ? $alias.'.' : '';
+
+        return "(
+            coalesce(cast({$prefix}stok_g1 as decimal(65,4)), 0) +
+            coalesce(cast({$prefix}stok_g2 as decimal(65,4)), 0) +
+            coalesce(cast({$prefix}stok_g3 as decimal(65,4)), 0) +
+            coalesce(cast({$prefix}stok_g4 as decimal(65,4)), 0)
+        )";
+    }
+
+    private function normalizeMaterialCode(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (int) $value;
+    }
+
     public function index(Request $request)
     {
         $search = trim((string) $request->query('search', ''));
@@ -151,6 +184,7 @@ class PurchaseOrderInController
         $page = max(1, (int) $request->query('page', 1));
         $isPartial = $request->boolean('is_partial', false);
         $summaryOnly = $request->boolean('summary_only', false);
+        $summaryScope = (string) $request->query('summary_scope', 'all');
         $dateFilter = (string) $request->query('date_filter', 'today');
         $startDate = (string) $request->query('start_date', '');
         $endDate = (string) $request->query('end_date', '');
@@ -162,12 +196,13 @@ class PurchaseOrderInController
             'page' => $page,
             'is_partial' => $isPartial,
             'summary_only' => $summaryOnly,
+            'summary_scope' => $summaryScope,
             'date_filter' => $dateFilter,
             'start_date' => $startDate,
             'end_date' => $endDate,
         ], $request);
 
-        $data = Cache::tags(self::POIN_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $dateFilter, $startDate, $endDate) {
+        $data = Cache::tags(self::POIN_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $dateFilter, $startDate, $endDate) {
             return $this->getPurchaseOrderInData(
                 $search,
                 $perPage,
@@ -175,6 +210,7 @@ class PurchaseOrderInController
                 $page,
                 $isPartial,
                 $summaryOnly,
+                $summaryScope,
                 $dateFilter,
                 $startDate,
                 $endDate
@@ -191,11 +227,12 @@ class PurchaseOrderInController
         $page,
         $isPartial = false,
         $summaryOnly = false,
+        $summaryScope = 'all',
         $dateFilter = 'today',
         $startDate = '',
         $endDate = ''
     ) {
-        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $dateFilter, $startDate, $endDate) {
+        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $dateFilter, $startDate, $endDate) {
             $detailStats = DB::table('tb_detailpoin')
                 ->select('kode_poin')
                 ->selectRaw('count(*) as total_items')
@@ -404,6 +441,32 @@ class PurchaseOrderInController
                 ]
             ];
 
+            if ($summaryOnly && $summaryScope !== 'all') {
+                $scopedSummary = match ($summaryScope) {
+                    'outstanding' => [
+                        'outstanding_pr' => $summary['outstanding_pr'],
+                        'outstanding_do' => $summary['outstanding_do'],
+                    ],
+                    'sisa' => [
+                        'sisa_pr' => $summary['sisa_pr'],
+                        'sisa_do' => $summary['sisa_do'],
+                    ],
+                    'realized' => [
+                        'realized_pr' => $summary['realized_pr'],
+                        'realized_do' => $summary['realized_do'],
+                        'realized_pr_counts' => $summary['realized_pr_counts'],
+                        'realized_do_counts' => $summary['realized_do_counts'],
+                    ],
+                    'total' => [
+                        'total' => $summary['total'],
+                        'data_counts' => $summary['data_counts'],
+                    ],
+                    default => $summary,
+                };
+
+                return ['summary' => $scopedSummary];
+            }
+
             $base = DB::table('tb_poin as p')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                 ->leftJoinSub($doStats, 'dos', function ($join) {
@@ -589,18 +652,32 @@ class PurchaseOrderInController
         $cacheKey = $this->poinCacheKey('materials', [$search, $perPageInput, $page], $request);
 
         $data = Cache::tags(self::MATERIAL_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPageInput, $page) {
-            $query = DB::table('tb_material')->select('kd_material', 'material', 'unit', 'stok');
+            $codeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
+            $nameColumn = $this->firstExistingColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
+            $unitColumn = $this->firstExistingColumn('tb_barang', ['unit', 'satuan'], 'unit');
+            $stockTotal = $this->barangStockTotalExpression();
+
+            $query = DB::table('tb_barang')->selectRaw("
+                {$codeColumn} as kd_material,
+                {$nameColumn} as material,
+                {$unitColumn} as unit,
+                cast(coalesce(cast(stok_g1 as decimal(65,4)), 0) as signed) as stok_g1,
+                cast(coalesce(cast(stok_g2 as decimal(65,4)), 0) as signed) as stok_g2,
+                cast(coalesce(cast(stok_g3 as decimal(65,4)), 0) as signed) as stok_g3,
+                cast(coalesce(cast(stok_g4 as decimal(65,4)), 0) as signed) as stok_g4,
+                cast({$stockTotal} as signed) as stok
+            ");
 
             if ($search !== '') {
-                $query->where(function ($q) use ($search) {
+                $query->where(function ($q) use ($search, $codeColumn, $nameColumn) {
                     $like = '%'.strtolower($search).'%';
-                    $q->whereRaw('lower(kd_material) like ?', [$like])
-                        ->orWhereRaw('lower(material) like ?', [$like]);
+                    $q->whereRaw("lower({$codeColumn}) like ?", [$like])
+                        ->orWhereRaw("lower({$nameColumn}) like ?", [$like]);
                 });
             }
 
             if ($perPageInput === null) {
-                $materials = (clone $query)->orderBy('material')->get();
+                $materials = (clone $query)->orderBy($nameColumn)->get();
                 return ['materials' => $materials, 'total' => $materials->count()];
             }
 
@@ -612,12 +689,12 @@ class PurchaseOrderInController
             }
 
             if ($perPage === null) {
-                $materials = (clone $query)->orderBy('material')->get();
+                $materials = (clone $query)->orderBy($nameColumn)->get();
                 return ['materials' => $materials, 'total' => $materials->count()];
             }
 
             $total = (clone $query)->count();
-            $materials = (clone $query)->orderBy('material')->forPage($page, $perPage)->get();
+            $materials = (clone $query)->orderBy($nameColumn)->forPage($page, $perPage)->get();
 
             return [
                 'materials' => $materials,
@@ -644,7 +721,10 @@ class PurchaseOrderInController
             ?? $request->cookie('login_user')
             ?? $request->cookie('login_user_name')
             ?? ' ';
-        $lastKdMaterial = DB::table('tb_material')->max('kd_material');
+        $codeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
+        $nameColumn = $this->firstExistingColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
+        $unitColumn = $this->firstExistingColumn('tb_barang', ['unit', 'satuan'], 'unit');
+        $lastKdMaterial = DB::table('tb_barang')->max($codeColumn);
         $nextKdMaterial = $lastKdMaterial
             ? (string) (((int) $lastKdMaterial) + 1)
             : '1000000001';
@@ -653,17 +733,28 @@ class PurchaseOrderInController
         }
 
         try {
-            DB::table('tb_material')->insert([
-                'kd_material' => $nextKdMaterial,
-                'material' => $validated['material'],
-                'unit' => $validated['unit'],
-                'stok' => $stok,
+            $insertData = [
+                $codeColumn => (int) $nextKdMaterial,
+                $nameColumn => $validated['material'],
+                $unitColumn => $validated['unit'],
+            ];
+
+            foreach ([
+                'stok_g1' => $stok,
+                'stok_g2' => 0,
+                'stok_g3' => 0,
+                'stok_g4' => 0,
                 'harga' => 0,
-                'rest_stock' => $stok,
                 'remark' => ($validated['remark'] ?? null) === null ? ' ' : $validated['remark'],
                 'tgl_buat' => now()->toDateString(),
                 'pembuat' => $pembuat,
-            ]);
+            ] as $column => $value) {
+                if (Schema::hasColumn('tb_barang', $column)) {
+                    $insertData[$column] = $value;
+                }
+            }
+
+            DB::table('tb_barang')->insert($insertData);
 
             // [FLUSH] Sinkronisasi otomatis menghapus memori 'material_data'
             Cache::tags(self::MATERIAL_CACHE_TAGS)->flush();
@@ -675,9 +766,13 @@ class PurchaseOrderInController
         return response()->json([
             'message' => 'Data material berhasil disimpan.',
             'material' => [
-                'kd_material' => $nextKdMaterial,
+                'kd_material' => (int) $nextKdMaterial,
                 'material' => $validated['material'],
                 'unit' => $validated['unit'],
+                'stok_g1' => $stok,
+                'stok_g2' => 0,
+                'stok_g3' => 0,
+                'stok_g4' => 0,
                 'stok' => $stok,
                 'harga' => 0,
                 'remark' => $validated['remark'] ?? null,
@@ -789,7 +884,7 @@ class PurchaseOrderInController
             'ppn_value' => ['nullable', 'numeric', 'min:0'],
             'grand_total' => ['nullable', 'numeric', 'min:0'],
             'materials' => ['required', 'array', 'min:1'],
-            'materials.*.kd_material' => ['nullable', 'string', 'max:100'],
+            'materials.*.kd_material' => ['nullable', 'numeric'],
             'materials.*.material' => ['required', 'string', 'max:255'],
             'materials.*.qty' => ['required', 'numeric', 'min:0.0001'],
             'materials.*.satuan' => ['nullable', 'string', 'max:100'],
@@ -870,12 +965,16 @@ class PurchaseOrderInController
 
                 $materialKeys = collect($validated['materials'] ?? [])
                     ->pluck('kd_material')
-                    ->filter()
+                    ->map(fn ($value) => $this->normalizeMaterialCode($value))
+                    ->filter(fn ($value) => $value !== null)
                     ->unique()
                     ->all();
 
-                $materialStocks = DB::table('tb_material')
-                    ->whereIn('kd_material', $materialKeys)
+                $barangCodeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
+                $materialStocks = DB::table('tb_barang')
+                    ->whereIn($barangCodeColumn, $materialKeys)
+                    ->selectRaw("{$barangCodeColumn} as kd_material")
+                    ->selectRaw($this->barangStockTotalExpression().' as stok')
                     ->pluck('stok', 'kd_material')
                     ->all();
 
@@ -888,7 +987,7 @@ class PurchaseOrderInController
                         ? (float) $item['total_price_po_in']
                         : ($qty * $price);
 
-                    $kdMaterial = trim((string) ($item['kd_material'] ?? ''));
+                    $kdMaterial = $this->normalizeMaterialCode($item['kd_material'] ?? null);
                     $stok = (float) ($materialStocks[$kdMaterial] ?? 0);
 
                     $sisaQtyPr = max(0, $qty - $stok);
@@ -964,7 +1063,7 @@ class PurchaseOrderInController
             'grand_total' => ['nullable', 'numeric', 'min:0'],
             'materials' => ['required', 'array', 'min:1'],
             'materials.*.id' => ['nullable'],
-            'materials.*.kd_material' => ['nullable', 'string', 'max:100'],
+            'materials.*.kd_material' => ['nullable', 'numeric'],
             'materials.*.material' => ['required', 'string', 'max:255'],
             'materials.*.qty' => ['required', 'numeric', 'min:0.0001'],
             'materials.*.satuan' => ['nullable', 'string', 'max:100'],
@@ -1034,12 +1133,16 @@ class PurchaseOrderInController
 
                 $materialKeys = collect($validated['materials'] ?? [])
                     ->pluck('kd_material')
-                    ->filter()
+                    ->map(fn ($value) => $this->normalizeMaterialCode($value))
+                    ->filter(fn ($value) => $value !== null)
                     ->unique()
                     ->all();
 
-                $materialStocks = DB::table('tb_material')
-                    ->whereIn('kd_material', $materialKeys)
+                $barangCodeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
+                $materialStocks = DB::table('tb_barang')
+                    ->whereIn($barangCodeColumn, $materialKeys)
+                    ->selectRaw("{$barangCodeColumn} as kd_material")
+                    ->selectRaw($this->barangStockTotalExpression().' as stok')
                     ->pluck('stok', 'kd_material')
                     ->all();
 
@@ -1062,7 +1165,7 @@ class PurchaseOrderInController
                         }
                     }
 
-                    $kdMaterial = trim((string) ($item['kd_material'] ?? ''));
+                    $kdMaterial = $this->normalizeMaterialCode($item['kd_material'] ?? null);
                     $stok = (float) ($materialStocks[$kdMaterial] ?? 0);
                     $sisaQtyPr = max(0, $qty - $stok);
 
@@ -1218,7 +1321,7 @@ class PurchaseOrderInController
             }
 
             $validated = $request->validate([
-                'kd_material' => ['nullable', 'string', 'max:100'],
+                'kd_material' => ['nullable', 'numeric'],
                 'material' => ['required', 'string', 'max:255'],
                 'qty' => ['required', 'numeric', 'min:0.0001'],
                 'satuan' => ['nullable', 'string', 'max:100'],
@@ -1234,11 +1337,13 @@ class PurchaseOrderInController
                 : ($qty * $price);
             $nowGmt8 = now('Asia/Singapore');
 
-            $kdMaterial = trim((string) ($validated['kd_material'] ?? ''));
+            $kdMaterial = $this->normalizeMaterialCode($validated['kd_material'] ?? null);
             $stok = 0;
-            if (!empty($kdMaterial)) {
-                $stok = (float) (DB::table('tb_material')
-                    ->where('kd_material', $kdMaterial)
+            if ($kdMaterial !== null) {
+                $barangCodeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
+                $stok = (float) (DB::table('tb_barang')
+                    ->where($barangCodeColumn, $kdMaterial)
+                    ->selectRaw($this->barangStockTotalExpression().' as stok')
                     ->value('stok') ?? 0);
             }
 
