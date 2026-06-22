@@ -255,6 +255,107 @@ class PurchaseOrderInController
                 ->selectRaw("max(coalesce(str_to_date(date, '%d.%m.%Y'), str_to_date(date, '%Y-%m-%d'))) as last_pr_date")
                 ->groupBy('ref_po');
 
+            $now = now();
+            $startToday = $now->copy()->startOfDay()->toDateTimeString();
+            $startWeek = $now->copy()->startOfWeek()->toDateTimeString();
+            $startMonth = $now->copy()->startOfMonth()->toDateTimeString();
+            $startYear = $now->copy()->startOfYear()->toDateTimeString();
+
+            if ($summaryOnly && $summaryScope !== 'all') {
+                if ($summaryScope === 'total') {
+                    $periodCounts = DB::table('tb_poin')
+                        ->selectRaw("count(*) as total")
+                        ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
+                        ->selectRaw("count(case when created_at >= ? then 1 end) as week", [$startWeek])
+                        ->selectRaw("count(case when created_at >= ? then 1 end) as month", [$startMonth])
+                        ->selectRaw("count(case when created_at >= ? then 1 end) as year", [$startYear])
+                        ->first();
+
+                    return [
+                        'summary' => [
+                            'total' => (int) ($periodCounts->total ?? 0),
+                            'data_counts' => [
+                                'today' => (int) ($periodCounts->today ?? 0),
+                                'week' => (int) ($periodCounts->week ?? 0),
+                                'month' => (int) ($periodCounts->month ?? 0),
+                                'year' => (int) ($periodCounts->year ?? 0),
+                            ],
+                        ],
+                    ];
+                }
+
+                if ($summaryScope === 'outstanding') {
+                    $row = DB::table('tb_poin as p')
+                        ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
+                        ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_pr")
+                        ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
+                        ->first();
+
+                    return [
+                        'summary' => [
+                            'outstanding_pr' => (int) ($row->outstanding_pr ?? 0),
+                            'outstanding_do' => (int) ($row->outstanding_do ?? 0),
+                        ],
+                    ];
+                }
+
+                if ($summaryScope === 'sisa') {
+                    $row = DB::table('tb_poin as p')
+                        ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
+                        ->selectRaw("count(case when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 1 end) as sisa_pr")
+                        ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as sisa_do")
+                        ->first();
+
+                    return [
+                        'summary' => [
+                            'sisa_pr' => (int) ($row->sisa_pr ?? 0),
+                            'sisa_do' => (int) ($row->sisa_do ?? 0),
+                        ],
+                    ];
+                }
+
+                if ($summaryScope === 'realized') {
+                    $row = DB::table('tb_poin as p')
+                        ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
+                        ->leftJoinSub($doStats, 'dos', function ($join) {
+                            $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
+                        })
+                        ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 then 1 end) as realized_pr")
+                        ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null then 1 end) as realized_do")
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_today", [$startToday])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_week", [$startWeek])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_month", [$startMonth])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_year", [$startYear])
+                        ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_today", [$startToday])
+                        ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_week", [$startWeek])
+                        ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_month", [$startMonth])
+                        ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_year", [$startYear])
+                        ->first();
+
+                    return [
+                        'summary' => [
+                            'realized_pr' => (int) ($row->realized_pr ?? 0),
+                            'realized_do' => (int) ($row->realized_do ?? 0),
+                            'realized_pr_counts' => [
+                                'today' => (int) ($row->realized_pr_today ?? 0),
+                                'week' => (int) ($row->realized_pr_week ?? 0),
+                                'month' => (int) ($row->realized_pr_month ?? 0),
+                                'year' => (int) ($row->realized_pr_year ?? 0),
+                                'all' => (int) ($row->realized_pr ?? 0),
+                            ],
+                            'realized_do_counts' => [
+                                'today' => (int) ($row->realized_do_today ?? 0),
+                                'week' => (int) ($row->realized_do_week ?? 0),
+                                'month' => (int) ($row->realized_do_month ?? 0),
+                                'year' => (int) ($row->realized_do_year ?? 0),
+                                'all' => (int) ($row->realized_do ?? 0),
+                            ],
+                        ],
+                    ];
+                }
+            }
+
             $needsDoDate = in_array($statusFilter, ['realized', 'realized_do'], true);
             $needsPrDate = $statusFilter === 'realized_pr';
 
@@ -311,7 +412,6 @@ class PurchaseOrderInController
                     ->whereRaw('coalesce(ds.started_items, 0) > 0');
             }
 
-            $now = now();
             if ($dateFilter === 'today') {
                 $query->whereBetween('p.created_at', [
                     $now->copy()->startOfDay()->toDateTimeString(),
@@ -369,11 +469,6 @@ class PurchaseOrderInController
                     ];
                 }
             }
-
-            $startToday = $now->copy()->startOfDay()->toDateTimeString();
-            $startWeek = $now->copy()->startOfWeek()->toDateTimeString();
-            $startMonth = $now->copy()->startOfMonth()->toDateTimeString();
-            $startYear = $now->copy()->startOfYear()->toDateTimeString();
 
             $statusData = DB::table('tb_poin as p')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
@@ -440,32 +535,6 @@ class PurchaseOrderInController
                     'year'  => (int) $periodCounts->year,
                 ]
             ];
-
-            if ($summaryOnly && $summaryScope !== 'all') {
-                $scopedSummary = match ($summaryScope) {
-                    'outstanding' => [
-                        'outstanding_pr' => $summary['outstanding_pr'],
-                        'outstanding_do' => $summary['outstanding_do'],
-                    ],
-                    'sisa' => [
-                        'sisa_pr' => $summary['sisa_pr'],
-                        'sisa_do' => $summary['sisa_do'],
-                    ],
-                    'realized' => [
-                        'realized_pr' => $summary['realized_pr'],
-                        'realized_do' => $summary['realized_do'],
-                        'realized_pr_counts' => $summary['realized_pr_counts'],
-                        'realized_do_counts' => $summary['realized_do_counts'],
-                    ],
-                    'total' => [
-                        'total' => $summary['total'],
-                        'data_counts' => $summary['data_counts'],
-                    ],
-                    default => $summary,
-                };
-
-                return ['summary' => $scopedSummary];
-            }
 
             $base = DB::table('tb_poin as p')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
