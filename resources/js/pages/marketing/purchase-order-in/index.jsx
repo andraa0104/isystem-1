@@ -1515,6 +1515,16 @@ export default function PurchaseOrderInIndex({
                                             </p>
                                         </div>
                                     </div>
+                                    <div className="rounded-lg border border-sidebar-border/70 px-2 py-1.5">
+                                        <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                                            Keterangan
+                                        </p>
+                                        <p className="text-sm font-semibold whitespace-pre-wrap">
+                                            {String(
+                                                detailHeader.note_doc ?? '',
+                                            ).trim() || '-'}
+                                        </p>
+                                    </div>
 
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div className="relative w-full max-w-md">
