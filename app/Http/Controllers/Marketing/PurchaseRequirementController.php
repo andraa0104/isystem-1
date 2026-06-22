@@ -662,10 +662,14 @@ class PurchaseRequirementController
             return response()->json(['items' => []]);
         }
 
-        $data = Cache::tags(['poin_data', 'material_data'])->remember('pr_poin_details_' . $kodePoin, 86400, function () use ($kodePoin) {
+        $data = Cache::tags(['poin_data', 'material_data'])->remember('pr_poin_details_v2_' . $kodePoin, 86400, function () use ($kodePoin) {
             $hasLineNo = Schema::hasColumn('tb_detailpoin', 'no');
             $hasRemark = Schema::hasColumn('tb_detailpoin', 'remark');
-            $hasStock  = Schema::hasColumn('tb_material', 'stok');
+            $hasBarangStock = Schema::hasTable('tb_barang')
+                && Schema::hasColumn('tb_barang', 'stok_g1')
+                && Schema::hasColumn('tb_barang', 'stok_g2')
+                && Schema::hasColumn('tb_barang', 'stok_g3')
+                && Schema::hasColumn('tb_barang', 'stok_g4');
 
             $selects = [
                 'd.id',
@@ -676,31 +680,40 @@ class PurchaseRequirementController
                 DB::raw('coalesce(d.price_po_in, 0) as harga_po_in'),
             ];
 
-            if ($hasLineNo) {
-                $selects[] = DB::raw('coalesce(d.no, 0) as line_no');
-            } else {
-                $selects[] = DB::raw('0 as line_no');
-            }
-
             if ($hasRemark) {
                 $selects[] = DB::raw('coalesce(d.remark, "") as remark');
             } else {
                 $selects[] = DB::raw('"" as remark');
             }
 
-            if ($hasStock) {
-                $selects[] = DB::raw('coalesce(m.stok, 0) as stok');
+            if ($hasBarangStock) {
+                $selects[] = DB::raw('coalesce(cast(b.stok_g1 as decimal(18,4)), 0) as stok_g1');
+                $selects[] = DB::raw('coalesce(cast(b.stok_g2 as decimal(18,4)), 0) as stok_g2');
+                $selects[] = DB::raw('coalesce(cast(b.stok_g3 as decimal(18,4)), 0) as stok_g3');
+                $selects[] = DB::raw('coalesce(cast(b.stok_g4 as decimal(18,4)), 0) as stok_g4');
+                $selects[] = DB::raw('(
+                    coalesce(cast(b.stok_g1 as decimal(18,4)), 0) +
+                    coalesce(cast(b.stok_g2 as decimal(18,4)), 0) +
+                    coalesce(cast(b.stok_g3 as decimal(18,4)), 0) +
+                    coalesce(cast(b.stok_g4 as decimal(18,4)), 0)
+                ) as stok');
             } else {
+                $selects[] = DB::raw('0 as stok_g1');
+                $selects[] = DB::raw('0 as stok_g2');
+                $selects[] = DB::raw('0 as stok_g3');
+                $selects[] = DB::raw('0 as stok_g4');
                 $selects[] = DB::raw('0 as stok');
             }
 
             $items = DB::table('tb_detailpoin as d')
-                ->leftJoin('tb_material as m', function ($join) {
-                    $join->on(
-                        DB::raw('lower(trim(d.kd_material))'),
-                        '=',
-                        DB::raw('lower(trim(m.kd_material))')
-                    );
+                ->when($hasBarangStock, function ($query) {
+                    $query->leftJoin('tb_barang as b', function ($join) {
+                        $join->on(
+                            DB::raw('lower(trim(d.kd_material))'),
+                            '=',
+                            DB::raw('lower(trim(b.kd_material))')
+                        );
+                    });
                 })
                 ->whereRaw('lower(trim(d.kode_poin)) = ?', [strtolower($kodePoin)])
                 ->when($hasLineNo, function ($query) {
@@ -713,7 +726,6 @@ class PurchaseRequirementController
                 ->map(function ($item) {
                     return [
                         'id' => $item->id,
-                        'line_no' => (int) $item->line_no,
                         'kd_material' => $item->kd_material,
                         'material' => $item->material,
                         'qty_po_in' => (float) $item->qty_po_in,
@@ -721,6 +733,10 @@ class PurchaseRequirementController
                         'satuan' => $item->satuan,
                         'harga_po_in' => (float) $item->harga_po_in,
                         'harga_modal' => '',
+                        'stok_g1' => (float) $item->stok_g1,
+                        'stok_g2' => (float) $item->stok_g2,
+                        'stok_g3' => (float) $item->stok_g3,
+                        'stok_g4' => (float) $item->stok_g4,
                         'stok' => (float) $item->stok,
                         'margin' => '0%',
                         'remark' => $item->remark,

@@ -604,7 +604,7 @@ class PurchaseOrderInController
                     ->whereRaw("coalesce(cast(replace(pr.sisa_pr, ',', '') as decimal(65,4)), 0) < coalesce(cast(replace(pr.qty, ',', '') as decimal(65,4)), 0)")
                     ->selectRaw('count(*)')
             ])
-            ->orderBy('d.line_no')
+            ->orderBy('d.id')
             ->get();
 
         return Inertia::render('marketing/purchase-order-in/edit', [
@@ -647,9 +647,9 @@ class PurchaseOrderInController
             $total = (clone $query)->count();
 
             if ($perPage === null) {
-                $items = (clone $query)->orderBy('line_no')->get();
+                $items = (clone $query)->orderBy('id')->get();
             } else {
-                $items = (clone $query)->orderBy('line_no')->forPage($page, $perPage)->get();
+                $items = (clone $query)->orderBy('id')->forPage($page, $perPage)->get();
             }
 
             return [
@@ -677,7 +677,7 @@ class PurchaseOrderInController
             $header = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
             if (!$header) return null;
 
-            $items = DB::table('tb_detailpoin')->where('kode_poin', $kodePoin)->orderBy('line_no')->get();
+            $items = DB::table('tb_detailpoin')->where('kode_poin', $kodePoin)->orderBy('id')->get();
 
             $customer = null;
             if (isset($header->kode_customer)) {
@@ -1065,7 +1065,6 @@ class PurchaseOrderInController
                         'id' => $detailId + $index,
                         'id_poin' => $headerId,
                         'kode_poin' => $kodePoin,
-                        'line_no' => $index + 1,
                         'kd_material' => $kdMaterial,
                         'material' => trim((string) ($item['material'] ?? '')),
                         'qty' => $qty,
@@ -1244,7 +1243,6 @@ class PurchaseOrderInController
                         'id' => $rowId,
                         'id_poin' => $headerId,
                         'kode_poin' => $kodePoin,
-                        'line_no' => $index + 1,
                         'kd_material' => $kdMaterial,
                         'material' => trim((string) ($item['material'] ?? '')),
                         'qty' => $qty,
@@ -1262,7 +1260,7 @@ class PurchaseOrderInController
 
                 if (!empty($detailData)) {
                     DB::table('tb_detailpoin')->upsert($detailData, ['id'], [
-                        'line_no', 'kd_material', 'material', 'qty', 'sisa_qtypr', 'sisa_qtydo', 
+                        'kd_material', 'material', 'qty', 'sisa_qtypr', 'sisa_qtydo',
                         'satuan', 'price_po_in', 'total_price_po_in', 'remark', 'updated_at'
                     ]);
                 }

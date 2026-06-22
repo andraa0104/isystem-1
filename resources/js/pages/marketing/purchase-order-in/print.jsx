@@ -259,7 +259,7 @@ export default function PurchaseOrderInPrint({
                                 <tr key={item.id ?? index}>
                                     <td className="border-t border-r border-black px-2 py-2">
                                         {renderValue(
-                                            item?.line_no ?? index + 1,
+                                            index + 1,
                                         )}
                                     </td>
                                     <td className="border-t border-r border-black px-2 py-2">

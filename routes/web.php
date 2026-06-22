@@ -737,6 +737,8 @@ Route::post('penjualan/faktur-penjualan/upload-faktur-pajak', [FakturPenjualanCo
     ->name('penjualan.faktur-penjualan.upload-faktur-pajak');
 Route::post('penjualan/faktur-penjualan/kwitansi', [FakturPenjualanController::class, 'storeKwitansi'])
     ->name('penjualan.faktur-penjualan.kwitansi');
+Route::get('penjualan/faktur-penjualan/detail-data', [FakturPenjualanController::class, 'details'])
+    ->name('penjualan.faktur-penjualan.detail-data');
 Route::get('penjualan/faktur-penjualan/{noFaktur}/details', [FakturPenjualanController::class, 'details'])
     ->name('penjualan.faktur-penjualan.details');
 Route::get('penjualan/faktur-penjualan/{noFaktur}/print', [FakturPenjualanController::class, 'print'])

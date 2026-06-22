@@ -331,9 +331,13 @@ export default function PurchaseRequirementCreate() {
 
                     return {
                         id: item.id ?? `${Date.now()}-${index}`,
-                        no: item.line_no ?? index + 1,
+                        no: index + 1,
                         kodeMaterial: item.kd_material ?? '',
                         namaMaterial: item.material ?? '',
+                        stokG1: item.stok_g1 ?? 0,
+                        stokG2: item.stok_g2 ?? 0,
+                        stokG3: item.stok_g3 ?? 0,
+                        stokG4: item.stok_g4 ?? 0,
                         stok: item.stok ?? 0,
                         qtyPoIn: item.qty_po_in ?? 0,
                         qtyPr: item.sisa_qtypr ?? item.qty_po_in ?? 0,
@@ -810,12 +814,22 @@ export default function PurchaseRequirementCreate() {
                                                                                         }
                                                                                     </Badge>
                                                                                 )}
+                                                                                {[
+                                                                                    ['G1', item.stokG1],
+                                                                                    ['G2', item.stokG2],
+                                                                                    ['G3', item.stokG3],
+                                                                                    ['G4', item.stokG4],
+                                                                                ].map(([label, value]) => (
+                                                                                    <span
+                                                                                        key={label}
+                                                                                        className="rounded-full border border-blue-100 bg-blue-50 px-2 text-[10px] font-bold text-blue-600"
+                                                                                    >
+                                                                                        Stok {label}: {value ?? 0}
+                                                                                    </span>
+                                                                                ))}
                                                                                 <span className="flex items-center gap-1.5 rounded-full border border-green-100 bg-green-50 px-2 text-[10px] font-bold text-green-600">
                                                                                     <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-                                                                                    Stok:{' '}
-                                                                                    {
-                                                                                        item.stok
-                                                                                    }
+                                                                                    Total Stok: {item.stok ?? 0}
                                                                                 </span>
                                                                             </div>
                                                                         </div>
@@ -1152,7 +1166,7 @@ export default function PurchaseRequirementCreate() {
                                                     </div>
                                                 </div>
                                                 <div className="mt-4 flex items-center justify-between border-t border-primary/10 pt-4">
-                                                    <div className="text-xs">
+                                                    <div className="text-xl">
                                                         <span className="text-muted-foreground italic">
                                                             Total Item:{' '}
                                                         </span>

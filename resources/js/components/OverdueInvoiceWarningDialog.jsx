@@ -8,7 +8,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
-    Table,
     TableBody,
     TableCell,
     TableHead,
@@ -22,12 +21,16 @@ const renderValue = (value) =>
 
 const toNumber = (value) => {
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-    const parsed = Number(String(value ?? '').replace(/,/g, '').trim());
+    const parsed = Number(
+        String(value ?? '')
+            .replace(/,/g, '')
+            .trim(),
+    );
     return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const formatRupiah = (value) =>
-    `Rp. ${new Intl.NumberFormat('id-ID', {
+const formatAmount = (value, showCurrencyPrefix = true) =>
+    `${showCurrencyPrefix ? 'Rp. ' : ''}${new Intl.NumberFormat('id-ID', {
         maximumFractionDigits: 0,
     }).format(Math.round(toNumber(value)))}`;
 
@@ -44,22 +47,40 @@ export default function OverdueInvoiceWarningDialog({
     title = 'Konfirmasi Tunggakan Tagihan',
     description = 'Customer ini memiliki tagihan yang sudah melewati jatuh tempo.',
     extraFilters = null,
+    enableAgeFilter = true,
+    showCurrencyPrefix = false,
+    showOldestOverdue = false,
 }) {
     const [search, setSearch] = useState('');
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
+    const [minimumOverdueDays, setMinimumOverdueDays] = useState(90);
 
     const invoices = Array.isArray(data?.invoices) ? data.invoices : [];
     const filteredInvoices = useMemo(() => {
         const keyword = search.trim().toLowerCase();
-        if (!keyword) return invoices;
+        return invoices.filter((invoice) => {
+            const matchesAge =
+                !enableAgeFilter ||
+                toNumber(invoice.umur_tempo) > minimumOverdueDays;
+            const matchesSearch =
+                !keyword ||
+                String(invoice.no_fakturpenjualan ?? '')
+                    .toLowerCase()
+                    .includes(keyword);
 
-        return invoices.filter((invoice) =>
-            String(invoice.no_fakturpenjualan ?? '')
-                .toLowerCase()
-                .includes(keyword),
-        );
-    }, [invoices, search]);
+            return matchesAge && matchesSearch;
+        });
+    }, [enableAgeFilter, invoices, minimumOverdueDays, search]);
+
+    const filteredTotalOverdue = useMemo(
+        () =>
+            filteredInvoices.reduce(
+                (total, invoice) => total + toNumber(invoice.saldo_piutang),
+                0,
+            ),
+        [filteredInvoices],
+    );
 
     const totalPages =
         pageSize === Infinity
@@ -76,7 +97,7 @@ export default function OverdueInvoiceWarningDialog({
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [search, pageSize, open]);
+    }, [search, pageSize, minimumOverdueDays, open]);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -86,7 +107,9 @@ export default function OverdueInvoiceWarningDialog({
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
 
-                <div className="grid gap-3 rounded-md border bg-muted/30 p-4 text-sm md:grid-cols-3">
+                <div
+                    className={`grid gap-3 rounded-md border bg-muted/30 p-4 text-sm ${showOldestOverdue ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}
+                >
                     <div>
                         <div className="text-muted-foreground">Customer</div>
                         <div className="font-semibold">
@@ -96,19 +119,29 @@ export default function OverdueInvoiceWarningDialog({
                     <div>
                         <div className="text-muted-foreground">
                             Jumlah Tunggakan
+                            {enableAgeFilter
+                                ? ` > ${minimumOverdueDays} Hari`
+                                : ''}
                         </div>
                         <div className="font-semibold">
-                            {formatRupiah(data?.total_overdue)}
+                            {formatAmount(
+                                enableAgeFilter
+                                    ? filteredTotalOverdue
+                                    : data?.total_overdue,
+                                showCurrencyPrefix,
+                            )}
                         </div>
                     </div>
-                    <div>
-                        <div className="text-muted-foreground">
-                            Umur Tempo Terlama
+                    {showOldestOverdue && (
+                        <div>
+                            <div className="text-muted-foreground">
+                                Umur Tempo Terlama
+                            </div>
+                            <div className="font-semibold">
+                                {toNumber(data?.oldest_overdue_days)} hari
+                            </div>
                         </div>
-                        <div className="font-semibold">
-                            {toNumber(data?.oldest_overdue_days)} hari
-                        </div>
-                    </div>
+                    )}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
@@ -117,9 +150,7 @@ export default function OverdueInvoiceWarningDialog({
                             Tampilkan
                             <select
                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                value={
-                                    pageSize === Infinity ? 'all' : pageSize
-                                }
+                                value={pageSize === Infinity ? 'all' : pageSize}
                                 onChange={(event) => {
                                     const value = event.target.value;
                                     setPageSize(
@@ -138,6 +169,26 @@ export default function OverdueInvoiceWarningDialog({
                             </select>
                         </label>
                         {extraFilters}
+                        {enableAgeFilter && (
+                            <label>
+                                Umur Tunggakan
+                                <select
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                    value={minimumOverdueDays}
+                                    onChange={(event) =>
+                                        setMinimumOverdueDays(
+                                            Number(event.target.value),
+                                        )
+                                    }
+                                >
+                                    {[30, 60, 90, 180, 360, 720].map((days) => (
+                                        <option key={days} value={days}>
+                                            &gt; {days} hari
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        )}
                     </div>
                     <Input
                         className="w-full md:w-80"
@@ -147,11 +198,13 @@ export default function OverdueInvoiceWarningDialog({
                     />
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-auto rounded-md border">
-                    <Table className="min-w-[1650px]">
-                        <TableHeader className="bg-muted">
+                <div className="relative min-h-0 flex-1 overflow-auto rounded-md border">
+                    <table className="w-full min-w-[1650px] caption-bottom text-sm">
+                        <TableHeader className="bg-muted [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-muted">
                             <TableRow>
-                                <TableHead>No Faktur Penjualan</TableHead>
+                                <TableHead className="sticky left-0 !z-20 bg-muted">
+                                    No Faktur Penjualan
+                                </TableHead>
                                 <TableHead>Date Doc</TableHead>
                                 <TableHead>Ref PO</TableHead>
                                 <TableHead>Customer</TableHead>
@@ -178,10 +231,8 @@ export default function OverdueInvoiceWarningDialog({
                                 </TableRow>
                             ) : (
                                 visibleInvoices.map((invoice) => (
-                                    <TableRow
-                                        key={invoice.no_fakturpenjualan}
-                                    >
-                                        <TableCell>
+                                    <TableRow key={invoice.no_fakturpenjualan}>
+                                        <TableCell className="sticky left-0 z-10 bg-background">
                                             {onInvoiceClick &&
                                             invoice.no_fakturpenjualan ? (
                                                 <button
@@ -209,33 +260,42 @@ export default function OverdueInvoiceWarningDialog({
                                             {renderValue(invoice.nm_cs)}
                                         </TableCell>
                                         <TableCell>
-                                            {formatRupiah(invoice.harga)}
+                                            {formatAmount(
+                                                invoice.harga,
+                                                showCurrencyPrefix,
+                                            )}
                                         </TableCell>
                                         <TableCell>
-                                            {formatRupiah(invoice.h_ppn)}
+                                            {formatAmount(
+                                                invoice.h_ppn,
+                                                showCurrencyPrefix,
+                                            )}
                                         </TableCell>
                                         <TableCell>
-                                            {formatRupiah(invoice.g_total)}
+                                            {formatAmount(
+                                                invoice.g_total,
+                                                showCurrencyPrefix,
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             {renderValue(invoice.jth_tempo)}
                                         </TableCell>
                                         <TableCell>
-                                            {renderValue(
-                                                invoice.tgl_terimainv,
-                                            )}
+                                            {renderValue(invoice.tgl_terimainv)}
                                         </TableCell>
                                         <TableCell>
                                             {renderValue(invoice.tgl_bayar)}
                                         </TableCell>
                                         <TableCell>
-                                            {formatRupiah(
+                                            {formatAmount(
                                                 invoice.total_bayaran,
+                                                showCurrencyPrefix,
                                             )}
                                         </TableCell>
                                         <TableCell>
-                                            {formatRupiah(
+                                            {formatAmount(
                                                 invoice.saldo_piutang,
+                                                showCurrencyPrefix,
                                             )}
                                         </TableCell>
                                         <TableCell>
@@ -245,7 +305,7 @@ export default function OverdueInvoiceWarningDialog({
                                 ))
                             )}
                         </TableBody>
-                    </Table>
+                    </table>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">

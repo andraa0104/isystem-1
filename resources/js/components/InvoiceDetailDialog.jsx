@@ -47,14 +47,11 @@ export default function InvoiceDetailDialog({ invoiceNo, open, onOpenChange }) {
         setDetailPageSize(5);
         setDetailCurrentPage(1);
 
-        fetch(
-            `/penjualan/faktur-penjualan/${encodeURIComponent(
-                invoiceNo,
-            )}/details`,
-            {
-                headers: { Accept: 'application/json' },
-            },
-        )
+        const params = new URLSearchParams({ invoice_no: invoiceNo });
+
+        fetch(`/penjualan/faktur-penjualan/detail-data?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
             .then((response) => {
                 if (!response.ok) {
                     throw new Error('Request failed');
@@ -76,8 +73,12 @@ export default function InvoiceDetailDialog({ invoiceNo, open, onOpenChange }) {
         if (!term) return detailItems;
         return detailItems.filter(
             (item) =>
-                String(item.no_do ?? '').toLowerCase().includes(term) ||
-                String(item.material ?? '').toLowerCase().includes(term),
+                String(item.no_do ?? '')
+                    .toLowerCase()
+                    .includes(term) ||
+                String(item.material ?? '')
+                    .toLowerCase()
+                    .includes(term),
         );
     }, [detailItems, detailSearch]);
 
@@ -232,7 +233,9 @@ export default function InvoiceDetailDialog({ invoiceNo, open, onOpenChange }) {
                                     <span className="text-muted-foreground">
                                         Tanggal Bayar
                                     </span>
-                                    <span>{detailInvoice.tgl_bayar ?? '-'}</span>
+                                    <span>
+                                        {detailInvoice.tgl_bayar ?? '-'}
+                                    </span>
                                 </div>
                                 <div className="flex justify-between gap-4">
                                     <span className="text-muted-foreground">
@@ -244,19 +247,25 @@ export default function InvoiceDetailDialog({ invoiceNo, open, onOpenChange }) {
                                     <span className="text-muted-foreground">
                                         Saldo Piutang/Sisa Bayar
                                     </span>
-                                    <span>{formatRupiah(detailSaldoPiutang)}</span>
+                                    <span>
+                                        {formatRupiah(detailSaldoPiutang)}
+                                    </span>
                                 </div>
                                 <div className="flex justify-between gap-4">
                                     <span className="text-muted-foreground">
                                         Total Bayar
                                     </span>
-                                    <span>{formatRupiah(detailTotalBayar)}</span>
+                                    <span>
+                                        {formatRupiah(detailTotalBayar)}
+                                    </span>
                                 </div>
                                 <div className="flex justify-between gap-4">
                                     <span className="text-muted-foreground">
                                         Harga Pembelian Pokok
                                     </span>
-                                    <span>{formatRupiah(detailHargaPokok)}</span>
+                                    <span>
+                                        {formatRupiah(detailHargaPokok)}
+                                    </span>
                                 </div>
                                 <div className="flex justify-between gap-4">
                                     <span className="text-muted-foreground">
@@ -269,30 +278,34 @@ export default function InvoiceDetailDialog({ invoiceNo, open, onOpenChange }) {
                     )}
 
                     <div className="space-y-4">
-                        <div className="flex flex-wrap items-center gap-3">
-                            <select
-                                className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
-                                value={
-                                    detailPageSize === Infinity
-                                        ? 'all'
-                                        : detailPageSize
-                                }
-                                onChange={(event) => {
-                                    const value = event.target.value;
-                                    setDetailPageSize(
-                                        value === 'all'
-                                            ? Infinity
-                                            : Number(value),
-                                    );
-                                }}
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value="all">Semua</option>
-                            </select>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                                Tampilkan
+                                <select
+                                    className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
+                                    value={
+                                        detailPageSize === Infinity
+                                            ? 'all'
+                                            : detailPageSize
+                                    }
+                                    onChange={(event) => {
+                                        const value = event.target.value;
+                                        setDetailPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value),
+                                        );
+                                    }}
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </label>
                             <Input
+                                className="h-9 min-w-64 flex-1"
                                 placeholder="Cari no DO atau material..."
                                 value={detailSearch}
                                 onChange={(event) =>
@@ -304,17 +317,24 @@ export default function InvoiceDetailDialog({ invoiceNo, open, onOpenChange }) {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>No DO</TableHead>
-                                        <TableHead>Material</TableHead>
-                                        <TableHead>Qty</TableHead>
-                                        <TableHead>Satuan</TableHead>
-                                        <TableHead>Price</TableHead>
+                                        <TableHead className="h-9 w-40 px-2 py-2">
+                                            No DO
+                                        </TableHead>
+                                        <TableHead className="h-9 px-2 py-2">
+                                            Material
+                                        </TableHead>
+                                        <TableHead className="h-9 w-32 px-2 py-2">
+                                            Qty
+                                        </TableHead>
+                                        <TableHead className="h-9 w-40 px-2 py-2">
+                                            Price
+                                        </TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {displayedDetailItems.length === 0 && (
                                         <TableRow>
-                                            <TableCell colSpan={5}>
+                                            <TableCell colSpan={4}>
                                                 Tidak ada data DO.
                                             </TableCell>
                                         </TableRow>
@@ -323,12 +343,17 @@ export default function InvoiceDetailDialog({ invoiceNo, open, onOpenChange }) {
                                         <TableRow
                                             key={`invoice-detail-${item.no_do}-${index}`}
                                         >
-                                            <TableCell>{item.no_do}</TableCell>
-                                            <TableCell>{item.material}</TableCell>
-                                            <TableCell>{item.qty}</TableCell>
-                                            <TableCell>{item.unit}</TableCell>
-                                            <TableCell>
-                                                {formatRupiah(item.ttl_price)}
+                                            <TableCell className="px-2 py-2 whitespace-nowrap">
+                                                {item.no_do}
+                                            </TableCell>
+                                            <TableCell className="px-2 py-2">
+                                                {item.material}
+                                            </TableCell>
+                                            <TableCell className="px-2 py-2 whitespace-nowrap">
+                                                {item.qty} {item.unit}
+                                            </TableCell>
+                                            <TableCell className="px-2 py-2 whitespace-nowrap">
+                                                {formatNumber(item.ttl_price)}
                                             </TableCell>
                                         </TableRow>
                                     ))}

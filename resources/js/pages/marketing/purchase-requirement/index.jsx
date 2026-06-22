@@ -1064,14 +1064,14 @@ export default function PurchaseRequirementIndex({
                 </div>
 
                 <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                    <table className="w-full text-sm">
+                    <table className="w-full table-fixed text-sm">
                         <thead className="bg-muted/50 text-muted-foreground">
                             <tr>
-                                <th className="px-4 py-3 text-left">No PR</th>
-                                <th className="px-4 py-3 text-left">Date</th>
-                                <th className="px-4 py-3 text-left">Customer</th>
-                                <th className="px-4 py-3 text-left">Ref PO</th>
-                                <th className="px-4 py-3 text-left">Action</th>
+                                <th className="w-40 px-2 py-3 text-left">No PR</th>
+                                <th className="w-28 px-2 py-3 text-left">Date</th>
+                                <th className="px-2 py-3 text-left">Customer</th>
+                                <th className="w-40 px-2 py-3 text-left">Ref PO</th>
+                                <th className="w-24 px-2 py-3 text-left">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1090,15 +1090,15 @@ export default function PurchaseRequirementIndex({
                                         key={item.no_pr}
                                         className="border-t border-sidebar-border/70"
                                     >
-                                        <td className="px-4 py-3">{item.no_pr}</td>
-                                        <td className="px-4 py-3">{item.date}</td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-2 py-3 whitespace-nowrap">{item.no_pr}</td>
+                                        <td className="px-2 py-3 whitespace-nowrap">{item.date}</td>
+                                        <td className="px-2 py-3">
                                             {renderCustomerWithOverdueMarker(
                                                 item.for_customer,
                                             )}
                                         </td>
-                                        <td className="px-4 py-3">{item.ref_po}</td>
-                                        <td className="px-4 py-3">
+                                        <td className="px-2 py-3">{item.ref_po}</td>
+                                        <td className="px-2 py-3">
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     type="button"
@@ -1245,11 +1245,11 @@ export default function PurchaseRequirementIndex({
                                         <table className="w-full text-sm">
                                             <thead className="bg-muted/50 text-muted-foreground">
                                                 <tr>
-                                                    <th className="px-4 py-3 text-left">No</th>
-                                                    <th className="px-4 py-3 text-left">Material</th>
-                                                    <th className="px-4 py-3 text-left">Qty</th>
-                                                    <th className="px-4 py-3 text-left">Sisa PR</th>
-                                                    <th className="px-4 py-3 text-left">Remark</th>
+                                                    <th className="w-14 px-2 py-3 text-left">No</th>
+                                                    <th className="px-2 py-3 text-left">Material</th>
+                                                    <th className="w-px px-2 py-3 text-left whitespace-nowrap">Qty</th>
+                                                    <th className="w-px px-2 py-3 text-left whitespace-nowrap">Sisa PR</th>
+                                                    <th className="px-2 py-3 text-left">Remark</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1262,15 +1262,15 @@ export default function PurchaseRequirementIndex({
                                                 />
                                                 {displayedMaterialDetails.map((detail, index) => (
                                                     <tr key={`${detail.no_pr}-${index}`} className="border-t border-sidebar-border/70">
-                                                        <td className="px-4 py-3">
+                                                        <td className="px-2 py-3">
                                                             {(materialPageSize === Infinity ? index : (materialCurrentPage - 1) * materialPageSize + index) + 1}
                                                         </td>
-                                                        <td className="px-4 py-3">{getValue(detail, ['material', 'Material'])}</td>
-                                                        <td className="px-4 py-3">
+                                                        <td className="px-2 py-3">{getValue(detail, ['material', 'Material'])}</td>
+                                                        <td className="px-2 py-3 whitespace-nowrap">
                                                             {getValue(detail, ['qty', 'Qty', 'quantity', 'Quantity'])}  {getValue(detail, ['satuan', 'Satuan', 'unit', 'Unit'])}
                                                         </td>
-                                                        <td className="px-4 py-3">{getValue(detail, ['sisa_pr', 'Sisa_pr', 'Sisa_PR'])}</td>
-                                                        <td className="px-4 py-3">{getValue(detail, ['renmark', 'Renmark', 'remark', 'Remark', 'keterangan', 'Keterangan'])}</td>
+                                                        <td className="px-2 py-3 whitespace-nowrap">{getValue(detail, ['sisa_pr', 'Sisa_pr', 'Sisa_PR'])}</td>
+                                                        <td className="px-2 py-3">{getValue(detail, ['renmark', 'Renmark', 'remark', 'Remark', 'keterangan', 'Keterangan'])}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>

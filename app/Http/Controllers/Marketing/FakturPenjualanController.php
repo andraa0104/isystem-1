@@ -354,8 +354,18 @@ class FakturPenjualanController
             ->with('success', 'Invoice berhasil ditambahkan.');
     }
 
-    public function details(Request $request, string $noFaktur)
+    public function details(Request $request, ?string $noFaktur = null)
     {
+        $noFaktur = trim((string) ($request->query('invoice_no') ?? $noFaktur));
+
+        if ($noFaktur === '') {
+            return response()->json([
+                'message' => 'Nomor invoice wajib diisi.',
+                'invoice' => null,
+                'items' => [],
+            ], 422);
+        }
+
         $header = DB::table('tb_kdfakturpenjualan')
             ->select(
                 '*',
