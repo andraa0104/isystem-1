@@ -88,10 +88,13 @@ class PrivilegeAccessController extends Controller
         }
 
         $all = $this->loadPrivileges();
-        $userPrivileges = $all['users'][$kdUser]['menus'] ?? [];
+        $userPrivileges = $all['users'][$kdUser] ?? [];
 
         return response()->json([
-            'data' => $userPrivileges,
+            'data' => [
+                'menus' => $userPrivileges['menus'] ?? [],
+                'dashboard_cards' => $userPrivileges['dashboard_cards'] ?? [],
+            ],
         ]);
     }
 
@@ -103,11 +106,13 @@ class PrivilegeAccessController extends Controller
         $validated = $request->validate([
             'kd_user' => ['required', 'string'],
             'menus' => ['required', 'array'],
+            'dashboard_cards' => ['nullable', 'array'],
         ]);
 
         $all = $this->loadPrivileges();
         $all['users'][$validated['kd_user']] = [
             'menus' => $validated['menus'],
+            'dashboard_cards' => $validated['dashboard_cards'] ?? [],
             'updated_at' => now()->format('Y-m-d H:i:s'),
         ];
 

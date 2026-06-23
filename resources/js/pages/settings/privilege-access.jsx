@@ -2,6 +2,7 @@ import HeadingSmall from '@/components/heading-small';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { dashboardCardKeys, dashboardCards } from '@/data/dashboard-cards';
 import {
     getMainItemKey,
     getSectionItemKey,
@@ -29,6 +30,7 @@ export default function PrivilegeAccess() {
     const [loadError, setLoadError] = useState('');
     const [selectedUser, setSelectedUser] = useState(null);
     const [menuAccess, setMenuAccess] = useState({});
+    const [dashboardCardAccess, setDashboardCardAccess] = useState({});
     const [saving, setSaving] = useState(false);
     const [saveMessage, setSaveMessage] = useState('');
 
@@ -38,7 +40,7 @@ export default function PrivilegeAccess() {
         const params = new URLSearchParams();
         params.set(
             'per_page',
-            pageSize === Infinity ? 'all' : String(pageSize)
+            pageSize === Infinity ? 'all' : String(pageSize),
         );
         params.set('page', String(currentPage));
         fetch(`/settings/privilege-access/data?${params.toString()}`, {
@@ -87,6 +89,13 @@ export default function PrivilegeAccess() {
         }));
     };
 
+    const toggleDashboardCardAccess = (key) => {
+        setDashboardCardAccess((prev) => ({
+            ...prev,
+            [key]: !prev[key],
+        }));
+    };
+
     const setGroupAccess = (keys, checked) => {
         setMenuAccess((prev) => {
             const next = { ...prev };
@@ -100,13 +109,14 @@ export default function PrivilegeAccess() {
     const fetchPrivileges = (user) => {
         if (!user?.kd_user) {
             setMenuAccess({});
+            setDashboardCardAccess({});
             return;
         }
         fetch(
             `/settings/privilege-access/privileges?kd_user=${encodeURIComponent(
-                user.kd_user
+                user.kd_user,
             )}`,
-            { headers: { Accept: 'application/json' } }
+            { headers: { Accept: 'application/json' } },
         )
             .then((response) => {
                 if (!response.ok) {
@@ -115,10 +125,12 @@ export default function PrivilegeAccess() {
                 return response.json();
             })
             .then((data) => {
-                setMenuAccess(data?.data ?? {});
+                setMenuAccess(data?.data?.menus ?? {});
+                setDashboardCardAccess(data?.data?.dashboard_cards ?? {});
             })
             .catch(() => {
                 setMenuAccess({});
+                setDashboardCardAccess({});
             });
     };
 
@@ -137,6 +149,7 @@ export default function PrivilegeAccess() {
             body: JSON.stringify({
                 kd_user: selectedUser.kd_user,
                 menus: menuAccess,
+                dashboard_cards: dashboardCardAccess,
             }),
         })
             .then((response) => {
@@ -174,16 +187,14 @@ export default function PrivilegeAccess() {
                                 <select
                                     className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                     value={
-                                        pageSize === Infinity
-                                            ? 'all'
-                                            : pageSize
+                                        pageSize === Infinity ? 'all' : pageSize
                                     }
                                     onChange={(event) => {
                                         const value = event.target.value;
                                         setPageSize(
                                             value === 'all'
                                                 ? Infinity
-                                                : Number(value)
+                                                : Number(value),
                                         );
                                         setCurrentPage(1);
                                     }}
@@ -262,21 +273,23 @@ export default function PrivilegeAccess() {
                                                     {user.tingkat ?? '-'}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                            <Button
-                                                size="sm"
-                                                variant={
-                                                    selectedUser?.kd_user ===
-                                                    user.kd_user
-                                                        ? 'default'
-                                                        : 'outline'
-                                                }
-                                                onClick={() =>
-                                                    setSelectedUser(user)
-                                                }
-                                            >
-                                                Pilih
-                                            </Button>
-                                        </td>
+                                                    <Button
+                                                        size="sm"
+                                                        variant={
+                                                            selectedUser?.kd_user ===
+                                                            user.kd_user
+                                                                ? 'default'
+                                                                : 'outline'
+                                                        }
+                                                        onClick={() =>
+                                                            setSelectedUser(
+                                                                user,
+                                                            )
+                                                        }
+                                                    >
+                                                        Pilih
+                                                    </Button>
+                                                </td>
                                             </tr>
                                         ))}
                                 </tbody>
@@ -294,7 +307,7 @@ export default function PrivilegeAccess() {
                                         size="sm"
                                         onClick={() =>
                                             setCurrentPage((page) =>
-                                                Math.max(1, page - 1)
+                                                Math.max(1, page - 1),
                                             )
                                         }
                                         disabled={currentPage === 1}
@@ -306,7 +319,7 @@ export default function PrivilegeAccess() {
                                         size="sm"
                                         onClick={() =>
                                             setCurrentPage((page) =>
-                                                Math.min(totalPages, page + 1)
+                                                Math.min(totalPages, page + 1),
                                             )
                                         }
                                         disabled={currentPage === totalPages}
@@ -353,22 +366,22 @@ export default function PrivilegeAccess() {
                                             (item) =>
                                                 getSectionItemKey(
                                                     group.title,
-                                                    item.title
-                                                )
+                                                    item.title,
+                                                ),
                                         );
                                         const allChecked =
                                             groupKeys.length > 0 &&
                                             groupKeys.every(
-                                                (key) => menuAccess[key]
+                                                (key) => menuAccess[key],
                                             );
                                         const someChecked = groupKeys.some(
-                                            (key) => menuAccess[key]
+                                            (key) => menuAccess[key],
                                         );
                                         const groupState = allChecked
                                             ? true
                                             : someChecked
-                                            ? 'indeterminate'
-                                            : false;
+                                              ? 'indeterminate'
+                                              : false;
 
                                         return (
                                             <div className="flex items-center gap-3">
@@ -378,7 +391,7 @@ export default function PrivilegeAccess() {
                                                     onCheckedChange={(value) =>
                                                         setGroupAccess(
                                                             groupKeys,
-                                                            value === true
+                                                            value === true,
                                                         )
                                                     }
                                                 />
@@ -395,7 +408,7 @@ export default function PrivilegeAccess() {
                                         {group.items.map((item) => {
                                             const key = getSectionItemKey(
                                                 group.title,
-                                                item.title
+                                                item.title,
                                             );
                                             return (
                                                 <div
@@ -420,6 +433,81 @@ export default function PrivilegeAccess() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+
+                        <div className="space-y-3">
+                            {(() => {
+                                const allChecked =
+                                    dashboardCardKeys.length > 0 &&
+                                    dashboardCardKeys.every(
+                                        (key) => dashboardCardAccess[key],
+                                    );
+                                const someChecked = dashboardCardKeys.some(
+                                    (key) => dashboardCardAccess[key],
+                                );
+                                const groupState = allChecked
+                                    ? true
+                                    : someChecked
+                                      ? 'indeterminate'
+                                      : false;
+
+                                return (
+                                    <div className="flex items-center gap-3">
+                                        <Checkbox
+                                            id="group-dashboard-cards"
+                                            checked={groupState}
+                                            onCheckedChange={(value) => {
+                                                const checked = value === true;
+                                                setDashboardCardAccess(
+                                                    (prev) => {
+                                                        const next = {
+                                                            ...prev,
+                                                        };
+                                                        dashboardCardKeys.forEach(
+                                                            (key) => {
+                                                                next[key] =
+                                                                    checked;
+                                                            },
+                                                        );
+                                                        return next;
+                                                    },
+                                                );
+                                            }}
+                                        />
+                                        <Label
+                                            htmlFor="group-dashboard-cards"
+                                            className="text-sm font-medium"
+                                        >
+                                            Dashboard Cards
+                                        </Label>
+                                    </div>
+                                );
+                            })()}
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                {dashboardCards.map((card) => (
+                                    <div
+                                        key={card.key}
+                                        className="flex items-center gap-3"
+                                    >
+                                        <Checkbox
+                                            id={`dashboard-card-${card.key}`}
+                                            checked={
+                                                !!dashboardCardAccess[card.key]
+                                            }
+                                            onCheckedChange={() =>
+                                                toggleDashboardCardAccess(
+                                                    card.key,
+                                                )
+                                            }
+                                        />
+                                        <Label
+                                            htmlFor={`dashboard-card-${card.key}`}
+                                        >
+                                            {card.title}
+                                        </Label>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
 
                         <div className="flex items-center gap-4">

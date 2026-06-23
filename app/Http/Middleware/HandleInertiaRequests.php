@@ -61,6 +61,7 @@ class HandleInertiaRequests extends Middleware
         }
         $userData = null;
         $menuAccess = null;
+        $dashboardCardAccess = null;
         $hasPrivileges = false;
         if ($authUser) {
             $kdUser = $authUser->kd_user ?? null;
@@ -69,11 +70,20 @@ class HandleInertiaRequests extends Middleware
                 if (Storage::disk('local')->exists($path)) {
                     $raw = Storage::disk('local')->get($path);
                     $decoded = json_decode($raw, true);
-                    if (is_array($decoded)
-                        && isset($decoded['users'][$kdUser]['menus'])
-                        && is_array($decoded['users'][$kdUser]['menus'])) {
-                        $menuAccess = $decoded['users'][$kdUser]['menus'];
-                        $hasPrivileges = true;
+                    if (is_array($decoded)) {
+                        $userPrivileges = $decoded['users'][$kdUser] ?? null;
+                        if (is_array($userPrivileges)) {
+                            if (isset($userPrivileges['menus'])
+                                && is_array($userPrivileges['menus'])) {
+                                $menuAccess = $userPrivileges['menus'];
+                                $hasPrivileges = true;
+                            }
+
+                            if (isset($userPrivileges['dashboard_cards'])
+                                && is_array($userPrivileges['dashboard_cards'])) {
+                                $dashboardCardAccess = $userPrivileges['dashboard_cards'];
+                            }
+                        }
                     }
                 }
             }
@@ -94,6 +104,7 @@ class HandleInertiaRequests extends Middleware
                 'database' => $database,
                 'database_label' => $databaseLabel,
                 'menu_access' => $menuAccess,
+                'dashboard_card_access' => $dashboardCardAccess,
                 'has_privileges' => $hasPrivileges,
             ];
         } else {

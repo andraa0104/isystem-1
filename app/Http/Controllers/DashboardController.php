@@ -15,6 +15,50 @@ class DashboardController
 {
     private const DASHBOARD_CACHE_TAGS = ['dashboard_data'];
     private const DASHBOARD_CACHE_TTL = 300;
+    private const DASHBOARD_CARD_KEYS = [
+        'quotation',
+        'saldo',
+        'receivable_payable',
+        'stock_summary',
+        'delivery',
+        'sales_hpp',
+        'user_note',
+    ];
+
+    private function dashboardCardAccess(Request $request): ?array
+    {
+        $kdUser = $request->user()?->kd_user;
+        if (!$kdUser || !Storage::disk('local')->exists('privileges.json')) {
+            return null;
+        }
+
+        $decoded = json_decode(Storage::disk('local')->get('privileges.json'), true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        $cards = $decoded['users'][$kdUser]['dashboard_cards'] ?? null;
+        return is_array($cards) ? $cards : null;
+    }
+
+    private function canViewDashboardCard(Request $request, string $card): bool
+    {
+        if (!in_array($card, self::DASHBOARD_CARD_KEYS, true)) {
+            return false;
+        }
+
+        $access = $this->dashboardCardAccess($request);
+        if ($access === null) {
+            return true;
+        }
+
+        return (bool) ($access[$card] ?? false);
+    }
+
+    private function authorizeDashboardCard(Request $request, string $card): void
+    {
+        abort_unless($this->canViewDashboardCard($request, $card), 403);
+    }
 
     private function tenantCachePrefix(?Request $request = null): string
     {
@@ -133,8 +177,10 @@ class DashboardController
         )";
     }
 
-    public function index()
+    public function index(Request $request)
     {
+        $access = $this->dashboardCardAccess($request);
+
         // Initial props dikosongkan untuk mempercepat load. Data akan di-fetch per-card.
         return Inertia::render('dashboard', [
             'quotationStats' => [],
@@ -142,11 +188,14 @@ class DashboardController
             'pdbStats' => (object) [],
             'pdoStats' => (object) [],
             'salesHppStats' => ['summary' => (object) [], 'series' => []],
+            'dashboardCardAccess' => $access,
         ]);
     }
 
     public function quotationStats(Request $request)
     {
+        $this->authorizeDashboardCard($request, 'quotation');
+
         $range = strtolower((string) $request->query('range', ''));
         if (in_array($range, ['1_week', '1_month', '3_months', '5_months', '1_year'], true)) {
             $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('quotation.range', [
@@ -176,6 +225,8 @@ class DashboardController
 
     public function saldoStats(Request $request)
     {
+        $this->authorizeDashboardCard($request, 'saldo');
+
         $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('saldo', [], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildSaldoStats());
 
         return response()->json($stats);
@@ -183,6 +234,8 @@ class DashboardController
 
     public function receivablePayableStats(Request $request)
     {
+        $this->authorizeDashboardCard($request, 'receivable_payable');
+
         $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('receivable-payable', [
             'source' => 'latest-nabbrekap-v2',
         ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildReceivablePayableStats());
@@ -192,6 +245,8 @@ class DashboardController
 
     public function deliveryStats(Request $request)
     {
+        $this->authorizeDashboardCard($request, 'delivery');
+
         $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('delivery', [
             'date_parser' => 2,
         ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildDeliveryStats());
@@ -201,6 +256,8 @@ class DashboardController
 
     public function getUserNote(Request $request)
     {
+        $this->authorizeDashboardCard($request, 'user_note');
+
         $userId = $request->user()->id;
         $path = storage_path('app/user_notes.json');
         
@@ -216,6 +273,8 @@ class DashboardController
 
     public function saveUserNote(Request $request)
     {
+        $this->authorizeDashboardCard($request, 'user_note');
+
         $userId = $request->user()->id;
         $content = $request->input('content');
         $path = storage_path('app/user_notes.json');
@@ -615,6 +674,8 @@ class DashboardController
     }
 
     public function getSalesHppStats(Request $request, $period = null) {
+        $this->authorizeDashboardCard($request, 'sales_hpp');
+
         // Prioritize route param -> query param -> default
         if (!$period) {
              $period = $request->input('period', '3_months');
@@ -1156,6 +1217,8 @@ class DashboardController
     // Tambahkan method ini ke dalam DashboardController untuk menyediakan API endpoint
     public function stockSummaryStats(Request $request)
     {
+        $this->authorizeDashboardCard($request, 'stock_summary');
+
         $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember(
             $this->dashboardCacheKey('stock-summary', [
                 'date_parser' => 2,

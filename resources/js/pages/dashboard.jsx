@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import UserNote from '@/components/user-note';
+import { dashboardCardKeys } from '@/data/dashboard-cards';
 import useCachedRequest from '@/hooks/use-cached-request';
 import useInView from '@/hooks/use-in-view';
 import AppLayout from '@/layouts/app-layout';
@@ -8,7 +9,7 @@ import { dashboard } from '@/routes/index';
 import { Head } from '@inertiajs/react';
 import axios from 'axios';
 import { RefreshCw } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
     {
@@ -103,7 +104,20 @@ export default function Dashboard({
     pdbStats = {},
     pdoStats = {},
     salesHppStats: initialSalesHppStats = { summary: {}, series: [] },
+    dashboardCardAccess = null,
 }) {
+    const canViewCard = useCallback(
+        (key) =>
+            dashboardCardAccess === null ||
+            dashboardCardAccess === undefined ||
+            dashboardCardAccess[key] === true,
+        [dashboardCardAccess],
+    );
+    const hasAnyDashboardCard = useMemo(
+        () => dashboardCardKeys.some(canViewCard),
+        [canViewCard],
+    );
+
     const [quotationRange, setQuotationRange] = useState('1_week'); // 1_week|1_month|3_months|5_months|1_year
     const [activeDeliveryTab, setActiveDeliveryTab] = useState('pdb');
     const [prefetchPriorityCards, setPrefetchPriorityCards] = useState(false);
@@ -131,7 +145,9 @@ export default function Dashboard({
 
     const quotationRequest = useCachedRequest({
         key: `quotation:v2:${quotationRange}`,
-        enabled: quotationView.inView || prefetchPriorityCards,
+        enabled:
+            canViewCard('quotation') &&
+            (quotationView.inView || prefetchPriorityCards),
         ttlMs: 120_000,
         initialData:
             Array.isArray(quotationStats) && quotationStats.length > 0
@@ -147,7 +163,8 @@ export default function Dashboard({
 
     const saldoRequest = useCachedRequest({
         key: 'saldo',
-        enabled: saldoView.inView || prefetchPriorityCards,
+        enabled:
+            canViewCard('saldo') && (saldoView.inView || prefetchPriorityCards),
         ttlMs: 120_000,
         initialData:
             Array.isArray(saldoStats) && saldoStats.length > 0
@@ -161,7 +178,7 @@ export default function Dashboard({
 
     const deliveryRequest = useCachedRequest({
         key: 'delivery:v2',
-        enabled: deliveryView.inView,
+        enabled: canViewCard('delivery') && deliveryView.inView,
         ttlMs: 120_000,
         initialData:
             (pdbStats && Object.keys(pdbStats).length > 0) ||
@@ -176,7 +193,8 @@ export default function Dashboard({
 
     const receivablePayableRequest = useCachedRequest({
         key: 'receivablePayable',
-        enabled: receivablePayableView.inView,
+        enabled:
+            canViewCard('receivable_payable') && receivablePayableView.inView,
         ttlMs: 120_000,
         fetcher: async () => {
             const response = await axios.get(
@@ -189,7 +207,7 @@ export default function Dashboard({
     // === TAMBAHKAN BLOK INI ===
     const stockSummaryRequest = useCachedRequest({
         key: 'stockSummary:v2',
-        enabled: true, // atau sesuaikan dengan inView jika ingin lazy load
+        enabled: canViewCard('stock_summary'),
         ttlMs: 120_000,
         fetcher: async () => {
             const response = await axios.get('/dashboard/stock-summary-stats');
@@ -199,7 +217,9 @@ export default function Dashboard({
 
     const salesHppRequest = useCachedRequest({
         key: `salesHpp:v2:${salesHppRange}`,
-        enabled: salesHppView.inView || prefetchPriorityCards,
+        enabled:
+            canViewCard('sales_hpp') &&
+            (salesHppView.inView || prefetchPriorityCards),
         ttlMs: 120_000,
         initialData:
             salesHppRange === '3_months' &&
@@ -214,8 +234,6 @@ export default function Dashboard({
             return response.data;
         },
     });
-
-    
 
     const quotationSeries = Array.isArray(quotationRequest.data)
         ? quotationRequest.data
@@ -241,7 +259,7 @@ export default function Dashboard({
         physical: null,
         physical_last_update: null, // Berpasangan dengan backend
         book: null,
-        book_last_update: null,     // Berpasangan dengan backend
+        book_last_update: null, // Berpasangan dengan backend
         difference: null,
     };
 
@@ -274,11 +292,16 @@ export default function Dashboard({
     useEffect(() => {
         if (lastRefreshedAt) return;
         const anySuccess =
-            quotationRequest.status === 'success' ||
-            saldoRequest.status === 'success' ||
-            deliveryRequest.status === 'success' ||
-            receivablePayableRequest.status === 'success' ||
-            salesHppRequest.status === 'success';
+            (canViewCard('quotation') &&
+                quotationRequest.status === 'success') ||
+            (canViewCard('saldo') && saldoRequest.status === 'success') ||
+            (canViewCard('delivery') && deliveryRequest.status === 'success') ||
+            (canViewCard('receivable_payable') &&
+                receivablePayableRequest.status === 'success') ||
+            (canViewCard('sales_hpp') &&
+                salesHppRequest.status === 'success') ||
+            (canViewCard('stock_summary') &&
+                stockSummaryRequest.status === 'success');
         if (anySuccess) setLastRefreshedAt(new Date());
     }, [
         lastRefreshedAt,
@@ -287,17 +310,31 @@ export default function Dashboard({
         deliveryRequest.status,
         receivablePayableRequest.status,
         salesHppRequest.status,
+        stockSummaryRequest.status,
+        canViewCard,
     ]);
 
     const handleGlobalRefresh = async () => {
         setIsGlobalRefreshing(true);
         await Promise.allSettled([
-            quotationRequest.refresh(true),
-            saldoRequest.refresh(true),
-            deliveryRequest.refresh(true),
-            receivablePayableRequest.refresh(true),
-            salesHppRequest.refresh(true),
-            stockSummaryRequest.refresh(true), // <-- TAMBAHKAN INI
+            canViewCard('quotation')
+                ? quotationRequest.refresh(true)
+                : Promise.resolve(),
+            canViewCard('saldo')
+                ? saldoRequest.refresh(true)
+                : Promise.resolve(),
+            canViewCard('delivery')
+                ? deliveryRequest.refresh(true)
+                : Promise.resolve(),
+            canViewCard('receivable_payable')
+                ? receivablePayableRequest.refresh(true)
+                : Promise.resolve(),
+            canViewCard('sales_hpp')
+                ? salesHppRequest.refresh(true)
+                : Promise.resolve(),
+            canViewCard('stock_summary')
+                ? stockSummaryRequest.refresh(true)
+                : Promise.resolve(),
         ]);
         setLastRefreshedAt(new Date());
         setIsGlobalRefreshing(false);
@@ -443,121 +480,214 @@ export default function Dashboard({
                         Refresh
                     </Button>
                 </div>
+                {!hasAnyDashboardCard && (
+                    <div className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                        Belum ada card dashboard yang diizinkan untuk user ini.
+                    </div>
+                )}
                 <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-4 2xl:items-stretch">
-                    <div ref={quotationView.ref} className="min-w-0">
-                        <Card className="flex h-full flex-col">
-                            <CardHeader className="space-y-3">
-                                <div className="flex items-center justify-between gap-3">
-                                    <CardTitle>Jumlah Quotation</CardTitle>
-                                    <select
-                                        className="w-auto rounded-full border border-sidebar-border/70 bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm sm:px-3 sm:py-1.5"
-                                        value={quotationRange}
-                                        onChange={(event) =>
-                                            setQuotationRange(
-                                                event.target.value,
-                                            )
-                                        }
-                                        disabled={
-                                            quotationRequest.status ===
-                                            'loading'
-                                        }
-                                    >
-                                        <option value="1_week">1 Minggu</option>
-                                        <option value="1_month">1 Bulan</option>
-                                        <option value="3_months">
-                                            3 Bulan
-                                        </option>
-                                        <option value="5_months">
-                                            5 Bulan
-                                        </option>
-                                        <option value="1_year">1 Tahun</option>
-                                    </select>
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                    Ringkasan jumlah quotation per{' '}
-                                    {quotationGranularityLabel}.
-                                </p>
+                    {canViewCard('quotation') && (
+                        <div ref={quotationView.ref} className="min-w-0">
+                            <Card className="flex h-full flex-col">
+                                <CardHeader className="space-y-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <CardTitle>Jumlah Quotation</CardTitle>
+                                        <select
+                                            className="w-auto rounded-full border border-sidebar-border/70 bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm sm:px-3 sm:py-1.5"
+                                            value={quotationRange}
+                                            onChange={(event) =>
+                                                setQuotationRange(
+                                                    event.target.value,
+                                                )
+                                            }
+                                            disabled={
+                                                quotationRequest.status ===
+                                                'loading'
+                                            }
+                                        >
+                                            <option value="1_week">
+                                                1 Minggu
+                                            </option>
+                                            <option value="1_month">
+                                                1 Bulan
+                                            </option>
+                                            <option value="3_months">
+                                                3 Bulan
+                                            </option>
+                                            <option value="5_months">
+                                                5 Bulan
+                                            </option>
+                                            <option value="1_year">
+                                                1 Tahun
+                                            </option>
+                                        </select>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                        Ringkasan jumlah quotation per{' '}
+                                        {quotationGranularityLabel}.
+                                    </p>
 
-                                {quotationRequest.status === 'success' ? (
-                                    <div className="flex flex-wrap gap-2">
-                                        <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
-                                            <span className="text-muted-foreground">
-                                                Total:{' '}
-                                            </span>
-                                            <span className="font-semibold text-foreground">
-                                                {formatNumber(quotationTotal)}
-                                            </span>
+                                    {quotationRequest.status === 'success' ? (
+                                        <div className="flex flex-wrap gap-2">
+                                            <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
+                                                <span className="text-muted-foreground">
+                                                    Total:{' '}
+                                                </span>
+                                                <span className="font-semibold text-foreground">
+                                                    {formatNumber(
+                                                        quotationTotal,
+                                                    )}
+                                                </span>
+                                            </div>
                                         </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-wrap gap-2">
-                                        <div className="h-7 w-28 rounded-full border border-sidebar-border/70 bg-muted/30" />
-                                    </div>
-                                )}
-                            </CardHeader>
-                            <CardContent className="flex flex-1 flex-col">
-                                {quotationRequest.status === 'error' ? (
-                                    <DashboardCardError
-                                        message={quotationRequest.error}
-                                        onRetry={quotationRequest.retry}
-                                    />
-                                ) : quotationRequest.status !== 'success' ? (
-                                    <div className="space-y-3">
-                                        {/* Mobile skeleton */}
-                                        <div className="space-y-3 sm:hidden">
-                                            {Array.from({ length: 5 }).map(
-                                                (_, idx) => (
-                                                    <div
-                                                        key={idx}
-                                                        className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-3"
-                                                    >
-                                                        <div className="h-3 w-24 rounded bg-muted" />
-                                                        <div className="mt-3 space-y-2">
-                                                            <div className="h-2 w-full rounded bg-muted" />
+                                    ) : (
+                                        <div className="flex flex-wrap gap-2">
+                                            <div className="h-7 w-28 rounded-full border border-sidebar-border/70 bg-muted/30" />
+                                        </div>
+                                    )}
+                                </CardHeader>
+                                <CardContent className="flex flex-1 flex-col">
+                                    {quotationRequest.status === 'error' ? (
+                                        <DashboardCardError
+                                            message={quotationRequest.error}
+                                            onRetry={quotationRequest.retry}
+                                        />
+                                    ) : quotationRequest.status !==
+                                      'success' ? (
+                                        <div className="space-y-3">
+                                            {/* Mobile skeleton */}
+                                            <div className="space-y-3 sm:hidden">
+                                                {Array.from({ length: 5 }).map(
+                                                    (_, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-3"
+                                                        >
+                                                            <div className="h-3 w-24 rounded bg-muted" />
+                                                            <div className="mt-3 space-y-2">
+                                                                <div className="h-2 w-full rounded bg-muted" />
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ),
-                                            )}
-                                        </div>
+                                                    ),
+                                                )}
+                                            </div>
 
-                                        {/* Desktop skeleton */}
-                                        <div className="hidden items-end gap-3 pb-2 sm:flex">
-                                            {Array.from({ length: 6 }).map(
-                                                (_, idx) => (
-                                                    <div
-                                                        key={idx}
-                                                        className="flex flex-1 flex-col items-center gap-2"
-                                                    >
-                                                        <div className="flex h-36 w-full items-end">
-                                                            <div className="h-[55%] w-full rounded-lg bg-muted" />
+                                            {/* Desktop skeleton */}
+                                            <div className="hidden items-end gap-3 pb-2 sm:flex">
+                                                {Array.from({ length: 6 }).map(
+                                                    (_, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className="flex flex-1 flex-col items-center gap-2"
+                                                        >
+                                                            <div className="flex h-36 w-full items-end">
+                                                                <div className="h-[55%] w-full rounded-lg bg-muted" />
+                                                            </div>
+                                                            <div className="h-3 w-14 rounded bg-muted" />
                                                         </div>
-                                                        <div className="h-3 w-14 rounded bg-muted" />
-                                                    </div>
-                                                ),
-                                            )}
+                                                    ),
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                ) : displayedStats.length === 0 ? (
-                                    <div className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                                        Data quotation belum tersedia.
-                                    </div>
-                                ) : (
-                                    <>
-                                        {/* Mobile: list (no horizontal scroll) */}
-                                        <div className="overflow-x-auto pb-2 sm:hidden">
-                                            <div className="flex min-w-max items-end gap-3">
+                                    ) : displayedStats.length === 0 ? (
+                                        <div className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                                            Data quotation belum tersedia.
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {/* Mobile: list (no horizontal scroll) */}
+                                            <div className="overflow-x-auto pb-2 sm:hidden">
+                                                <div className="flex min-w-max items-end gap-3">
+                                                    {displayedStats.map(
+                                                        (item) => {
+                                                            const heightRaw =
+                                                                maxTotal > 0
+                                                                    ? Math.min(
+                                                                          100,
+                                                                          (Number(
+                                                                              item.total ??
+                                                                                  0,
+                                                                          ) /
+                                                                              maxTotal) *
+                                                                              100,
+                                                                      )
+                                                                    : 0;
+                                                            const valueNumber =
+                                                                Number(
+                                                                    item.total ??
+                                                                        0,
+                                                                );
+                                                            const barHeight =
+                                                                valueNumber > 0
+                                                                    ? Math.max(
+                                                                          heightRaw,
+                                                                          6,
+                                                                      )
+                                                                    : 4;
+                                                            const labelParts =
+                                                                denseLabelParts(
+                                                                    item.label,
+                                                                );
+                                                            return (
+                                                                <div
+                                                                    key={
+                                                                        item.period
+                                                                    }
+                                                                    className="flex w-[86px] shrink-0 flex-col items-center gap-2"
+                                                                >
+                                                                    <div className="h-5 text-center text-xs leading-none font-semibold text-foreground tabular-nums">
+                                                                        {formatNumber(
+                                                                            item.total,
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="flex h-28 w-full items-end rounded-lg bg-muted/30 p-1">
+                                                                        <div
+                                                                            className={`${METRIC_COLORS.sales.bar} w-full rounded-md`}
+                                                                            style={{
+                                                                                height: `${Math.max(barHeight, 4)}%`,
+                                                                            }}
+                                                                        />
+                                                                    </div>
+                                                                    <span className="w-full text-center text-[11px] leading-tight text-muted-foreground">
+                                                                        <span className="inline-flex flex-col items-center">
+                                                                            <span>
+                                                                                {
+                                                                                    labelParts.top
+                                                                                }
+                                                                            </span>
+                                                                            {labelParts.bottom ? (
+                                                                                <span className="text-[10px] text-muted-foreground/80">
+                                                                                    {
+                                                                                        labelParts.bottom
+                                                                                    }
+                                                                                </span>
+                                                                            ) : null}
+                                                                        </span>
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        },
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Desktop: bar chart (no scroll) */}
+                                            <div
+                                                className={`hidden items-end gap-3 overflow-x-auto pb-2 sm:flex ${
+                                                    isDenseQuotation
+                                                        ? 'md:gap-2'
+                                                        : 'md:gap-3'
+                                                }`}
+                                            >
                                                 {displayedStats.map((item) => {
                                                     const heightRaw =
                                                         maxTotal > 0
-                                                            ? Math.min(
-                                                                  100,
-                                                                  (Number(
-                                                                      item.total ??
-                                                                          0,
-                                                                  ) /
-                                                                      maxTotal) *
-                                                                      100,
-                                                              )
+                                                            ? (Number(
+                                                                  item.total ??
+                                                                      0,
+                                                              ) /
+                                                                  maxTotal) *
+                                                              100
                                                             : 0;
                                                     const valueNumber = Number(
                                                         item.total ?? 0,
@@ -576,22 +706,38 @@ export default function Dashboard({
                                                     return (
                                                         <div
                                                             key={item.period}
-                                                            className="flex w-[86px] shrink-0 flex-col items-center gap-2"
+                                                            className="flex min-w-[78px] flex-col items-center gap-2 md:min-w-0 md:flex-1"
                                                         >
-                                                            <div className="h-5 text-center text-xs leading-none font-semibold text-foreground tabular-nums">
+                                                            <div
+                                                                className={`h-5 min-w-0 text-center leading-none font-semibold text-foreground tabular-nums ${
+                                                                    isDenseQuotation
+                                                                        ? 'text-[10px]'
+                                                                        : 'text-xs'
+                                                                }`}
+                                                            >
                                                                 {formatNumber(
                                                                     item.total,
                                                                 )}
                                                             </div>
-                                                            <div className="flex h-28 w-full items-end rounded-lg bg-muted/30 p-1">
-                                                                <div
-                                                                    className={`${METRIC_COLORS.sales.bar} w-full rounded-md`}
-                                                                    style={{
-                                                                        height: `${Math.max(barHeight, 4)}%`,
-                                                                    }}
-                                                                />
+                                                            <div className="flex h-36 w-full items-end">
+                                                                <div className="relative flex h-full w-full items-end rounded-lg bg-muted/30 p-1">
+                                                                    <div
+                                                                        className={`w-full rounded-md ${METRIC_COLORS.sales.bar}`}
+                                                                        style={{
+                                                                            height: `${Math.max(
+                                                                                barHeight,
+                                                                                4,
+                                                                            )}%`,
+                                                                        }}
+                                                                    ></div>
+                                                                </div>
                                                             </div>
-                                                            <span className="w-full text-center text-[11px] leading-tight text-muted-foreground">
+                                                            <span
+                                                                className="h-8 w-full min-w-0 text-center text-[11px] leading-tight text-muted-foreground"
+                                                                title={
+                                                                    item.label
+                                                                }
+                                                            >
                                                                 <span className="inline-flex flex-col items-center">
                                                                     <span>
                                                                         {
@@ -599,7 +745,7 @@ export default function Dashboard({
                                                                         }
                                                                     </span>
                                                                     {labelParts.bottom ? (
-                                                                        <span className="text-[10px] text-muted-foreground/80">
+                                                                        <span className="text-[10px] font-normal text-muted-foreground/80">
                                                                             {
                                                                                 labelParts.bottom
                                                                             }
@@ -611,1029 +757,845 @@ export default function Dashboard({
                                                     );
                                                 })}
                                             </div>
-                                        </div>
+                                        </>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
 
-                                        {/* Desktop: bar chart (no scroll) */}
-                                        <div
-                                            className={`hidden items-end gap-3 overflow-x-auto pb-2 sm:flex ${
-                                                isDenseQuotation
-                                                    ? 'md:gap-2'
-                                                    : 'md:gap-3'
-                                            }`}
-                                        >
-                                            {displayedStats.map((item) => {
+                    {canViewCard('saldo') && (
+                        <div ref={saldoView.ref} className="min-w-0">
+                            <Card className="flex h-full flex-col">
+                                <CardHeader className="space-y-2">
+                                    <CardTitle>Saldo Kas</CardTitle>
+                                    <p className="text-sm text-muted-foreground">
+                                        Posisi saldo per akun kas & transaksi
+                                        terakhir.
+                                    </p>
+                                </CardHeader>
+                                <CardContent className="flex flex-1 flex-col">
+                                    {saldoRequest.status === 'error' ? (
+                                        <DashboardCardError
+                                            message={saldoRequest.error}
+                                            onRetry={saldoRequest.retry}
+                                        />
+                                    ) : saldoRequest.status !== 'success' ? (
+                                        <div className="flex flex-1 items-end gap-3 overflow-x-auto pb-2">
+                                            {Array.from({ length: 4 }).map(
+                                                (_, idx) => (
+                                                    <div
+                                                        key={idx}
+                                                        className="flex min-w-[80px] flex-col items-center gap-2"
+                                                    >
+                                                        <div className="flex h-32 w-full items-end">
+                                                            <div className="h-[55%] w-full rounded-md bg-muted" />
+                                                        </div>
+                                                        <div className="h-3 w-16 rounded bg-muted" />
+                                                        <div className="h-3 w-14 rounded bg-muted" />
+                                                    </div>
+                                                ),
+                                            )}
+                                        </div>
+                                    ) : saldoSeries.length === 0 ? (
+                                        <div className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
+                                            Data saldo belum tersedia.
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-1 items-end gap-1 overflow-x-auto pb-2">
+                                            {saldoSeries.map((item) => {
                                                 const heightRaw =
-                                                    maxTotal > 0
+                                                    maxSaldo > 0
                                                         ? (Number(
-                                                              item.total ?? 0,
+                                                              item.saldo ?? 0,
                                                           ) /
-                                                              maxTotal) *
+                                                              maxSaldo) *
                                                           100
                                                         : 0;
                                                 const valueNumber = Number(
-                                                    item.total ?? 0,
+                                                    item.saldo ?? 0,
                                                 );
                                                 const barHeight =
                                                     valueNumber > 0
-                                                        ? Math.max(heightRaw, 6)
+                                                        ? Math.max(heightRaw, 8)
                                                         : 4;
-                                                const labelParts =
-                                                    denseLabelParts(item.label);
+
+                                                const tooltip = `${item.label}\nSaldo: ${formatNumber(item.saldo)}\nTransaksi terakhir: ${formatDate(item.last_voucher)}`;
+
                                                 return (
                                                     <div
-                                                        key={item.period}
-                                                        className="flex min-w-[78px] flex-col items-center gap-2 md:min-w-0 md:flex-1"
+                                                        key={item.code}
+                                                        className="flex min-h-[210px] min-w-[110px] flex-col items-center gap-3 rounded-xl border border-sidebar-border/70 bg-muted/10 p-3 transition outline-none hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring"
+                                                        title={tooltip}
                                                     >
-                                                        <div
-                                                            className={`h-5 min-w-0 text-center leading-none font-semibold text-foreground tabular-nums ${
-                                                                isDenseQuotation
-                                                                    ? 'text-[10px]'
-                                                                    : 'text-xs'
-                                                            }`}
-                                                        >
+                                                        <div className="h-5 w-full text-center text-xs leading-tight font-bold text-foreground tabular-nums">
+                                                            Rp{' '}
                                                             {formatNumber(
-                                                                item.total,
+                                                                item.saldo,
                                                             )}
                                                         </div>
-                                                        <div className="flex h-36 w-full items-end">
+
+                                                        <div className="flex h-39 w-full items-end">
                                                             <div className="relative flex h-full w-full items-end rounded-lg bg-muted/30 p-1">
                                                                 <div
-                                                                    className={`w-full rounded-md ${METRIC_COLORS.sales.bar}`}
+                                                                    className={`w-full rounded-md ${METRIC_COLORS.kas.bar}`}
                                                                     style={{
-                                                                        height: `${Math.max(
+                                                                        height: `${Math.min(
+                                                                            100,
                                                                             barHeight,
-                                                                            4,
                                                                         )}%`,
                                                                     }}
-                                                                ></div>
+                                                                />
                                                             </div>
                                                         </div>
-                                                        <span
-                                                            className="h-8 w-full min-w-0 text-center text-[11px] leading-tight text-muted-foreground"
-                                                            title={item.label}
-                                                        >
-                                                            <span className="inline-flex flex-col items-center">
-                                                                <span>
-                                                                    {
-                                                                        labelParts.top
-                                                                    }
-                                                                </span>
-                                                                {labelParts.bottom ? (
-                                                                    <span className="text-[10px] font-normal text-muted-foreground/80">
-                                                                        {
-                                                                            labelParts.bottom
-                                                                        }
-                                                                    </span>
-                                                                ) : null}
+
+                                                        <div className="h-1 w-full text-center text-[12px] leading-tight font-medium text-foreground/90">
+                                                            <span className="block truncate">
+                                                                {item.label}
                                                             </span>
-                                                        </span>
+                                                        </div>
+
+                                                        <div className="mt-auto w-full text-center text-[11px] text-muted-foreground">
+                                                            {formatDate(
+                                                                item.last_voucher,
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 );
                                             })}
                                         </div>
-                                    </>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
 
-                    <div ref={saldoView.ref} className="min-w-0">
-                        <Card className="flex h-full flex-col">
-                            <CardHeader className="space-y-2">
-                                <CardTitle>Saldo Kas</CardTitle>
-                                <p className="text-sm text-muted-foreground">
-                                    Posisi saldo per akun kas & transaksi
-                                    terakhir.
-                                </p>
-                            </CardHeader>
-                            <CardContent className="flex flex-1 flex-col">
-                                {saldoRequest.status === 'error' ? (
-                                    <DashboardCardError
-                                        message={saldoRequest.error}
-                                        onRetry={saldoRequest.retry}
-                                    />
-                                ) : saldoRequest.status !== 'success' ? (
-                                    <div className="flex flex-1 items-end gap-3 overflow-x-auto pb-2">
-                                        {Array.from({ length: 4 }).map(
-                                            (_, idx) => (
-                                                <div
-                                                    key={idx}
-                                                    className="flex min-w-[80px] flex-col items-center gap-2"
-                                                >
-                                                    <div className="flex h-32 w-full items-end">
-                                                        <div className="h-[55%] w-full rounded-md bg-muted" />
-                                                    </div>
-                                                    <div className="h-3 w-16 rounded bg-muted" />
-                                                    <div className="h-3 w-14 rounded bg-muted" />
-                                                </div>
-                                            ),
-                                        )}
-                                    </div>
-                                ) : saldoSeries.length === 0 ? (
-                                    <div className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                                        Data saldo belum tersedia.
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-1 items-end gap-1 overflow-x-auto pb-2">
-                                        {saldoSeries.map((item) => {
-                                            const heightRaw =
-                                                maxSaldo > 0
-                                                    ? (Number(item.saldo ?? 0) /
-                                                          maxSaldo) *
-                                                      100
-                                                    : 0;
-                                            const valueNumber = Number(
-                                                item.saldo ?? 0,
-                                            );
-                                            const barHeight =
-                                                valueNumber > 0
-                                                    ? Math.max(heightRaw, 8)
-                                                    : 4;
-
-                                            const tooltip = `${item.label}\nSaldo: ${formatNumber(item.saldo)}\nTransaksi terakhir: ${formatDate(item.last_voucher)}`;
-
-                                            return (
-                                                <div
-                                                    key={item.code}
-                                                    className="flex min-h-[210px] min-w-[110px] flex-col items-center gap-3 rounded-xl border border-sidebar-border/70 bg-muted/10 p-3 transition outline-none hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-ring"
-                                                    title={tooltip}
-                                                >
-                                                    <div className="h-5 w-full text-center text-xs leading-tight font-bold text-foreground tabular-nums">
-                                                        Rp{' '}
-                                                        {formatNumber(
-                                                            item.saldo,
-                                                        )}
-                                                    </div>
-
-                                                    <div className="flex h-39 w-full items-end">
-                                                        <div className="relative flex h-full w-full items-end rounded-lg bg-muted/30 p-1">
-                                                            <div
-                                                                className={`w-full rounded-md ${METRIC_COLORS.kas.bar}`}
-                                                                style={{
-                                                                    height: `${Math.min(
-                                                                        100,
-                                                                        barHeight,
-                                                                    )}%`,
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="h-1 w-full text-center text-[12px] leading-tight font-medium text-foreground/90">
-                                                        <span className="block truncate">
-                                                            {item.label}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="mt-auto w-full text-center text-[11px] text-muted-foreground">
-                                                        {formatDate(
-                                                            item.last_voucher,
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    <div ref={receivablePayableView.ref} className="min-w-0">
-                        <Card className="flex h-full flex-col">
-                            <CardHeader className="space-y-2">
-                                <CardTitle>Piutang & Hutang Usaha</CardTitle>
-                                <p className="text-sm text-muted-foreground">
-                                    Total saldo akun 1109AD dan 2101AK.
-                                </p>
-                            </CardHeader>
-                            <CardContent>
-                                {receivablePayableRequest.status === 'error' ? (
-                                    <DashboardCardError
-                                        message={receivablePayableRequest.error}
-                                        onRetry={receivablePayableRequest.retry}
-                                    />
-                                ) : receivablePayableRequest.status !==
-                                  'success' ? (
-                                    <div className="space-y-3">
-                                        {Array.from({ length: 2 }).map(
-                                            (_, idx) => (
-                                                <div
-                                                    key={idx}
-                                                    className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4"
-                                                >
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <div className="h-4 w-28 rounded bg-muted" />
-                                                        <div className="h-8 w-40 rounded bg-muted" />
-                                                    </div>
-                                                    <div className="mt-3 h-3 w-44 rounded bg-muted" />
-                                                </div>
-                                            ),
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        <div
-                                            className={`rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 ${METRIC_COLORS.piutang.accent}`}
-                                        >
-                                            <div className="flex items-center justify-between gap-3">
-                                                <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                                    Piutang Usaha
-                                                </div>
-                                                <div
-                                                    className={`text-xl font-bold tracking-tight ${METRIC_COLORS.piutang.value}`}
-                                                >
-                                                    Rp{' '}
-                                                    {formatNumber(
-                                                        piutangData?.total ?? 0,
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="mt-2 text-xs text-muted-foreground">
-                                                Last update:{' '}
-                                                {formatDate(
-                                                    piutangData?.last_update,
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div
-                                            className={`rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 ${METRIC_COLORS.hutang.accent}`}
-                                        >
-                                            <div className="flex items-center justify-between gap-3">
-                                                <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                                    Hutang Usaha
-                                                </div>
-                                                <div
-                                                    className={`text-xl font-bold tracking-tight ${METRIC_COLORS.hutang.value}`}
-                                                >
-                                                    Rp{' '}
-                                                    {formatNumber(
-                                                        hutangData?.total ?? 0,
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="mt-2 text-xs text-muted-foreground">
-                                                Last update:{' '}
-                                                {formatDate(
-                                                    hutangData?.last_update,
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    <div className="min-w-0">
-                        <Card className="flex h-full flex-col">
-                            <CardHeader className="space-y-2">
-                                <CardTitle>Ringkasan Stok</CardTitle>
-                                <p className="text-sm text-muted-foreground">
-                                    Total Stok Fisik, Stok Buku, dan selisih nilai persediaan.
-                                </p>
-                            </CardHeader>
-                            <CardContent>
-                                {stockSummaryRequest.status === 'error' ? (
-                                    <DashboardCardError
-                                        message={stockSummaryRequest.error}
-                                        onRetry={stockSummaryRequest.retry}
-                                    />
-                                ) : stockSummaryRequest.status !== 'success' ? (
-                                    /* Tampilan Skeleton Loading yang disamakan dengan Piutang & Hutang */
-                                    <div className="space-y-3">
-                                        {[1, 2, 3].map((idx) => (
-                                            <div key={idx} className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 animate-pulse">
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <div className="h-4 w-24 rounded bg-muted" />
-                                                    <div className="h-7 w-36 rounded bg-muted" />
-                                                </div>
-                                                <div className="mt-2 h-3 w-40 rounded bg-muted" />
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        
-                                        {/* Baris Kategori: Stok Fisik */}
-                                        <div className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 border-l-4 border-l-emerald-500">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                                    Stok Fisik
-                                                </div>
-                                                <div className="text-xl font-bold tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400">
-                                                    {stockSummary.physical === null
-                                                        ? '-'
-                                                        : `Rp ${formatNumber(stockSummary.physical)}`}
-                                                </div>
-                                            </div>
-                                            <div className="mt-2 text-xs text-muted-foreground">
-                                                Last update: {formatDate(stockSummary.physical_last_update)}
-                                            </div>
-                                        </div>
-
-                                        {/* Baris Kategori: Stok Buku */}
-                                        <div className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 border-l-4 border-l-blue-500">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                                    Stok Buku
-                                                </div>
-                                                <div className="text-xl font-bold tracking-tight tabular-nums text-blue-600 dark:text-blue-400">
-                                                    {stockSummary.book === null
-                                                        ? '-'
-                                                        : `Rp ${formatNumber(stockSummary.book)}`}
-                                                </div>
-                                            </div>
-                                            <div className="mt-2 text-xs text-muted-foreground">
-                                                Last update: {formatDate(stockSummary.book_last_update)}
-                                            </div>
-                                        </div>
-
-                                        {/* Baris Kategori: Selisih (Dinamis Otomatis Merah jika Minus) */}
-                                        {(() => {
-                                            const isMinus = stockSummary.difference !== null && stockSummary.difference < 0;
-                                            return (
-                                                <div className={`rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 border-l-4 ${
-                                                    isMinus ? 'border-l-red-500' : 'border-l-slate-400 dark:border-l-slate-600'
-                                                }`}>
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                                                            Selisih
-                                                        </div>
-                                                        <div className={`text-xl font-bold tracking-tight tabular-nums ${
-                                                            isMinus ? 'text-red-500 dark:text-red-400' : 'text-foreground'
-                                                        }`}>
-                                                            {stockSummary.difference === null
-                                                                ? '-'
-                                                                : `Rp ${formatNumber(stockSummary.difference)}`}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })()}
-
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    <div
-                        ref={deliveryView.ref}
-                        className="min-w-0 lg:col-span-1 2xl:col-span-1"
-                    >
-                        <Card className="flex h-full flex-col">
-                            <CardHeader className="space-y-3">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="space-y-1">
-                                        <CardTitle>Sisa Delivery</CardTitle>
-                                        <p className="text-sm text-muted-foreground">
-                                            {activeDeliveryTab === 'pdb'
-                                                ? 'Total sisa Permintaan Dana Biaya yang belum lunas.'
-                                                : 'Total sisa Permintaan Dana Operasional yang belum lunas.'}
-                                        </p>
-                                    </div>
-
-                                    <div className="flex shrink-0 items-center gap-2">
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant={
-                                                activeDeliveryTab === 'pdb'
-                                                    ? 'default'
-                                                    : 'secondary'
+                    {canViewCard('receivable_payable') && (
+                        <div
+                            ref={receivablePayableView.ref}
+                            className="min-w-0"
+                        >
+                            <Card className="flex h-full flex-col">
+                                <CardHeader className="space-y-2">
+                                    <CardTitle>
+                                        Piutang & Hutang Usaha
+                                    </CardTitle>
+                                    <p className="text-sm text-muted-foreground">
+                                        Total saldo akun 1109AD dan 2101AK.
+                                    </p>
+                                </CardHeader>
+                                <CardContent>
+                                    {receivablePayableRequest.status ===
+                                    'error' ? (
+                                        <DashboardCardError
+                                            message={
+                                                receivablePayableRequest.error
                                             }
-                                            aria-pressed={
-                                                activeDeliveryTab === 'pdb'
+                                            onRetry={
+                                                receivablePayableRequest.retry
                                             }
-                                            onClick={() =>
-                                                setActiveDeliveryTab('pdb')
-                                            }
-                                        >
-                                            PDB
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant={
-                                                activeDeliveryTab === 'pdo'
-                                                    ? 'default'
-                                                    : 'secondary'
-                                            }
-                                            aria-pressed={
-                                                activeDeliveryTab === 'pdo'
-                                            }
-                                            onClick={() =>
-                                                setActiveDeliveryTab('pdo')
-                                            }
-                                        >
-                                            PDO
-                                        </Button>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="flex flex-1 flex-col">
-                                {deliveryRequest.status === 'error' ? (
-                                    <DashboardCardError
-                                        message={deliveryRequest.error}
-                                        onRetry={deliveryRequest.retry}
-                                    />
-                                ) : deliveryRequest.status !== 'success' ? (
-                                    <div className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-4">
-                                        <div className="mb-2 h-4 w-32 rounded bg-muted" />
-                                        <div className="h-10 w-48 rounded bg-muted" />
-                                        <div className="mt-3 h-3 w-40 rounded bg-muted" />
-                                    </div>
-                                ) : activeDeliveryTab === 'pdb' ? (
-                                    <>
-                                        <div className="rounded-xl border border-sidebar-border/70 bg-muted/30 p-4">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div>
-                                                    <div className="text-sm text-muted-foreground">
-                                                        Total Sisa PDB
-                                                    </div>
-                                                    <div className="mt-2 text-2xl font-bold tracking-tight">
-                                                        Rp{' '}
-                                                        {formatNumber(
-                                                            pdbData?.total ?? 0,
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="mt-3 text-xs text-muted-foreground">
-                                            Last update:{' '}
-                                            {formatDate(pdbData?.last_update)}
-                                        </div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="rounded-xl border border-sidebar-border/70 bg-muted/30 p-4">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div>
-                                                    <div className="text-sm text-muted-foreground">
-                                                        Total Sisa PDO
-                                                    </div>
-                                                    <div className="mt-2 text-2xl font-bold tracking-tight">
-                                                        Rp{' '}
-                                                        {formatNumber(
-                                                            pdoData?.total ?? 0,
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="mt-3 text-xs text-muted-foreground">
-                                            Last update:{' '}
-                                            {formatDate(pdoData?.last_update)}
-                                        </div>
-                                    </>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Sales & HPP Card */}
-                    <div
-                        ref={salesHppView.ref}
-                        className="min-w-0 lg:col-span-2 2xl:col-span-4"
-                    >
-                        <Card className="flex h-full flex-col">
-                            <CardHeader className="space-y-4">
-                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                    <div className="space-y-1">
-                                        <CardTitle>
-                                            Ringkasan Penjualan
-                                        </CardTitle>
-                                        <p className="text-sm text-muted-foreground">
-                                            Perbandingan Penjualan, HPP, dan
-                                            Biaya per {salesHppGranularityLabel}{' '}
-                                            berdasarkan periode.
-                                        </p>
-                                    </div>
-
-                                    {/* Mobile: select */}
-                                    <select
-                                        className="w-full rounded-md border border-sidebar-border/70 bg-background px-2 py-2 text-sm text-muted-foreground sm:hidden"
-                                        value={salesHppRange}
-                                        disabled={
-                                            salesHppRequest.status === 'loading'
-                                        }
-                                        onChange={(event) =>
-                                            handleSalesHppRangeChange(
-                                                event.target.value,
-                                            )
-                                        }
-                                    >
-                                        <option value="1_week">1 Minggu</option>
-                                        <option value="1_month">1 Bulan</option>
-                                        <option value="3_months">
-                                            3 Bulan
-                                        </option>
-                                        <option value="5_months">
-                                            5 Bulan
-                                        </option>
-                                        <option value="1_year">1 Tahun</option>
-                                    </select>
-
-                                    {/* Desktop: segmented buttons */}
-                                    <div className="hidden items-center gap-2 sm:flex">
-                                        {[
-                                            {
-                                                key: '1_week',
-                                                label: '1 Minggu',
-                                            },
-                                            {
-                                                key: '1_month',
-                                                label: '1 Bulan',
-                                            },
-                                            {
-                                                key: '3_months',
-                                                label: '3 Bulan',
-                                            },
-                                            {
-                                                key: '5_months',
-                                                label: '5 Bulan',
-                                            },
-                                            { key: '1_year', label: '1 Tahun' },
-                                        ].map((opt) => (
-                                            <Button
-                                                key={opt.key}
-                                                type="button"
-                                                size="sm"
-                                                variant={
-                                                    salesHppRange === opt.key
-                                                        ? 'default'
-                                                        : 'secondary'
-                                                }
-                                                aria-pressed={
-                                                    salesHppRange === opt.key
-                                                }
-                                                disabled={
-                                                    salesHppRequest.status ===
-                                                    'loading'
-                                                }
-                                                onClick={() =>
-                                                    handleSalesHppRangeChange(
-                                                        opt.key,
-                                                    )
-                                                }
-                                            >
-                                                {opt.label}
-                                            </Button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-wrap items-center justify-between gap-3">
-                                    {salesHppRequest.status !== 'success' ? (
-                                        <div className="flex flex-wrap gap-2">
-                                            {Array.from({ length: 3 }).map(
+                                        />
+                                    ) : receivablePayableRequest.status !==
+                                      'success' ? (
+                                        <div className="space-y-3">
+                                            {Array.from({ length: 2 }).map(
                                                 (_, idx) => (
                                                     <div
                                                         key={idx}
-                                                        className="h-7 w-32 rounded-full border border-sidebar-border/70 bg-muted/30"
-                                                    />
+                                                        className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4"
+                                                    >
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div className="h-4 w-28 rounded bg-muted" />
+                                                            <div className="h-8 w-40 rounded bg-muted" />
+                                                        </div>
+                                                        <div className="mt-3 h-3 w-44 rounded bg-muted" />
+                                                    </div>
                                                 ),
                                             )}
                                         </div>
                                     ) : (
-                                        <div className="flex flex-wrap gap-2">
-                                            <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
-                                                <span className="text-muted-foreground">
-                                                    Total Sales:{' '}
-                                                </span>
-                                                <span className="font-semibold text-foreground">
-                                                    Rp{' '}
-                                                    {formatNumber(
-                                                        salesHppDerived.totalSales,
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
-                                                <span className="text-muted-foreground">
-                                                    Total HPP:{' '}
-                                                </span>
-                                                <span className="font-semibold text-foreground">
-                                                    Rp{' '}
-                                                    {formatNumber(
-                                                        salesHppDerived.totalHpp,
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
-                                                <span className="text-muted-foreground">
-                                                    Total Biaya:{' '}
-                                                </span>
-                                                <span className="font-semibold text-foreground">
-                                                    Rp{' '}
-                                                    {formatNumber(
-                                                        salesHppDerived.totalBiaya,
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
-                                                <span className="text-muted-foreground">
-                                                    Gross Profit:{' '}
-                                                </span>
-                                                <span className="font-semibold text-foreground">
-                                                    Rp{' '}
-                                                    {formatNumber(
-                                                        salesHppDerived.grossProfit,
-                                                    )}
-                                                    <span className="ml-1 text-muted-foreground">
-                                                        (
-                                                        {formatPercent(
-                                                            salesHppDerived.grossMarginPct,
+                                        <div className="space-y-3">
+                                            <div
+                                                className={`rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 ${METRIC_COLORS.piutang.accent}`}
+                                            >
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                                        Piutang Usaha
+                                                    </div>
+                                                    <div
+                                                        className={`text-xl font-bold tracking-tight ${METRIC_COLORS.piutang.value}`}
+                                                    >
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            piutangData?.total ??
+                                                                0,
                                                         )}
-                                                        )
-                                                    </span>
-                                                </span>
-                                            </div>
-                                            <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
-                                                <span className="text-muted-foreground">
-                                                    Laba Bersih:{' '}
-                                                </span>
-                                                <span className="font-semibold text-foreground">
-                                                    Rp{' '}
-                                                    {formatNumber(
-                                                        salesHppDerived.profitAfterBiaya,
+                                                    </div>
+                                                </div>
+                                                <div className="mt-2 text-xs text-muted-foreground">
+                                                    Last update:{' '}
+                                                    {formatDate(
+                                                        piutangData?.last_update,
                                                     )}
-                                                    <span className="ml-1 text-muted-foreground">
-                                                        (
-                                                        {formatPercent(
-                                                            salesHppDerived.profitAfterBiayaPct,
+                                                </div>
+                                            </div>
+                                            <div
+                                                className={`rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 ${METRIC_COLORS.hutang.accent}`}
+                                            >
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                                        Hutang Usaha
+                                                    </div>
+                                                    <div
+                                                        className={`text-xl font-bold tracking-tight ${METRIC_COLORS.hutang.value}`}
+                                                    >
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            hutangData?.total ??
+                                                                0,
                                                         )}
-                                                        )
-                                                    </span>
-                                                </span>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-2 text-xs text-muted-foreground">
+                                                    Last update:{' '}
+                                                    {formatDate(
+                                                        hutangData?.last_update,
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
 
-                                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                        <div className="flex items-center gap-2">
-                                            <span
-                                                className={`h-2 w-2 rounded-full ${METRIC_COLORS.sales.dot}`}
-                                            />
-                                            <span>Sales</span>
+                    {canViewCard('stock_summary') && (
+                        <div className="min-w-0">
+                            <Card className="flex h-full flex-col">
+                                <CardHeader className="space-y-2">
+                                    <CardTitle>Ringkasan Stok</CardTitle>
+                                    <p className="text-sm text-muted-foreground">
+                                        Total Stok Fisik, Stok Buku, dan selisih
+                                        nilai persediaan.
+                                    </p>
+                                </CardHeader>
+                                <CardContent>
+                                    {stockSummaryRequest.status === 'error' ? (
+                                        <DashboardCardError
+                                            message={stockSummaryRequest.error}
+                                            onRetry={stockSummaryRequest.retry}
+                                        />
+                                    ) : stockSummaryRequest.status !==
+                                      'success' ? (
+                                        /* Tampilan Skeleton Loading yang disamakan dengan Piutang & Hutang */
+                                        <div className="space-y-3">
+                                            {[1, 2, 3].map((idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className="animate-pulse rounded-xl border border-sidebar-border/70 bg-muted/20 p-4"
+                                                >
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="h-4 w-24 rounded bg-muted" />
+                                                        <div className="h-7 w-36 rounded bg-muted" />
+                                                    </div>
+                                                    <div className="mt-2 h-3 w-40 rounded bg-muted" />
+                                                </div>
+                                            ))}
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <span
-                                                className={`h-2 w-2 rounded-full ${METRIC_COLORS.hpp.dot}`}
-                                            />
-                                            <span>HPP</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span
-                                                className={`h-2 w-2 rounded-full ${METRIC_COLORS.biaya.dot}`}
-                                            />
-                                            <span>Biaya</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </CardHeader>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {/* Baris Kategori: Stok Fisik */}
+                                            <div className="rounded-xl border border-l-4 border-sidebar-border/70 border-l-emerald-500 bg-muted/20 p-4">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                                        Stok Fisik
+                                                    </div>
+                                                    <div className="text-xl font-bold tracking-tight text-emerald-600 tabular-nums dark:text-emerald-400">
+                                                        {stockSummary.physical ===
+                                                        null
+                                                            ? '-'
+                                                            : `Rp ${formatNumber(stockSummary.physical)}`}
+                                                    </div>
+                                                </div>
+                                                <div className="mt-2 text-xs text-muted-foreground">
+                                                    Last update:{' '}
+                                                    {formatDate(
+                                                        stockSummary.physical_last_update,
+                                                    )}
+                                                </div>
+                                            </div>
 
-                            <CardContent className="flex flex-1 flex-col gap-4">
-                                {salesHppRequest.status === 'error' && (
-                                    <DashboardCardError
-                                        message={salesHppRequest.error}
-                                        onRetry={salesHppRequest.retry}
-                                    />
-                                )}
+                                            {/* Baris Kategori: Stok Buku */}
+                                            <div className="rounded-xl border border-l-4 border-sidebar-border/70 border-l-blue-500 bg-muted/20 p-4">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                                        Stok Buku
+                                                    </div>
+                                                    <div className="text-xl font-bold tracking-tight text-blue-600 tabular-nums dark:text-blue-400">
+                                                        {stockSummary.book ===
+                                                        null
+                                                            ? '-'
+                                                            : `Rp ${formatNumber(stockSummary.book)}`}
+                                                    </div>
+                                                </div>
+                                                <div className="mt-2 text-xs text-muted-foreground">
+                                                    Last update:{' '}
+                                                    {formatDate(
+                                                        stockSummary.book_last_update,
+                                                    )}
+                                                </div>
+                                            </div>
 
-                                {salesHppHover &&
-                                    salesHppRequest.status === 'success' && (
-                                        <div
-                                            className="pointer-events-none fixed z-[60] w-max max-w-[240px] rounded-lg border border-sidebar-border/70 bg-popover px-3 py-2 text-xs text-popover-foreground shadow-xl"
-                                            style={{
-                                                left: Math.min(
-                                                    window.innerWidth - 260,
-                                                    Math.max(
-                                                        12,
-                                                        salesHppHover.x + 12,
-                                                    ),
-                                                ),
-                                                top: Math.min(
-                                                    window.innerHeight - 170,
-                                                    Math.max(
-                                                        12,
-                                                        salesHppHover.y - 12,
-                                                    ),
-                                                ),
-                                            }}
-                                        >
+                                            {/* Baris Kategori: Selisih (Dinamis Otomatis Merah jika Minus) */}
                                             {(() => {
-                                                const sales = Number(
-                                                    salesHppHover.sales ?? 0,
-                                                );
-                                                const hpp = Number(
-                                                    salesHppHover.hpp ?? 0,
-                                                );
-                                                const biaya = Number(
-                                                    salesHppHover.biaya ?? 0,
-                                                );
-                                                const grossProfit = sales - hpp;
-                                                const profitAfterBiaya =
-                                                    grossProfit - biaya;
-                                                const grossMarginPct =
-                                                    sales > 0
-                                                        ? (grossProfit /
-                                                              sales) *
-                                                          100
-                                                        : 0;
-                                                const profitAfterBiayaPct =
-                                                    sales > 0
-                                                        ? (profitAfterBiaya /
-                                                              sales) *
-                                                          100
-                                                        : 0;
-
+                                                const isMinus =
+                                                    stockSummary.difference !==
+                                                        null &&
+                                                    stockSummary.difference < 0;
                                                 return (
-                                                    <>
-                                                        <div className="max-w-[220px] truncate font-medium">
-                                                            {
-                                                                salesHppHover.label
-                                                            }
-                                                        </div>
-                                                        <div className="mt-1 flex items-center justify-between gap-3">
-                                                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                                                                Sales
-                                                            </span>
-                                                            <span className="font-semibold">
-                                                                {formatNumber(
-                                                                    salesHppHover.sales,
-                                                                )}
-                                                            </span>
-                                                        </div>
+                                                    <div
+                                                        className={`rounded-xl border border-l-4 border-sidebar-border/70 bg-muted/20 p-4 ${
+                                                            isMinus
+                                                                ? 'border-l-red-500'
+                                                                : 'border-l-slate-400 dark:border-l-slate-600'
+                                                        }`}
+                                                    >
                                                         <div className="flex items-center justify-between gap-3">
-                                                            <span className="font-semibold text-blue-600 dark:text-blue-400">
-                                                                HPP
-                                                            </span>
-                                                            <span className="font-semibold">
-                                                                {formatNumber(
-                                                                    salesHppHover.hpp,
-                                                                )}
-                                                            </span>
+                                                            <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                                                                Selisih
+                                                            </div>
+                                                            <div
+                                                                className={`text-xl font-bold tracking-tight tabular-nums ${
+                                                                    isMinus
+                                                                        ? 'text-red-500 dark:text-red-400'
+                                                                        : 'text-foreground'
+                                                                }`}
+                                                            >
+                                                                {stockSummary.difference ===
+                                                                null
+                                                                    ? '-'
+                                                                    : `Rp ${formatNumber(stockSummary.difference)}`}
+                                                            </div>
                                                         </div>
-                                                        <div className="flex items-center justify-between gap-3">
-                                                            <span className="font-semibold text-red-600 dark:text-red-400">
-                                                                Biaya
-                                                            </span>
-                                                            <span className="font-semibold">
-                                                                {formatNumber(
-                                                                    salesHppHover.biaya,
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                        <div className="my-2 h-px w-full bg-border/70" />
-                                                        <div className="flex items-center justify-between gap-3">
-                                                            <span className="font-medium text-muted-foreground">
-                                                                Gross Profit
-                                                            </span>
-                                                            <span className="font-semibold">
-                                                                {formatNumber(
-                                                                    grossProfit,
-                                                                )}{' '}
-                                                                <span className="font-medium text-muted-foreground">
-                                                                    (
-                                                                    {formatPercent(
-                                                                        grossMarginPct,
-                                                                    )}
-                                                                    )
-                                                                </span>
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center justify-between gap-3">
-                                                            <span className="font-medium text-muted-foreground">
-                                                                Laba Bersih
-                                                            </span>
-                                                            <span className="font-semibold">
-                                                                {formatNumber(
-                                                                    profitAfterBiaya,
-                                                                )}{' '}
-                                                                <span className="font-medium text-muted-foreground">
-                                                                    (
-                                                                    {formatPercent(
-                                                                        profitAfterBiayaPct,
-                                                                    )}
-                                                                    )
-                                                                </span>
-                                                            </span>
-                                                        </div>
-                                                    </>
+                                                    </div>
                                                 );
                                             })()}
                                         </div>
                                     )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
 
-                                {salesHppRequest.status !== 'error' && (
-                                    <>
-                                        {/* Mobile: horizontal list bars */}
-                                        <div className="sm:hidden">
-                                            {salesHppRequest.status !==
-                                                'success' && (
-                                                <div className="space-y-3">
-                                                    {Array.from({
-                                                        length: 6,
-                                                    }).map((_, idx) => (
-                                                        <div
-                                                            key={idx}
-                                                            className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-3"
-                                                        >
-                                                            <div className="h-3 w-24 rounded bg-muted" />
-                                                            <div className="mt-3 space-y-2">
-                                                                <div className="h-2 w-full rounded bg-muted" />
-                                                                <div className="h-2 w-4/5 rounded bg-muted" />
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-
-                                            {salesHppRequest.status ===
-                                                'success' &&
-                                                salesHppDerived.series
-                                                    .length === 0 && (
-                                                    <div className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                                                        Tidak ada data pada
-                                                        periode ini.
-                                                    </div>
-                                                )}
-
-                                            {salesHppRequest.status ===
-                                                'success' &&
-                                                salesHppDerived.series.length >
-                                                    0 && (
-                                                    <div
-                                                        className={`space-y-3 ${
-                                                            salesHppDerived
-                                                                .series.length >
-                                                            10
-                                                                ? 'max-h-[420px] overflow-y-auto pr-1'
-                                                                : ''
-                                                        }`}
-                                                    >
-                                                        {salesHppDerived.series.map(
-                                                            (item) => {
-                                                                const salesWidth =
-                                                                    salesHppDerived.max >
-                                                                    0
-                                                                        ? Math.min(
-                                                                              100,
-                                                                              (Number(
-                                                                                  item.sales ??
-                                                                                      0,
-                                                                              ) /
-                                                                                  salesHppDerived.max) *
-                                                                                  100,
-                                                                          )
-                                                                        : 0;
-                                                                const hppWidth =
-                                                                    salesHppDerived.max >
-                                                                    0
-                                                                        ? Math.min(
-                                                                              100,
-                                                                              (Number(
-                                                                                  item.hpp ??
-                                                                                      0,
-                                                                              ) /
-                                                                                  salesHppDerived.max) *
-                                                                                  100,
-                                                                          )
-                                                                        : 0;
-                                                                const biayaWidth =
-                                                                    salesHppDerived.max >
-                                                                    0
-                                                                        ? Math.min(
-                                                                              100,
-                                                                              (Number(
-                                                                                  item.biaya ??
-                                                                                      0,
-                                                                              ) /
-                                                                                  salesHppDerived.max) *
-                                                                                  100,
-                                                                          )
-                                                                        : 0;
-                                                                return (
-                                                                    <div
-                                                                        key={
-                                                                            item.period
-                                                                        }
-                                                                        className="rounded-lg border border-sidebar-border/70 bg-muted/10 p-3"
-                                                                    >
-                                                                        <div className="flex min-w-0 items-center justify-between gap-3">
-                                                                            <div className="min-w-0">
-                                                                                <div className="truncate text-sm font-semibold text-foreground">
-                                                                                    {
-                                                                                        item.label
-                                                                                    }
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="shrink-0 text-right text-[11px] text-muted-foreground">
-                                                                                <div>
-                                                                                    Sales:{' '}
-                                                                                    <span className="font-medium text-foreground">
-                                                                                        {formatNumber(
-                                                                                            item.sales,
-                                                                                        )}
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div>
-                                                                                    HPP:{' '}
-                                                                                    <span className="font-medium text-foreground">
-                                                                                        {formatNumber(
-                                                                                            item.hpp,
-                                                                                        )}
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div>
-                                                                                    Biaya:{' '}
-                                                                                    <span className="font-medium text-foreground">
-                                                                                        {formatNumber(
-                                                                                            item.biaya,
-                                                                                        )}
-                                                                                    </span>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="mt-3 space-y-2">
-                                                                            <div className="h-2 w-full rounded bg-muted/40">
-                                                                                <div
-                                                                                    className={`h-2 rounded ${METRIC_COLORS.sales.bar}`}
-                                                                                    style={{
-                                                                                        width: `${Math.max(
-                                                                                            2,
-                                                                                            salesWidth,
-                                                                                        )}%`,
-                                                                                    }}
-                                                                                />
-                                                                            </div>
-                                                                            <div className="h-2 w-full rounded bg-muted/40">
-                                                                                <div
-                                                                                    className={`h-2 rounded ${METRIC_COLORS.hpp.bar}`}
-                                                                                    style={{
-                                                                                        width: `${Math.max(
-                                                                                            2,
-                                                                                            hppWidth,
-                                                                                        )}%`,
-                                                                                    }}
-                                                                                />
-                                                                            </div>
-                                                                            <div className="h-2 w-full rounded bg-muted/40">
-                                                                                <div
-                                                                                    className={`h-2 rounded ${METRIC_COLORS.biaya.bar}`}
-                                                                                    style={{
-                                                                                        width: `${Math.max(
-                                                                                            2,
-                                                                                            biayaWidth,
-                                                                                        )}%`,
-                                                                                    }}
-                                                                                />
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            },
-                                                        )}
-                                                    </div>
-                                                )}
+                    {canViewCard('delivery') && (
+                        <div
+                            ref={deliveryView.ref}
+                            className="min-w-0 lg:col-span-1 2xl:col-span-1"
+                        >
+                            <Card className="flex h-full flex-col">
+                                <CardHeader className="space-y-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="space-y-1">
+                                            <CardTitle>Sisa Delivery</CardTitle>
+                                            <p className="text-sm text-muted-foreground">
+                                                {activeDeliveryTab === 'pdb'
+                                                    ? 'Total sisa Permintaan Dana Biaya yang belum lunas.'
+                                                    : 'Total sisa Permintaan Dana Operasional yang belum lunas.'}
+                                            </p>
                                         </div>
 
-                                        {/* Desktop: bar chart */}
-                                        <div className="hidden sm:block">
-                                            <div
-                                                className={`grid min-h-[260px] flex-1 grid-flow-col items-end gap-4 overflow-x-auto px-2 py-4 ${
-                                                    isDenseSalesHpp
-                                                        ? 'auto-cols-[minmax(84px,1fr)] pb-10'
-                                                        : 'auto-cols-[minmax(56px,1fr)] lg:auto-cols-[minmax(72px,1fr)]'
-                                                }`}
+                                        <div className="flex shrink-0 items-center gap-2">
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant={
+                                                    activeDeliveryTab === 'pdb'
+                                                        ? 'default'
+                                                        : 'secondary'
+                                                }
+                                                aria-pressed={
+                                                    activeDeliveryTab === 'pdb'
+                                                }
+                                                onClick={() =>
+                                                    setActiveDeliveryTab('pdb')
+                                                }
                                             >
+                                                PDB
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant={
+                                                    activeDeliveryTab === 'pdo'
+                                                        ? 'default'
+                                                        : 'secondary'
+                                                }
+                                                aria-pressed={
+                                                    activeDeliveryTab === 'pdo'
+                                                }
+                                                onClick={() =>
+                                                    setActiveDeliveryTab('pdo')
+                                                }
+                                            >
+                                                PDO
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="flex flex-1 flex-col">
+                                    {deliveryRequest.status === 'error' ? (
+                                        <DashboardCardError
+                                            message={deliveryRequest.error}
+                                            onRetry={deliveryRequest.retry}
+                                        />
+                                    ) : deliveryRequest.status !== 'success' ? (
+                                        <div className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-4">
+                                            <div className="mb-2 h-4 w-32 rounded bg-muted" />
+                                            <div className="h-10 w-48 rounded bg-muted" />
+                                            <div className="mt-3 h-3 w-40 rounded bg-muted" />
+                                        </div>
+                                    ) : activeDeliveryTab === 'pdb' ? (
+                                        <>
+                                            <div className="rounded-xl border border-sidebar-border/70 bg-muted/30 p-4">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <div className="text-sm text-muted-foreground">
+                                                            Total Sisa PDB
+                                                        </div>
+                                                        <div className="mt-2 text-2xl font-bold tracking-tight">
+                                                            Rp{' '}
+                                                            {formatNumber(
+                                                                pdbData?.total ??
+                                                                    0,
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 text-xs text-muted-foreground">
+                                                Last update:{' '}
+                                                {formatDate(
+                                                    pdbData?.last_update,
+                                                )}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="rounded-xl border border-sidebar-border/70 bg-muted/30 p-4">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <div className="text-sm text-muted-foreground">
+                                                            Total Sisa PDO
+                                                        </div>
+                                                        <div className="mt-2 text-2xl font-bold tracking-tight">
+                                                            Rp{' '}
+                                                            {formatNumber(
+                                                                pdoData?.total ??
+                                                                    0,
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="mt-3 text-xs text-muted-foreground">
+                                                Last update:{' '}
+                                                {formatDate(
+                                                    pdoData?.last_update,
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
+
+                    {/* Sales & HPP Card */}
+                    {canViewCard('sales_hpp') && (
+                        <div
+                            ref={salesHppView.ref}
+                            className="min-w-0 lg:col-span-2 2xl:col-span-4"
+                        >
+                            <Card className="flex h-full flex-col">
+                                <CardHeader className="space-y-4">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                        <div className="space-y-1">
+                                            <CardTitle>
+                                                Ringkasan Penjualan
+                                            </CardTitle>
+                                            <p className="text-sm text-muted-foreground">
+                                                Perbandingan Penjualan, HPP, dan
+                                                Biaya per{' '}
+                                                {salesHppGranularityLabel}{' '}
+                                                berdasarkan periode.
+                                            </p>
+                                        </div>
+
+                                        {/* Mobile: select */}
+                                        <select
+                                            className="w-full rounded-md border border-sidebar-border/70 bg-background px-2 py-2 text-sm text-muted-foreground sm:hidden"
+                                            value={salesHppRange}
+                                            disabled={
+                                                salesHppRequest.status ===
+                                                'loading'
+                                            }
+                                            onChange={(event) =>
+                                                handleSalesHppRangeChange(
+                                                    event.target.value,
+                                                )
+                                            }
+                                        >
+                                            <option value="1_week">
+                                                1 Minggu
+                                            </option>
+                                            <option value="1_month">
+                                                1 Bulan
+                                            </option>
+                                            <option value="3_months">
+                                                3 Bulan
+                                            </option>
+                                            <option value="5_months">
+                                                5 Bulan
+                                            </option>
+                                            <option value="1_year">
+                                                1 Tahun
+                                            </option>
+                                        </select>
+
+                                        {/* Desktop: segmented buttons */}
+                                        <div className="hidden items-center gap-2 sm:flex">
+                                            {[
+                                                {
+                                                    key: '1_week',
+                                                    label: '1 Minggu',
+                                                },
+                                                {
+                                                    key: '1_month',
+                                                    label: '1 Bulan',
+                                                },
+                                                {
+                                                    key: '3_months',
+                                                    label: '3 Bulan',
+                                                },
+                                                {
+                                                    key: '5_months',
+                                                    label: '5 Bulan',
+                                                },
+                                                {
+                                                    key: '1_year',
+                                                    label: '1 Tahun',
+                                                },
+                                            ].map((opt) => (
+                                                <Button
+                                                    key={opt.key}
+                                                    type="button"
+                                                    size="sm"
+                                                    variant={
+                                                        salesHppRange ===
+                                                        opt.key
+                                                            ? 'default'
+                                                            : 'secondary'
+                                                    }
+                                                    aria-pressed={
+                                                        salesHppRange ===
+                                                        opt.key
+                                                    }
+                                                    disabled={
+                                                        salesHppRequest.status ===
+                                                        'loading'
+                                                    }
+                                                    onClick={() =>
+                                                        handleSalesHppRangeChange(
+                                                            opt.key,
+                                                        )
+                                                    }
+                                                >
+                                                    {opt.label}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        {salesHppRequest.status !==
+                                        'success' ? (
+                                            <div className="flex flex-wrap gap-2">
+                                                {Array.from({ length: 3 }).map(
+                                                    (_, idx) => (
+                                                        <div
+                                                            key={idx}
+                                                            className="h-7 w-32 rounded-full border border-sidebar-border/70 bg-muted/30"
+                                                        />
+                                                    ),
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-wrap gap-2">
+                                                <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
+                                                    <span className="text-muted-foreground">
+                                                        Total Sales:{' '}
+                                                    </span>
+                                                    <span className="font-semibold text-foreground">
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            salesHppDerived.totalSales,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
+                                                    <span className="text-muted-foreground">
+                                                        Total HPP:{' '}
+                                                    </span>
+                                                    <span className="font-semibold text-foreground">
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            salesHppDerived.totalHpp,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
+                                                    <span className="text-muted-foreground">
+                                                        Total Biaya:{' '}
+                                                    </span>
+                                                    <span className="font-semibold text-foreground">
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            salesHppDerived.totalBiaya,
+                                                        )}
+                                                    </span>
+                                                </div>
+                                                <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
+                                                    <span className="text-muted-foreground">
+                                                        Gross Profit:{' '}
+                                                    </span>
+                                                    <span className="font-semibold text-foreground">
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            salesHppDerived.grossProfit,
+                                                        )}
+                                                        <span className="ml-1 text-muted-foreground">
+                                                            (
+                                                            {formatPercent(
+                                                                salesHppDerived.grossMarginPct,
+                                                            )}
+                                                            )
+                                                        </span>
+                                                    </span>
+                                                </div>
+                                                <div className="rounded-full border border-sidebar-border/70 bg-muted/30 px-3 py-1 text-xs">
+                                                    <span className="text-muted-foreground">
+                                                        Laba Bersih:{' '}
+                                                    </span>
+                                                    <span className="font-semibold text-foreground">
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            salesHppDerived.profitAfterBiaya,
+                                                        )}
+                                                        <span className="ml-1 text-muted-foreground">
+                                                            (
+                                                            {formatPercent(
+                                                                salesHppDerived.profitAfterBiayaPct,
+                                                            )}
+                                                            )
+                                                        </span>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                                            <div className="flex items-center gap-2">
+                                                <span
+                                                    className={`h-2 w-2 rounded-full ${METRIC_COLORS.sales.dot}`}
+                                                />
+                                                <span>Sales</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span
+                                                    className={`h-2 w-2 rounded-full ${METRIC_COLORS.hpp.dot}`}
+                                                />
+                                                <span>HPP</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span
+                                                    className={`h-2 w-2 rounded-full ${METRIC_COLORS.biaya.dot}`}
+                                                />
+                                                <span>Biaya</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </CardHeader>
+
+                                <CardContent className="flex flex-1 flex-col gap-4">
+                                    {salesHppRequest.status === 'error' && (
+                                        <DashboardCardError
+                                            message={salesHppRequest.error}
+                                            onRetry={salesHppRequest.retry}
+                                        />
+                                    )}
+
+                                    {salesHppHover &&
+                                        salesHppRequest.status ===
+                                            'success' && (
+                                            <div
+                                                className="pointer-events-none fixed z-[60] w-max max-w-[240px] rounded-lg border border-sidebar-border/70 bg-popover px-3 py-2 text-xs text-popover-foreground shadow-xl"
+                                                style={{
+                                                    left: Math.min(
+                                                        window.innerWidth - 260,
+                                                        Math.max(
+                                                            12,
+                                                            salesHppHover.x +
+                                                                12,
+                                                        ),
+                                                    ),
+                                                    top: Math.min(
+                                                        window.innerHeight -
+                                                            170,
+                                                        Math.max(
+                                                            12,
+                                                            salesHppHover.y -
+                                                                12,
+                                                        ),
+                                                    ),
+                                                }}
+                                            >
+                                                {(() => {
+                                                    const sales = Number(
+                                                        salesHppHover.sales ??
+                                                            0,
+                                                    );
+                                                    const hpp = Number(
+                                                        salesHppHover.hpp ?? 0,
+                                                    );
+                                                    const biaya = Number(
+                                                        salesHppHover.biaya ??
+                                                            0,
+                                                    );
+                                                    const grossProfit =
+                                                        sales - hpp;
+                                                    const profitAfterBiaya =
+                                                        grossProfit - biaya;
+                                                    const grossMarginPct =
+                                                        sales > 0
+                                                            ? (grossProfit /
+                                                                  sales) *
+                                                              100
+                                                            : 0;
+                                                    const profitAfterBiayaPct =
+                                                        sales > 0
+                                                            ? (profitAfterBiaya /
+                                                                  sales) *
+                                                              100
+                                                            : 0;
+
+                                                    return (
+                                                        <>
+                                                            <div className="max-w-[220px] truncate font-medium">
+                                                                {
+                                                                    salesHppHover.label
+                                                                }
+                                                            </div>
+                                                            <div className="mt-1 flex items-center justify-between gap-3">
+                                                                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                                                    Sales
+                                                                </span>
+                                                                <span className="font-semibold">
+                                                                    {formatNumber(
+                                                                        salesHppHover.sales,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                                                    HPP
+                                                                </span>
+                                                                <span className="font-semibold">
+                                                                    {formatNumber(
+                                                                        salesHppHover.hpp,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <span className="font-semibold text-red-600 dark:text-red-400">
+                                                                    Biaya
+                                                                </span>
+                                                                <span className="font-semibold">
+                                                                    {formatNumber(
+                                                                        salesHppHover.biaya,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <div className="my-2 h-px w-full bg-border/70" />
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <span className="font-medium text-muted-foreground">
+                                                                    Gross Profit
+                                                                </span>
+                                                                <span className="font-semibold">
+                                                                    {formatNumber(
+                                                                        grossProfit,
+                                                                    )}{' '}
+                                                                    <span className="font-medium text-muted-foreground">
+                                                                        (
+                                                                        {formatPercent(
+                                                                            grossMarginPct,
+                                                                        )}
+                                                                        )
+                                                                    </span>
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <span className="font-medium text-muted-foreground">
+                                                                    Laba Bersih
+                                                                </span>
+                                                                <span className="font-semibold">
+                                                                    {formatNumber(
+                                                                        profitAfterBiaya,
+                                                                    )}{' '}
+                                                                    <span className="font-medium text-muted-foreground">
+                                                                        (
+                                                                        {formatPercent(
+                                                                            profitAfterBiayaPct,
+                                                                        )}
+                                                                        )
+                                                                    </span>
+                                                                </span>
+                                                            </div>
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+
+                                    {salesHppRequest.status !== 'error' && (
+                                        <>
+                                            {/* Mobile: horizontal list bars */}
+                                            <div className="sm:hidden">
                                                 {salesHppRequest.status !==
                                                     'success' && (
-                                                    <>
+                                                    <div className="space-y-3">
                                                         {Array.from({
-                                                            length: 10,
+                                                            length: 6,
                                                         }).map((_, idx) => (
                                                             <div
                                                                 key={idx}
-                                                                className="flex min-w-[56px] flex-col items-center gap-2"
+                                                                className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-3"
                                                             >
-                                                                <div className="flex h-48 w-full items-end justify-center gap-2">
-                                                                    <div className="h-[40%] w-full rounded-t-sm bg-muted" />
-                                                                    <div className="h-[65%] w-full rounded-t-sm bg-muted" />
+                                                                <div className="h-3 w-24 rounded bg-muted" />
+                                                                <div className="mt-3 space-y-2">
+                                                                    <div className="h-2 w-full rounded bg-muted" />
+                                                                    <div className="h-2 w-4/5 rounded bg-muted" />
                                                                 </div>
-                                                                <div className="h-3 w-10 rounded bg-muted" />
                                                             </div>
                                                         ))}
-                                                    </>
+                                                    </div>
                                                 )}
 
                                                 {salesHppRequest.status ===
                                                     'success' &&
                                                     salesHppDerived.series
                                                         .length === 0 && (
-                                                        <div className="col-span-full flex h-full items-center justify-center text-sm text-muted-foreground">
+                                                        <div className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
                                                             Tidak ada data pada
                                                             periode ini.
                                                         </div>
@@ -1641,235 +1603,417 @@ export default function Dashboard({
 
                                                 {salesHppRequest.status ===
                                                     'success' &&
-                                                    salesHppDerived.series.map(
-                                                        (item) => (
-                                                            <div
-                                                                key={
-                                                                    item.period
-                                                                }
-                                                                className={`group flex flex-col items-center gap-2 ${
-                                                                    isDenseSalesHpp
-                                                                        ? 'min-w-[84px]'
-                                                                        : 'min-w-[56px]'
-                                                                }`}
-                                                                onMouseEnter={(
-                                                                    event,
-                                                                ) => {
-                                                                    setSalesHppHover(
-                                                                        {
-                                                                            x: event.clientX,
-                                                                            y: event.clientY,
-                                                                            label: item.label,
-                                                                            sales: item.sales,
-                                                                            hpp: item.hpp,
-                                                                            biaya: item.biaya,
-                                                                        },
-                                                                    );
-                                                                }}
-                                                                onMouseMove={(
-                                                                    event,
-                                                                ) => {
-                                                                    setSalesHppHover(
-                                                                        (
-                                                                            prev,
-                                                                        ) =>
-                                                                            prev
-                                                                                ? {
-                                                                                      ...prev,
-                                                                                      x: event.clientX,
-                                                                                      y: event.clientY,
-                                                                                  }
-                                                                                : null,
-                                                                    );
-                                                                }}
-                                                                onMouseLeave={() =>
-                                                                    setSalesHppHover(
-                                                                        null,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <div className="relative flex h-48 w-full items-end justify-center gap-2">
-                                                                    <div className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
-                                                                        {!hideInBarValues &&
-                                                                            !isDenseSalesHpp &&
-                                                                            Number(
-                                                                                item.sales ??
-                                                                                    0,
-                                                                            ) >
-                                                                                0 && (
-                                                                                <span
-                                                                                    className={`mb-1 w-full overflow-hidden px-0.5 text-center leading-none font-bold text-ellipsis whitespace-nowrap text-black tabular-nums dark:text-white ${
-                                                                                        isVeryShortSalesHpp
-                                                                                            ? 'block text-[10px] sm:text-xs'
-                                                                                            : isShortSalesHpp
-                                                                                              ? 'block text-xs sm:text-sm'
-                                                                                              : 'hidden text-[12px] md:block'
-                                                                                    }`}
-                                                                                >
-                                                                                    {isShortSalesHpp
-                                                                                        ? formatCompactNumber(
-                                                                                              item.sales,
-                                                                                          )
-                                                                                        : formatNumber(
-                                                                                              item.sales,
-                                                                                          )}
-                                                                                </span>
-                                                                            )}
+                                                    salesHppDerived.series
+                                                        .length > 0 && (
+                                                        <div
+                                                            className={`space-y-3 ${
+                                                                salesHppDerived
+                                                                    .series
+                                                                    .length > 10
+                                                                    ? 'max-h-[420px] overflow-y-auto pr-1'
+                                                                    : ''
+                                                            }`}
+                                                        >
+                                                            {salesHppDerived.series.map(
+                                                                (item) => {
+                                                                    const salesWidth =
+                                                                        salesHppDerived.max >
+                                                                        0
+                                                                            ? Math.min(
+                                                                                  100,
+                                                                                  (Number(
+                                                                                      item.sales ??
+                                                                                          0,
+                                                                                  ) /
+                                                                                      salesHppDerived.max) *
+                                                                                      100,
+                                                                              )
+                                                                            : 0;
+                                                                    const hppWidth =
+                                                                        salesHppDerived.max >
+                                                                        0
+                                                                            ? Math.min(
+                                                                                  100,
+                                                                                  (Number(
+                                                                                      item.hpp ??
+                                                                                          0,
+                                                                                  ) /
+                                                                                      salesHppDerived.max) *
+                                                                                      100,
+                                                                              )
+                                                                            : 0;
+                                                                    const biayaWidth =
+                                                                        salesHppDerived.max >
+                                                                        0
+                                                                            ? Math.min(
+                                                                                  100,
+                                                                                  (Number(
+                                                                                      item.biaya ??
+                                                                                          0,
+                                                                                  ) /
+                                                                                      salesHppDerived.max) *
+                                                                                      100,
+                                                                              )
+                                                                            : 0;
+                                                                    return (
                                                                         <div
-                                                                            className="w-full overflow-hidden rounded-t-sm bg-emerald-500/80 transition-colors hover:bg-emerald-500"
-                                                                            style={{
-                                                                                height: `${Math.max(
-                                                                                    2,
-                                                                                    (Number(
-                                                                                        item.sales ??
-                                                                                            0,
-                                                                                    ) /
-                                                                                        salesHppDerived.max) *
-                                                                                        100,
-                                                                                )}%`,
-                                                                            }}
-                                                                        />
-                                                                    </div>
-
-                                                                    <div className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
-                                                                        {!hideInBarValues &&
-                                                                            !isDenseSalesHpp &&
-                                                                            Number(
-                                                                                item.hpp ??
-                                                                                    0,
-                                                                            ) >
-                                                                                0 && (
-                                                                                <span
-                                                                                    className={`mb-1 w-full overflow-hidden px-0.5 text-center leading-none font-bold text-ellipsis whitespace-nowrap text-black tabular-nums dark:text-white ${
-                                                                                        isVeryShortSalesHpp
-                                                                                            ? 'block text-[10px] sm:text-xs'
-                                                                                            : isShortSalesHpp
-                                                                                              ? 'block text-xs sm:text-sm'
-                                                                                              : 'hidden text-[12px] md:block'
-                                                                                    }`}
-                                                                                >
-                                                                                    {isShortSalesHpp
-                                                                                        ? formatCompactNumber(
-                                                                                              item.hpp,
-                                                                                          )
-                                                                                        : formatNumber(
-                                                                                              item.hpp,
-                                                                                          )}
-                                                                                </span>
-                                                                            )}
-                                                                        <div
-                                                                            className="w-full overflow-hidden rounded-t-sm bg-blue-500/80 transition-colors hover:bg-blue-500"
-                                                                            style={{
-                                                                                height: `${Math.max(
-                                                                                    2,
-                                                                                    (Number(
-                                                                                        item.hpp ??
-                                                                                            0,
-                                                                                    ) /
-                                                                                        salesHppDerived.max) *
-                                                                                        100,
-                                                                                )}%`,
-                                                                            }}
-                                                                        />
-                                                                    </div>
-
-                                                                    <div className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
-                                                                        {!hideInBarValues &&
-                                                                            !isDenseSalesHpp &&
-                                                                            Number(
-                                                                                item.biaya ??
-                                                                                    0,
-                                                                            ) >
-                                                                                0 && (
-                                                                                <span
-                                                                                    className={`mb-1 w-full overflow-hidden px-0.5 text-center leading-none font-bold text-ellipsis whitespace-nowrap text-black tabular-nums dark:text-white ${
-                                                                                        isVeryShortSalesHpp
-                                                                                            ? 'block text-[10px] sm:text-xs'
-                                                                                            : isShortSalesHpp
-                                                                                              ? 'block text-xs sm:text-sm'
-                                                                                              : 'hidden text-[12px] md:block'
-                                                                                    }`}
-                                                                                >
-                                                                                    {isShortSalesHpp
-                                                                                        ? formatCompactNumber(
-                                                                                              item.biaya,
-                                                                                          )
-                                                                                        : formatNumber(
-                                                                                              item.biaya,
-                                                                                          )}
-                                                                                </span>
-                                                                            )}
-                                                                        <div
-                                                                            className="w-full overflow-hidden rounded-t-sm bg-red-500/80 transition-colors hover:bg-red-500"
-                                                                            style={{
-                                                                                height: `${Math.max(
-                                                                                    2,
-                                                                                    (Number(
-                                                                                        item.biaya ??
-                                                                                            0,
-                                                                                    ) /
-                                                                                        salesHppDerived.max) *
-                                                                                        100,
-                                                                                )}%`,
-                                                                            }}
-                                                                        />
-                                                                    </div>
-                                                                </div>
-                                                                {isDenseSalesHpp ? (
-                                                                    <span
-                                                                        className="w-full text-center text-[11px] leading-tight font-medium text-foreground/80 drop-shadow-sm"
-                                                                        title={
-                                                                            item.label
-                                                                        }
-                                                                    >
-                                                                        {(() => {
-                                                                            const {
-                                                                                top,
-                                                                                bottom,
-                                                                            } =
-                                                                                denseLabelParts(
-                                                                                    item.label,
-                                                                                );
-                                                                            return (
-                                                                                <span className="inline-flex flex-col items-center">
-                                                                                    <span>
+                                                                            key={
+                                                                                item.period
+                                                                            }
+                                                                            className="rounded-lg border border-sidebar-border/70 bg-muted/10 p-3"
+                                                                        >
+                                                                            <div className="flex min-w-0 items-center justify-between gap-3">
+                                                                                <div className="min-w-0">
+                                                                                    <div className="truncate text-sm font-semibold text-foreground">
                                                                                         {
-                                                                                            top
+                                                                                            item.label
                                                                                         }
-                                                                                    </span>
-                                                                                    {bottom ? (
-                                                                                        <span className="text-[10px] font-normal text-muted-foreground">
-                                                                                            {
-                                                                                                bottom
-                                                                                            }
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="shrink-0 text-right text-[11px] text-muted-foreground">
+                                                                                    <div>
+                                                                                        Sales:{' '}
+                                                                                        <span className="font-medium text-foreground">
+                                                                                            {formatNumber(
+                                                                                                item.sales,
+                                                                                            )}
                                                                                         </span>
-                                                                                    ) : null}
-                                                                                </span>
-                                                                            );
-                                                                        })()}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="w-full truncate text-center text-xs text-muted-foreground">
-                                                                        {
-                                                                            item.label
-                                                                        }
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        ),
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        HPP:{' '}
+                                                                                        <span className="font-medium text-foreground">
+                                                                                            {formatNumber(
+                                                                                                item.hpp,
+                                                                                            )}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div>
+                                                                                        Biaya:{' '}
+                                                                                        <span className="font-medium text-foreground">
+                                                                                            {formatNumber(
+                                                                                                item.biaya,
+                                                                                            )}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="mt-3 space-y-2">
+                                                                                <div className="h-2 w-full rounded bg-muted/40">
+                                                                                    <div
+                                                                                        className={`h-2 rounded ${METRIC_COLORS.sales.bar}`}
+                                                                                        style={{
+                                                                                            width: `${Math.max(
+                                                                                                2,
+                                                                                                salesWidth,
+                                                                                            )}%`,
+                                                                                        }}
+                                                                                    />
+                                                                                </div>
+                                                                                <div className="h-2 w-full rounded bg-muted/40">
+                                                                                    <div
+                                                                                        className={`h-2 rounded ${METRIC_COLORS.hpp.bar}`}
+                                                                                        style={{
+                                                                                            width: `${Math.max(
+                                                                                                2,
+                                                                                                hppWidth,
+                                                                                            )}%`,
+                                                                                        }}
+                                                                                    />
+                                                                                </div>
+                                                                                <div className="h-2 w-full rounded bg-muted/40">
+                                                                                    <div
+                                                                                        className={`h-2 rounded ${METRIC_COLORS.biaya.bar}`}
+                                                                                        style={{
+                                                                                            width: `${Math.max(
+                                                                                                2,
+                                                                                                biayaWidth,
+                                                                                            )}%`,
+                                                                                        }}
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                },
+                                                            )}
+                                                        </div>
                                                     )}
                                             </div>
-                                        </div>
-                                    </>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
+
+                                            {/* Desktop: bar chart */}
+                                            <div className="hidden sm:block">
+                                                <div
+                                                    className={`grid min-h-[260px] flex-1 grid-flow-col items-end gap-4 overflow-x-auto px-2 py-4 ${
+                                                        isDenseSalesHpp
+                                                            ? 'auto-cols-[minmax(84px,1fr)] pb-10'
+                                                            : 'auto-cols-[minmax(56px,1fr)] lg:auto-cols-[minmax(72px,1fr)]'
+                                                    }`}
+                                                >
+                                                    {salesHppRequest.status !==
+                                                        'success' && (
+                                                        <>
+                                                            {Array.from({
+                                                                length: 10,
+                                                            }).map((_, idx) => (
+                                                                <div
+                                                                    key={idx}
+                                                                    className="flex min-w-[56px] flex-col items-center gap-2"
+                                                                >
+                                                                    <div className="flex h-48 w-full items-end justify-center gap-2">
+                                                                        <div className="h-[40%] w-full rounded-t-sm bg-muted" />
+                                                                        <div className="h-[65%] w-full rounded-t-sm bg-muted" />
+                                                                    </div>
+                                                                    <div className="h-3 w-10 rounded bg-muted" />
+                                                                </div>
+                                                            ))}
+                                                        </>
+                                                    )}
+
+                                                    {salesHppRequest.status ===
+                                                        'success' &&
+                                                        salesHppDerived.series
+                                                            .length === 0 && (
+                                                            <div className="col-span-full flex h-full items-center justify-center text-sm text-muted-foreground">
+                                                                Tidak ada data
+                                                                pada periode
+                                                                ini.
+                                                            </div>
+                                                        )}
+
+                                                    {salesHppRequest.status ===
+                                                        'success' &&
+                                                        salesHppDerived.series.map(
+                                                            (item) => (
+                                                                <div
+                                                                    key={
+                                                                        item.period
+                                                                    }
+                                                                    className={`group flex flex-col items-center gap-2 ${
+                                                                        isDenseSalesHpp
+                                                                            ? 'min-w-[84px]'
+                                                                            : 'min-w-[56px]'
+                                                                    }`}
+                                                                    onMouseEnter={(
+                                                                        event,
+                                                                    ) => {
+                                                                        setSalesHppHover(
+                                                                            {
+                                                                                x: event.clientX,
+                                                                                y: event.clientY,
+                                                                                label: item.label,
+                                                                                sales: item.sales,
+                                                                                hpp: item.hpp,
+                                                                                biaya: item.biaya,
+                                                                            },
+                                                                        );
+                                                                    }}
+                                                                    onMouseMove={(
+                                                                        event,
+                                                                    ) => {
+                                                                        setSalesHppHover(
+                                                                            (
+                                                                                prev,
+                                                                            ) =>
+                                                                                prev
+                                                                                    ? {
+                                                                                          ...prev,
+                                                                                          x: event.clientX,
+                                                                                          y: event.clientY,
+                                                                                      }
+                                                                                    : null,
+                                                                        );
+                                                                    }}
+                                                                    onMouseLeave={() =>
+                                                                        setSalesHppHover(
+                                                                            null,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <div className="relative flex h-48 w-full items-end justify-center gap-2">
+                                                                        <div className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
+                                                                            {!hideInBarValues &&
+                                                                                !isDenseSalesHpp &&
+                                                                                Number(
+                                                                                    item.sales ??
+                                                                                        0,
+                                                                                ) >
+                                                                                    0 && (
+                                                                                    <span
+                                                                                        className={`mb-1 w-full overflow-hidden px-0.5 text-center leading-none font-bold text-ellipsis whitespace-nowrap text-black tabular-nums dark:text-white ${
+                                                                                            isVeryShortSalesHpp
+                                                                                                ? 'block text-[10px] sm:text-xs'
+                                                                                                : isShortSalesHpp
+                                                                                                  ? 'block text-xs sm:text-sm'
+                                                                                                  : 'hidden text-[12px] md:block'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {isShortSalesHpp
+                                                                                            ? formatCompactNumber(
+                                                                                                  item.sales,
+                                                                                              )
+                                                                                            : formatNumber(
+                                                                                                  item.sales,
+                                                                                              )}
+                                                                                    </span>
+                                                                                )}
+                                                                            <div
+                                                                                className="w-full overflow-hidden rounded-t-sm bg-emerald-500/80 transition-colors hover:bg-emerald-500"
+                                                                                style={{
+                                                                                    height: `${Math.max(
+                                                                                        2,
+                                                                                        (Number(
+                                                                                            item.sales ??
+                                                                                                0,
+                                                                                        ) /
+                                                                                            salesHppDerived.max) *
+                                                                                            100,
+                                                                                    )}%`,
+                                                                                }}
+                                                                            />
+                                                                        </div>
+
+                                                                        <div className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
+                                                                            {!hideInBarValues &&
+                                                                                !isDenseSalesHpp &&
+                                                                                Number(
+                                                                                    item.hpp ??
+                                                                                        0,
+                                                                                ) >
+                                                                                    0 && (
+                                                                                    <span
+                                                                                        className={`mb-1 w-full overflow-hidden px-0.5 text-center leading-none font-bold text-ellipsis whitespace-nowrap text-black tabular-nums dark:text-white ${
+                                                                                            isVeryShortSalesHpp
+                                                                                                ? 'block text-[10px] sm:text-xs'
+                                                                                                : isShortSalesHpp
+                                                                                                  ? 'block text-xs sm:text-sm'
+                                                                                                  : 'hidden text-[12px] md:block'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {isShortSalesHpp
+                                                                                            ? formatCompactNumber(
+                                                                                                  item.hpp,
+                                                                                              )
+                                                                                            : formatNumber(
+                                                                                                  item.hpp,
+                                                                                              )}
+                                                                                    </span>
+                                                                                )}
+                                                                            <div
+                                                                                className="w-full overflow-hidden rounded-t-sm bg-blue-500/80 transition-colors hover:bg-blue-500"
+                                                                                style={{
+                                                                                    height: `${Math.max(
+                                                                                        2,
+                                                                                        (Number(
+                                                                                            item.hpp ??
+                                                                                                0,
+                                                                                        ) /
+                                                                                            salesHppDerived.max) *
+                                                                                            100,
+                                                                                    )}%`,
+                                                                                }}
+                                                                            />
+                                                                        </div>
+
+                                                                        <div className="flex h-full min-w-0 flex-1 flex-col items-center justify-end">
+                                                                            {!hideInBarValues &&
+                                                                                !isDenseSalesHpp &&
+                                                                                Number(
+                                                                                    item.biaya ??
+                                                                                        0,
+                                                                                ) >
+                                                                                    0 && (
+                                                                                    <span
+                                                                                        className={`mb-1 w-full overflow-hidden px-0.5 text-center leading-none font-bold text-ellipsis whitespace-nowrap text-black tabular-nums dark:text-white ${
+                                                                                            isVeryShortSalesHpp
+                                                                                                ? 'block text-[10px] sm:text-xs'
+                                                                                                : isShortSalesHpp
+                                                                                                  ? 'block text-xs sm:text-sm'
+                                                                                                  : 'hidden text-[12px] md:block'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {isShortSalesHpp
+                                                                                            ? formatCompactNumber(
+                                                                                                  item.biaya,
+                                                                                              )
+                                                                                            : formatNumber(
+                                                                                                  item.biaya,
+                                                                                              )}
+                                                                                    </span>
+                                                                                )}
+                                                                            <div
+                                                                                className="w-full overflow-hidden rounded-t-sm bg-red-500/80 transition-colors hover:bg-red-500"
+                                                                                style={{
+                                                                                    height: `${Math.max(
+                                                                                        2,
+                                                                                        (Number(
+                                                                                            item.biaya ??
+                                                                                                0,
+                                                                                        ) /
+                                                                                            salesHppDerived.max) *
+                                                                                            100,
+                                                                                    )}%`,
+                                                                                }}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                    {isDenseSalesHpp ? (
+                                                                        <span
+                                                                            className="w-full text-center text-[11px] leading-tight font-medium text-foreground/80 drop-shadow-sm"
+                                                                            title={
+                                                                                item.label
+                                                                            }
+                                                                        >
+                                                                            {(() => {
+                                                                                const {
+                                                                                    top,
+                                                                                    bottom,
+                                                                                } =
+                                                                                    denseLabelParts(
+                                                                                        item.label,
+                                                                                    );
+                                                                                return (
+                                                                                    <span className="inline-flex flex-col items-center">
+                                                                                        <span>
+                                                                                            {
+                                                                                                top
+                                                                                            }
+                                                                                        </span>
+                                                                                        {bottom ? (
+                                                                                            <span className="text-[10px] font-normal text-muted-foreground">
+                                                                                                {
+                                                                                                    bottom
+                                                                                                }
+                                                                                            </span>
+                                                                                        ) : null}
+                                                                                    </span>
+                                                                                );
+                                                                            })()}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="w-full truncate text-center text-xs text-muted-foreground">
+                                                                            {
+                                                                                item.label
+                                                                            }
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            ),
+                                                        )}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    )}
                 </div>
 
-                <div className="mt-4">
-                    <UserNote />
-                </div>
+                {canViewCard('user_note') && (
+                    <div className="mt-4">
+                        <UserNote />
+                    </div>
+                )}
             </div>
         </>
     );
