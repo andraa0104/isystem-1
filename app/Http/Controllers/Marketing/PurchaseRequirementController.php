@@ -13,6 +13,17 @@ use Carbon\Carbon;
 
 class PurchaseRequirementController
 {
+    private function tenantCacheKey(string $key): string
+    {
+        $connection = config('tenants.connection', config('database.default'));
+        $database = config("database.connections.$connection.database")
+            ?: request()?->session()?->get('tenant.database')
+            ?: request()?->cookie('tenant_database')
+            ?: 'default';
+
+        return 'tenant_' . preg_replace('/[^a-zA-Z0-9_:-]/', '_', (string) $database) . ':' . $key;
+    }
+
     public function getLastPrice(Request $request)
     {
         try {
@@ -216,7 +227,7 @@ class PurchaseRequirementController
         }
 
         // [CACHE] Simpan ringkasan summary di memori
-        return Cache::tags(['pr_data'])->remember($cacheKey, 86400, function () use ($period) {
+        return Cache::tags(['pr_data'])->remember($this->tenantCacheKey($cacheKey), 86400, function () use ($period) {
             $common = $this->getCommonQueries($period);
             $detailAgg = $common['detailAgg'];
             $poAgg = $common['poAgg'];
@@ -267,7 +278,7 @@ class PurchaseRequirementController
         }
 
         // [CACHE] Simpan seluruh list PR
-        return Cache::tags(['pr_data'])->remember($cacheKey, 86400, function () use ($period, $status) {
+        return Cache::tags(['pr_data'])->remember($this->tenantCacheKey($cacheKey), 86400, function () use ($period, $status) {
             $detailAgg = DB::table('tb_detailpr')
                 ->select(
                     'no_pr',
@@ -349,7 +360,7 @@ class PurchaseRequirementController
             return response()->json(['purchaseRequirementDetails' => []]);
         }
 
-        $purchaseRequirementDetails = Cache::tags(['pr_data'])->remember('pr_details_api_' . $noPr, 86400, function () use ($noPr) {
+        $purchaseRequirementDetails = Cache::tags(['pr_data'])->remember($this->tenantCacheKey('pr_details_api_' . $noPr), 86400, function () use ($noPr) {
             return DB::table('tb_detailpr')
                 ->select('no_pr', 'no', 'kd_material', 'material', 'qty', 'unit', 'sisa_pr', 'payment', 'renmark')
                 ->where('no_pr', $noPr)
@@ -362,7 +373,7 @@ class PurchaseRequirementController
 
     public function outstanding()
     {
-        $purchaseRequirements = Cache::tags(['pr_data'])->remember('pr_outstanding_list', 86400, function () {
+        $purchaseRequirements = Cache::tags(['pr_data'])->remember($this->tenantCacheKey('pr_outstanding_list'), 86400, function () {
             $detailAgg = DB::table('tb_detailpr')
                 ->select(
                     'no_pr',
@@ -401,7 +412,7 @@ class PurchaseRequirementController
 
     public function sisaPo()
     {
-        $purchaseRequirements = Cache::tags(['pr_data'])->remember('pr_sisapo_list', 86400, function () {
+        $purchaseRequirements = Cache::tags(['pr_data'])->remember($this->tenantCacheKey('pr_sisapo_list'), 86400, function () {
             $detailAgg = DB::table('tb_detailpr')
                 ->select(
                     'no_pr',
@@ -469,7 +480,7 @@ class PurchaseRequirementController
             $cacheKey .= '_' . $now->year;
         }
 
-        $data = Cache::tags(['pr_data'])->remember($cacheKey, 86400, function () use ($period) {
+        $data = Cache::tags(['pr_data'])->remember($this->tenantCacheKey($cacheKey), 86400, function () use ($period) {
             $docDateExpr = "coalesce(date(tgl), str_to_date(tgl, '%Y-%m-%d'), str_to_date(tgl, '%Y/%m/%d'), str_to_date(tgl, '%d/%m/%Y'), str_to_date(tgl, '%d-%m-%Y'), str_to_date(tgl, '%d.%m.%Y'))";
 
             $detailAgg = DB::table('tb_detailpr')
@@ -558,7 +569,7 @@ class PurchaseRequirementController
         // [CACHE] Menggunakan material_data yang sama dengan Master Data Material
         $cacheKey = 'pr_materials_' . md5(json_encode([$search, $perPageInput, $page]));
 
-        $data = Cache::tags(['material_data'])->remember($cacheKey, 86400, function () use ($search, $perPageInput, $page) {
+        $data = Cache::tags(['material_data'])->remember($this->tenantCacheKey($cacheKey), 86400, function () use ($search, $perPageInput, $page) {
             $query = DB::table('tb_material')
                 ->select('kd_material', 'material', 'unit', 'stok', 'harga');
 
@@ -610,7 +621,7 @@ class PurchaseRequirementController
         // [CACHE] Terikat dengan poin_data karena list customer ini bergantung pada sisa_qtypr dari tabel PO In
         $cacheKey = 'pr_customers_poin_' . md5(json_encode([$search, $perPageInput, $page]));
 
-        $data = Cache::tags(['poin_data', 'customer_data'])->remember($cacheKey, 86400, function () use ($search, $perPageInput, $page) {
+        $data = Cache::tags(['poin_data', 'customer_data'])->remember($this->tenantCacheKey($cacheKey), 86400, function () use ($search, $perPageInput, $page) {
             $perPage = $perPageInput === 'all'
                 ? null
                 : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
@@ -662,7 +673,7 @@ class PurchaseRequirementController
             return response()->json(['items' => []]);
         }
 
-        $data = Cache::tags(['poin_data', 'material_data'])->remember('pr_poin_details_v2_' . $kodePoin, 86400, function () use ($kodePoin) {
+        $data = Cache::tags(['poin_data', 'material_data'])->remember($this->tenantCacheKey('pr_poin_details_v2_' . $kodePoin), 86400, function () use ($kodePoin) {
             $hasLineNo = Schema::hasColumn('tb_detailpoin', 'no');
             $hasRemark = Schema::hasColumn('tb_detailpoin', 'remark');
             $hasBarangStock = Schema::hasTable('tb_barang')
@@ -752,7 +763,7 @@ class PurchaseRequirementController
 
     public function edit($noPr)
     {
-        $purchaseRequirement = Cache::tags(['pr_data'])->remember('pr_header_' . $noPr, 86400, function () use ($noPr) {
+        $purchaseRequirement = Cache::tags(['pr_data'])->remember($this->tenantCacheKey('pr_header_' . $noPr), 86400, function () use ($noPr) {
             return DB::table('tb_pr')
                 ->select('no_pr', 'date', 'payment', 'for_customer', 'ref_po')
                 ->where('no_pr', $noPr)
@@ -765,7 +776,7 @@ class PurchaseRequirementController
                 ->with('error', 'Data PR tidak ditemukan.');
         }
 
-        $purchaseRequirementDetails = Cache::tags(['pr_data'])->remember('pr_details_' . $noPr, 86400, function () use ($noPr) {
+        $purchaseRequirementDetails = Cache::tags(['pr_data'])->remember($this->tenantCacheKey('pr_details_' . $noPr), 86400, function () use ($noPr) {
             return DB::table('tb_detailpr')
                 ->where('no_pr', $noPr)
                 ->orderBy('no')
@@ -1403,7 +1414,7 @@ class PurchaseRequirementController
 
     public function print(Request $request, $noPr)
     {
-        $data = Cache::tags(['pr_data'])->remember('pr_print_' . $noPr, 86400, function () use ($noPr) {
+        $data = Cache::tags(['pr_data'])->remember($this->tenantCacheKey('pr_print_' . $noPr), 86400, function () use ($noPr) {
             $purchaseRequirement = DB::table('tb_pr')
                 ->select('no_pr', 'date', 'for_customer', 'ref_po', 'payment')
                 ->where('no_pr', $noPr)
