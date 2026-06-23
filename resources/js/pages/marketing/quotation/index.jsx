@@ -25,13 +25,13 @@ const breadcrumbs = [
     { title: 'Quotation', href: '/marketing/quotation' },
 ];
 
-const formatRupiah = (value) => {
+const formatNumber = (value) => {
     const number = Number(value);
     if (Number.isNaN(number)) {
         return '-';
     }
 
-    return `Rp. ${new Intl.NumberFormat('id-ID').format(number)}`;
+    return new Intl.NumberFormat('id-ID').format(number);
 };
 
 const renderValue = (value) =>
@@ -496,14 +496,14 @@ export default function QuotationIndex({
                         </div>
 
                         <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full text-sm">
+                            <table className="w-full table-auto text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 text-left">No Penawaran</th>
-                                        <th className="px-4 py-3 text-left">Tanggal</th>
-                                        <th className="px-4 py-3 text-left">Customer</th>
-                                        <th className="px-4 py-3 text-left">Attend</th>
-                                        <th className="px-4 py-3 text-left">Action</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">No Penawaran</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Tanggal</th>
+                                        <th className="w-full whitespace-nowrap px-2 py-2 text-left">Customer</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Attend</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -515,11 +515,15 @@ export default function QuotationIndex({
                                     {!loading &&
                                         displayedPenawaran.map((item) => (
                                             <tr key={item.No_penawaran} className="border-t border-sidebar-border/70">
-                                                <td className="px-4 py-3">{item.No_penawaran}</td>
-                                                <td className="px-4 py-3">{item.Tgl_Posting}</td>
-                                                <td className="px-4 py-3">{item.Customer}</td>
-                                                <td className="px-4 py-3">{item.Attend}</td>
-                                                <td className="px-4 py-3">
+                                                <td className="w-1 whitespace-nowrap px-2 py-2">{item.No_penawaran}</td>
+                                                <td className="w-1 whitespace-nowrap px-2 py-2">{item.Tgl_Posting}</td>
+                                                <td className="w-full min-w-0 px-2 py-2">
+                                                    <div className="truncate" title={item.Customer}>
+                                                        {item.Customer}
+                                                    </div>
+                                                </td>
+                                                <td className="w-1 whitespace-nowrap px-2 py-2">{item.Attend}</td>
+                                                <td className="w-1 whitespace-nowrap px-2 py-2">
                                                     <div className="flex items-center gap-2">
                                                         <button
                                                             type="button"
@@ -629,15 +633,15 @@ export default function QuotationIndex({
                         </div>
 
                         <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full text-sm">
+                            <table className="w-full table-auto text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 text-left">No Penawaran</th>
-                                        <th className="px-4 py-3 text-left">Material</th>
-                                        <th className="px-4 py-3 text-left">Qty</th>
-                                        <th className="px-4 py-3 text-right">Harga</th>
-                                        <th className="px-4 py-3 text-right">Harga Modal</th>
-                                        <th className="px-4 py-3 text-left">Action</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">No Penawaran</th>
+                                        <th className="w-full whitespace-nowrap px-2 py-2 text-left">Material</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Qty</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-right">Harga</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-right">Harga Modal</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -650,20 +654,22 @@ export default function QuotationIndex({
                                     {!materialLoading &&
                                         remoteMaterialDetails.map((item, idx) => (
                                             <tr key={item.id_detail || idx} className="border-t border-sidebar-border/70">
-                                                <td className="px-4 py-3">{renderValue(item.No_Penawaran)}</td>
-                                                <td className="px-4 py-3 max-w-[250px] truncate uppercase" title={item.Material}>
-                                                    {renderValue(item.Material)}
+                                                <td className="w-1 whitespace-nowrap px-2 py-2">{renderValue(item.No_Penawaran)}</td>
+                                                <td className="w-full min-w-0 px-2 py-2 uppercase">
+                                                    <div className="truncate" title={item.Material}>
+                                                        {renderValue(item.Material)}
+                                                    </div>
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="w-1 whitespace-nowrap px-2 py-2">
                                                     {item.Qty} {item.Satuan ? renderValue(item.Satuan) : ''}
                                                 </td>
-                                                <td className="px-4 py-3 text-right font-mono font-bold">
-                                                    {formatRupiah(item.Harga)}
+                                                <td className="w-1 whitespace-nowrap px-2 py-2 text-right font-mono font-bold">
+                                                    {formatNumber(item.Harga)}
                                                 </td>
-                                                <td className="px-4 py-3 text-right font-mono">
-                                                    {formatRupiah(item.Harga_modal)}
+                                                <td className="w-1 whitespace-nowrap px-2 py-2 text-right font-mono">
+                                                    {formatNumber(item.Harga_modal)}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="w-1 whitespace-nowrap px-2 py-2">
                                                     <button
                                                         type="button"
                                                         onClick={() => handleOpenModal(item)}
@@ -840,16 +846,16 @@ export default function QuotationIndex({
                                         </label>
                                     </div>
                                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                                        <table className="w-full text-sm">
+                                        <table className="w-full table-auto text-sm">
                                             <thead className="bg-muted/50 text-muted-foreground">
                                                 <tr>
-                                                    <th className="px-4 py-3 text-left">No</th>
-                                                    <th className="px-4 py-3 text-left">Material</th>
-                                                    <th className="px-4 py-3 text-left">Qty</th>
-                                                    <th className="px-4 py-3 text-left">Harga</th>
-                                                    <th className="px-4 py-3 text-left">Harga Modal</th>
-                                                    <th className="px-4 py-3 text-left">Margin</th>
-                                                    <th className="px-4 py-3 text-left">Remark</th>
+                                                    <th className="w-1 whitespace-nowrap px-2 py-2 text-left">No</th>
+                                                    <th className="w-full whitespace-nowrap px-2 py-2 text-left">Material</th>
+                                                    <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Qty</th>
+                                                    <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Harga</th>
+                                                    <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Harga Modal</th>
+                                                    <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Margin</th>
+                                                    <th className="w-[18rem] whitespace-nowrap px-2 py-2 text-left">Remark</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -864,17 +870,25 @@ export default function QuotationIndex({
                                                 ) : (
                                                     displayedMaterialDetails.map((detail, index) => (
                                                         <tr key={index} className="border-t border-sidebar-border/70">
-                                                            <td className="px-4 py-3">
+                                                            <td className="w-1 whitespace-nowrap px-2 py-2">
                                                                 {modalMaterialPageSize === Infinity
                                                                     ? index + 1
                                                                     : (modalMaterialCurrentPage - 1) * modalMaterialPageSize + index + 1}
                                                             </td>
-                                                            <td className="px-4 py-3">{detail.Material}</td>
-                                                            <td className="px-4 py-3">{detail.Qty} {detail.Satuan}</td>
-                                                            <td className="px-4 py-3">{formatRupiah(detail.Harga)}</td>
-                                                            <td className="px-4 py-3">{formatRupiah(detail.Harga_Modal)}</td>
-                                                            <td className="px-4 py-3">{detail.Margin}</td>
-                                                            <td className="px-4 py-3">{detail.Remark}</td>
+                                                            <td className="w-full min-w-0 px-2 py-2">
+                                                                <div className="truncate" title={detail.Material}>
+                                                                    {detail.Material}
+                                                                </div>
+                                                            </td>
+                                                            <td className="w-1 whitespace-nowrap px-2 py-2">{detail.Qty} {detail.Satuan}</td>
+                                                            <td className="w-1 whitespace-nowrap px-2 py-2">{formatNumber(detail.Harga)}</td>
+                                                            <td className="w-1 whitespace-nowrap px-2 py-2">{formatNumber(detail.Harga_Modal)}</td>
+                                                            <td className="w-1 whitespace-nowrap px-2 py-2">{detail.Margin}</td>
+                                                            <td className="w-[18rem] max-w-[18rem] px-2 py-2">
+                                                                <div className="truncate" title={detail.Remark}>
+                                                                    {detail.Remark}
+                                                                </div>
+                                                            </td>
                                                         </tr>
                                                     ))
                                                 )}

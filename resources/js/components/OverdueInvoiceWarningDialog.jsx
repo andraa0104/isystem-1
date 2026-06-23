@@ -35,6 +35,23 @@ const formatAmount = (value, showCurrencyPrefix = true) =>
     }).format(Math.round(toNumber(value)))}`;
 
 const pageSizeOptions = [5, 10, 15, 25, 50];
+const ageFilterOptions = [
+    {
+        value: 'all',
+        label: 'Semua data',
+        matches: () => true,
+    },
+    {
+        value: '0-30',
+        label: '0 - 30 hari',
+        matches: (days) => days >= 0 && days <= 30,
+    },
+    ...[30, 60, 90, 180, 360, 720].map((days) => ({
+        value: `gt-${days}`,
+        label: `> ${days} hari`,
+        matches: (value) => value > days,
+    })),
+];
 
 export default function OverdueInvoiceWarningDialog({
     open,
@@ -54,15 +71,19 @@ export default function OverdueInvoiceWarningDialog({
     const [search, setSearch] = useState('');
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
-    const [minimumOverdueDays, setMinimumOverdueDays] = useState(90);
+    const [ageFilter, setAgeFilter] = useState('gt-90');
 
     const invoices = Array.isArray(data?.invoices) ? data.invoices : [];
+    const selectedAgeFilter =
+        ageFilterOptions.find((option) => option.value === ageFilter) ??
+        ageFilterOptions[4];
+
     const filteredInvoices = useMemo(() => {
         const keyword = search.trim().toLowerCase();
         return invoices.filter((invoice) => {
             const matchesAge =
                 !enableAgeFilter ||
-                toNumber(invoice.umur_tempo) > minimumOverdueDays;
+                selectedAgeFilter.matches(toNumber(invoice.umur_tempo));
             const matchesSearch =
                 !keyword ||
                 String(invoice.no_fakturpenjualan ?? '')
@@ -71,7 +92,7 @@ export default function OverdueInvoiceWarningDialog({
 
             return matchesAge && matchesSearch;
         });
-    }, [enableAgeFilter, invoices, minimumOverdueDays, search]);
+    }, [enableAgeFilter, invoices, search, selectedAgeFilter]);
 
     const filteredTotalOverdue = useMemo(
         () =>
@@ -97,7 +118,7 @@ export default function OverdueInvoiceWarningDialog({
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [search, pageSize, minimumOverdueDays, open]);
+    }, [search, pageSize, ageFilter, open]);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -120,7 +141,7 @@ export default function OverdueInvoiceWarningDialog({
                         <div className="text-muted-foreground">
                             Jumlah Tunggakan
                             {enableAgeFilter
-                                ? ` > ${minimumOverdueDays} Hari`
+                                ? ` ${selectedAgeFilter.label}`
                                 : ''}
                         </div>
                         <div className="font-semibold">
@@ -174,16 +195,17 @@ export default function OverdueInvoiceWarningDialog({
                                 Umur Tunggakan
                                 <select
                                     className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={minimumOverdueDays}
+                                    value={ageFilter}
                                     onChange={(event) =>
-                                        setMinimumOverdueDays(
-                                            Number(event.target.value),
-                                        )
+                                        setAgeFilter(event.target.value)
                                     }
                                 >
-                                    {[30, 60, 90, 180, 360, 720].map((days) => (
-                                        <option key={days} value={days}>
-                                            &gt; {days} hari
+                                    {ageFilterOptions.map((option) => (
+                                        <option
+                                            key={option.value}
+                                            value={option.value}
+                                        >
+                                            {option.label}
                                         </option>
                                     ))}
                                 </select>

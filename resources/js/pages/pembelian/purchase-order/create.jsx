@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -37,6 +38,10 @@ const parseNumber = (value) => {
     const parsed = Number(normalized);
     return Number.isNaN(parsed) ? 0 : parsed;
 };
+
+const hasOverdueMoreThan90Days = (item) =>
+    Boolean(item?.has_overdue_gt_90) ||
+    parseNumber(item?.oldest_overdue_days) > 90;
 
 const formatRupiah = (value) => {
     const number = Number(value);
@@ -1345,36 +1350,69 @@ export default function PurchaseOrderCreate({
                                         }
                                         emptyTitle="Tidak ada PR outstanding."
                                     />
-                                    {displayedPr.map((item) => (
-                                        <tr
-                                            key={item.no_pr}
-                                            className="border-t border-sidebar-border/70"
-                                        >
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.no_pr)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.date)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.for_customer)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.ref_po)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() =>
-                                                        handlePrSelect(item)
-                                                    }
-                                                >
-                                                    Pilih
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {displayedPr.map((item) => {
+                                        const isBlocked =
+                                            hasOverdueMoreThan90Days(item);
+
+                                        return (
+                                            <tr
+                                                key={item.no_pr}
+                                                className="border-t border-sidebar-border/70"
+                                            >
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.no_pr)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.date)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span>
+                                                            {renderValue(
+                                                                item.for_customer,
+                                                            )}
+                                                        </span>
+                                                        {isBlocked && (
+                                                            <Badge variant="destructive">
+                                                                Tunggakan &gt; 90 hari
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.ref_po)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-col items-start gap-1">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            disabled={isBlocked}
+                                                            title={
+                                                                isBlocked
+                                                                    ? 'Customer memiliki tunggakan tagihan > 90 hari, tidak dapat dibuatkan PO keluar.'
+                                                                    : undefined
+                                                            }
+                                                            onClick={() =>
+                                                                handlePrSelect(
+                                                                    item,
+                                                                )
+                                                            }
+                                                        >
+                                                            Pilih
+                                                        </Button>
+                                                        {isBlocked && (
+                                                            <span className="max-w-48 text-xs leading-snug text-red-600">
+                                                                Tidak dapat
+                                                                dibuatkan PO
+                                                                keluar.
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>

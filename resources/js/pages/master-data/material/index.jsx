@@ -20,7 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { Head, router, useForm } from '@inertiajs/react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
@@ -38,6 +38,44 @@ const compareCode = (a, b) =>
         sensitivity: 'base',
     });
 
+const formatNumber = (value) => {
+    const number = Number(value ?? 0);
+    if (!Number.isFinite(number)) {
+        return '0';
+    }
+
+    return new Intl.NumberFormat('id-ID', {
+        maximumFractionDigits: 0,
+    }).format(Math.trunc(number));
+};
+
+const stockRows = (material) => [
+    {
+        label: 'G1',
+        stok: material?.stok_g1,
+        harga: material?.harga_stokg1,
+        kategori: material?.kategori_stok1,
+    },
+    {
+        label: 'G2',
+        stok: material?.stok_g2,
+        harga: material?.harga_stokg2,
+        kategori: material?.kategori_stok2,
+    },
+    {
+        label: 'G3',
+        stok: material?.stok_g3,
+        harga: material?.harga_stokg3,
+        kategori: material?.kategori_stok3,
+    },
+    {
+        label: 'G4',
+        stok: material?.stok_g4,
+        harga: material?.harga_stokg4,
+        kategori: material?.kategori_stok4,
+    },
+];
+
 export default function MaterialIndex({ materials }) {
     // --- States Utama ---
     const [materialsList, setMaterialsList] = useState([]);
@@ -54,6 +92,7 @@ export default function MaterialIndex({ materials }) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState(null);
+    const [viewingMaterial, setViewingMaterial] = useState(null);
 
     const { data, setData, post, processing, reset, errors } = useForm({
         material: '',
@@ -127,11 +166,12 @@ export default function MaterialIndex({ materials }) {
             return items;
         }
 
-        return items.filter((item) =>
-            String(item.material ?? '')
-                .toLowerCase()
-                .includes(term),
-        );
+        return items.filter((item) => {
+            const values = [item.kd_material, item.material, item.unit];
+            return values.some((value) =>
+                String(value ?? '').toLowerCase().includes(term),
+            );
+        });
     }, [materialsList, debouncedSearchTerm, stockFilter, codeOrder]);
 
     const totalItems = filteredMaterials.length;
@@ -175,7 +215,7 @@ export default function MaterialIndex({ materials }) {
             material: material.material ?? '',
             unit: material.unit ?? '',
             stok: material.stok ?? 0,
-            remark: material.remark ?? '',
+            remark: material.kategori_stok1 ?? '',
         });
         setIsEditModalOpen(true);
     };
@@ -340,31 +380,25 @@ export default function MaterialIndex({ materials }) {
 
                         <div className="overflow-hidden rounded-xl border border-sidebar-border/70">
                             <div className="max-h-[65vh] overflow-auto overscroll-contain">
-                                <table className="w-full text-sm">
+                                <table className="w-full table-auto text-sm">
                                     <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                         <tr>
-                                            <th className="px-4 py-3 text-left">
+                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-left">
                                                 No
                                             </th>
-                                            <th className="sticky left-0 z-[2] w-[160px] bg-background/95 px-4 py-3 text-left">
+                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-left">
                                                 Kode Material
                                             </th>
-                                            <th className="sticky left-[160px] z-[2] min-w-[240px] bg-background/95 px-4 py-3 text-left">
+                                            <th className="w-full whitespace-nowrap px-2 py-2 text-left">
                                                 Nama Material
                                             </th>
-                                            <th className="px-4 py-3 text-left">
+                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-left">
                                                 Satuan
                                             </th>
-                                            <th className="px-4 py-3 text-right">
-                                                Stok
+                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-right">
+                                                Total Stok
                                             </th>
-                                            <th className="px-4 py-3 text-right">
-                                                Harga
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Remark
-                                            </th>
-                                            <th className="sticky right-0 z-[2] bg-background/95 px-4 py-3 text-center">
+                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-center">
                                                 Aksi
                                             </th>
                                         </tr>
@@ -372,7 +406,7 @@ export default function MaterialIndex({ materials }) {
                                     <tbody>
                                         {tableLoading ? (
                                             <tr>
-                                                <td className="px-4 py-4" colSpan={8}>
+                                                <td className="px-4 py-4" colSpan={6}>
                                                     <div className="flex flex-col gap-3">
                                                         <Skeleton className="h-6 w-full opacity-60" />
                                                         <Skeleton className="h-6 w-full opacity-60" />
@@ -384,7 +418,7 @@ export default function MaterialIndex({ materials }) {
                                             <tr>
                                                 <td
                                                     className="px-4 py-6 text-center text-muted-foreground"
-                                                    colSpan={8}
+                                                    colSpan={6}
                                                 >
                                                     <div>
                                                         Data material belum
@@ -412,7 +446,7 @@ export default function MaterialIndex({ materials }) {
                                                         key={`${item.kd_material}-${index}`}
                                                         className="border-t border-sidebar-border/70"
                                                     >
-                                                        <td className="px-4 py-3">
+                                                        <td className="w-1 whitespace-nowrap px-2 py-2">
                                                             {(pageSize === Infinity
                                                                 ? index
                                                                 : (currentPage -
@@ -420,34 +454,39 @@ export default function MaterialIndex({ materials }) {
                                                                       pageSize +
                                                                   index) + 1}
                                                         </td>
-                                                        <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
+                                                        <td className="w-1 whitespace-nowrap px-2 py-2 font-medium">
                                                             {renderValue(
                                                                 item.kd_material,
                                                             )}
                                                         </td>
-                                                        <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
-                                                            {renderValue(
-                                                                item.material,
-                                                            )}
+                                                        <td className="w-full min-w-0 px-2 py-2">
+                                                            <div
+                                                                className="truncate"
+                                                                title={item.material}
+                                                            >
+                                                                {renderValue(
+                                                                    item.material,
+                                                                )}
+                                                            </div>
                                                         </td>
-                                                        <td className="px-4 py-3">
+                                                        <td className="w-1 whitespace-nowrap px-2 py-2">
                                                             {renderValue(item.unit)}
                                                         </td>
-                                                        <td className="px-4 py-3 text-right tabular-nums">
-                                                            {renderValue(item.stok)}
+                                                        <td className="w-1 whitespace-nowrap px-2 py-2 text-right tabular-nums">
+                                                            {formatNumber(item.stok)}
                                                         </td>
-                                                        <td className="px-4 py-3 text-right tabular-nums">
-                                                            {renderValue(
-                                                                item.harga,
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                item.remark,
-                                                            )}
-                                                        </td>
-                                                        <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
+                                                        <td className="w-1 whitespace-nowrap px-2 py-2">
                                                             <div className="flex items-center justify-center gap-2">
+                                                                <ActionIconButton
+                                                                    label="Lihat detail stok"
+                                                                    onClick={() =>
+                                                                        setViewingMaterial(
+                                                                            item,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <Eye className="h-4 w-4" />
+                                                                </ActionIconButton>
                                                                 <ActionIconButton
                                                                     label="Edit"
                                                                     onClick={() =>
@@ -528,6 +567,110 @@ export default function MaterialIndex({ materials }) {
                     </CardContent>
                 </Card>
             </div>
+
+            <Dialog
+                open={Boolean(viewingMaterial)}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setViewingMaterial(null);
+                    }
+                }}
+            >
+                <DialogContent className="max-w-3xl">
+                    <DialogHeader>
+                        <DialogTitle>Detail Stok Material</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Detail stok material per gudang.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {viewingMaterial && (
+                        <div className="space-y-4 text-sm">
+                            <div className="grid gap-3 rounded-md border bg-muted/30 p-4 md:grid-cols-3">
+                                <div>
+                                    <div className="text-muted-foreground">
+                                        Kode Material
+                                    </div>
+                                    <div className="font-semibold">
+                                        {renderValue(
+                                            viewingMaterial.kd_material,
+                                        )}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground">
+                                        Nama Material
+                                    </div>
+                                    <div className="font-semibold">
+                                        {renderValue(viewingMaterial.material)}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground">
+                                        Satuan
+                                    </div>
+                                    <div className="font-semibold">
+                                        {renderValue(viewingMaterial.unit)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto rounded-md border">
+                                <table className="w-full table-auto text-sm">
+                                    <thead className="bg-muted/50 text-muted-foreground">
+                                        <tr>
+                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-left">
+                                                Gudang
+                                            </th>
+                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-right">
+                                                Stok
+                                            </th>
+                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-right">
+                                                Harga
+                                            </th>
+                                            <th className="w-full whitespace-nowrap px-2 py-2 text-left">
+                                                Kategori
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {stockRows(viewingMaterial).map(
+                                            (row) => (
+                                                <tr
+                                                    key={row.label}
+                                                    className="border-t border-sidebar-border/70"
+                                                >
+                                                    <td className="w-1 whitespace-nowrap px-2 py-2 font-medium">
+                                                        {row.label}
+                                                    </td>
+                                                    <td className="w-1 whitespace-nowrap px-2 py-2 text-right tabular-nums">
+                                                        {formatNumber(row.stok)}
+                                                    </td>
+                                                    <td className="w-1 whitespace-nowrap px-2 py-2 text-right tabular-nums">
+                                                        {formatNumber(row.harga)}
+                                                    </td>
+                                                    <td className="w-full min-w-0 px-2 py-2">
+                                                        <div
+                                                            className="truncate"
+                                                            title={renderValue(
+                                                                row.kategori,
+                                                            )}
+                                                        >
+                                                            {renderValue(
+                                                                row.kategori,
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ),
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {isModalOpen && (
                 <Dialog

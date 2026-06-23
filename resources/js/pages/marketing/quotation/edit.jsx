@@ -55,6 +55,17 @@ const formatRupiahInput = (value) => {
     return `Rp ${Number(digits).toLocaleString('id-ID')}`;
 };
 
+const formatInteger = (value) => {
+    const number = Number(value ?? 0);
+    if (!Number.isFinite(number)) {
+        return '0';
+    }
+
+    return new Intl.NumberFormat('id-ID', {
+        maximumFractionDigits: 0,
+    }).format(Math.trunc(number));
+};
+
 const fillOrSpace = (value) => {
     const text = String(value ?? '').trim();
     return text === '' ? ' ' : text;
@@ -212,7 +223,16 @@ export default function QuotationEdit({
         }
 
         return materialList.filter((item) => {
-            const values = [item.material, item.unit, item.remark];
+            const values = [
+                item.kd_material,
+                item.material,
+                item.unit,
+                item.stok_g1,
+                item.stok_g2,
+                item.stok_g3,
+                item.stok_g4,
+                item.stok,
+            ];
             return values.some((value) =>
                 String(value ?? '')
                     .toLowerCase()
@@ -368,9 +388,11 @@ export default function QuotationEdit({
         setMaterialLoading(true);
         setMaterialError('');
         try {
-            const response = await fetch('/marketing/quotation/materials', {
-                headers: { Accept: 'application/json' },
-            });
+            const params = new URLSearchParams({ pageSize: 'all' });
+            const response = await fetch(
+                `/marketing/quotation/materials?${params.toString()}`,
+                { headers: { Accept: 'application/json' } },
+            );
             if (!response.ok) {
                 throw new Error('Request failed');
             }
@@ -1639,25 +1661,21 @@ export default function QuotationEdit({
                     </div>
 
                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                        <table className="w-full text-sm">
+                        <table className="w-full table-auto text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 text-left">No</th>
-                                    <th className="px-4 py-3 text-left">
-                                        Material
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Unit
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Stok
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Remark
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Action
-                                    </th>
+                                    <th className="w-32 px-2 py-2 text-left" rowSpan={2}>Kode Material</th>
+                                    <th className="px-2 py-2 text-left" rowSpan={2}>Nama Material</th>
+                                    <th className="px-2 py-2 text-center" colSpan={5}>Stok</th>
+                                    <th className="w-20 px-2 py-2 text-left" rowSpan={2}>Satuan</th>
+                                    <th className="w-20 px-2 py-2 text-left" rowSpan={2}>Action</th>
+                                </tr>
+                                <tr>
+                                    <th className="w-16 px-2 py-2 text-right">G1</th>
+                                    <th className="w-16 px-2 py-2 text-right">G2</th>
+                                    <th className="w-16 px-2 py-2 text-right">G3</th>
+                                    <th className="w-16 px-2 py-2 text-right">G4</th>
+                                    <th className="w-20 px-2 py-2 text-right">Total</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1665,7 +1683,7 @@ export default function QuotationEdit({
                                     <tr>
                                         <td
                                             className="px-4 py-6 text-center text-muted-foreground"
-                                            colSpan={6}
+                                            colSpan={9}
                                         >
                                             {materialLoading
                                                 ? 'Memuat data material...'
@@ -1676,32 +1694,21 @@ export default function QuotationEdit({
                                 )}
                                 {displayedMaterials.map((item, index) => (
                                     <tr
-                                        key={`${item.material}-${index}`}
+                                        key={item.kd_material ?? `${item.material}-${index}`}
                                         className="border-t border-sidebar-border/70"
                                         onDoubleClick={() =>
                                             handleSelectMaterial(item)
                                         }
                                     >
-                                        <td className="px-4 py-3">
-                                            {(materialPageSize === Infinity
-                                                ? index
-                                                : (materialPage - 1) *
-                                                      materialPageSize +
-                                                  index) + 1}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.material}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.unit}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.stok}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {item.remark || '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
+                                        <td className="whitespace-nowrap px-2 py-2">{item.kd_material ?? '-'}</td>
+                                        <td className="px-2 py-2">{item.material ?? '-'}</td>
+                                        <td className="whitespace-nowrap px-2 py-2 text-right">{formatInteger(item.stok_g1)}</td>
+                                        <td className="whitespace-nowrap px-2 py-2 text-right">{formatInteger(item.stok_g2)}</td>
+                                        <td className="whitespace-nowrap px-2 py-2 text-right">{formatInteger(item.stok_g3)}</td>
+                                        <td className="whitespace-nowrap px-2 py-2 text-right">{formatInteger(item.stok_g4)}</td>
+                                        <td className="whitespace-nowrap px-2 py-2 text-right">{formatInteger(item.stok)}</td>
+                                        <td className="whitespace-nowrap px-2 py-2">{item.unit ?? '-'}</td>
+                                        <td className="px-2 py-2">
                                             <Button
                                                 type="button"
                                                 variant="ghost"

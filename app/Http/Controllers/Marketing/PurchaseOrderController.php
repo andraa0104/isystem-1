@@ -99,15 +99,32 @@ class PurchaseOrderController
 
     public function outstandingPurchaseRequirements()
     {
-        $purchaseRequirements = Cache::tags(self::PO_PR_CACHE_TAGS)->remember($this->poCacheKey('outstanding-pr'), self::PO_CACHE_TTL, function () {
+        $purchaseRequirements = Cache::tags(self::PO_PR_CACHE_TAGS)->remember($this->poCacheKey('outstanding-pr-v2'), self::PO_CACHE_TTL, function () {
+            $today = \Carbon\Carbon::today()->toDateString();
+            $dueDateExpr = "coalesce(date(jth_tempo), str_to_date(jth_tempo, '%Y-%m-%d'), str_to_date(jth_tempo, '%Y/%m/%d'), str_to_date(jth_tempo, '%d/%m/%Y'), str_to_date(jth_tempo, '%d-%m-%Y'), str_to_date(jth_tempo, '%d.%m.%Y'))";
+            $overdueCustomers = DB::table('tb_kdfakturpenjualan')
+                ->whereRaw('coalesce(cast(saldo_piutang as decimal(18,4)), 0) > 0')
+                ->whereRaw("trim(coalesce(nm_cs, '')) <> ''")
+                ->whereRaw("{$dueDateExpr} < ?", [$today])
+                ->select(
+                    DB::raw('lower(trim(nm_cs)) as customer_key'),
+                    DB::raw("max(datediff('{$today}', {$dueDateExpr})) as oldest_overdue_days")
+                )
+                ->groupBy(DB::raw('lower(trim(nm_cs))'));
+
             return DB::table('tb_detailpr as dpr')
                 ->join('tb_pr as pr', 'pr.no_pr', '=', 'dpr.no_pr')
+                ->leftJoinSub($overdueCustomers, 'overdue', function ($join) {
+                    $join->on(DB::raw('lower(trim(pr.for_customer))'), '=', 'overdue.customer_key');
+                })
                 ->whereRaw("coalesce(cast(replace(dpr.sisa_pr, ',', '') as decimal(65,4)), 0) > 0")
                 ->select(
                     'pr.no_pr',
                     'pr.date',
                     'pr.for_customer',
-                    'pr.ref_po'
+                    'pr.ref_po',
+                    DB::raw('coalesce(overdue.oldest_overdue_days, 0) as oldest_overdue_days'),
+                    DB::raw('case when coalesce(overdue.oldest_overdue_days, 0) > 90 then 1 else 0 end as has_overdue_gt_90')
                 )
                 ->distinct()
                 ->orderBy('pr.no_pr', 'desc')
@@ -121,6 +138,8 @@ class PurchaseOrderController
                 } catch (\Throwable $e) {
                 }
             }
+            $item->oldest_overdue_days = (int) ($item->oldest_overdue_days ?? 0);
+            $item->has_overdue_gt_90 = (bool) ($item->has_overdue_gt_90 ?? false);
             return $item;
         });
 

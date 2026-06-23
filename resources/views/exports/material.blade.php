@@ -36,14 +36,6 @@
         </style>
     </head>
     <body>
-        @php
-            $formatRupiah = function ($value) {
-                if ($value === null || $value === '') {
-                    return '-';
-                }
-                return 'Rp ' . number_format((float) $value, 0, ',', '.');
-            };
-        @endphp
         <h1>Export Data Material</h1>
         <table>
             <thead>
@@ -52,12 +44,19 @@
                     <th>Kode Material</th>
                     <th>Nama Material</th>
                     <th>Satuan</th>
-                    <th>Stok</th>
-                    <th>Harga</th>
-                    <th>Remark</th>
-                    <th>Rest Stok</th>
-                    <th>Posting Date</th>
-                    <th>Created By</th>
+                    <th>Total Stok</th>
+                    <th>Stok G1</th>
+                    <th>Harga G1</th>
+                    <th>Kategori G1</th>
+                    <th>Stok G2</th>
+                    <th>Harga G2</th>
+                    <th>Kategori G2</th>
+                    <th>Stok G3</th>
+                    <th>Harga G3</th>
+                    <th>Kategori G3</th>
+                    <th>Stok G4</th>
+                    <th>Harga G4</th>
+                    <th>Kategori G4</th>
                 </tr>
             </thead>
             <tbody>
@@ -68,15 +67,22 @@
                         <td>{{ $material->material ?? '-' }}</td>
                         <td>{{ $material->unit ?? '-' }}</td>
                         <td>{{ $material->stok ?? '-' }}</td>
-                        <td>{{ $formatRupiah($material->harga ?? null) }}</td>
-                        <td>{{ $material->remark ?? '-' }}</td>
-                        <td>{{ $material->rest_stock ?? '-' }}</td>
-                        <td>{{ $material->tgl_buat ?? '-' }}</td>
-                        <td>{{ $material->pembuat ?? '-' }}</td>
+                        <td>{{ $material->stok_g1 ?? '-' }}</td>
+                        <td>{{ $material->harga_stokg1 ?? '-' }}</td>
+                        <td>{{ $material->kategori_stok1 ?? '-' }}</td>
+                        <td>{{ $material->stok_g2 ?? '-' }}</td>
+                        <td>{{ $material->harga_stokg2 ?? '-' }}</td>
+                        <td>{{ $material->kategori_stok2 ?? '-' }}</td>
+                        <td>{{ $material->stok_g3 ?? '-' }}</td>
+                        <td>{{ $material->harga_stokg3 ?? '-' }}</td>
+                        <td>{{ $material->kategori_stok3 ?? '-' }}</td>
+                        <td>{{ $material->stok_g4 ?? '-' }}</td>
+                        <td>{{ $material->harga_stokg4 ?? '-' }}</td>
+                        <td>{{ $material->kategori_stok4 ?? '-' }}</td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="10" style="text-align: center;">
+                        <td colspan="17" style="text-align: center;">
                             Data material belum tersedia.
                         </td>
                     </tr>

@@ -271,8 +271,8 @@ export default function PurchaseRequirementIndex({
         const hasOverdue = overdueCustomers.has(normalizeCustomerName(customer));
 
         return (
-            <div className="flex flex-wrap items-center gap-2">
-                <span>{value}</span>
+            <div className="flex min-w-0 flex-nowrap items-center gap-2">
+                <span className="truncate">{value}</span>
                 {hasOverdue && (
                     <button
                         type="button"
@@ -1363,14 +1363,14 @@ export default function PurchaseRequirementIndex({
                         </div>
 
                         <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full text-sm">
+                            <table className="w-full table-auto text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 text-left">No PR</th>
-                                        <th className="px-4 py-3 text-left">Date</th>
-                                        <th className="px-4 py-3 text-left">Customer</th>
-                                        <th className="px-4 py-3 text-left">Ref PO</th>
-                                        <th className="px-4 py-3 text-left">Action</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">No PR</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Date</th>
+                                        <th className="w-full whitespace-nowrap px-2 py-2 text-left">Customer</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Ref PO</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1383,16 +1383,18 @@ export default function PurchaseRequirementIndex({
                                     />
                                     {displayedOutstandingPurchaseRequirements.map((item) => (
                                         <tr key={`outstanding-${item.no_pr}`} className="border-t border-sidebar-border/70">
-                                            <td className="px-4 py-3">{item.no_pr}</td>
-                                            <td className="px-4 py-3">{item.date}</td>
-                                            <td className="px-4 py-3">
-                                                {renderCustomerWithOverdueMarker(
-                                                    item.for_customer,
-                                                )}
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.no_pr}</td>
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.date}</td>
+                                            <td className="w-full min-w-0 whitespace-nowrap px-2 py-2">
+                                                <div className="min-w-0">
+                                                    {renderCustomerWithOverdueMarker(
+                                                        item.for_customer,
+                                                    )}
+                                                </div>
                                             </td>
-                                            <td className="px-4 py-3">{item.ref_po}</td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-3">
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.ref_po}</td>
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">
+                                                <div className="flex items-center gap-2">
                                                     <button
                                                         type="button"
                                                         onClick={() => {
@@ -1514,14 +1516,14 @@ export default function PurchaseRequirementIndex({
                         </div>
 
                         <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full text-sm">
+                            <table className="w-full table-auto text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 text-left">No PR</th>
-                                        <th className="px-4 py-3 text-left">Date</th>
-                                        <th className="px-4 py-3 text-left">Customer</th>
-                                        <th className="px-4 py-3 text-left">Ref PO</th>
-                                        <th className="px-4 py-3 text-left">Action</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">No PR</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Date</th>
+                                        <th className="w-full whitespace-nowrap px-2 py-2 text-left">Customer</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Ref PO</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1534,16 +1536,18 @@ export default function PurchaseRequirementIndex({
                                     />
                                     {displayedSisaPoPurchaseRequirements.map((item) => (
                                         <tr key={`sisa-po-${item.no_pr}`} className="border-t border-sidebar-border/70">
-                                            <td className="px-4 py-3">{item.no_pr}</td>
-                                            <td className="px-4 py-3">{item.date}</td>
-                                            <td className="px-4 py-3">
-                                                {renderCustomerWithOverdueMarker(
-                                                    item.for_customer,
-                                                )}
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.no_pr}</td>
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.date}</td>
+                                            <td className="w-full min-w-0 whitespace-nowrap px-2 py-2">
+                                                <div className="min-w-0">
+                                                    {renderCustomerWithOverdueMarker(
+                                                        item.for_customer,
+                                                    )}
+                                                </div>
                                             </td>
-                                            <td className="px-4 py-3">{item.ref_po}</td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-3">
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.ref_po}</td>
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">
+                                                <div className="flex items-center gap-2">
                                                     <button
                                                         type="button"
                                                         onClick={() => {
@@ -1665,14 +1669,14 @@ export default function PurchaseRequirementIndex({
                         </div>
 
                         <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full text-sm">
+                            <table className="w-full table-auto text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 text-left">No PR</th>
-                                        <th className="px-4 py-3 text-left">Date</th>
-                                        <th className="px-4 py-3 text-left">Customer</th>
-                                        <th className="px-4 py-3 text-left">Ref PO</th>
-                                        <th className="px-4 py-3 text-left">Action</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">No PR</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Date</th>
+                                        <th className="w-full whitespace-nowrap px-2 py-2 text-left">Customer</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Ref PO</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1685,17 +1689,19 @@ export default function PurchaseRequirementIndex({
                                     />
                                     {displayedRealizedPurchaseRequirements.map((item) => (
                                         <tr key={`realized-${item.no_pr}`} className="border-t border-sidebar-border/70">
-                                            <td className="px-4 py-3">{item.no_pr}</td>
-                                            <td className="px-4 py-3">{getValue(item, ['date', 'tgl'])}</td>
-                                            <td className="px-4 py-3">
-                                                {renderCustomerWithOverdueMarker(
-                                                    getValue(item, [
-                                                        'for_customer',
-                                                    ]),
-                                                )}
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.no_pr}</td>
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">{getValue(item, ['date', 'tgl'])}</td>
+                                            <td className="w-full min-w-0 whitespace-nowrap px-2 py-2">
+                                                <div className="min-w-0">
+                                                    {renderCustomerWithOverdueMarker(
+                                                        getValue(item, [
+                                                            'for_customer',
+                                                        ]),
+                                                    )}
+                                                </div>
                                             </td>
-                                            <td className="px-4 py-3">{item.ref_po}</td>
-                                            <td className="px-4 py-3">
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.ref_po}</td>
+                                            <td className="w-1 whitespace-nowrap px-2 py-2">
                                                 <button
                                                     type="button"
                                                     className="text-muted-foreground transition hover:text-foreground"
