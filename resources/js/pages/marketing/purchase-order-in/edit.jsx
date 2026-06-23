@@ -215,12 +215,33 @@ export default function PurchaseOrderInEdit({
                   totalPricePoIn: String(toNumber(item.total_price_po_in ?? 0)),
                   note: item.remark ?? '',
                   hasPr: !!(item.has_pr && toNumber(item.has_pr) > 0),
+                  originalQty: toNumber(item.qty ?? 0),
                   sisaQtyPr: toNumber(item.sisa_qtypr ?? 0),
                   sisaQtyDo: toNumber(item.sisa_qtydo ?? 0),
               }))
             : [],
     );
     const [editingItemId, setEditingItemId] = useState(null);
+
+    const getItemQtyValidationMessage = (item, nextQty) => {
+        if (!item) {
+            return '';
+        }
+
+        const originalQty = toNumber(item.originalQty ?? item.qty ?? 0);
+        const sisaQtyPr = toNumber(item.sisaQtyPr ?? 0);
+        const usedQtyPr = Math.max(0, originalQty - sisaQtyPr);
+
+        if (sisaQtyPr === 0 && nextQty <= originalQty) {
+            return `Sisa Qty PR sudah 0. Qty harus lebih dari qty awal (${formatInteger(originalQty)}).`;
+        }
+
+        if (sisaQtyPr !== 0 && nextQty < usedQtyPr) {
+            return `Qty tidak boleh kurang dari qty yang sudah ada pada PR (${formatInteger(usedQtyPr)}).`;
+        }
+
+        return '';
+    };
 
     const handleAddItem = async () => {
         if (!itemForm.material || !itemForm.qty) {
@@ -229,6 +250,19 @@ export default function PurchaseOrderInEdit({
         if (editingItemId) {
             const editingItem = items.find((item) => item.id === editingItemId);
             if (!editingItem) {
+                return;
+            }
+
+            const qtyValidationMessage = getItemQtyValidationMessage(
+                editingItem,
+                toNumber(itemForm.qty),
+            );
+            if (qtyValidationMessage) {
+                toastError(qtyValidationMessage);
+                setValidationErrors((prev) => ({
+                    ...prev,
+                    materials: qtyValidationMessage,
+                }));
                 return;
             }
 
@@ -274,9 +308,25 @@ export default function PurchaseOrderInEdit({
 
                     setItems((prev) =>
                         prev.map((item) =>
-                            item.id === editingItemId
-                                ? { ...item, ...itemForm }
-                                : item,
+                            item.id === editingItemId ? (() => {
+                                const originalQty = toNumber(
+                                    item.originalQty ?? item.qty ?? 0,
+                                );
+                                const usedQtyPr = Math.max(
+                                    0,
+                                    originalQty - toNumber(item.sisaQtyPr ?? 0),
+                                );
+
+                                return {
+                                    ...item,
+                                    ...itemForm,
+                                    originalQty: toNumber(itemForm.qty),
+                                    sisaQtyPr: Math.max(
+                                        0,
+                                        toNumber(itemForm.qty) - usedQtyPr,
+                                    ),
+                                };
+                            })() : item,
                         ),
                     );
                     toastSuccess(
@@ -300,9 +350,25 @@ export default function PurchaseOrderInEdit({
             } else {
                 setItems((prev) =>
                     prev.map((item) =>
-                        item.id === editingItemId
-                            ? { ...item, ...itemForm }
-                            : item,
+                        item.id === editingItemId ? (() => {
+                            const originalQty = toNumber(
+                                item.originalQty ?? item.qty ?? 0,
+                            );
+                            const usedQtyPr = Math.max(
+                                0,
+                                originalQty - toNumber(item.sisaQtyPr ?? 0),
+                            );
+
+                            return {
+                                ...item,
+                                ...itemForm,
+                                originalQty: toNumber(itemForm.qty),
+                                sisaQtyPr: Math.max(
+                                    0,
+                                    toNumber(itemForm.qty) - usedQtyPr,
+                                ),
+                            };
+                        })() : item,
                     ),
                 );
             }
@@ -349,6 +415,12 @@ export default function PurchaseOrderInEdit({
         }
         if (!Array.isArray(items) || items.length === 0) {
             errors.materials = 'Data material wajib diisi.';
+        }
+        const invalidItem = items
+            .map((item) => getItemQtyValidationMessage(item, toNumber(item.qty)))
+            .find(Boolean);
+        if (invalidItem) {
+            errors.materials = invalidItem;
         }
         setValidationErrors(errors);
         return Object.keys(errors).length === 0;
@@ -1312,33 +1384,27 @@ export default function PurchaseOrderInEdit({
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            handleEditItem(item)
+                                                        }
+                                                        title="Edit"
+                                                    >
+                                                        <Pencil className="size-4" />
+                                                    </Button>
                                                     {toNumber(
                                                         item.sisaQtyPr ?? 0,
                                                     ) >=
-                                                        toNumber(
-                                                            item.qty ?? 0,
-                                                        ) &&
+                                                        toNumber(item.qty ?? 0) &&
                                                         toNumber(
                                                             item.sisaQtyDo ?? 0,
                                                         ) >=
-                                                            toNumber(
-                                                                item.qty ?? 0,
-                                                            ) &&
+                                                            toNumber(item.qty ?? 0) &&
                                                         !item.hasPr && (
                                                             <>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() =>
-                                                                        handleEditItem(
-                                                                            item,
-                                                                        )
-                                                                    }
-                                                                    title="Edit"
-                                                                >
-                                                                    <Pencil className="size-4" />
-                                                                </Button>
                                                                 <Button
                                                                     type="button"
                                                                     variant="outline"

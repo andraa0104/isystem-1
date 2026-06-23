@@ -1189,7 +1189,7 @@ class PurchaseOrderInController
 
                 $existingDetails = DB::table('tb_detailpoin')
                     ->where('kode_poin', $kodePoin)
-                    ->select('id', 'created_at')
+                    ->select('id', 'qty', 'sisa_qtypr', 'sisa_qtydo', 'created_at')
                     ->get()
                     ->keyBy('id');
 
@@ -1235,6 +1235,34 @@ class PurchaseOrderInController
 
                     $kdMaterial = $this->normalizeMaterialCode($item['kd_material'] ?? null);
                     $stok = (float) ($materialStocks[$kdMaterial] ?? 0);
+
+                    if ($resolvedId !== null && $existingDetails->has($resolvedId)) {
+                        $existingDetail = $existingDetails->get($resolvedId);
+                        $originalQty = (float) ($existingDetail->qty ?? 0);
+                        $sisaQtyPrBefore = (float) ($existingDetail->sisa_qtypr ?? 0);
+                        $usedQtyPr = max(0, $originalQty - $sisaQtyPrBefore);
+
+                        if ($sisaQtyPrBefore == 0.0 && $qty <= $originalQty) {
+                            throw ValidationException::withMessages([
+                                "materials.$index.qty" => 'Sisa Qty PR sudah 0. Qty harus lebih dari qty awal.',
+                            ]);
+                        }
+
+                        if ($sisaQtyPrBefore != 0.0 && $qty < $usedQtyPr) {
+                            throw ValidationException::withMessages([
+                                "materials.$index.qty" => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr.',
+                            ]);
+                        }
+
+                        $sisaQtyDoBefore = (float) ($existingDetail->sisa_qtydo ?? $originalQty);
+                        $usedQtyDo = max(0, $originalQty - $sisaQtyDoBefore);
+                        if ($qty < $usedQtyDo) {
+                            throw ValidationException::withMessages([
+                                "materials.$index.qty" => 'Qty tidak boleh kurang dari qty yang sudah ada penerimaan material (MI).',
+                            ]);
+                        }
+                    }
+
                     $sisaQtyPr = max(0, $qty - $stok);
 
                     $rowId = $resolvedId !== null ? $resolvedId : $nextId++;
@@ -1355,38 +1383,6 @@ class PurchaseOrderInController
                 ], 404);
             }
 
-            $poHeader = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
-            if ($poHeader) {
-                $hasProcessedPr = DB::table('tb_detailpr')
-                    ->whereRaw("lower(trim(ref_po)) = lower(trim(?))", [(string)$poHeader->no_poin])
-                    ->whereRaw("lower(trim(for_customer)) = lower(trim(?))", [(string)$poHeader->customer_name])
-                    ->where('kd_material', $detail->kd_material)
-                    ->whereRaw("coalesce(cast(replace(sisa_pr, ',', '') as decimal(65,4)), 0) < coalesce(cast(replace(qty, ',', '') as decimal(65,4)), 0)")
-                    ->exists();
-
-                if ($hasProcessedPr) {
-                    return response()->json([
-                        'message' => 'Material tidak dapat diubah karena PR sudah diproses menjadi PO.',
-                    ], 422);
-                }
-            }
-
-            if (isset($detail->sisa_qtypr) && isset($detail->qty) && isset($detail->sisa_qtydo)) {
-                $sisaQtyPr = (float)($detail->sisa_qtypr ?? 0);
-                $sisaQtyDo = (float)($detail->sisa_qtydo ?? 0);
-                $qty = (float)($detail->qty ?? 0);
-                if ($sisaQtyPr < $qty) {
-                    return response()->json([
-                        'message' => 'Material tidak dapat diubah karena sudah dibuat PR.',
-                    ], 422);
-                }
-                if ($sisaQtyDo < $qty) {
-                    return response()->json([
-                        'message' => 'Material tidak dapat diubah karena sudah ada penerimaan material (MI).',
-                    ], 422);
-                }
-            }
-
             $validated = $request->validate([
                 'kd_material' => ['nullable', 'numeric'],
                 'material' => ['required', 'string', 'max:255'],
@@ -1398,6 +1394,30 @@ class PurchaseOrderInController
             ]);
 
             $qty = (float) ($validated['qty'] ?? 0);
+            $originalQty = (float) ($detail->qty ?? 0);
+            $sisaQtyPrBefore = (float) ($detail->sisa_qtypr ?? 0);
+            $usedQtyPr = max(0, $originalQty - $sisaQtyPrBefore);
+
+            if ($sisaQtyPrBefore == 0.0 && $qty <= $originalQty) {
+                return response()->json([
+                    'message' => 'Sisa Qty PR sudah 0. Qty harus lebih dari qty awal.',
+                ], 422);
+            }
+
+            if ($sisaQtyPrBefore != 0.0 && $qty < $usedQtyPr) {
+                return response()->json([
+                    'message' => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr.',
+                ], 422);
+            }
+
+            $sisaQtyDoBefore = (float) ($detail->sisa_qtydo ?? $originalQty);
+            $usedQtyDo = max(0, $originalQty - $sisaQtyDoBefore);
+            if ($qty < $usedQtyDo) {
+                return response()->json([
+                    'message' => 'Qty tidak boleh kurang dari qty yang sudah ada penerimaan material (MI).',
+                ], 422);
+            }
+
             $price = (float) ($validated['price_po_in'] ?? 0);
             $total = array_key_exists('total_price_po_in', $validated)
                 ? (float) $validated['total_price_po_in']

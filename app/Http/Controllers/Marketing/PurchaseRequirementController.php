@@ -13,6 +13,19 @@ use Carbon\Carbon;
 
 class PurchaseRequirementController
 {
+    private function prQtyValidationMessage(float $originalQty, float $qtyPoUsed, float $newQty): ?string
+    {
+        if ($newQty > $originalQty) {
+            return 'Qty PR tidak boleh ditambah dari qty awal.';
+        }
+
+        if ($newQty < $qtyPoUsed) {
+            return 'Qty hanya boleh dikurangi sampai Sisa PR = 0.';
+        }
+
+        return null;
+    }
+
     private function tenantCacheKey(string $key): string
     {
         $connection = config('tenants.connection', config('database.default'));
@@ -673,7 +686,7 @@ class PurchaseRequirementController
             return response()->json(['items' => []]);
         }
 
-        $data = Cache::tags(['poin_data', 'material_data'])->remember($this->tenantCacheKey('pr_poin_details_v2_' . $kodePoin), 86400, function () use ($kodePoin) {
+        $data = Cache::tags(['poin_data', 'material_data'])->remember($this->tenantCacheKey('pr_poin_details_v4_' . $kodePoin), 86400, function () use ($kodePoin) {
             $hasLineNo = Schema::hasColumn('tb_detailpoin', 'no');
             $hasRemark = Schema::hasColumn('tb_detailpoin', 'remark');
             $hasBarangStock = Schema::hasTable('tb_barang')
@@ -686,7 +699,8 @@ class PurchaseRequirementController
                 'd.id',
                 'd.kd_material',
                 'd.material',
-                DB::raw('coalesce(d.sisa_qtypr, 0) as qty_po_in'),
+                DB::raw('coalesce(d.sisa_qtypr, 0) as sisa_qtypr'),
+                DB::raw('coalesce(d.qty, 0) as qty_po_in'),
                 'd.satuan',
                 DB::raw('coalesce(d.price_po_in, 0) as harga_po_in'),
             ];
@@ -739,8 +753,9 @@ class PurchaseRequirementController
                         'id' => $item->id,
                         'kd_material' => $item->kd_material,
                         'material' => $item->material,
+                        'sisa_qtypr' => (float) $item->sisa_qtypr,
                         'qty_po_in' => (float) $item->qty_po_in,
-                        'qty_pr' => (float) $item->qty_po_in,
+                        'qty_pr' => (float) $item->sisa_qtypr,
                         'satuan' => $item->satuan,
                         'harga_po_in' => (float) $item->harga_po_in,
                         'harga_modal' => '',
@@ -776,10 +791,21 @@ class PurchaseRequirementController
                 ->with('error', 'Data PR tidak ditemukan.');
         }
 
-        $purchaseRequirementDetails = Cache::tags(['pr_data'])->remember($this->tenantCacheKey('pr_details_' . $noPr), 86400, function () use ($noPr) {
-            return DB::table('tb_detailpr')
-                ->where('no_pr', $noPr)
-                ->orderBy('no')
+        $purchaseRequirementDetails = Cache::tags(['pr_data'])->remember($this->tenantCacheKey('pr_details_v2_' . $noPr), 86400, function () use ($noPr) {
+            $poAgg = DB::table('tb_detailpo')
+                ->select('ref_pr', 'kd_mat')
+                ->selectRaw('sum(coalesce(cast(qty as decimal(18,4)), 0)) as qty_po_used')
+                ->groupBy('ref_pr', 'kd_mat');
+
+            return DB::table('tb_detailpr as d')
+                ->leftJoinSub($poAgg, 'po', function ($join) {
+                    $join->on(DB::raw('lower(trim(po.ref_pr))'), '=', DB::raw('lower(trim(d.no_pr))'))
+                        ->on(DB::raw('lower(trim(po.kd_mat))'), '=', DB::raw('lower(trim(d.kd_material))'));
+                })
+                ->where('d.no_pr', $noPr)
+                ->orderBy('d.no')
+                ->select('d.*')
+                ->selectRaw('coalesce(po.qty_po_used, coalesce(d.qty_po, 0)) as qty_po')
                 ->get();
         });
 
@@ -898,7 +924,7 @@ class PurchaseRequirementController
                             'margin' => $item['margin'] ?: '0%',
                             'renmark' => $item['renmark'] ?: ' ',
                             'qty_po' => 0,
-                            'sisa_pr' => max(0, ((float) ($item['qty'] ?? 0)) - ((float) ($item['stok'] ?? 0))),
+                            'sisa_pr' => $qtyValue,
                         ];
 
                         if ($qtyValue > 0) {
@@ -992,6 +1018,35 @@ class PurchaseRequirementController
                 $oldDetails = DB::table('tb_detailpr')
                     ->where('no_pr', $noPr)
                     ->get();
+                $oldDetailsByNo = $oldDetails->keyBy(fn ($row) => (string) $row->no);
+
+                $qtyPoByMaterial = DB::table('tb_detailpo')
+                    ->whereRaw('lower(trim(ref_pr)) = ?', [strtolower(trim((string) $noPr))])
+                    ->select('kd_mat')
+                    ->selectRaw('sum(coalesce(cast(qty as decimal(18,4)), 0)) as qty_po_used')
+                    ->groupBy('kd_mat')
+                    ->get()
+                    ->mapWithKeys(fn ($row) => [
+                        strtolower(trim((string) $row->kd_mat)) => (float) $row->qty_po_used,
+                    ]);
+
+                foreach ($materials as $index => $item) {
+                    $noValue = (string) ($item['no'] ?? ($index + 1));
+                    $oldDetail = $oldDetailsByNo->get($noValue);
+                    if (!$oldDetail) {
+                        continue;
+                    }
+
+                    $newQty = (float) ($item['qty'] ?? 0);
+                    $oldQty = (float) ($oldDetail->qty ?? 0);
+                    $kdMaterial = strtolower(trim((string) ($item['kd_material'] ?? $oldDetail->kd_material ?? '')));
+                    $qtyPoUsed = (float) ($qtyPoByMaterial->get($kdMaterial, (float) ($oldDetail->qty_po ?? 0)));
+                    $qtyValidationMessage = $this->prQtyValidationMessage($oldQty, $qtyPoUsed, $newQty);
+
+                    if ($qtyValidationMessage) {
+                        throw new \RuntimeException($qtyValidationMessage);
+                    }
+                }
 
                 $revertsByPo = [];
                 foreach ($oldDetails as $oldItem) {
@@ -1050,7 +1105,8 @@ class PurchaseRequirementController
                     $noValue = $item['no'] ?? ($index + 1);
                     $qtyRaw = (float)($item['qty'] ?? 0);
                     $stok = (float)($item['stok'] ?? 0);
-                    $sisaPr = max(0, $qtyRaw - $stok);
+                    $kdMaterialKey = strtolower(trim((string) ($item['kd_material'] ?? '')));
+                    $sisaPr = max(0, $qtyRaw - (float) $qtyPoByMaterial->get($kdMaterialKey, 0));
 
                     $insertDetails[] = [
                         'date' => $dateFormatted,
@@ -1133,7 +1189,7 @@ class PurchaseRequirementController
         $existingDetail = DB::table('tb_detailpr')
             ->where('no_pr', $noPr)
             ->where('no', $detailNo)
-            ->first(['qty', 'kd_material', 'ref_po']);
+            ->first(['qty', 'sisa_pr', 'kd_material', 'ref_po']);
 
         if (!$existingDetail) {
             return back()->with('error', 'Detail PR tidak ditemukan.');
@@ -1152,6 +1208,20 @@ class PurchaseRequirementController
         }
 
         try {
+            $oldQty = is_numeric($existingDetail->qty ?? null) ? (float) $existingDetail->qty : 0;
+            $newQty = is_numeric($request->input('qty')) ? (float) $request->input('qty') : 0;
+            $qtyPoUsed = (float) (DB::table('tb_detailpo')
+                ->whereRaw('lower(trim(ref_pr)) = ?', [strtolower(trim((string) $noPr))])
+                ->whereRaw('lower(trim(kd_mat)) = ?', [strtolower(trim((string) ($request->input('kd_material') ?: $existingDetail->kd_material)))])
+                ->selectRaw('coalesce(sum(cast(qty as decimal(18,4))), 0) as total_qty')
+                ->value('total_qty') ?? 0);
+            $qtyValidationMessage = $this->prQtyValidationMessage($oldQty, $qtyPoUsed, $newQty);
+            if ($qtyValidationMessage) {
+                return back()->with('error', $qtyValidationMessage);
+            }
+
+            $newSisaPr = max(0, $newQty - $qtyPoUsed);
+
             DB::table('tb_detailpr')
                 ->where('no_pr', $noPr)
                 ->where('no', $detailNo)
@@ -1170,11 +1240,9 @@ class PurchaseRequirementController
                     'price_po' => $request->input('price_po'),
                     'margin' => $request->input('margin') ?: '0%',
                     'renmark' => $request->input('renmark') ?: ' ',
-                    'sisa_pr' => max(0, ((float) $request->input('qty')) - ((float) $request->input('stok'))),
+                    'sisa_pr' => $newSisaPr,
                 ]);
 
-            $oldQty = is_numeric($existingDetail->qty ?? null) ? (float) $existingDetail->qty : 0;
-            $newQty = is_numeric($request->input('qty')) ? (float) $request->input('qty') : 0;
             $kdMaterial = strtolower(trim((string) ($request->input('kd_material') ?: $existingDetail->kd_material)));
             $refPo = strtolower(trim((string) ($request->input('ref_po') ?: $existingDetail->ref_po)));
 
@@ -1210,7 +1278,7 @@ class PurchaseRequirementController
                 'material' => $request->input('material'),
                 'qty' => $request->input('qty'),
                 'qty_po' => $request->input('qty'),
-                'sisa_pr' => max(0, ((float) $request->input('qty')) - ((float) $request->input('stok'))),
+                'sisa_pr' => $newSisaPr,
                 'unit' => $request->input('unit'),
                 'stok' => $request->input('stok'),
                 'unit_price' => $request->input('unit_price'),

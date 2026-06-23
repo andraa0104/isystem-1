@@ -307,7 +307,7 @@ export default function PurchaseRequirementCreate() {
             const rawItems = Array.isArray(data?.items) ? data.items : [];
 
             const filteredItems = rawItems.filter(
-                (item) => Number(item.sisa_qtypr ?? item.qty_po_in ?? 0) > 0
+                (item) => Number(item.sisa_qtypr ?? 0) > 0
             );
 
             // --- PROSES AUTOFILL MASSAL BERDASARKAN KODE MATERIAL ---
@@ -340,7 +340,7 @@ export default function PurchaseRequirementCreate() {
                         stokG4: item.stok_g4 ?? 0,
                         stok: item.stok ?? 0,
                         qtyPoIn: item.qty_po_in ?? 0,
-                        qtyPr: item.sisa_qtypr ?? item.qty_po_in ?? 0,
+                        qtyPr: item.sisa_qtypr ?? 0,
                         satuan: item.satuan ?? '',
                         hargaPoIn: item.harga_po_in ?? 0,
                         // Diisi dengan harga modal terakhir dari tb_invin hasil dicocokkan tadi
@@ -494,6 +494,7 @@ export default function PurchaseRequirementCreate() {
             kd_material: item.kodeMaterial,
             material: item.namaMaterial,
             qty: item.qtyPr,
+            sisa_pr: item.qtyPr,
             unit: item.satuan,
             stok: item.stok,
             unit_price: item.hargaModal,

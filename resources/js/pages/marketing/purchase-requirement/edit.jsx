@@ -81,6 +81,11 @@ const calculateTotalPrice = (qty, priceEstimate) => {
     return total ? Math.round(total).toString() : '';
 };
 
+const formatNumber = (value) =>
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(
+        parseNumber(value),
+    );
+
 export default function PurchaseRequirementEdit({
     purchaseRequirement,
     purchaseRequirementDetails = [],
@@ -120,6 +125,8 @@ export default function PurchaseRequirementEdit({
             stok: item.stok ?? '',
             qty: item.sisa_pr ?? item.qty ?? '', // Sisa PR
             qtyDetail: item.qty ?? 0, // tb_detailpr.qty
+            originalQtyDetail: parseNumber(item.qty),
+            originalSisaPr: parseNumber(item.sisa_pr ?? item.qty),
             satuan: item.unit ?? '',
             priceEstimate: item.unit_price ?? '',
             totalPrice: item.total_price ?? '',
@@ -218,9 +225,12 @@ export default function PurchaseRequirementEdit({
             namaMaterial: item.namaMaterial ?? '',
             stok: item.stok ?? '',
             qtyDetail: item.qtyDetail ?? 0, // tb_detailpr.qty (derived)
-            originalQtyDetail: item.qtyDetail ?? 0, // fixed reference
+            originalQtyDetail:
+                item.originalQtyDetail ?? item.qtyDetail ?? 0, // fixed reference
             qty: item.qty ?? '', // sisa_pr (editable)
-            originalSisaPr: parseFloat(item.qty ?? 0), // fixed reference for delta
+            originalSisaPr:
+                item.originalSisaPr ?? parseFloat(item.qty ?? 0), // fixed reference for delta
+            qtyPo: item.qtyPo ?? 0,
             satuan: item.satuan ?? '',
             priceEstimate: item.priceEstimate ?? '',
             totalPrice: totalPrice,
@@ -228,6 +238,27 @@ export default function PurchaseRequirementEdit({
             margin: item.margin ?? '',
             remark: item.remark ?? '',
         });
+    };
+
+    const getQtyValidationMessage = (source) => {
+        if (!source) return '';
+        if (source.detailNo === null) return '';
+
+        const nextQty = parseNumber(source.qtyDetail);
+        const originalQty = parseNumber(
+            source.originalQtyDetail ?? source.qtyDetail,
+        );
+        const qtyPo = parseNumber(source.qtyPo);
+
+        if (nextQty > originalQty) {
+            return `Qty tidak boleh ditambah dari qty awal (${formatNumber(originalQty)}).`;
+        }
+
+        if (nextQty < qtyPo) {
+            return `Qty hanya boleh dikurangi sampai Sisa PR = 0. Minimal qty adalah ${formatNumber(qtyPo)}.`;
+        }
+
+        return '';
     };
 
     const closeEditCard = () => {
@@ -249,8 +280,8 @@ export default function PurchaseRequirementEdit({
             // When Qty changes → auto-recalc Sisa PR = max(0, qty - stok)
             if (field === 'qtyDetail') {
                 const qty = parseFloat(value) || 0;
-                const stok = parseFloat(next.stok) || 0;
-                next.qty = String(Math.max(0, qty - stok));
+                const qtyPo = parseFloat(next.qtyPo) || 0;
+                next.qty = String(Math.max(0, qty - qtyPo));
             }
             // When Sisa PR changes → Qty = originalQty + (newSisaPR - originalSisaPR)
             if (field === 'qty') {
@@ -347,6 +378,16 @@ export default function PurchaseRequirementEdit({
             return;
         }
 
+        const qtyValidationMessage = getQtyValidationMessage(editingDraft);
+        if (qtyValidationMessage) {
+            Swal.fire({
+                title: 'Gagal',
+                text: qtyValidationMessage,
+                icon: 'error',
+            });
+            return;
+        }
+
         const payload = {
             date: formData.date,
             payment: formData.payment,
@@ -387,6 +428,8 @@ export default function PurchaseRequirementEdit({
                                       stok: payload.stok,
                                       qtyDetail: payload.qty, // raw qty stored in tb_detailpr.qty
                                       qty: editingDraft.qty, // sisa_pr (computed frontend)
+                                      originalQtyDetail: payload.qty,
+                                      originalSisaPr: editingDraft.qty,
                                       satuan: payload.unit,
                                       priceEstimate: payload.unit_price,
                                       totalPrice: payload.total_price,
@@ -404,6 +447,19 @@ export default function PurchaseRequirementEdit({
     };
 
     const submitFullUpdate = (itemsToSubmit) => {
+        const invalidMessage = itemsToSubmit
+            .map((item) => getQtyValidationMessage(item))
+            .find(Boolean);
+
+        if (invalidMessage) {
+            Swal.fire({
+                title: 'Gagal',
+                text: invalidMessage,
+                icon: 'error',
+            });
+            return;
+        }
+
         setIsSubmitting(true);
         router.put(
             `/marketing/purchase-requirement/${encodeURIComponent(purchaseRequirement?.no_pr ?? '')}`,
@@ -738,13 +794,7 @@ export default function PurchaseRequirementEdit({
                                                     type="number"
                                                     min="0"
                                                     value={source.qty ?? ''}
-                                                    readOnly={!isEditing}
-                                                    onChange={(event) =>
-                                                        updateDraft(
-                                                            'qty',
-                                                            event.target.value,
-                                                        )
-                                                    }
+                                                    disabled
                                                 />
                                             </div>
                                             <div className="grid gap-2">
@@ -1073,6 +1123,8 @@ export default function PurchaseRequirementEdit({
                                                                     stok: m.stok ?? 0,
                                                                     qty: '1', 
                                                                     qtyDetail: 1, 
+                                                                    originalQtyDetail: 0,
+                                                                    originalSisaPr: 1,
                                                                     satuan: m.unit ?? '',
                                                                     
                                                                     // --- SINKRONISASI AUTOFILL & BALANCE ---
