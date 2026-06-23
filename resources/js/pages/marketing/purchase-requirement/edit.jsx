@@ -1,3 +1,4 @@
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -123,6 +124,10 @@ export default function PurchaseRequirementEdit({
             kodeMaterial: item.kd_material ?? '',
             namaMaterial: item.material ?? '',
             stok: item.stok ?? '',
+            stokG1: item.stok_g1 ?? 0,
+            stokG2: item.stok_g2 ?? 0,
+            stokG3: item.stok_g3 ?? 0,
+            stokG4: item.stok_g4 ?? 0,
             qty: item.sisa_pr ?? item.qty ?? '', // Sisa PR
             qtyDetail: item.qty ?? 0, // tb_detailpr.qty
             originalQtyDetail: parseNumber(item.qty),
@@ -161,6 +166,8 @@ export default function PurchaseRequirementEdit({
                 per_page:
                     materialPageSize === Infinity ? 'all' : materialPageSize,
                 page: materialCurrentPage,
+                ref_po: formData.refPo,
+                no_pr: purchaseRequirement?.no_pr ?? '',
             });
             const response = await fetch(
                 `/marketing/purchase-requirement/materials?${params}`,
@@ -205,9 +212,9 @@ export default function PurchaseRequirementEdit({
         listPageSize === Infinity
             ? filteredItems
             : filteredItems.slice(
-                  (listCurrentPage - 1) * listPageSize,
-                  listCurrentPage * listPageSize,
-              );
+                (listCurrentPage - 1) * listPageSize,
+                listCurrentPage * listPageSize,
+            );
 
     // Reset page when search changes
     useEffect(() => {
@@ -270,7 +277,7 @@ export default function PurchaseRequirementEdit({
         setEditingDraft((prev) => {
             if (!prev) return prev;
             const next = { ...prev, [field]: value };
-            
+
             // --- LOGIKA SINKRONISASI MANUAl: HARGA PO IN MENGIKUTI HARGA MODAL ---
             if (field === 'priceEstimate') {
                 next.priceInPo = value; // Pastikan isi Harga PO In selalu sama persis dengan Harga Modal
@@ -422,21 +429,21 @@ export default function PurchaseRequirementEdit({
                         prev.map((it) =>
                             it.id === item.id
                                 ? {
-                                      ...it,
-                                      kodeMaterial: payload.kd_material,
-                                      namaMaterial: payload.material,
-                                      stok: payload.stok,
-                                      qtyDetail: payload.qty, // raw qty stored in tb_detailpr.qty
-                                      qty: editingDraft.qty, // sisa_pr (computed frontend)
-                                      originalQtyDetail: payload.qty,
-                                      originalSisaPr: editingDraft.qty,
-                                      satuan: payload.unit,
-                                      priceEstimate: payload.unit_price,
-                                      totalPrice: payload.total_price,
-                                      priceInPo: payload.price_po,
-                                      margin: payload.margin,
-                                      remark: payload.renmark,
-                                  }
+                                    ...it,
+                                    kodeMaterial: payload.kd_material,
+                                    namaMaterial: payload.material,
+                                    stok: payload.stok,
+                                    qtyDetail: payload.qty, // raw qty stored in tb_detailpr.qty
+                                    qty: editingDraft.qty, // sisa_pr (computed frontend)
+                                    originalQtyDetail: payload.qty,
+                                    originalSisaPr: editingDraft.qty,
+                                    satuan: payload.unit,
+                                    priceEstimate: payload.unit_price,
+                                    totalPrice: payload.total_price,
+                                    priceInPo: payload.price_po,
+                                    margin: payload.margin,
+                                    remark: payload.renmark,
+                                }
                                 : it,
                         ),
                     );
@@ -556,6 +563,7 @@ export default function PurchaseRequirementEdit({
                                 </span>
                                 <Input
                                     value={formData.refPo}
+                                    disabled
                                     onChange={(event) =>
                                         setFormData((prev) => ({
                                             ...prev,
@@ -570,6 +578,7 @@ export default function PurchaseRequirementEdit({
                                 </span>
                                 <Input
                                     value={formData.forCustomer}
+                                    disabled
                                     onChange={(event) =>
                                         setFormData((prev) => ({
                                             ...prev,
@@ -681,9 +690,9 @@ export default function PurchaseRequirementEdit({
                                         : item;
                                 const computedMargin = isEditing
                                     ? calculateMargin(
-                                          source.priceInPo,
-                                          source.priceEstimate,
-                                      )
+                                        source.priceInPo,
+                                        source.priceEstimate,
+                                    )
                                     : source.margin;
 
                                 return (
@@ -707,6 +716,25 @@ export default function PurchaseRequirementEdit({
                                                         item.kodeMaterial,
                                                     )}
                                                 </p>
+                                                <div className="flex flex-wrap gap-1 pt-1">
+                                                    {[
+                                                        ['G1', item.stokG1],
+                                                        ['G2', item.stokG2],
+                                                        ['G3', item.stokG3],
+                                                        ['G4', item.stokG4],
+                                                    ].map(([label, value]) => (
+                                                        <span
+                                                            key={label}
+                                                            className="rounded-full border border-blue-100 bg-blue-50 px-2 text-[10px] font-bold text-blue-600"
+                                                        >
+                                                            Stok {label}: {value ?? 0}
+                                                        </span>
+                                                    ))}
+                                                    <span className="flex items-center gap-1.5 rounded-full border border-green-100 bg-green-50 px-2 text-[10px] font-bold text-green-600">
+                                                        <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+                                                        Total Stok: {item.stok ?? 0}
+                                                    </span>
+                                                </div>
                                             </div>
                                             <div className="flex items-center gap-1">
                                                 <Button
@@ -729,7 +757,7 @@ export default function PurchaseRequirementEdit({
                                                         disabled={
                                                             item.detailNo &&
                                                             deletingMaterialId ===
-                                                                item.detailNo
+                                                            item.detailNo
                                                         }
                                                         onClick={() =>
                                                             handleDeleteMaterial(
@@ -738,7 +766,7 @@ export default function PurchaseRequirementEdit({
                                                         }
                                                     >
                                                         {item.detailNo &&
-                                                        deletingMaterialId ===
+                                                            deletingMaterialId ===
                                                             item.detailNo ? (
                                                             <Spinner className="h-4 w-4" />
                                                         ) : (
@@ -877,7 +905,7 @@ export default function PurchaseRequirementEdit({
                                                     disabled={
                                                         item.detailNo &&
                                                         savingMaterialId ===
-                                                            item.detailNo
+                                                        item.detailNo
                                                     }
                                                     onClick={() =>
                                                         handleSaveCard(item)
@@ -885,7 +913,7 @@ export default function PurchaseRequirementEdit({
                                                 >
                                                     {item.detailNo &&
                                                         savingMaterialId ===
-                                                            item.detailNo && (
+                                                        item.detailNo && (
                                                             <Spinner className="mr-2" />
                                                         )}
                                                     Simpan
@@ -904,8 +932,8 @@ export default function PurchaseRequirementEdit({
                                             Menampilkan{' '}
                                             {Math.min(
                                                 (listCurrentPage - 1) *
-                                                    listPageSize +
-                                                    1,
+                                                listPageSize +
+                                                1,
                                                 filteredItems.length,
                                             )}
                                             {' – '}
@@ -1051,8 +1079,12 @@ export default function PurchaseRequirementEdit({
                                             <TableHead>Kode Material</TableHead>
                                             <TableHead>Nama Material</TableHead>
                                             <TableHead>Unit</TableHead>
-                                            <TableHead className="text-right">
-                                                Stok
+                                            <TableHead className="text-right whitespace-nowrap">Stok G1</TableHead>
+                                            <TableHead className="text-right whitespace-nowrap">Stok G2</TableHead>
+                                            <TableHead className="text-right whitespace-nowrap">Stok G3</TableHead>
+                                            <TableHead className="text-right whitespace-nowrap">Stok G4</TableHead>
+                                            <TableHead className="text-right whitespace-nowrap">
+                                                Total Stok
                                             </TableHead>
                                             <TableHead className="w-[80px]"></TableHead>
                                         </TableRow>
@@ -1078,17 +1110,29 @@ export default function PurchaseRequirementEdit({
                                         ) : (
                                             materialList.map((m) => (
                                                 <TableRow key={m.kd_material}>
-                                                    <TableCell className="font-mono text-xs">
+                                                    <TableCell className="font-medium">
                                                         {m.kd_material}
                                                     </TableCell>
                                                     <TableCell className="font-medium">
                                                         {m.material}
                                                     </TableCell>
-                                                    <TableCell className="text-xs text-muted-foreground uppercase">
+                                                    <TableCell className="text-left font-medium text-muted-foreground uppercase">
                                                         {m.unit}
                                                     </TableCell>
-                                                    <TableCell className="text-right">
-                                                        {m.stok}
+                                                    <TableCell className="text-right font-medium text-blue-600">
+                                                        {Number(m.stok_g1) || 0}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium text-xs text-blue-600">
+                                                        {Number(m.stok_g2) || 0}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium text-xs text-blue-600">
+                                                        {Number(m.stok_g3) || 0}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium text-xs text-blue-600">
+                                                        {Number(m.stok_g4) || 0}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-bold text-green-600">
+                                                        {Math.round(Number(m.stok)) || 0}
                                                     </TableCell>
                                                     <TableCell>
                                                         <Button
@@ -1097,13 +1141,13 @@ export default function PurchaseRequirementEdit({
                                                             className="h-8"
                                                             onClick={async () => { // <-- Pastikan ada keyword 'async'
                                                                 let hargaModalTerakhir = 0;
-                                                                
+
                                                                 // --- AMBIL HARGA TERAKHIR DARI DATABASE via AXIOS ---
                                                                 try {
                                                                     const priceRes = await axios.get('/marketing/purchase-requirement/get-last-price', {
                                                                         params: { kd_mat: m.kd_material }
                                                                     });
-                                                                    
+
                                                                     if (priceRes.data && priceRes.data.success) {
                                                                         // Murni mengambil kolom 'harga' dari tb_invin sesuai response backend
                                                                         hargaModalTerakhir = Math.round(Number(priceRes.data.harga)) || 0;
@@ -1120,27 +1164,31 @@ export default function PurchaseRequirementEdit({
                                                                     detailNo: null, // null menandakan barang baru yang ditambahkan saat edit
                                                                     kodeMaterial: m.kd_material ?? '',
                                                                     namaMaterial: m.material ?? '',
-                                                                    stok: m.stok ?? 0,
-                                                                    qty: '1', 
-                                                                    qtyDetail: 1, 
+                                                                    stok: Math.round(Number(m.stok)) || 0,
+                                                                    stokG1: Math.round(Number(m.stok_g1)) || 0,
+                                                                    stokG2: Math.round(Number(m.stok_g2)) || 0,
+                                                                    stokG3: Math.round(Number(m.stok_g3)) || 0,
+                                                                    stokG4: Math.round(Number(m.stok_g4)) || 0,
+                                                                    qty: (Number(m.sisa_qtypr) > 0 ? Number(m.sisa_qtypr) : 1).toString(),
+                                                                    qtyDetail: Number(m.sisa_qtypr) > 0 ? Number(m.sisa_qtypr) : 1,
                                                                     originalQtyDetail: 0,
-                                                                    originalSisaPr: 1,
+                                                                    originalSisaPr: Number(m.sisa_qtypr) > 0 ? Number(m.sisa_qtypr) : 1,
                                                                     satuan: m.unit ?? '',
-                                                                    
+
                                                                     // --- SINKRONISASI AUTOFILL & BALANCE ---
                                                                     priceEstimate: hargaModalTerakhir, // Mengisi field Harga Modal
                                                                     priceInPo: hargaModalTerakhir,     // Mengisi field Harga PO In agar langsung balance
                                                                     // ---------------------------------------
-                                                                    
-                                                                    totalPrice: Math.round(1 * hargaModalTerakhir).toString(),
-                                                                    margin: '0.00', 
+
+                                                                    totalPrice: Math.round((Number(m.sisa_qtypr) > 0 ? Number(m.sisa_qtypr) : 1) * hargaModalTerakhir).toString(),
+                                                                    margin: '0.00',
                                                                     remark: '',
                                                                     qtyPo: 0,
                                                                 };
 
                                                                 // Dorong ke list material paling akhir
                                                                 setMaterialItems((prev) => [...prev, newItem]);
-                                                                
+
                                                                 // Tutup modal material
                                                                 setIsMaterialModalOpen(false);
                                                             }}
@@ -1162,14 +1210,14 @@ export default function PurchaseRequirementEdit({
                                             Menampilkan{' '}
                                             {Math.min(
                                                 (materialCurrentPage - 1) *
-                                                    materialPageSize +
-                                                    1,
+                                                materialPageSize +
+                                                1,
                                                 materialTotal,
                                             )}
                                             -
                                             {Math.min(
                                                 materialCurrentPage *
-                                                    materialPageSize,
+                                                materialPageSize,
                                                 materialTotal,
                                             )}{' '}
                                             dari {materialTotal} data
@@ -1202,7 +1250,7 @@ export default function PurchaseRequirementEdit({
                                                         (p) =>
                                                             Math.min(
                                                                 materialTotalPages ||
-                                                                    p,
+                                                                p,
                                                                 p + 1,
                                                             ),
                                                     )

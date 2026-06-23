@@ -578,24 +578,102 @@ class PurchaseRequirementController
         $perPageInput = $request->query('per_page');
         $search = trim((string) $request->query('search', ''));
         $page = max(1, (int) $request->query('page', 1));
+        $refPo = trim((string) $request->query('ref_po', ''));
+        $noPr = trim((string) $request->query('no_pr', ''));
 
-        // [CACHE] Menggunakan material_data yang sama dengan Master Data Material
-        $cacheKey = 'pr_materials_' . md5(json_encode([$search, $perPageInput, $page]));
+        // [CACHE] Cache key (v5 to ensure clean state after 500 error fix)
+        $cacheKey = 'pr_materials_v5_' . md5(json_encode([$search, $perPageInput, $page, $refPo, $noPr]));
 
-        $data = Cache::tags(['material_data'])->remember($this->tenantCacheKey($cacheKey), 86400, function () use ($search, $perPageInput, $page) {
-            $query = DB::table('tb_material')
-                ->select('kd_material', 'material', 'unit', 'stok', 'harga');
+        $data = Cache::tags(['material_data', 'poin_data', 'pr_data'])->remember($this->tenantCacheKey($cacheKey), 86400, function () use ($search, $perPageInput, $page, $refPo, $noPr) {
+            
+            // 1. Get existing materials in this PR to exclude them
+            $excludedMaterials = [];
+            if ($noPr !== '') {
+                $excludedMaterials = DB::table('tb_detailpr')
+                    ->where('no_pr', $noPr)
+                    ->pluck('kd_material')
+                    ->filter()
+                    ->map(fn($k) => strtolower(trim((string)$k)))
+                    ->unique()
+                    ->all();
+            }
 
+            $query = null;
+            $mainTable = '';
+
+            // 2. Decide data source: tb_detailpoin or tb_material
+            if ($refPo !== '') {
+                $mainTable = 'd';
+                $hasBarangStock = Schema::hasTable('tb_barang')
+                    && Schema::hasColumn('tb_barang', 'stok_g1')
+                    && Schema::hasColumn('tb_barang', 'stok_g2')
+                    && Schema::hasColumn('tb_barang', 'stok_g3')
+                    && Schema::hasColumn('tb_barang', 'stok_g4');
+
+                $query = DB::table('tb_detailpoin as d')
+                    ->join('tb_poin as p', 'd.kode_poin', '=', 'p.kode_poin')
+                    ->whereRaw('lower(trim(p.no_poin)) = ?', [strtolower($refPo)]);
+                
+                if ($hasBarangStock) {
+                    $query->leftJoin('tb_barang as b', function($join) {
+                        $join->on(DB::raw('lower(trim(d.kd_material))'), '=', DB::raw('lower(trim(b.kd_material))'));
+                    });
+                    $query->select(
+                        'd.kd_material',
+                        'd.material',
+                        'd.satuan as unit',
+                        DB::raw('coalesce(d.sisa_qtypr, 0) as sisa_qtypr'),
+                        DB::raw('coalesce(cast(b.stok_g1 as decimal(18,4)), 0) as stok_g1'),
+                        DB::raw('coalesce(cast(b.stok_g2 as decimal(18,4)), 0) as stok_g2'),
+                        DB::raw('coalesce(cast(b.stok_g3 as decimal(18,4)), 0) as stok_g3'),
+                        DB::raw('coalesce(cast(b.stok_g4 as decimal(18,4)), 0) as stok_g4'),
+                        DB::raw('0 as stok'), // Will be summed in PHP for better compatibility
+                        DB::raw('coalesce(d.price_po_in, 0) as harga')
+                    );
+                } else {
+                    $query->select(
+                        'd.kd_material',
+                        'd.material',
+                        'd.satuan as unit',
+                        'd.sisa_qtypr',
+                        DB::raw('0 as stok_g1'),
+                        DB::raw('0 as stok_g2'),
+                        DB::raw('0 as stok_g3'),
+                        DB::raw('0 as stok_g4'),
+                        DB::raw('0 as stok'),
+                        DB::raw('coalesce(d.price_po_in, 0) as harga')
+                    );
+                }
+            } else {
+                $mainTable = 'tb_material';
+                $query = DB::table('tb_material')
+                    ->select('kd_material', 'material', 'unit', 
+                        DB::raw('cast(round(coalesce(cast(stok as decimal(18,4)), 0), 0) as bigint) as stok'),
+                        'harga',
+                        DB::raw('0 as sisa_qtypr'),
+                        DB::raw('0 as stok_g1'),
+                        DB::raw('0 as stok_g2'),
+                        DB::raw('0 as stok_g3'),
+                        DB::raw('0 as stok_g4')
+                    );
+            }
+
+            // 3. Filter excluded materials (Resolve ambiguity)
+            if (!empty($excludedMaterials)) {
+                $query->whereNotIn(DB::raw("lower(trim({$mainTable}.kd_material))"), array_values($excludedMaterials));
+            }
+
+            // 4. Search filter
             if ($search !== '') {
-                $query->where(function ($q) use ($search) {
+                $query->where(function ($q) use ($search, $mainTable) {
                     $like = '%'.strtolower($search).'%';
-                    $q->whereRaw('lower(kd_material) like ?', [$like])
-                        ->orWhereRaw('lower(material) like ?', [$like]);
+                    $q->whereRaw("lower({$mainTable}.kd_material) like ?", [$like])
+                        ->orWhereRaw("lower({$mainTable}.material) like ?", [$like]);
                 });
             }
 
             if ($perPageInput === null) {
-                $materials = (clone $query)->orderBy('material')->get();
+                $materials = (clone $query)->orderBy("{$mainTable}.material")->get();
                 return ['materials' => $materials, 'total' => $materials->count()];
             }
 
@@ -607,12 +685,30 @@ class PurchaseRequirementController
             }
 
             if ($perPage === null) {
-                $materials = (clone $query)->orderBy('material')->get();
+                $materials = (clone $query)->orderBy("{$mainTable}.material")->get();
+                $materials->transform(function ($item) {
+                    $item->stok_g1 = (int) ($item->stok_g1 ?? 0);
+                    $item->stok_g2 = (int) ($item->stok_g2 ?? 0);
+                    $item->stok_g3 = (int) ($item->stok_g3 ?? 0);
+                    $item->stok_g4 = (int) ($item->stok_g4 ?? 0);
+                    $item->stok = $item->stok_g1 + $item->stok_g2 + $item->stok_g3 + $item->stok_g4;
+                    $item->sisa_qtypr = (float) ($item->sisa_qtypr ?? 0);
+                    return $item;
+                });
                 return ['materials' => $materials, 'total' => $materials->count()];
             }
 
             $total = (clone $query)->count();
-            $materials = (clone $query)->orderBy('material')->forPage($page, $perPage)->get();
+            $materials = (clone $query)->orderBy("{$mainTable}.material")->forPage($page, $perPage)->get();
+            $materials->transform(function ($item) {
+                $item->stok_g1 = (int) ($item->stok_g1 ?? 0);
+                $item->stok_g2 = (int) ($item->stok_g2 ?? 0);
+                $item->stok_g3 = (int) ($item->stok_g3 ?? 0);
+                $item->stok_g4 = (int) ($item->stok_g4 ?? 0);
+                $item->stok = $item->stok_g1 + $item->stok_g2 + $item->stok_g3 + $item->stok_g4;
+                $item->sisa_qtypr = (float) ($item->sisa_qtypr ?? 0);
+                return $item;
+            });
 
             return [
                 'materials' => $materials,
@@ -791,7 +887,7 @@ class PurchaseRequirementController
                 ->with('error', 'Data PR tidak ditemukan.');
         }
 
-        $purchaseRequirementDetails = Cache::tags(['pr_data'])->remember($this->tenantCacheKey('pr_details_v2_' . $noPr), 86400, function () use ($noPr) {
+        $purchaseRequirementDetails = Cache::tags(['pr_data'])->remember($this->tenantCacheKey('pr_details_v4_' . $noPr), 86400, function () use ($noPr) {
             $poAgg = DB::table('tb_detailpo')
                 ->select('ref_pr', 'kd_mat')
                 ->selectRaw('sum(coalesce(cast(qty as decimal(18,4)), 0)) as qty_po_used')
@@ -802,11 +898,40 @@ class PurchaseRequirementController
                     $join->on(DB::raw('lower(trim(po.ref_pr))'), '=', DB::raw('lower(trim(d.no_pr))'))
                         ->on(DB::raw('lower(trim(po.kd_mat))'), '=', DB::raw('lower(trim(d.kd_material))'));
                 })
+                ->leftJoin('tb_poin as p_ref', function($join) {
+                    $join->on(DB::raw('lower(trim(p_ref.no_poin))'), '=', DB::raw('lower(trim(d.ref_po))'));
+                })
+                ->leftJoin('tb_detailpoin as dp', function($join) {
+                    $join->on('dp.kode_poin', '=', 'p_ref.kode_poin')
+                         ->on(DB::raw('lower(trim(dp.kd_material))'), '=', DB::raw('lower(trim(d.kd_material))'));
+                })
+                ->leftJoin('tb_barang as b', function($join) {
+                    $join->on(DB::raw('lower(trim(d.kd_material))'), '=', DB::raw('lower(trim(b.kd_material))'));
+                })
                 ->where('d.no_pr', $noPr)
                 ->orderBy('d.no')
-                ->select('d.*')
+                ->select(
+                    'd.*',
+                    DB::raw('coalesce(cast(b.stok_g1 as decimal(18,4)), 0) as stok_g1'),
+                    DB::raw('coalesce(cast(b.stok_g2 as decimal(18,4)), 0) as stok_g2'),
+                    DB::raw('coalesce(cast(b.stok_g3 as decimal(18,4)), 0) as stok_g3'),
+                    DB::raw('coalesce(cast(b.stok_g4 as decimal(18,4)), 0) as stok_g4'),
+                    DB::raw('0 as stok'),
+                    DB::raw('coalesce(dp.sisa_qtypr, 0) as sisa_qty_po')
+                )
                 ->selectRaw('coalesce(po.qty_po_used, coalesce(d.qty_po, 0)) as qty_po')
                 ->get();
+
+            $purchaseRequirementDetails->transform(function ($item) {
+                $item->stok_g1 = (int) ($item->stok_g1 ?? 0);
+                $item->stok_g2 = (int) ($item->stok_g2 ?? 0);
+                $item->stok_g3 = (int) ($item->stok_g3 ?? 0);
+                $item->stok_g4 = (int) ($item->stok_g4 ?? 0);
+                $item->stok = $item->stok_g1 + $item->stok_g2 + $item->stok_g3 + $item->stok_g4;
+                return $item;
+            });
+
+            return $purchaseRequirementDetails;
         });
 
         return Inertia::render('marketing/purchase-requirement/edit', [
