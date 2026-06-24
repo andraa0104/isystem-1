@@ -49,6 +49,11 @@ const formatNumber = (value) => {
     }).format(Math.trunc(number));
 };
 
+const toNumber = (value) => {
+    const number = Number(value ?? 0);
+    return Number.isFinite(number) ? number : 0;
+};
+
 const stockRows = (material) => [
     {
         label: 'G1',
@@ -76,6 +81,23 @@ const stockRows = (material) => [
     },
 ];
 
+const movementCategories = [
+    { key: 'fast', title: 'Fast Moving', matcher: 'fast' },
+    { key: 'slow', title: 'Slow Moving', matcher: 'slow' },
+    { key: 'dead', title: 'Dead Stok', matcher: 'dead' },
+];
+
+const materialMovementRows = (material) =>
+    stockRows(material).map((row) => ({
+        kd_material: material?.kd_material,
+        material: material?.material,
+        gudang: row.label,
+        stok: toNumber(row.stok),
+        harga: toNumber(row.harga),
+        kategori: row.kategori,
+        total: toNumber(row.stok) * toNumber(row.harga),
+    }));
+
 export default function MaterialIndex({ materials }) {
     // --- States Utama ---
     const [materialsList, setMaterialsList] = useState([]);
@@ -93,6 +115,10 @@ export default function MaterialIndex({ materials }) {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState(null);
     const [viewingMaterial, setViewingMaterial] = useState(null);
+    const [movementModal, setMovementModal] = useState(null);
+    const [movementSearchTerm, setMovementSearchTerm] = useState('');
+    const [movementPageSize, setMovementPageSize] = useState(5);
+    const [movementCurrentPage, setMovementCurrentPage] = useState(1);
 
     const { data, setData, post, processing, reset, errors } = useForm({
         material: '',
@@ -190,11 +216,111 @@ export default function MaterialIndex({ materials }) {
         return filteredMaterials.slice(startIndex, startIndex + pageSize);
     }, [filteredMaterials, currentPage, pageSize]);
 
+    const movementData = useMemo(() => {
+        const base = movementCategories.reduce((acc, category) => {
+            acc[category.key] = {
+                ...category,
+                count: 0,
+                total: 0,
+                rows: [],
+                warehouses: [],
+            };
+            return acc;
+        }, {});
+
+        materialsList.forEach((material) => {
+            const grouped = movementCategories.reduce((acc, category) => {
+                acc[category.key] = null;
+                return acc;
+            }, {});
+
+            materialMovementRows(material).forEach((row) => {
+                const kategori = String(row.kategori ?? '').toLowerCase();
+                const category = movementCategories.find((item) =>
+                    kategori.includes(item.matcher),
+                );
+
+                if (!category) {
+                    return;
+                }
+
+                if (!grouped[category.key]) {
+                    grouped[category.key] = {
+                        kd_material: material?.kd_material,
+                        material: material?.material,
+                        stocks: {},
+                        prices: {},
+                        total: 0,
+                    };
+                }
+
+                grouped[category.key].stocks[row.gudang] = row.stok;
+                grouped[category.key].prices[row.gudang] = row.harga;
+                grouped[category.key].total += row.total;
+            });
+
+            Object.entries(grouped).forEach(([key, row]) => {
+                if (!row) {
+                    return;
+                }
+
+                base[key].count += 1;
+                base[key].total += row.total;
+                base[key].rows.push(row);
+                Object.keys(row.stocks).forEach((gudang) => {
+                    if (!base[key].warehouses.includes(gudang)) {
+                        base[key].warehouses.push(gudang);
+                    }
+                });
+            });
+        });
+
+        Object.values(base).forEach((category) => {
+            category.warehouses.sort((a, b) => a.localeCompare(b));
+        });
+
+        return base;
+    }, [materialsList]);
+
+    const selectedMovement = movementModal ? movementData[movementModal] : null;
+    const movementWarehouses = selectedMovement?.warehouses ?? [];
+    const movementRows = useMemo(() => {
+        const term = movementSearchTerm.trim().toLowerCase();
+        const rows = selectedMovement?.rows ?? [];
+        const filteredRows = term
+            ? rows.filter((row) =>
+                  [row.kd_material, row.material].some((value) =>
+                      String(value ?? '').toLowerCase().includes(term),
+                  ),
+              )
+            : rows;
+
+        return [...filteredRows].sort((a, b) =>
+            compareCode(a.kd_material, b.kd_material),
+        );
+    }, [movementSearchTerm, selectedMovement]);
+
+    const movementTotalItems = movementRows.length;
+    const movementTotalPages = useMemo(() => {
+        return Math.max(1, Math.ceil(movementTotalItems / movementPageSize));
+    }, [movementPageSize, movementTotalItems]);
+
+    const displayedMovementRows = useMemo(() => {
+        const startIndex = (movementCurrentPage - 1) * movementPageSize;
+        return movementRows.slice(startIndex, startIndex + movementPageSize);
+    }, [movementCurrentPage, movementPageSize, movementRows]);
+
     useEffect(() => {
         if (currentPage > totalPages) {
             setCurrentPage(totalPages);
         }
     }, [currentPage, totalPages]);
+
+    useEffect(() => {
+        if (movementCurrentPage > movementTotalPages) {
+            setMovementCurrentPage(movementTotalPages);
+        }
+    }, [movementCurrentPage, movementTotalPages]);
 
     // --- Handlers ---
     const handleSubmit = (event) => {
@@ -283,6 +409,58 @@ export default function MaterialIndex({ materials }) {
                             Tambah Data
                         </Button>
                     </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                    {movementCategories.map((category) => {
+                        const item = movementData[category.key];
+
+                        return (
+                            <Card
+                                key={category.key}
+                                role="button"
+                                tabIndex={0}
+                                className="cursor-pointer transition-colors hover:bg-muted/40"
+                                onClick={() => {
+                                    setMovementModal(category.key);
+                                    setMovementSearchTerm('');
+                                    setMovementPageSize(5);
+                                    setMovementCurrentPage(1);
+                                }}
+                                onKeyDown={(event) => {
+                                    if (
+                                        event.key === 'Enter' ||
+                                        event.key === ' '
+                                    ) {
+                                        event.preventDefault();
+                                        setMovementModal(category.key);
+                                        setMovementSearchTerm('');
+                                        setMovementPageSize(5);
+                                        setMovementCurrentPage(1);
+                                    }
+                                }}
+                            >
+                                <CardHeader className="pb-2">
+                                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                                        {category.title}
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                    <div className="text-2xl font-semibold tabular-nums">
+                                        {formatNumber(item?.count)}
+                                    </div>
+                                    <div>
+                                        <div className="text-xs text-muted-foreground">
+                                            Total harga stok
+                                        </div>
+                                        <div className="font-semibold tabular-nums">
+                                            Rp {formatNumber(item?.total)}
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        );
+                    })}
                 </div>
 
                 <Card>
@@ -669,6 +847,265 @@ export default function MaterialIndex({ materials }) {
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={Boolean(movementModal)}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setMovementModal(null);
+                        setMovementSearchTerm('');
+                        setMovementPageSize(5);
+                        setMovementCurrentPage(1);
+                    }
+                }}
+            >
+                <DialogContent className="w-[calc(100vw-2rem)] max-w-none p-4 sm:max-w-[calc(100vw-2rem)] lg:w-[calc(100vw-4rem)] lg:max-w-[1800px]">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {selectedMovement?.title ?? 'Kategori Material'}
+                        </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Daftar material berdasarkan kategori stok.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div className="grid gap-3 rounded-md border bg-muted/30 p-4 md:grid-cols-2">
+                            <div>
+                                <div className="text-sm text-muted-foreground">
+                                    Jumlah data
+                                </div>
+                                <div className="text-xl font-semibold tabular-nums">
+                                    {formatNumber(selectedMovement?.count)}
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-sm text-muted-foreground">
+                                    Total harga stok
+                                </div>
+                                <div className="text-xl font-semibold tabular-nums">
+                                    Rp {formatNumber(selectedMovement?.total)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <label>
+                                Tampilkan
+                                <select
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                    value={movementPageSize}
+                                    onChange={(event) => {
+                                        setMovementPageSize(
+                                            Number(event.target.value),
+                                        );
+                                        setMovementCurrentPage(1);
+                                    }}
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                            </label>
+                            <label>
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                    placeholder="Cari kode atau material..."
+                                    value={movementSearchTerm}
+                                    onChange={(event) => {
+                                        setMovementSearchTerm(
+                                            event.target.value,
+                                        );
+                                        setMovementCurrentPage(1);
+                                    }}
+                                />
+                            </label>
+                        </div>
+
+                        <div className="overflow-hidden rounded-md border">
+                            <div className="max-h-[64vh] overflow-auto overscroll-contain">
+                                <table className="w-full min-w-[1100px] table-fixed text-sm">
+                                    <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                                        <tr>
+                                            <th className="w-14 whitespace-nowrap px-3 py-2 text-left">
+                                                No
+                                            </th>
+                                            <th className="w-36 whitespace-nowrap px-3 py-2 text-left">
+                                                Kode Material
+                                            </th>
+                                            <th className="min-w-0 px-3 py-2 text-left">
+                                                Nama Material
+                                            </th>
+                                            {movementWarehouses.flatMap(
+                                                (gudang) => [
+                                                    <th
+                                                        key={`${gudang}-stok`}
+                                                        className="w-24 whitespace-nowrap px-3 py-2 text-right"
+                                                    >
+                                                        Stok {gudang}
+                                                    </th>,
+                                                    <th
+                                                        key={`${gudang}-harga`}
+                                                        className="w-32 whitespace-nowrap px-3 py-2 text-right"
+                                                    >
+                                                        Harga {gudang}
+                                                    </th>,
+                                                ],
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {displayedMovementRows.length === 0 ? (
+                                            <tr>
+                                                <td
+                                                    className="px-4 py-6 text-center text-muted-foreground"
+                                                    colSpan={
+                                                        3 +
+                                                        movementWarehouses.length *
+                                                            2
+                                                    }
+                                                >
+                                                    Data material tidak tersedia.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            displayedMovementRows.map(
+                                                (row, index) => (
+                                                    <tr
+                                                        key={`${row.kd_material}-${index}`}
+                                                        className="border-t border-sidebar-border/70"
+                                                    >
+                                                        <td className="w-14 whitespace-nowrap px-3 py-2">
+                                                            {(movementCurrentPage -
+                                                                1) *
+                                                                movementPageSize +
+                                                                index +
+                                                                1}
+                                                        </td>
+                                                        <td className="w-36 whitespace-nowrap px-3 py-2 font-medium">
+                                                            {renderValue(
+                                                                row.kd_material,
+                                                            )}
+                                                        </td>
+                                                        <td className="min-w-0 px-3 py-2">
+                                                            <div
+                                                                className="truncate"
+                                                                title={
+                                                                    row.material
+                                                                }
+                                                            >
+                                                                {renderValue(
+                                                                    row.material,
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        {movementWarehouses.flatMap(
+                                                            (gudang) => [
+                                                                <td
+                                                                    key={`${gudang}-stok`}
+                                                                    className="w-24 whitespace-nowrap px-3 py-2 text-right tabular-nums"
+                                                                >
+                                                                    {row.stocks?.[
+                                                                        gudang
+                                                                    ] ===
+                                                                    undefined
+                                                                        ? '-'
+                                                                        : formatNumber(
+                                                                              row
+                                                                                  .stocks[
+                                                                                  gudang
+                                                                              ],
+                                                                          )}
+                                                                </td>,
+                                                                <td
+                                                                    key={`${gudang}-harga`}
+                                                                    className="w-32 whitespace-nowrap px-3 py-2 text-right tabular-nums"
+                                                                >
+                                                                    {row.prices?.[
+                                                                        gudang
+                                                                    ] ===
+                                                                    undefined
+                                                                        ? '-'
+                                                                        : `Rp ${formatNumber(
+                                                                              row
+                                                                                  .prices[
+                                                                                  gudang
+                                                                              ],
+                                                                          )}`}
+                                                                </td>,
+                                                            ],
+                                                        )}
+                                                    </tr>
+                                                ),
+                                            )
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {movementTotalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (movementCurrentPage - 1) *
+                                            movementPageSize +
+                                            1,
+                                        movementTotalItems,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        movementCurrentPage * movementPageSize,
+                                        movementTotalItems,
+                                    )}{' '}
+                                    dari {movementTotalItems} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setMovementCurrentPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
+                                        }
+                                        disabled={movementCurrentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span>
+                                        Halaman {movementCurrentPage} dari{' '}
+                                        {movementTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setMovementCurrentPage((page) =>
+                                                Math.min(
+                                                    movementTotalPages,
+                                                    page + 1,
+                                                ),
+                                            )
+                                        }
+                                        disabled={
+                                            movementCurrentPage ===
+                                            movementTotalPages
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </DialogContent>
             </Dialog>
 

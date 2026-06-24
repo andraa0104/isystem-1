@@ -460,7 +460,6 @@ class DeliveryOrderController
             ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
             ->where('val_inv', 0)
             ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
-            ->orderBy('date', 'desc')
             ->orderBy('no_do', 'desc')
             ->get();
 
