@@ -601,7 +601,6 @@ class PurchaseOrderInController
                     ->whereRaw("lower(trim(pr.ref_po)) = lower(trim(?))", [(string)$purchaseOrderIn->no_poin])
                     ->whereRaw("lower(trim(pr.for_customer)) = lower(trim(?))", [(string)$purchaseOrderIn->customer_name])
                     ->whereColumn('pr.kd_material', 'd.kd_material')
-                    ->whereRaw("coalesce(cast(replace(pr.sisa_pr, ',', '') as decimal(65,4)), 0) < coalesce(cast(replace(pr.qty, ',', '') as decimal(65,4)), 0)")
                     ->selectRaw('count(*)')
             ])
             ->orderBy('d.id')
@@ -1492,16 +1491,15 @@ class PurchaseOrderInController
 
             $poHeader = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
             if ($poHeader) {
-                $hasProcessedPr = DB::table('tb_detailpr')
+                $hasPr = DB::table('tb_detailpr')
                     ->whereRaw("lower(trim(ref_po)) = lower(trim(?))", [(string)$poHeader->no_poin])
                     ->whereRaw("lower(trim(for_customer)) = lower(trim(?))", [(string)$poHeader->customer_name])
                     ->where('kd_material', $detail->kd_material)
-                    ->whereRaw("coalesce(cast(replace(sisa_pr, ',', '') as decimal(65,4)), 0) < coalesce(cast(replace(qty, ',', '') as decimal(65,4)), 0)")
                     ->exists();
 
-                if ($hasProcessedPr) {
+                if ($hasPr) {
                     return response()->json([
-                        'message' => 'Material tidak dapat dihapus karena PR sudah diproses menjadi PO.',
+                        'message' => 'Material tidak dapat dihapus karena sudah dibuat PR.',
                     ], 422);
                 }
             }

@@ -112,7 +112,11 @@ export default function PurchaseOrderEdit({
     });
     const [includePpn, setIncludePpn] = useState(false);
     const [editingMaterialId, setEditingMaterialId] = useState(null);
+    const [pendingPrMaterial, setPendingPrMaterial] = useState(null);
     const [materialItems, setMaterialItems] = useState([]);
+    const [prDetailList, setPrDetailList] = useState(
+        purchaseRequirementDetails,
+    );
 
     const filteredPr = useMemo(() => {
         const term = prSearchTerm.trim().toLowerCase();
@@ -193,6 +197,29 @@ export default function PurchaseOrderEdit({
     const ppnTotal = includePpn
         ? grossAmount - qtyValue * netPrice // PPN yang tercakup dalam harga
         : 0;
+
+    const availablePrMaterials = useMemo(() => {
+        if (!formData.refPr || prDetailList.length === 0) {
+            return [];
+        }
+
+        const existingKodeMaterials = new Set(
+            materialItems.map((item) => String(item.kodeMaterial ?? '').trim()),
+        );
+        const pendingKodeMaterial = String(
+            pendingPrMaterial?.kodeMaterial ?? '',
+        ).trim();
+
+        return prDetailList.filter((detail) => {
+            const kodeMaterial = String(detail.kd_material ?? '').trim();
+            return (
+                kodeMaterial &&
+                parseNumber(detail.sisa_pr ?? detail.Sisa_pr) > 0 &&
+                !existingKodeMaterials.has(kodeMaterial) &&
+                kodeMaterial !== pendingKodeMaterial
+            );
+        });
+    }, [formData.refPr, materialItems, pendingPrMaterial, prDetailList]);
 
     const handlePrSelect = (item) => {
         setFormData((prev) => ({
@@ -279,6 +306,7 @@ export default function PurchaseOrderEdit({
             kodeMaterial: item.kodeMaterial ?? '',
             material: item.material ?? '',
             qty: item.qty ?? '',
+            maxQty: item.maxQty ?? item.qty ?? '',
             satuan: item.satuan ?? '',
             price: item.price ?? '',
             // PPN tetap sesuai detail; jangan auto-isi dari step 2
@@ -343,9 +371,36 @@ export default function PurchaseOrderEdit({
         });
     };
 
+    const handleAddPrMaterial = (detail) => {
+        const sisaPr = parseNumber(detail.sisa_pr ?? detail.Sisa_pr);
+        if (sisaPr <= 0) {
+            return;
+        }
+
+        const draftItem = {
+            id: `new-${detail.no_pr}-${detail.kd_material}-${Date.now()}`,
+            no: materialItems.length + 1,
+            kodeMaterial: detail.kd_material ?? '',
+            material: detail.material ?? '',
+            qty: sisaPr,
+            maxQty: sisaPr,
+            satuan: detail.unit ?? '',
+            price: '',
+            ppn: purchaseOrderDetails[0]?.ppn ?? purchaseOrder?.ppn ?? '',
+            totalPrice: '',
+            kdVendor: purchaseOrderDetails[0]?.kd_vdr ?? '',
+            inEx: 'EX',
+            isNewFromPr: true,
+        };
+
+        setPendingPrMaterial(draftItem);
+        handleEditMaterial(draftItem);
+    };
+
     const handleCancelEditMaterial = () => {
         setEditingMaterialId(null);
         setSavingMaterialId(null);
+        setPendingPrMaterial(null);
         setMaterialForm({
             kodeMaterial: '',
             material: '',
@@ -365,6 +420,14 @@ export default function PurchaseOrderEdit({
 
         const isPriceEmpty =
             materialForm.price === '' || materialForm.price === null;
+        const maxQty = parseNumber(materialForm.maxQty);
+        if (maxQty > 0 && parseNumber(materialForm.qty) > maxQty) {
+            setMaterialForm((prev) => ({
+                ...prev,
+                qty: String(maxQty),
+            }));
+            return;
+        }
 
         const payload = {
             price: isPriceEmpty
@@ -376,6 +439,44 @@ export default function PurchaseOrderEdit({
             total_price: isPriceEmpty ? '' : totalPriceValue,
             qty: materialForm.qty,
         };
+
+        const currentItem =
+            materialItems.find((item) => item.id === editingMaterialId) ??
+            (pendingPrMaterial?.id === editingMaterialId
+                ? pendingPrMaterial
+                : null);
+        if (currentItem?.isNewFromPr) {
+            setMaterialItems((prev) =>
+                prev.some((item) => item.id === editingMaterialId)
+                    ? prev.map((item) =>
+                          item.id === editingMaterialId
+                              ? {
+                                    ...item,
+                                    price: payload.price,
+                                    ppn: payload.ppn,
+                                    totalPrice: payload.total_price,
+                                    qty: materialForm.qty,
+                                    maxQty: materialForm.maxQty,
+                                    inEx: includePpn ? 'IN' : 'EX',
+                                }
+                              : item,
+                      )
+                    : [
+                          ...prev,
+                          {
+                              ...currentItem,
+                              price: payload.price,
+                              ppn: payload.ppn,
+                              totalPrice: payload.total_price,
+                              qty: materialForm.qty,
+                              maxQty: materialForm.maxQty,
+                              inEx: includePpn ? 'IN' : 'EX',
+                          },
+                      ],
+            );
+            handleCancelEditMaterial();
+            return;
+        }
 
         router.put(
             `/pembelian/purchase-order/${encodeURIComponent(
@@ -397,6 +498,7 @@ export default function PurchaseOrderEdit({
                                       ppn: payload.ppn,
                                       totalPrice: payload.total_price,
                                       qty: materialForm.qty,
+                                      maxQty: materialForm.maxQty,
                                       inEx: includePpn ? 'IN' : 'EX',
                                   }
                                 : item,
@@ -469,6 +571,32 @@ export default function PurchaseOrderEdit({
     }, [editingMaterialId]);
 
     useEffect(() => {
+        if (!formData.refPr) {
+            return;
+        }
+
+        let cancelled = false;
+        fetch(
+            `/pembelian/purchase-order/pr-details?no_pr=${encodeURIComponent(formData.refPr)}`,
+            { headers: { Accept: 'application/json' } },
+        )
+            .then((response) => (response.ok ? response.json() : null))
+            .then((data) => {
+                if (cancelled || !data) return;
+                setPrDetailList(
+                    Array.isArray(data?.purchaseRequirementDetails)
+                        ? data.purchaseRequirementDetails
+                        : [],
+                );
+            })
+            .catch(() => {});
+
+        return () => {
+            cancelled = true;
+        };
+    }, [formData.refPr]);
+
+    useEffect(() => {
         if (materialItems.length > 0 || purchaseOrderDetails.length === 0) {
             return;
         }
@@ -479,6 +607,7 @@ export default function PurchaseOrderEdit({
             kodeMaterial: detail.kd_mat ?? detail.kd_material ?? '',
             material: detail.material ?? '',
             qty: detail.qty ?? '',
+            maxQty: detail.qty ?? '',
             satuan: detail.unit ?? '',
             price: detail.price ?? '',
             ppn: detail.ppn ?? '',
@@ -489,6 +618,43 @@ export default function PurchaseOrderEdit({
 
         setMaterialItems(mapped);
     }, [materialItems.length, purchaseOrderDetails]);
+
+    useEffect(() => {
+        if (
+            !formData.refPr ||
+            prDetailList.length === 0 ||
+            materialItems.length === 0
+        ) {
+            return;
+        }
+
+        setMaterialItems((prev) => {
+            let changed = false;
+
+            const withMaxQty = prev.map((item) => {
+                const detail = prDetailList.find(
+                    (row) =>
+                        String(row.kd_material ?? '') ===
+                        String(item.kodeMaterial ?? ''),
+                );
+                if (!detail) return item;
+
+                const maxQty =
+                    parseNumber(item.qty) +
+                    parseNumber(detail.sisa_pr ?? detail.Sisa_pr);
+                if (parseNumber(item.maxQty) === maxQty) return item;
+
+                changed = true;
+                return { ...item, maxQty };
+            });
+
+            return changed ? withMaxQty : prev;
+        });
+    }, [
+        formData.refPr,
+        materialItems.length,
+        prDetailList,
+    ]);
 
     useEffect(() => {
         const detailVendor = purchaseOrderDetails[0]?.kd_vdr;
@@ -577,6 +743,7 @@ export default function PurchaseOrderEdit({
                     kd_mat: item.kodeMaterial,
                     material: item.material,
                     qty: item.qty,
+                    max_qty: item.maxQty,
                     unit: item.satuan,
                     price: item.price,
                     ppn: item.ppn,
@@ -909,12 +1076,23 @@ export default function PurchaseOrderEdit({
                                     <Input
                                         type="number"
                                         value={materialForm.qty}
-                                        onChange={(event) =>
+                                        onChange={(event) => {
+                                            const requestedQty =
+                                                event.target.value;
+                                            const maxQty = parseNumber(
+                                                materialForm.maxQty,
+                                            );
+                                            const nextQty =
+                                                maxQty > 0 &&
+                                                parseNumber(requestedQty) >
+                                                    maxQty
+                                                    ? String(maxQty)
+                                                    : requestedQty;
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                qty: event.target.value,
-                                            }))
-                                        }
+                                                qty: nextQty,
+                                            }));
+                                        }}
                                         disabled={!editingMaterialId}
                                     />
                                 </div>
@@ -1039,6 +1217,9 @@ export default function PurchaseOrderEdit({
                                                 Qty
                                             </th>
                                             <th className="px-4 py-3 text-left">
+                                                Max Qty PR
+                                            </th>
+                                            <th className="px-4 py-3 text-left">
                                                 Satuan
                                             </th>
                                             <th className="px-4 py-3 text-left">
@@ -1060,7 +1241,7 @@ export default function PurchaseOrderEdit({
                                             <tr>
                                                 <td
                                                     className="px-4 py-6 text-center text-muted-foreground"
-                                                    colSpan={8}
+                                                    colSpan={10}
                                                 >
                                                     Belum ada material
                                                     ditambahkan.
@@ -1085,6 +1266,9 @@ export default function PurchaseOrderEdit({
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {renderValue(item.qty)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.maxQty)}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     {renderValue(item.satuan)}
@@ -1129,6 +1313,98 @@ export default function PurchaseOrderEdit({
                                     </tbody>
                                 </table>
                             </div>
+
+                            {availablePrMaterials.length > 0 && (
+                                <div className="space-y-3">
+                                    <div>
+                                        <h3 className="text-sm font-semibold">
+                                            Material PR Belum Masuk PO
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            Material di bawah ini masih punya
+                                            sisa PR dan bisa ditambahkan ke PO
+                                            secara manual.
+                                        </p>
+                                    </div>
+                                    <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-muted/50 text-muted-foreground">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Kode Material
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Material
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Sisa Qty PR
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Satuan
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Remark
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left">
+                                                        Action
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {availablePrMaterials.map(
+                                                    (detail) => (
+                                                        <tr
+                                                            key={`${detail.no_pr}-${detail.kd_material}`}
+                                                            className="border-t border-sidebar-border/70"
+                                                        >
+                                                            <td className="px-4 py-3">
+                                                                {renderValue(
+                                                                    detail.kd_material,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {renderValue(
+                                                                    detail.material,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {renderValue(
+                                                                    detail.sisa_pr ??
+                                                                        detail.Sisa_pr,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {renderValue(
+                                                                    detail.unit,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                {renderValue(
+                                                                    detail.renmark,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <Button
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() =>
+                                                                        handleAddPrMaterial(
+                                                                            detail,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    Tambah
+                                                                </Button>
+                                                            </td>
+                                                        </tr>
+                                                    ),
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="grid gap-4 md:grid-cols-3">
                                 <div className="grid gap-2">

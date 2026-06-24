@@ -9,6 +9,115 @@ use Inertia\Inertia;
 
 class DeliveryOrderController
 {
+    private function materialWarehouseOptions(array $kdMaterials)
+    {
+        $kdMaterials = collect($kdMaterials)->filter()->unique()->values()->all();
+        if (empty($kdMaterials) || !Schema::hasTable('tb_barang')) {
+            return collect();
+        }
+
+        $rows = DB::table('tb_barang')
+            ->whereIn('kd_material', $kdMaterials)
+            ->get([
+                'kd_material',
+                'stok_g1',
+                'stok_g2',
+                'stok_g3',
+                'stok_g4',
+                'katagori_stok1',
+                'katagori_stok2',
+                'katagori_stok3',
+                'katagori_stok4',
+                'harga_stokg1',
+                'harga_stokg2',
+                'harga_stokg3',
+                'harga_stokg4',
+            ]);
+
+        return $rows->mapWithKeys(function ($row) {
+            $options = collect([
+                ['value' => 'g1', 'gudang' => 'G1', 'kategori' => $row->katagori_stok1 ?? '', 'stock' => $row->stok_g1 ?? 0, 'price' => $row->harga_stokg1 ?? 0],
+                ['value' => 'g2', 'gudang' => 'G2', 'kategori' => $row->katagori_stok2 ?? '', 'stock' => $row->stok_g2 ?? 0, 'price' => $row->harga_stokg2 ?? 0],
+                ['value' => 'g3', 'gudang' => 'G3', 'kategori' => $row->katagori_stok3 ?? '', 'stock' => $row->stok_g3 ?? 0, 'price' => $row->harga_stokg3 ?? 0],
+                ['value' => 'g4', 'gudang' => 'G4', 'kategori' => $row->katagori_stok4 ?? '', 'stock' => $row->stok_g4 ?? 0, 'price' => $row->harga_stokg4 ?? 0],
+            ])->filter(fn ($option) => $this->parseNumber($option['stock']) > 0)
+                ->map(function ($option) {
+                    $kategori = trim((string) ($option['kategori'] ?? ''));
+                    $option['label'] = $kategori !== ''
+                        ? "{$option['gudang']} - {$kategori}"
+                        : $option['gudang'];
+                    $option['stock'] = $this->parseNumber($option['stock']);
+                    $option['price'] = $this->parseNumber($option['price']);
+                    return $option;
+                })
+                ->values();
+
+            return [(string) $row->kd_material => $options];
+        });
+    }
+
+    private function selectedWarehouseOption(?string $kdMaterial, mixed $warehouseCode): ?array
+    {
+        if (!$kdMaterial) {
+            return null;
+        }
+
+        $options = $this->materialWarehouseOptions([$kdMaterial])->get($kdMaterial, collect());
+        if ($options->isEmpty()) {
+            return null;
+        }
+
+        $selected = strtolower(trim((string) $warehouseCode));
+        return $options->firstWhere('value', $selected) ?? $options->first();
+    }
+
+    private function warehouseStockColumn(mixed $warehouseCode): ?string
+    {
+        return match (strtolower(trim((string) $warehouseCode))) {
+            'g1' => 'stok_g1',
+            'g2' => 'stok_g2',
+            'g3' => 'stok_g3',
+            'g4' => 'stok_g4',
+            default => null,
+        };
+    }
+
+    private function zeroedWarehousePayload(string $stockColumn, mixed $stockValue): array
+    {
+        $payload = [$stockColumn => $stockValue];
+        if ($this->parseNumber($stockValue) > 0) {
+            return $payload;
+        }
+
+        $suffix = match ($stockColumn) {
+            'stok_g1' => '1',
+            'stok_g2' => '2',
+            'stok_g3' => '3',
+            'stok_g4' => '4',
+            default => null,
+        };
+
+        if (!$suffix) {
+            return $payload;
+        }
+
+        $hargaColumn = "harga_stokg{$suffix}";
+        $kategoriColumn = "katagori_stok{$suffix}";
+        $alternateKategoriColumn = "kategori_stok{$suffix}";
+
+        if (Schema::hasColumn('tb_barang', $hargaColumn)) {
+            $payload[$hargaColumn] = 0.00;
+        }
+        if (Schema::hasColumn('tb_barang', $kategoriColumn)) {
+            $payload[$kategoriColumn] = 0;
+        }
+        if (Schema::hasColumn('tb_barang', $alternateKategoriColumn)) {
+            $payload[$alternateKategoriColumn] = 0;
+        }
+
+        return $payload;
+    }
+
     private function parseNumber($value): float
     {
         if ($value === null) {
@@ -172,117 +281,87 @@ class DeliveryOrderController
         $year = $now->format('Y');
         $month = $now->format('m');
         $todayDate = $now->format('Y-m-d');
-        $todayDot = $now->format('d.m.Y');
 
-        // [PENERAPAN] Buat kunci cache dinamis berdasarkan tanggal
-        $cacheKey = 'do_data_' . $fetchType . '_' . $period;
-        if ($period === 'today') {
-            $cacheKey .= '_' . $todayDate;
-        } elseif ($period === 'this_month') {
-            $cacheKey .= '_' . $year . '_' . $month;
-        } elseif ($period === 'this_year') {
-            $cacheKey .= '_' . $year;
-        } elseif ($period === 'this_week') {
-            $cacheKey .= '_' . $now->startOfWeek()->toDateString();
-        } elseif ($period === 'range') {
-            $cacheKey .= '_' . md5($request->query('start_date') . $request->query('end_date'));
+        $dateExpression = fn ($column) => "coalesce(date($column), str_to_date($column, '%d.%m.%Y'), str_to_date($column, '%d-%m-%Y'), str_to_date($column, '%d/%m/%Y'), str_to_date($column, '%Y-%m-%d'))";
+
+        $applyDateFilter = function ($query, $column) use ($period, $now, $year, $month, $todayDate, $request, $dateExpression) {
+            $expr = $dateExpression($column);
+
+            if ($period === 'today') {
+                $query->whereRaw("date($expr) = ?", [$todayDate]);
+            } elseif ($period === 'this_month') {
+                $query->whereRaw("year($expr) = ? and month($expr) = ?", [$year, $month]);
+            } elseif ($period === 'this_year') {
+                $query->whereRaw("year($expr) = ?", [$year]);
+            } elseif ($period === 'this_week') {
+                $start = $now->startOfWeek()->toDateString();
+                $end = $now->endOfWeek()->toDateString();
+                $query->whereRaw("date($expr) BETWEEN ? AND ?", [$start, $end]);
+            } elseif ($period === 'range') {
+                $startDate = $request->query('start_date');
+                $endDate = $request->query('end_date');
+                if ($startDate && $endDate) {
+                    $query->whereRaw("date($expr) BETWEEN ? AND ?", [$startDate, $endDate]);
+                }
+            }
+        };
+
+        $response = ['period' => $period];
+
+        if ($fetchType === 'table' || $fetchType === 'all') {
+            $deliveryOrdersQuery = DB::table('tb_do')
+                ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
+                ->distinct()
+                ->orderBy('no_do', 'desc')
+                ->orderBy('date', 'desc');
+
+            if ($period !== 'all') {
+                $applyDateFilter($deliveryOrdersQuery, "coalesce(nullif(tb_do.pos_tgl, ''), tb_do.date)");
+            }
+
+            if ($period === 'all') {
+                $deliveryOrdersQuery->limit(5000);
+            }
+
+            $response['deliveryOrders'] = $deliveryOrdersQuery->get();
         }
 
-        // [PENERAPAN] Simpan hasil ke dalam Valkey Cache
-        $cachedResponse = \Illuminate\Support\Facades\Cache::tags(['do_data'])->remember($cacheKey, 86400, function () use ($period, $fetchType, $now, $year, $month, $todayDate, $todayDot, $request) {
-            
-            $applyDateFilter = function ($query, $column) use ($period, $now, $year, $month, $todayDate, $todayDot, $request) {
-                if ($period === 'today') {
-                    $query->where(function($q) use ($column, $todayDate, $todayDot) {
-                        $q->whereDate($column, $todayDate)
-                          ->orWhere($column, $todayDot)
-                          ->orWhere($column, 'like', $todayDate . '%'); 
-                    });
-                } elseif ($period === 'this_month') {
-                    $query->where(function($q) use ($column, $month, $year) {
-                        $q->whereYear($column, $year)->whereMonth($column, $month)
-                          ->orWhere($column, 'like', "%.{$month}.{$year}")
-                          ->orWhere($column, 'like', "%-{$month}-{$year}")
-                          ->orWhere($column, 'like', "%/{$month}/{$year}");
-                    });
-                } elseif ($period === 'this_year') {
-                    $query->where(function($q) use ($column, $year) {
-                        $q->whereYear($column, $year)
-                          ->orWhere($column, 'like', "%." . $year)
-                          ->orWhere($column, 'like', "%-" . $year)
-                          ->orWhere($column, 'like', "%/" . $year)
-                          ->orWhere($column, 'like', $year . '-%');
-                    });
-                } elseif ($period === 'this_week') {
-                    $start = $now->startOfWeek()->toDateString();
-                    $end = $now->endOfWeek()->toDateString();
-                    $expr = "coalesce(date($column), str_to_date($column, '%d.%m.%Y'), str_to_date($column, '%d-%m-%Y'), str_to_date($column, '%d/%m/%Y'), str_to_date($column, '%Y-%m-%d'))";
-                    $query->whereRaw("($expr) BETWEEN ? AND ?", [$start, $end]);
-                } elseif ($period === 'range') {
-                    $startDate = $request->query('start_date');
-                    $endDate = $request->query('end_date');
-                    if ($startDate && $endDate) {
-                        $expr = "coalesce(date($column), str_to_date($column, '%d.%m.%Y'), str_to_date($column, '%d-%m-%Y'), str_to_date($column, '%d/%m/%Y'), str_to_date($column, '%Y-%m-%d'))";
-                        $query->whereRaw("($expr) BETWEEN ? AND ?", [$startDate, $endDate]);
-                    }
-                }
-            };
+        if ($fetchType === 'summary' || $fetchType === 'all') {
+            $outstandingListQuery = DB::table('tb_do')
+                ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
+                ->where('val_inv', 0)
+                ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv');
 
-            $response = ['period' => $period];
+            $response['outstandingCount'] = DB::query()
+                ->fromSub($outstandingListQuery, 'outstanding_do')
+                ->count();
 
-            if ($fetchType === 'table' || $fetchType === 'all') {
-                $deliveryOrdersQuery = DB::table('tb_do')
-                    ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
-                    ->distinct()
-                    ->orderBy('no_do', 'desc')
-                    ->orderBy('date', 'desc');
+            $response['outstandingTotal'] = DB::table('tb_do')
+                ->where('val_inv', 0)
+                ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
 
-                if ($period !== 'all') {
-                    $applyDateFilter($deliveryOrdersQuery, 'tb_do.date');
-                }
+            $realizedQuery = DB::table('tb_kddo as k')
+                ->join('tb_fakturpenjualan as f', function ($join) {
+                    $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
+                });
 
-                if ($period === 'all') {
-                    $deliveryOrdersQuery->limit(5000); 
-                }
-
-                $response['deliveryOrders'] = $deliveryOrdersQuery->get();
+            if ($period !== 'all') {
+                $applyDateFilter($realizedQuery, 'f.tgl_pos');
             }
 
-            if ($fetchType === 'summary' || $fetchType === 'all') {
-                $response['outstandingCount'] = DB::table('tb_do')
-                    ->where('val_inv', 0)
-                    ->distinct('no_do')
-                    ->count('no_do');
+            $realizedNos = $realizedQuery->distinct('k.no_do')->pluck('k.no_do');
+            $response['realizedCount'] = $realizedNos->count();
 
-                $response['outstandingTotal'] = DB::table('tb_do')
-                    ->where('val_inv', 0)
+            if ($realizedNos->isEmpty()) {
+                $response['realizedTotal'] = 0;
+            } else {
+                $response['realizedTotal'] = (float) DB::table('tb_do')
+                    ->whereIn(DB::raw('lower(trim(no_do))'), $realizedNos->map(fn ($n) => strtolower(trim($n))))
                     ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
-
-                $realizedQuery = DB::table('tb_kddo as k')
-                    ->join('tb_fakturpenjualan as f', function ($join) {
-                        $join->on(DB::raw('lower(trim(f.no_do))'), '=', DB::raw('lower(trim(k.no_do))'));
-                    });
-
-                if ($period !== 'all') {
-                    $applyDateFilter($realizedQuery, 'f.tgl_pos');
-                }
-
-                $realizedNos = $realizedQuery->distinct('k.no_do')->pluck('k.no_do');
-                $response['realizedCount'] = $realizedNos->count();
-                
-                if ($realizedNos->isEmpty()) {
-                    $response['realizedTotal'] = 0;
-                } else {
-                    $response['realizedTotal'] = (float) DB::table('tb_do')
-                        ->whereIn(DB::raw('lower(trim(no_do))'), $realizedNos->map(fn ($n) => strtolower(trim($n))))
-                        ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)'));
-                }
             }
+        }
 
-            return $response;
-        });
-
-        return response()->json($cachedResponse);
+        return response()->json($response);
     }
 
     public function update(Request $request, $noDo)
@@ -564,38 +643,44 @@ class DeliveryOrderController
         }
 
         $prItems = collect();
-        if ($refPr) {
-            $rawItems = DB::table('tb_detailpr')
-                ->where('no_pr', $refPr)
+        $kodePoin = DB::table('tb_poin')
+            ->whereRaw('lower(trim(no_poin)) = ?', [strtolower(trim((string) $header->ref_po))])
+            ->value('kode_poin');
+
+        if ($kodePoin) {
+            $rawItems = DB::table('tb_detailpoin')
+                ->where('kode_poin', $kodePoin)
                 ->get();
 
             $kdMats = $rawItems->map(fn($item) => $item->kd_material ?? $item->kd_mat ?? $item->kd_mtrl)->filter()->unique()->all();
             $stocks = DB::table('tb_material')
                 ->whereIn('kd_material', $kdMats)
                 ->pluck('stok', 'kd_material');
+            $warehouseOptions = $this->materialWarehouseOptions($kdMats);
 
-            $prItems = $rawItems->map(function ($item) use ($stocks) {
+            $prItems = $rawItems->map(function ($item) use ($stocks, $warehouseOptions) {
                 $kdMaterial = $item->kd_material
                     ?? $item->kd_mat
                     ?? $item->kd_mtrl
                     ?? null;
                 $material = $item->material ?? $item->mat ?? $item->mtrl ?? null;
-                $unit = $item->unit ?? $item->satuan ?? $item->Unit ?? '';
-                $remark = $item->renmark ?? $item->remark ?? $item->keterangan ?? '';
-                $sisa = $item->sisa_pr ?? $item->Sisa_pr ?? null;
-                $qty = $sisa ?? $item->qty ?? $item->Qty ?? $item->quantity ?? null;
+	                $unit = $item->satuan ?? $item->unit ?? $item->Unit ?? '';
+	                $remark = $item->renmark ?? $item->remark ?? $item->keterangan ?? '';
+	                $sisa = $item->sisa_qtydo ?? $item->sisaqtydo ?? null;
+	                $qty = $item->qty ?? $item->Qty ?? $item->quantity ?? null;
 
                 $lastStock = $stocks->get($kdMaterial) ?? 0;
 
                 return (object) [
                     'kd_material' => $kdMaterial,
-                    'material' => $material,
-                    'qty' => $qty,
-                    'unit' => $unit,
-                    'remark' => $remark,
-                    'sisa_pr' => $sisa,
-                    'last_stock' => (float) $lastStock,
-                ];
+	                    'material' => $material,
+	                    'qty' => $qty,
+	                    'unit' => $unit,
+	                    'remark' => $remark,
+	                    'sisa_qtydo' => $sisa,
+	                    'last_stock' => (float) $lastStock,
+	                    'warehouse_options' => $warehouseOptions->get((string) $kdMaterial, collect())->values(),
+	                ];
             });
         }
 
@@ -604,9 +689,15 @@ class DeliveryOrderController
         $materialsDO = DB::table('tb_material')
             ->whereIn('kd_material', $kdMatsDO)
             ->pluck('stok', 'kd_material');
+        $warehouseOptionsDO = $this->materialWarehouseOptions($kdMatsDO);
 
-        $mappedItems = $items->map(function ($item) use ($materialsDO) {
+        $mappedItems = $items->map(function ($item) use ($materialsDO, $warehouseOptionsDO) {
             $lastStock = $materialsDO->get($item->kd_mat) ?? 0;
+            $options = $warehouseOptionsDO->get((string) ($item->kd_mat ?? ''), collect())->values();
+            $matchedWarehouse = $options->first(function ($option) use ($item) {
+                return abs($this->parseNumber($option['price'] ?? 0) - $this->parseNumber($item->harga ?? 0)) <= 0.000001;
+            });
+
             return [
                 'no' => $item->no,
                 'kd_material' => $item->kd_mat ?? null,
@@ -617,6 +708,9 @@ class DeliveryOrderController
                 'remark' => $item->remark ?? null,
                 'last_stock' => (float) $lastStock,
                 'stock_now' => (float) $lastStock, // Set stock_now default sama dengan last_stock
+                'warehouse_code' => $matchedWarehouse['value'] ?? null,
+                'warehouse_label' => $matchedWarehouse['label'] ?? null,
+                'warehouse_options' => $options,
             ];
         });
 
@@ -734,7 +828,9 @@ class DeliveryOrderController
                         $resolvedKdMat = $materialRow->kd_material;
                     }
 
-                    $effectivePrice = $materialRow->harga ?? 0;
+                    $warehouseCode = $item['warehouse_code'] ?? null;
+                    $warehouseOption = $this->selectedWarehouseOption($resolvedKdMat, $warehouseCode);
+                    $effectivePrice = $warehouseOption['price'] ?? ($materialRow->harga ?? 0);
                     $effectiveTotal = $parseNumber($item['qty'] ?? 0) * $parseNumber($effectivePrice);
 
                     $doPayload[] = [
@@ -767,13 +863,14 @@ class DeliveryOrderController
                         'remark' => ($item['remark'] ?? null) === null ? ' ' : $item['remark'],
                     ];
 
-                    $stockNow = $item['stock_now'] ?? null;
-                    if ($resolvedKdMat && $stockNow !== null) {
-                        $materialUpdates[] = [
-                            'kd_material' => $resolvedKdMat,
-                            'stok' => $stockNow,
-                        ];
-                    }
+	                    $stockNow = $item['stock_now'] ?? null;
+	                    if ($resolvedKdMat && $stockNow !== null) {
+	                        $materialUpdates[] = [
+	                            'kd_material' => $resolvedKdMat,
+	                            'stok' => $stockNow,
+                                'warehouse_code' => $warehouseOption['value'] ?? $warehouseCode,
+	                        ];
+	                    }
 
                     if ($kodePoin && $resolvedKdMat) {
                         $detailPoinUpdates[] = [
@@ -793,14 +890,14 @@ class DeliveryOrderController
                 }
 
                 // Batch updates (executed as single queries since Laravel doesn't have bulk update easily)
-                foreach ($materialUpdates as $up) {
-                    DB::table('tb_material')
-                        ->where('kd_material', $up['kd_material'])
-                        ->update([
-                            'stok' => $up['stok'],
-                            'rest_stock' => $up['stok'],
-                        ]);
-                }
+	                foreach ($materialUpdates as $up) {
+                        $stockColumn = $this->warehouseStockColumn($up['warehouse_code'] ?? null);
+                        if ($stockColumn && Schema::hasTable('tb_barang') && Schema::hasColumn('tb_barang', $stockColumn)) {
+                            DB::table('tb_barang')
+                                ->where('kd_material', $up['kd_material'])
+                                ->update($this->zeroedWarehousePayload($stockColumn, $up['stok']));
+                        }
+	                }
 
                 if (Schema::hasColumn('tb_detailpoin', 'sisa_qtydo')) {
                     foreach ($detailPoinUpdates as $up) {
@@ -863,6 +960,13 @@ class DeliveryOrderController
         $refPr = $request->input('ref_pr');
         $newDateInput = $request->input('date');
         $stockNow = $request->input('stock_now');
+        $warehouseCode = $request->input('warehouse_code');
+        $warehouseOption = $this->selectedWarehouseOption($row->kd_mat ?? null, $warehouseCode);
+        $effectivePrice = $warehouseOption['price'] ?? $this->parseNumber($row->harga ?? 0);
+        $warehouseOptions = $this->materialWarehouseOptions([$row->kd_mat ?? null])->get((string) ($row->kd_mat ?? ''), collect());
+        $oldWarehouseOption = $warehouseOptions->first(function ($option) use ($row) {
+            return abs($this->parseNumber($option['price'] ?? 0) - $this->parseNumber($row->harga ?? 0)) <= 0.000001;
+        });
 
         try {
             $parsed = $newDateInput ? \Carbon\Carbon::parse($newDateInput) : null;
@@ -883,6 +987,9 @@ class DeliveryOrderController
                 $newQty,
                 $newDate,
                 $stockNow,
+                $warehouseOption,
+                $oldWarehouseOption,
+                $effectivePrice,
                 $parseNumber
             ) {
                 DB::table('tb_do')
@@ -892,16 +999,31 @@ class DeliveryOrderController
                         'date' => $newDate,
                         'qty' => $newQtyInput,
                         'remark' => $remarkValue,
-                        'total' => (float)$newQty * (float)($row->harga ?? 0),
+                        'harga' => $effectivePrice,
+                        'total' => (float)$newQty * (float)$effectivePrice,
                     ]);
 
-                if ($row->mat && $stockNow !== null) {
-                    DB::table('tb_material')
-                        ->whereRaw('lower(trim(material)) = ?', [strtolower(trim((string) $row->mat))])
-                        ->update([
-                            'stok' => $stockNow,
-                            'rest_stock' => $stockNow,
-                        ]);
+                if ($row->kd_mat && $stockNow !== null && Schema::hasTable('tb_barang')) {
+                    $newStockColumn = $this->warehouseStockColumn($warehouseOption['value'] ?? null);
+                    $oldStockColumn = $this->warehouseStockColumn($oldWarehouseOption['value'] ?? null);
+
+                    if ($oldStockColumn && $newStockColumn && $oldStockColumn !== $newStockColumn && Schema::hasColumn('tb_barang', $oldStockColumn)) {
+                        DB::table('tb_barang')
+                            ->where('kd_material', $row->kd_mat)
+                            ->update([
+                                $oldStockColumn => DB::raw(sprintf(
+                                    'coalesce(cast(%s as decimal(65,4)), 0) + %.4F',
+                                    $oldStockColumn,
+                                    $oldQty
+                                )),
+                            ]);
+                    }
+
+                    if ($newStockColumn && Schema::hasColumn('tb_barang', $newStockColumn)) {
+                        DB::table('tb_barang')
+                            ->where('kd_material', $row->kd_mat)
+                            ->update($this->zeroedWarehousePayload($newStockColumn, $stockNow));
+                    }
                 }
 
                 if (!$refPr) {
@@ -948,6 +1070,115 @@ class DeliveryOrderController
         return redirect()
             ->route('marketing.delivery-order.index')
             ->with('success', 'Data DO berhasil diperbarui.');
+    }
+
+    public function storeDetail(Request $request, $noDo)
+    {
+        $header = DB::table('tb_kddo')->where('no_do', $noDo)->first();
+        if (!$header) {
+            return back()->with('error', 'Data DO tidak ditemukan.');
+        }
+
+        $kdMaterial = $request->input('kd_material');
+        $material = $request->input('material');
+        $qty = $this->parseNumber($request->input('qty'));
+        $warehouseOption = $this->selectedWarehouseOption($kdMaterial, $request->input('warehouse_code'));
+        $stockNow = $request->input('stock_now');
+        $remark = $request->input('remark') === null ? ' ' : $request->input('remark');
+        $dateInput = $request->input('date');
+
+        if (!$kdMaterial || !$material || $qty <= 0 || !$warehouseOption) {
+            return back()->with('error', 'Material, qty, dan gudang wajib diisi.');
+        }
+
+        try {
+            $parsed = $dateInput ? \Carbon\Carbon::parse($dateInput) : null;
+            $date = $parsed ? $parsed->format('d.m.Y') : $dateInput;
+        } catch (\Throwable $e) {
+            $date = $dateInput;
+        }
+
+        try {
+            DB::transaction(function () use ($request, $noDo, $header, $kdMaterial, $material, $qty, $warehouseOption, $stockNow, $remark, $date) {
+                $nextNo = ((int) (DB::table('tb_do')->where('no_do', $noDo)->max('no') ?? 0)) + 1;
+                $price = $this->parseNumber($warehouseOption['price'] ?? 0);
+                $total = $qty * $price;
+
+                DB::table('tb_do')->insert([
+                    'no_do' => $noDo,
+                    'date' => $date,
+                    'pos_tgl' => now()->format('d.m.Y'),
+                    'ref_po' => $header->ref_po,
+                    'kd_cs' => $header->kd_cs,
+                    'nm_cs' => $header->nm_cs,
+                    'no' => $nextNo,
+                    'mat' => $material,
+                    'kd_mat' => $kdMaterial,
+                    'qty' => $qty,
+                    'unit' => $request->input('unit'),
+                    'remark' => $remark,
+                    'harga' => $price,
+                    'total' => $total,
+                    'val_inv' => 0,
+                    'inv' => ' ',
+                ]);
+
+                DB::table('tb_ttldo')->insert([
+                    'no' => $nextNo,
+                    'qty' => $qty,
+                    'mat' => $material,
+                    'kd_mat' => $kdMaterial,
+                    'unit' => $request->input('unit'),
+                    'price' => $price,
+                    'total' => $total,
+                    'remark' => $remark,
+                ]);
+
+                $stockColumn = $this->warehouseStockColumn($warehouseOption['value'] ?? null);
+                if ($stockNow !== null && $stockColumn && Schema::hasColumn('tb_barang', $stockColumn)) {
+                    DB::table('tb_barang')
+                        ->where('kd_material', $kdMaterial)
+                        ->update($this->zeroedWarehousePayload($stockColumn, $stockNow));
+                }
+
+                if ($header->ref_po && Schema::hasColumn('tb_detailpoin', 'sisa_qtydo')) {
+                    $kodePoin = DB::table('tb_poin')
+                        ->whereRaw('lower(trim(no_poin)) = ?', [strtolower(trim((string) $header->ref_po))])
+                        ->value('kode_poin');
+
+                    if ($kodePoin) {
+                        DB::table('tb_detailpoin')
+                            ->where('kode_poin', $kodePoin)
+                            ->where('kd_material', $kdMaterial)
+                            ->update([
+                                'sisa_qtydo' => DB::raw(sprintf(
+                                    'case when coalesce(cast(sisa_qtydo as decimal(18,4)), 0) - %.4F < 0 then 0 else coalesce(cast(sisa_qtydo as decimal(18,4)), 0) - %.4F end',
+                                    $qty,
+                                    $qty
+                                )),
+                            ]);
+                    }
+                }
+
+                $refPr = $request->input('ref_pr');
+                if ($refPr) {
+                    DB::table('tb_detailpr')
+                        ->where('no_pr', $refPr)
+                        ->where('kd_material', $kdMaterial)
+                        ->update([
+                            'sisa_pr' => DB::raw(sprintf(
+                                'case when coalesce(cast(sisa_pr as decimal(18,4)), 0) - %.4F < 0 then 0 else coalesce(cast(sisa_pr as decimal(18,4)), 0) - %.4F end',
+                                $qty,
+                                $qty
+                            )),
+                        ]);
+                }
+            });
+        } catch (\Throwable $exception) {
+            return back()->with('error', 'Gagal menambah detail DO: ' . $exception->getMessage());
+        }
+
+        return back()->with('success', 'Material DO berhasil ditambahkan.');
     }
 
     public function destroyDetail(Request $request, $noDo, $lineNo)
@@ -1184,19 +1415,22 @@ class DeliveryOrderController
         $stocks = DB::table('tb_material')
             ->whereIn('kd_material', $kdMats)
             ->pluck('stok', 'kd_material');
+        $warehouseOptions = $this->materialWarehouseOptions($kdMats);
 
-        $items = $rawItems->map(function ($item) use ($stocks) {
+        $items = $rawItems->map(function ($item) use ($stocks, $warehouseOptions) {
             // Prioritaskan mengambil kolom 'satuan', lalu 'unit' jika 'satuan' tidak ada
             $unit = $item->satuan ?? $item->unit ?? $item->Unit ?? '';
+            $kdMaterial = $item->kd_material ?? null;
 
             return (object) [
-                'kd_material' => $item->kd_material ?? null,
+                'kd_material' => $kdMaterial,
                 'material' => $item->material ?? null,
                 'qty' => $item->sisa_qtydo ?? $item->qty ?? null,
                 'unit' => $unit, // Ini akan terisi dari tb_detailpoin.satuan
                 'remark' => $item->renmark ?? $item->remark ?? $item->keterangan ?? '',
                 'sisa_qtydo' => $item->sisa_qtydo ?? null,
-                'last_stock' => (float) ($stocks->get($item->kd_material ?? '') ?? 0),
+                'last_stock' => (float) ($stocks->get($kdMaterial ?? '') ?? 0),
+                'warehouse_options' => $warehouseOptions->get((string) $kdMaterial, collect())->values(),
             ];
         });
 

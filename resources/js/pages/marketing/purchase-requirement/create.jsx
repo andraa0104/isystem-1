@@ -106,6 +106,12 @@ const calculateTotalPrice = (qtyPr, hargaModal) => {
     return (qty * modal).toFixed(2);
 };
 
+const calculateTotalStock = (item) =>
+    parseNumber(item?.stokG1 ?? item?.stok_g1) +
+    parseNumber(item?.stokG2 ?? item?.stok_g2) +
+    parseNumber(item?.stokG3 ?? item?.stok_g3) +
+    parseNumber(item?.stokG4 ?? item?.stok_g4);
+
 export default function PurchaseRequirementCreate() {
     const { tenant } = usePage().props;
     const dbPrefix = (tenant?.database ?? '')
@@ -154,6 +160,10 @@ export default function PurchaseRequirementCreate() {
         namaMaterial: '',
         satuan: '',
         quantity: '',
+        stokG1: 0,
+        stokG2: 0,
+        stokG3: 0,
+        stokG4: 0,
         lastStock: 0,
         priceEstimate: '',
         totalPrice: 0,
@@ -329,16 +339,20 @@ export default function PurchaseRequirementCreate() {
                         }
                     }
 
+                    const stockBreakdown = {
+                        stokG1: item.stok_g1 ?? 0,
+                        stokG2: item.stok_g2 ?? 0,
+                        stokG3: item.stok_g3 ?? 0,
+                        stokG4: item.stok_g4 ?? 0,
+                    };
+
                     return {
                         id: item.id ?? `${Date.now()}-${index}`,
                         no: index + 1,
                         kodeMaterial: item.kd_material ?? '',
                         namaMaterial: item.material ?? '',
-                        stokG1: item.stok_g1 ?? 0,
-                        stokG2: item.stok_g2 ?? 0,
-                        stokG3: item.stok_g3 ?? 0,
-                        stokG4: item.stok_g4 ?? 0,
-                        stok: item.stok ?? 0,
+                        ...stockBreakdown,
+                        stok: calculateTotalStock(stockBreakdown),
                         qtyPoIn: item.qty_po_in ?? 0,
                         qtyPr: item.sisa_qtypr ?? 0,
                         satuan: item.satuan ?? '',
@@ -380,7 +394,11 @@ export default function PurchaseRequirementCreate() {
         no: materialItems.length + 1,
         kodeMaterial: materialForm.kodeMaterial,
         namaMaterial: materialForm.namaMaterial,
-        stok: materialForm.lastStock,
+        stokG1: materialForm.stokG1,
+        stokG2: materialForm.stokG2,
+        stokG3: materialForm.stokG3,
+        stokG4: materialForm.stokG4,
+        stok: calculateTotalStock(materialForm),
         qtyPoIn: 0,
         qtyPr: materialForm.quantity,
         satuan: materialForm.satuan,
@@ -397,6 +415,10 @@ export default function PurchaseRequirementCreate() {
         namaMaterial: '',
         satuan: '',
         quantity: '',
+        stokG1: 0,
+        stokG2: 0,
+        stokG3: 0,
+        stokG4: 0,
         lastStock: 0,
         priceEstimate: '',
         totalPrice: 0,
@@ -496,7 +518,11 @@ export default function PurchaseRequirementCreate() {
             qty: item.qtyPr,
             sisa_pr: item.qtyPr,
             unit: item.satuan,
-            stok: item.stok,
+            stok: calculateTotalStock(item),
+            stok_g1: item.stokG1,
+            stok_g2: item.stokG2,
+            stok_g3: item.stokG3,
+            stok_g4: item.stokG4,
             unit_price: item.hargaModal,
             total_price: calculateTotalPrice(item.qtyPr, item.hargaModal),
             price_po: formData.isStok ? item.hargaModal : item.hargaPoIn,
@@ -1706,24 +1732,45 @@ export default function PurchaseRequirementCreate() {
                                                                 }
 
                                                                 setMaterialForm(
-                                                                    (prev) => ({
-                                                                        ...prev,
-                                                                        kodeMaterial:
-                                                                            m.kd_material,
-                                                                        namaMaterial:
-                                                                            m.material,
-                                                                        satuan: m.unit,
-                                                                        lastStock:
-                                                                            m.stok,
-                                                                        priceEstimate,
-                                                                        totalPrice:
-                                                                            parseNumber(
-                                                                                prev.quantity,
-                                                                            ) *
-                                                                            parseNumber(
-                                                                                priceEstimate,
-                                                                            ),
-                                                                    }),
+                                                                    (prev) => {
+                                                                        const stockBreakdown =
+                                                                            {
+                                                                                stokG1:
+                                                                                    m.stok_g1 ??
+                                                                                    0,
+                                                                                stokG2:
+                                                                                    m.stok_g2 ??
+                                                                                    0,
+                                                                                stokG3:
+                                                                                    m.stok_g3 ??
+                                                                                    0,
+                                                                                stokG4:
+                                                                                    m.stok_g4 ??
+                                                                                    0,
+                                                                            };
+
+                                                                        return {
+                                                                            ...prev,
+                                                                            kodeMaterial:
+                                                                                m.kd_material,
+                                                                            namaMaterial:
+                                                                                m.material,
+                                                                            satuan: m.unit,
+                                                                            ...stockBreakdown,
+                                                                            lastStock:
+                                                                                calculateTotalStock(
+                                                                                    stockBreakdown,
+                                                                                ),
+                                                                            priceEstimate,
+                                                                            totalPrice:
+                                                                                parseNumber(
+                                                                                    prev.quantity,
+                                                                                ) *
+                                                                                parseNumber(
+                                                                                    priceEstimate,
+                                                                                ),
+                                                                        };
+                                                                    },
                                                                 );
                                                                 setIsMaterialModalOpen(false);
                                                             }}

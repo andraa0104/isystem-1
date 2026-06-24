@@ -87,6 +87,11 @@ const formatNumber = (value) =>
         parseNumber(value),
     );
 
+const formatInteger = (value) =>
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        Math.round(parseNumber(value)),
+    );
+
 export default function PurchaseRequirementEdit({
     purchaseRequirement,
     purchaseRequirementDetails = [],
@@ -123,11 +128,11 @@ export default function PurchaseRequirementEdit({
             detailNo: item.no ?? null,
             kodeMaterial: item.kd_material ?? '',
             namaMaterial: item.material ?? '',
-            stok: item.stok ?? '',
-            stokG1: item.stok_g1 ?? 0,
-            stokG2: item.stok_g2 ?? 0,
-            stokG3: item.stok_g3 ?? 0,
-            stokG4: item.stok_g4 ?? 0,
+            stok: Math.round(parseNumber(item.stok)),
+            stokG1: Math.round(parseNumber(item.stok_g1)),
+            stokG2: Math.round(parseNumber(item.stok_g2)),
+            stokG3: Math.round(parseNumber(item.stok_g3)),
+            stokG4: Math.round(parseNumber(item.stok_g4)),
             qty: item.sisa_pr ?? item.qty ?? '', // Sisa PR
             qtyDetail: item.qty ?? 0, // tb_detailpr.qty
             originalQtyDetail: parseNumber(item.qty),
@@ -139,6 +144,8 @@ export default function PurchaseRequirementEdit({
             margin: item.margin ?? '',
             remark: item.renmark ?? '',
             qtyPo: parseNumber(item.qty_po),
+            qtyPoIn: parseNumber(item.qty_po_in),
+            sisaQtyPoIn: parseNumber(item.sisa_qty_po),
         })),
     );
 
@@ -238,6 +245,8 @@ export default function PurchaseRequirementEdit({
             originalSisaPr:
                 item.originalSisaPr ?? parseFloat(item.qty ?? 0), // fixed reference for delta
             qtyPo: item.qtyPo ?? 0,
+            qtyPoIn: item.qtyPoIn ?? 0,
+            sisaQtyPoIn: item.sisaQtyPoIn ?? 0,
             satuan: item.satuan ?? '',
             priceEstimate: item.priceEstimate ?? '',
             totalPrice: totalPrice,
@@ -255,10 +264,14 @@ export default function PurchaseRequirementEdit({
         const originalQty = parseNumber(
             source.originalQtyDetail ?? source.qtyDetail,
         );
+        const maxQtyByPoIn = originalQty + parseNumber(source.sisaQtyPoIn);
         const qtyPo = parseNumber(source.qtyPo);
+        const stok = parseNumber(source.stok);
+        const qtyPoIn = parseNumber(source.qtyPoIn);
+        const minimumQtyByStock = Math.max(0, stok - qtyPoIn);
 
-        if (nextQty > originalQty) {
-            return `Qty tidak boleh ditambah dari qty awal (${formatNumber(originalQty)}).`;
+        if (nextQty < minimumQtyByStock) {
+            return `Qty tidak boleh kurang dari Total Stok - Qty PO In. Minimal qty adalah ${formatNumber(minimumQtyByStock)}.`;
         }
 
         if (nextQty < qtyPo) {
@@ -286,8 +299,15 @@ export default function PurchaseRequirementEdit({
 
             // When Qty changes → auto-recalc Sisa PR = max(0, qty - stok)
             if (field === 'qtyDetail') {
-                const qty = parseFloat(value) || 0;
+                const requestedQty = parseFloat(value) || 0;
+                const originalQty = parseFloat(next.originalQtyDetail) || 0;
+                const sisaQtyPoIn = parseFloat(next.sisaQtyPoIn) || 0;
+                const maxQty = originalQty + sisaQtyPoIn;
+                const qty = maxQty > 0
+                    ? Math.min(requestedQty, maxQty)
+                    : requestedQty;
                 const qtyPo = parseFloat(next.qtyPo) || 0;
+                next.qtyDetail = String(qty);
                 next.qty = String(Math.max(0, qty - qtyPo));
             }
             // When Sisa PR changes → Qty = originalQty + (newSisaPR - originalSisaPR)
@@ -727,12 +747,12 @@ export default function PurchaseRequirementEdit({
                                                             key={label}
                                                             className="rounded-full border border-blue-100 bg-blue-50 px-2 text-[10px] font-bold text-blue-600"
                                                         >
-                                                            Stok {label}: {value ?? 0}
+                                                            Stok {label}: {formatInteger(value)}
                                                         </span>
                                                     ))}
                                                     <span className="flex items-center gap-1.5 rounded-full border border-green-100 bg-green-50 px-2 text-[10px] font-bold text-green-600">
                                                         <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-                                                        Total Stok: {item.stok ?? 0}
+                                                        Total Stok: {formatInteger(item.stok)}
                                                     </span>
                                                 </div>
                                             </div>
@@ -1120,19 +1140,19 @@ export default function PurchaseRequirementEdit({
                                                         {m.unit}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium text-blue-600">
-                                                        {Number(m.stok_g1) || 0}
+                                                        {formatInteger(m.stok_g1)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium text-xs text-blue-600">
-                                                        {Number(m.stok_g2) || 0}
+                                                        {formatInteger(m.stok_g2)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium text-xs text-blue-600">
-                                                        {Number(m.stok_g3) || 0}
+                                                        {formatInteger(m.stok_g3)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-medium text-xs text-blue-600">
-                                                        {Number(m.stok_g4) || 0}
+                                                        {formatInteger(m.stok_g4)}
                                                     </TableCell>
                                                     <TableCell className="text-right font-bold text-green-600">
-                                                        {Math.round(Number(m.stok)) || 0}
+                                                        {formatInteger(m.stok)}
                                                     </TableCell>
                                                     <TableCell>
                                                         <Button
@@ -1184,6 +1204,8 @@ export default function PurchaseRequirementEdit({
                                                                     margin: '0.00',
                                                                     remark: '',
                                                                     qtyPo: 0,
+                                                                    qtyPoIn: Number(m.qty_po_in) || 0,
+                                                                    sisaQtyPoIn: Number(m.sisa_qtypr) || 0,
                                                                 };
 
                                                                 // Dorong ke list material paling akhir

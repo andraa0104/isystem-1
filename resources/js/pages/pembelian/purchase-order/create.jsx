@@ -188,14 +188,12 @@ export default function PurchaseOrderCreate({
             return [];
         }
 
-        return prDetailList.filter((detail) => {
-            if (detail.no_pr !== formData.refPr) {
-                return false;
-            }
-
-            const sisaQty = parseNumber(detail.sisa_pr ?? detail.Sisa_pr);
-            return sisaQty > 0;
-        });
+        const selectedNoPr = String(formData.refPr ?? '').trim();
+        return prDetailList.filter(
+            (detail) =>
+                String(detail.no_pr ?? '').trim() === selectedNoPr &&
+                parseNumber(detail.sisa_pr ?? detail.Sisa_pr) > 0,
+        );
     }, [formData.refPr, prDetailList]);
 
     const basePriceValue = parseNumber(materialForm.basePrice);
@@ -329,7 +327,7 @@ export default function PurchaseOrderCreate({
     };
 
     const loadPrDetails = async (noPr) => {
-        if (!noPr || prDetailLoading) {
+        if (!noPr) {
             return;
         }
         setPrDetailLoading(true);

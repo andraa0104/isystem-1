@@ -365,6 +365,8 @@ Route::get('marketing/delivery-order/realized', [DeliveryOrderController::class,
     ->name('marketing.delivery-order.realized');
 Route::post('marketing/delivery-order', [DeliveryOrderController::class, 'store'])
     ->name('marketing.delivery-order.store');
+Route::post('marketing/delivery-order/{noDo}/detail', [DeliveryOrderController::class, 'storeDetail'])
+    ->name('marketing.delivery-order.detail.store');
 Route::put('marketing/delivery-order/{noDo}/detail/{lineNo}', [DeliveryOrderController::class, 'updateDetail'])
     ->name('marketing.delivery-order.detail.update');
 Route::delete('marketing/delivery-order/{noDo}/detail/{lineNo}', [DeliveryOrderController::class, 'destroyDetail'])

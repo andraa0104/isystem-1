@@ -36,10 +36,17 @@ const formatDate = (date) => {
 const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
+const getWarehouseOptions = (item) =>
+    Array.isArray(item?.warehouse_options) ? item.warehouse_options : [];
+
+const findWarehouseOption = (item, value) =>
+    getWarehouseOptions(item).find((option) => option.value === value) ?? null;
+
 export default function DeliveryOrderEdit({
     deliveryOrder,
     items = [],
     prItems = [],
+    refPr = null,
 }) {
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,6 +71,11 @@ export default function DeliveryOrderEdit({
         last_stock: 0,
         original_qty: 0,
         stock_now: 0,
+        warehouse_code: '',
+        original_warehouse_code: '',
+        warehouse_label: '',
+        warehouse_options: [],
+        is_new: false,
     });
     const isSelectedMaterialOutOfStock =
         Number(inputItem.last_stock) === 0 && Number(inputItem.stock_now) === -1;
@@ -92,33 +104,92 @@ export default function DeliveryOrderEdit({
         return map;
     }, [sourceItems]);
 
-    const handleSelectItem = (item) => {
-        const source =
-            (item.kd_material && prLookup.get(`kd:${item.kd_material}`)) ||
-            (item.material && prLookup.get(`mat:${item.material}`));
-        
-        // 1. Prioritaskan last_stock dari item backend, jika tidak ada baru cari di source PR
-        const lastStock = Number(item.last_stock ?? source?.last_stock ?? 0);
-        
-        // 2. Ambil original_qty dari backend, jika tidak ada, gunakan qty yang pertama kali di-klik
-        const originalQty = Number(item.original_qty ?? item.qty ?? 0);
-        
-        // 3. Stock Now awal harus persis sama dengan Last Stock
-        const stockNow = lastStock; 
+    const availableSourceItems = useMemo(() => {
+        const existingKeys = new Set(
+            formData.items.flatMap((item) => [
+                item.kd_material ? `kd:${item.kd_material}` : null,
+                item.material ? `mat:${item.material}` : null,
+            ]).filter(Boolean),
+        );
 
-        setSelectedLineNo(item.no);
-        setInputItem({
-            no: item.no,
-            kd_material: item.kd_material ?? '',
-            material: item.material ?? '',
-            qty: item.qty ?? '',
-            unit: item.unit ?? '',
-            remark: item.remark ?? '',
-            last_stock: lastStock,
-            original_qty: originalQty,
-            stock_now: stockNow,
-        });
-    };
+        return sourceItems.filter((item) => {
+            const kdKey = item.kd_material ? `kd:${item.kd_material}` : null;
+            const matKey = item.material ? `mat:${item.material}` : null;
+            const qty = Number(item.qty ?? 0);
+            const sisaQtyDo = Number(item.sisa_qtydo ?? item.sisaqtydo ?? 0);
+            return (
+                qty > 0 &&
+                qty === sisaQtyDo &&
+                !existingKeys.has(kdKey) &&
+                !existingKeys.has(matKey)
+            );
+        });
+    }, [formData.items, sourceItems]);
+
+    const handleSelectItem = (item) => {
+        const source =
+            (item.kd_material && prLookup.get(`kd:${item.kd_material}`)) ||
+            (item.material && prLookup.get(`mat:${item.material}`));
+        const warehouseOptions =
+            getWarehouseOptions(item).length > 0
+                ? getWarehouseOptions(item)
+                : getWarehouseOptions(source);
+        const selectedWarehouse =
+            findWarehouseOption(
+                { warehouse_options: warehouseOptions },
+                item.warehouse_code,
+            ) ??
+            warehouseOptions[0] ??
+            null;
+        const lastStock = Number(
+            selectedWarehouse?.stock ?? item.last_stock ?? source?.last_stock ?? 0,
+        );
+        const originalQty = Number(item.original_qty ?? item.qty ?? 0);
+        const stockNow = lastStock;
+
+        setSelectedLineNo(item.no);
+        setInputItem({
+            no: item.no,
+            kd_material: item.kd_material ?? '',
+            material: item.material ?? '',
+            qty: item.qty ?? '',
+            unit: item.unit ?? '',
+            remark: item.remark ?? '',
+            last_stock: lastStock,
+            original_qty: originalQty,
+            stock_now: stockNow,
+            warehouse_code: selectedWarehouse?.value ?? '',
+            original_warehouse_code: selectedWarehouse?.value ?? '',
+            warehouse_label: selectedWarehouse?.label ?? '',
+            warehouse_options: warehouseOptions,
+            is_new: false,
+        });
+    };
+
+    const handleSelectAvailableItem = (item) => {
+        const warehouseOptions = getWarehouseOptions(item);
+        const selectedWarehouse = warehouseOptions[0] ?? null;
+        const qty = item.sisa_qtydo ?? item.sisaqtydo ?? item.qty ?? '';
+        const lastStock = Number(selectedWarehouse?.stock ?? item.last_stock ?? 0);
+
+        setSelectedLineNo(null);
+        setInputItem({
+            no: '',
+            kd_material: item.kd_material ?? '',
+            material: item.material ?? '',
+            qty,
+            unit: item.unit ?? '',
+            remark: item.remark ?? '',
+            last_stock: lastStock,
+            original_qty: 0,
+            stock_now: lastStock - Number(qty || 0),
+            warehouse_code: selectedWarehouse?.value ?? '',
+            original_warehouse_code: '',
+            warehouse_label: selectedWarehouse?.label ?? '',
+            warehouse_options: warehouseOptions,
+            is_new: true,
+        });
+    };
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -129,19 +200,58 @@ export default function DeliveryOrderEdit({
                 const newQty = Number(value || 0);
                 const oldQty = Number(prev.original_qty || 0); // Qty asli sebelum diedit
                 const lastStock = Number(prev.last_stock || 0);
-                
-                // KALKULASI DINAMIS:
-                // Jika newQty belum diubah (masih sama dengan oldQty), maka hasilnya lastStock + 0
-                // Jika newQty bertambah (misal 10 jadi 12), stok akan berkurang
-                // Jika newQty berkurang (misal 10 jadi 5), stok akan bertambah
-                newValue.stock_now = lastStock + (oldQty - newQty);
+                newValue.stock_now =
+                    prev.warehouse_code === prev.original_warehouse_code
+                        ? lastStock + (oldQty - newQty)
+                        : lastStock - newQty;
+            }
+            if (name === 'warehouse_code') {
+                const selectedWarehouse = findWarehouseOption(prev, value);
+                const lastStock = Number(selectedWarehouse?.stock ?? 0);
+                const oldQty = Number(prev.original_qty || 0);
+                const newQty = Number(prev.qty || 0);
+                newValue.last_stock = lastStock;
+                newValue.stock_now =
+                    value === prev.original_warehouse_code
+                        ? lastStock + (oldQty - newQty)
+                        : lastStock - newQty;
+                newValue.warehouse_label = selectedWarehouse?.label ?? '';
             }
             return newValue;
         });
     };
 
     const handleUpdateItem = () => {
-        if (!inputItem.no) {
+        if (!inputItem.no && !inputItem.is_new) {
+            return;
+        }
+
+        if (inputItem.is_new) {
+            router.post(
+                `/marketing/delivery-order/${encodeURIComponent(
+                    deliveryOrder.no_do,
+                )}/detail`,
+                {
+                    date: formData.date,
+                    kd_material: inputItem.kd_material,
+                    material: inputItem.material,
+                    qty: inputItem.qty,
+                    unit: inputItem.unit,
+                    remark: inputItem.remark,
+                    stock_now: inputItem.stock_now,
+                    warehouse_code: inputItem.warehouse_code,
+                },
+                {
+                    preserveScroll: true,
+                    onStart: () => setIsSubmitting(true),
+                    onError: () => setIsSubmitting(false),
+                    onSuccess: (page) => {
+                        if (page?.props?.flash?.error) {
+                            setIsSubmitting(false);
+                        }
+                    },
+                },
+            );
             return;
         }
 
@@ -154,6 +264,7 @@ export default function DeliveryOrderEdit({
                 remark: inputItem.remark,
                 date: formData.date,
                 stock_now: inputItem.stock_now,
+                warehouse_code: inputItem.warehouse_code,
             },
             {
                 preserveScroll: true,
@@ -172,6 +283,14 @@ export default function DeliveryOrderEdit({
                                           ...row,
                                           qty: inputItem.qty,
                                           remark: inputItem.remark,
+                                          warehouse_code:
+                                              inputItem.warehouse_code,
+                                          original_warehouse_code:
+                                              inputItem.warehouse_code,
+                                          warehouse_label:
+                                              inputItem.warehouse_label,
+                                          warehouse_options:
+                                              inputItem.warehouse_options,
                                       }
                                     : row,
                             ),
@@ -397,8 +516,8 @@ export default function DeliveryOrderEdit({
                                 <CardTitle>Data Material</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-6">
-                                <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-4">
-                                    <div className="space-y-2 lg:col-span-4">
+                                <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-6">
+                                    <div className="space-y-2 lg:col-span-6">
                                         <Label>Material</Label>
                                         <div className="flex gap-2">
                                             <Input
@@ -414,7 +533,7 @@ export default function DeliveryOrderEdit({
                                             />
                                         </div>
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 lg:col-span-1">
                                         <Label>Qty</Label>
                                         <Input
                                             type="number"
@@ -423,7 +542,7 @@ export default function DeliveryOrderEdit({
                                             onChange={handleInputChange}
                                         />
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 lg:col-span-1">
                                         <Label>Satuan</Label>
                                         <Input
                                             readOnly
@@ -432,6 +551,44 @@ export default function DeliveryOrderEdit({
                                         />
                                     </div>
                                     <div className="space-y-2 lg:col-span-2">
+                                        <Label>Gudang</Label>
+                                        <select
+                                            name="warehouse_code"
+                                            value={inputItem.warehouse_code}
+                                            onChange={handleInputChange}
+                                            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                            disabled={!inputItem.no}
+                                        >
+                                            <option value="">
+                                                Pilih gudang
+                                            </option>
+                                            {getWarehouseOptions(
+                                                inputItem,
+                                            ).map((option) => (
+                                                <option
+                                                    key={option.value}
+                                                    value={option.value}
+                                                >
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2 lg:col-span-1">
+                                        <Label>Last Stock</Label>
+                                        <Input
+                                            readOnly
+                                            value={inputItem.last_stock}
+                                        />
+                                    </div>
+                                    <div className="space-y-2 lg:col-span-1">
+                                        <Label>Stock Now</Label>
+                                        <Input
+                                            readOnly
+                                            value={inputItem.stock_now}
+                                        />
+                                    </div>
+                                    <div className="space-y-2 lg:col-span-6">
                                         <Label>Remark</Label>
                                         <Input
                                             name="remark"
@@ -439,21 +596,7 @@ export default function DeliveryOrderEdit({
                                             onChange={handleInputChange}
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>Last Stock</Label>
-                                        <Input
-                                            readOnly
-                                            value={inputItem.last_stock}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Stock Now</Label>
-                                        <Input
-                                            readOnly
-                                            value={inputItem.stock_now}
-                                        />
-                                    </div>
-                                    <div className="flex flex-col items-end justify-end gap-2 lg:col-span-4">
+                                    <div className="flex flex-col items-end justify-end gap-2 lg:col-span-6">
                                         {inputItem.stock_now < 0 && (
                                             <p className="text-xs font-semibold text-destructive">
                                                 Stock now tidak boleh minus.
@@ -463,7 +606,9 @@ export default function DeliveryOrderEdit({
                                             onClick={handleUpdateItem}
                                             disabled={
                                                 isSubmitting ||
-                                                !inputItem.no ||
+                                                (!inputItem.no &&
+                                                    !inputItem.is_new) ||
+                                                !inputItem.warehouse_code ||
                                                 isSelectedMaterialOutOfStock ||
                                                 inputItem.stock_now < 0
                                             }
@@ -473,7 +618,9 @@ export default function DeliveryOrderEdit({
                                             )}
                                             {isSubmitting
                                                 ? 'Menyimpan...'
-                                                : 'Edit Data'}
+                                                : inputItem.is_new
+                                                  ? 'Tambah Data'
+                                                  : 'Edit Data'}
                                         </Button>
                                     </div>
                                 </div>
@@ -495,6 +642,9 @@ export default function DeliveryOrderEdit({
                                                     </TableHead>
                                                     <TableHead className="w-[100px]">
                                                         Satuan
+                                                    </TableHead>
+                                                    <TableHead>
+                                                        Gudang
                                                     </TableHead>
                                                     <TableHead>
                                                         Remark
@@ -530,6 +680,10 @@ export default function DeliveryOrderEdit({
                                                                 {item.unit}
                                                             </TableCell>
                                                             <TableCell>
+                                                                {item.warehouse_label ||
+                                                                    '-'}
+                                                            </TableCell>
+                                                            <TableCell>
                                                                 {item.remark}
                                                             </TableCell>
                                                             <TableCell>
@@ -557,7 +711,7 @@ export default function DeliveryOrderEdit({
                                                     0 && (
                                                     <TableRow>
                                                         <TableCell
-                                                            colSpan={6}
+                                                            colSpan={7}
                                                             className="text-center"
                                                         >
                                                             Belum ada material
@@ -574,6 +728,91 @@ export default function DeliveryOrderEdit({
                                         </div>
                                     )}
                                 </div>
+
+                                {availableSourceItems.length > 0 && (
+                                    <div>
+                                        <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
+                                            Material PO In Belum Masuk DO
+                                        </h3>
+                                        <div className="rounded-md border">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>
+                                                            Kode Material
+                                                        </TableHead>
+                                                        <TableHead>
+                                                            Material
+                                                        </TableHead>
+                                                        <TableHead className="w-[100px]">
+                                                            Sisa Qty
+                                                        </TableHead>
+                                                        <TableHead className="w-[100px]">
+                                                            Satuan
+                                                        </TableHead>
+                                                        <TableHead>
+                                                            Remark
+                                                        </TableHead>
+                                                        <TableHead className="w-[100px]">
+                                                            Action
+                                                        </TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {availableSourceItems.map(
+                                                        (item, index) => (
+                                                            <TableRow
+                                                                key={`${item.kd_material}-${index}`}
+                                                            >
+                                                                <TableCell>
+                                                                    {renderValue(
+                                                                        item.kd_material,
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {renderValue(
+                                                                        item.material,
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {renderValue(
+                                                                        item.sisa_qtydo ??
+                                                                            item.sisaqtydo ??
+                                                                            item.qty,
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {renderValue(
+                                                                        item.unit,
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {renderValue(
+                                                                        item.remark,
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() =>
+                                                                            handleSelectAvailableItem(
+                                                                                item,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        Tambah
+                                                                    </Button>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ),
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
 

@@ -30,6 +30,12 @@ const breadcrumbs = [
     { title: 'Tambah DO', href: '/marketing/delivery-order/create' },
 ];
 
+const getWarehouseOptions = (item) =>
+    Array.isArray(item?.warehouse_options) ? item.warehouse_options : [];
+
+const findWarehouseOption = (item, value) =>
+    getWarehouseOptions(item).find((option) => option.value === value) ?? null;
+
 const formatDate = (date) => {
     if (!date) return '';
     const d = new Date(date);
@@ -81,6 +87,9 @@ export default function DeliveryOrderCreate() {
         remark: '',
         last_stock: 0,
         stock_now: 0,
+        warehouse_code: '',
+        warehouse_label: '',
+        warehouse_options: [],
     });
     const isSelectedMaterialOutOfStock =
         Number(inputItem.last_stock) === 0 && Number(inputItem.stock_now) === -1;
@@ -149,7 +158,9 @@ export default function DeliveryOrderCreate() {
     // --- Step 2 Handler ---
     const handleSourceItemClick = (item) => {
         const qty = item.qty || item.sisa_qtydo; // Default to qty/sisa
-        const lastStock = Number(item.last_stock || 0);
+        const warehouseOptions = getWarehouseOptions(item);
+        const selectedWarehouse = warehouseOptions[0] ?? null;
+        const lastStock = Number(selectedWarehouse?.stock ?? item.last_stock ?? 0);
         const stockNow = lastStock - Number(qty);
 
         setInputItem({
@@ -161,6 +172,9 @@ export default function DeliveryOrderCreate() {
             remark: item.remark,
             last_stock: lastStock,
             stock_now: stockNow,
+            warehouse_code: selectedWarehouse?.value ?? '',
+            warehouse_label: selectedWarehouse?.label ?? '',
+            warehouse_options: warehouseOptions,
         });
     };
 
@@ -179,6 +193,13 @@ export default function DeliveryOrderCreate() {
                 }
                 newValue.qty = qtyVal;
                 newValue.stock_now = prev.last_stock - qtyVal;
+            }
+            if (name === 'warehouse_code') {
+                const selectedWarehouse = findWarehouseOption(prev, value);
+                const lastStock = Number(selectedWarehouse?.stock ?? 0);
+                newValue.last_stock = lastStock;
+                newValue.stock_now = lastStock - Number(prev.qty || 0);
+                newValue.warehouse_label = selectedWarehouse?.label ?? '';
             }
             return newValue;
         });
@@ -200,6 +221,9 @@ export default function DeliveryOrderCreate() {
             remark: '',
             last_stock: 0,
             stock_now: 0,
+            warehouse_code: '',
+            warehouse_label: '',
+            warehouse_options: [],
         });
     };
 
@@ -228,6 +252,7 @@ export default function DeliveryOrderCreate() {
             unit: item.unit,
             remark: item.remark,
             stock_now: item.stock_now,
+            warehouse_code: item.warehouse_code,
         })),
     });
 
@@ -450,8 +475,8 @@ export default function DeliveryOrderCreate() {
                                 </div>
 
                                 {/* Inputs */}
-                                <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-4">
-                                    <div className="space-y-2 lg:col-span-4">
+                                <div className="grid gap-4 rounded-lg border p-4 sm:grid-cols-2 lg:grid-cols-6">
+                                    <div className="space-y-2 lg:col-span-6">
                                         <Label>Material</Label>
                                         <div className="flex gap-2">
                                             <Input
@@ -467,7 +492,7 @@ export default function DeliveryOrderCreate() {
                                             />
                                         </div>
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 lg:col-span-1">
                                         <Label>Qty</Label>
                                         <Input
                                             type="number"
@@ -476,7 +501,7 @@ export default function DeliveryOrderCreate() {
                                             onChange={handleInputChange}
                                         />
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-2 lg:col-span-1">
                                         <Label>Satuan</Label>
                                         <Input
                                             readOnly
@@ -485,6 +510,44 @@ export default function DeliveryOrderCreate() {
                                         />
                                     </div>
                                     <div className="space-y-2 lg:col-span-2">
+                                        <Label>Gudang</Label>
+                                        <select
+                                            name="warehouse_code"
+                                            value={inputItem.warehouse_code}
+                                            onChange={handleInputChange}
+                                            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                            disabled={!inputItem.material}
+                                        >
+                                            <option value="">
+                                                Pilih gudang
+                                            </option>
+                                            {getWarehouseOptions(
+                                                inputItem,
+                                            ).map((option) => (
+                                                <option
+                                                    key={option.value}
+                                                    value={option.value}
+                                                >
+                                                    {option.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2 lg:col-span-1">
+                                        <Label>Last Stock</Label>
+                                        <Input
+                                            readOnly
+                                            value={inputItem.last_stock}
+                                        />
+                                    </div>
+                                    <div className="space-y-2 lg:col-span-1">
+                                        <Label>Stock Now</Label>
+                                        <Input
+                                            readOnly
+                                            value={inputItem.stock_now}
+                                        />
+                                    </div>
+                                    <div className="space-y-2 lg:col-span-6">
                                         <Label>Remark</Label>
                                         <Input
                                             name="remark"
@@ -492,21 +555,7 @@ export default function DeliveryOrderCreate() {
                                             onChange={handleInputChange}
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>Last Stock</Label>
-                                        <Input
-                                            readOnly
-                                            value={inputItem.last_stock}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Stock Now</Label>
-                                        <Input
-                                            readOnly
-                                            value={inputItem.stock_now}
-                                        />
-                                    </div>
-                                    <div className="flex flex-col items-end justify-end gap-2 lg:col-span-4">
+                                    <div className="flex flex-col items-end justify-end gap-2 lg:col-span-6">
                                         {hasMinusStockNow && (
                                             <p className="text-xs font-semibold text-destructive">
                                                 Stock now tidak boleh minus.
@@ -516,6 +565,7 @@ export default function DeliveryOrderCreate() {
                                             onClick={handleAddItem}
                                             disabled={
                                                 !inputItem.material ||
+                                                !inputItem.warehouse_code ||
                                                 isSelectedMaterialOutOfStock ||
                                                 hasMinusStockNow
                                             }
@@ -549,6 +599,9 @@ export default function DeliveryOrderCreate() {
                                                         Satuan
                                                     </TableHead>
                                                     <TableHead>
+                                                        Gudang
+                                                    </TableHead>
+                                                    <TableHead>
                                                         Remark
                                                     </TableHead>
                                                     <TableHead className="w-[80px]">
@@ -578,6 +631,10 @@ export default function DeliveryOrderCreate() {
                                                                 {item.unit}
                                                             </TableCell>
                                                             <TableCell>
+                                                                {item.warehouse_label ||
+                                                                    '-'}
+                                                            </TableCell>
+                                                            <TableCell>
                                                                 {item.remark}
                                                             </TableCell>
                                                             <TableCell>
@@ -600,7 +657,7 @@ export default function DeliveryOrderCreate() {
                                                     0 && (
                                                     <TableRow>
                                                         <TableCell
-                                                            colSpan={7}
+                                                            colSpan={8}
                                                             className="text-center"
                                                         >
                                                             Belum ada material

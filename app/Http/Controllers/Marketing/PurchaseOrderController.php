@@ -99,37 +99,35 @@ class PurchaseOrderController
 
     public function outstandingPurchaseRequirements()
     {
-        $purchaseRequirements = Cache::tags(self::PO_PR_CACHE_TAGS)->remember($this->poCacheKey('outstanding-pr-v2'), self::PO_CACHE_TTL, function () {
-            $today = \Carbon\Carbon::today()->toDateString();
-            $dueDateExpr = "coalesce(date(jth_tempo), str_to_date(jth_tempo, '%Y-%m-%d'), str_to_date(jth_tempo, '%Y/%m/%d'), str_to_date(jth_tempo, '%d/%m/%Y'), str_to_date(jth_tempo, '%d-%m-%Y'), str_to_date(jth_tempo, '%d.%m.%Y'))";
-            $overdueCustomers = DB::table('tb_kdfakturpenjualan')
-                ->whereRaw('coalesce(cast(saldo_piutang as decimal(18,4)), 0) > 0')
-                ->whereRaw("trim(coalesce(nm_cs, '')) <> ''")
-                ->whereRaw("{$dueDateExpr} < ?", [$today])
-                ->select(
-                    DB::raw('lower(trim(nm_cs)) as customer_key'),
-                    DB::raw("max(datediff('{$today}', {$dueDateExpr})) as oldest_overdue_days")
-                )
-                ->groupBy(DB::raw('lower(trim(nm_cs))'));
+        $today = \Carbon\Carbon::today()->toDateString();
+        $dueDateExpr = "coalesce(date(jth_tempo), str_to_date(jth_tempo, '%Y-%m-%d'), str_to_date(jth_tempo, '%Y/%m/%d'), str_to_date(jth_tempo, '%d/%m/%Y'), str_to_date(jth_tempo, '%d-%m-%Y'), str_to_date(jth_tempo, '%d.%m.%Y'))";
+        $overdueCustomers = DB::table('tb_kdfakturpenjualan')
+            ->whereRaw('coalesce(cast(saldo_piutang as decimal(18,4)), 0) > 0')
+            ->whereRaw("trim(coalesce(nm_cs, '')) <> ''")
+            ->whereRaw("{$dueDateExpr} < ?", [$today])
+            ->select(
+                DB::raw('lower(trim(nm_cs)) as customer_key'),
+                DB::raw("max(datediff('{$today}', {$dueDateExpr})) as oldest_overdue_days")
+            )
+            ->groupBy(DB::raw('lower(trim(nm_cs))'));
 
-            return DB::table('tb_detailpr as dpr')
-                ->join('tb_pr as pr', 'pr.no_pr', '=', 'dpr.no_pr')
-                ->leftJoinSub($overdueCustomers, 'overdue', function ($join) {
-                    $join->on(DB::raw('lower(trim(pr.for_customer))'), '=', 'overdue.customer_key');
-                })
-                ->whereRaw("coalesce(cast(replace(dpr.sisa_pr, ',', '') as decimal(65,4)), 0) > 0")
-                ->select(
-                    'pr.no_pr',
-                    'pr.date',
-                    'pr.for_customer',
-                    'pr.ref_po',
-                    DB::raw('coalesce(overdue.oldest_overdue_days, 0) as oldest_overdue_days'),
-                    DB::raw('case when coalesce(overdue.oldest_overdue_days, 0) > 90 then 1 else 0 end as has_overdue_gt_90')
-                )
-                ->distinct()
-                ->orderBy('pr.no_pr', 'desc')
-                ->get();
-        });
+        $purchaseRequirements = DB::table('tb_detailpr as dpr')
+            ->join('tb_pr as pr', 'pr.no_pr', '=', 'dpr.no_pr')
+            ->leftJoinSub($overdueCustomers, 'overdue', function ($join) {
+                $join->on(DB::raw('lower(trim(pr.for_customer))'), '=', 'overdue.customer_key');
+            })
+            ->whereRaw("coalesce(cast(replace(dpr.sisa_pr, ',', '') as decimal(65,4)), 0) > 0")
+            ->select(
+                'pr.no_pr',
+                'pr.date',
+                'pr.for_customer',
+                'pr.ref_po',
+                DB::raw('coalesce(overdue.oldest_overdue_days, 0) as oldest_overdue_days'),
+                DB::raw('case when coalesce(overdue.oldest_overdue_days, 0) > 90 then 1 else 0 end as has_overdue_gt_90')
+            )
+            ->distinct()
+            ->orderBy('pr.no_pr', 'desc')
+            ->get();
 
         $purchaseRequirements->transform(function ($item) {
             if ($item->date) {
@@ -151,25 +149,23 @@ class PurchaseOrderController
     public function purchaseRequirementDetails(Request $request)
     {
         $noPr = $request->query('no_pr');
-        $items = Cache::tags(self::PO_PR_CACHE_TAGS)->remember($this->poCacheKey('pr-details', [$noPr], $request), self::PO_CACHE_TTL, function () use ($noPr) {
-            $query = DB::table('tb_detailpr')
-                ->select(
-                    'no_pr',
-                    'kd_material',
-                    'material',
-                    'qty',
-                    'sisa_pr',
-                    'unit',
-                    'renmark'
-                )
-                ->orderBy('no_pr');
+        $query = DB::table('tb_detailpr')
+            ->select(
+                'no_pr',
+                'kd_material',
+                'material',
+                'qty',
+                'sisa_pr',
+                'unit',
+                'renmark'
+            )
+            ->orderBy('no_pr');
 
-            if ($noPr) {
-                $query->where('no_pr', $noPr);
-            }
+        if ($noPr) {
+            $query->where('no_pr', $noPr);
+        }
 
-            return $query->get();
-        });
+        $items = $query->get();
 
         // --- PENGIRIMAN DATA MENTAH KE PYTHON ---
         $dataForPython = [];
@@ -358,6 +354,10 @@ class PurchaseOrderController
                         $currentSisaPr = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? $prQty);
                         $currentQtyPo = $parseNumber($detailPr->qty_po ?? 0);
 
+                        if ($qty > $currentSisaPr) {
+                            throw new \RuntimeException("Qty material {$kdMat} tidak boleh melebihi sisa qty PR ({$currentSisaPr}).");
+                        }
+
                         $sisaPr = max(0, $currentSisaPr - $qty);
                         $newQtyPo = $currentQtyPo + $qty;
 
@@ -523,6 +523,7 @@ class PurchaseOrderController
                     ->get();
                 $detailsByKdMat = $existingDetails->whereNotNull('kd_mat')->keyBy('kd_mat');
                 $detailsById = $existingDetails->keyBy('id');
+                $maxDetailId = (int) (DB::table('tb_detailpo')->max('id') ?? 0);
 
                 $noPrHeader = $request->input('ref_pr');
                 $kdMatsForPr = collect($materials)->pluck('kd_mat')->unique()->filter()->all();
@@ -553,14 +554,79 @@ class PurchaseOrderController
 
                     $existingDetail = $kdMat ? $detailsByKdMat->get($kdMat) : $detailsById->get($id);
                     if (!$existingDetail) {
+                        $detailPr = $detailPrs->get($kdMat);
+                        if (!$detailPr) {
+                            throw new \RuntimeException("Detail PR tidak ditemukan untuk no_pr={$noPrHeader}, kd_material={$kdMat}");
+                        }
+
+                        $qtyValue = $item['qty'] ?? 0;
+                        $newQty = $parseNumber($qtyValue);
+                        $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
+                        $currentQtyPo = $parseNumber($detailPr->qty_po ?? 0);
+
+                        if ($newQty > $currentSisa) {
+                            throw new \RuntimeException("Qty material {$kdMat} tidak boleh melebihi sisa qty PR ({$currentSisa}).");
+                        }
+
+                        $priceRaw = $item['price'] ?? null;
+                        $isPriceEmpty = $priceRaw === '' || $priceRaw === null;
+                        $priceValue = $isPriceEmpty ? 0 : $priceRaw;
+                        $totalPriceRaw = $item['total_price'] ?? null;
+                        $totalPriceValue = $isPriceEmpty ? 0 : ($totalPriceRaw ?? 0);
+                        $maxDetailId += 1;
+
+                        DB::table('tb_detailpo')->insert([
+                            'id' => $maxDetailId,
+                            'no_po' => $noPo,
+                            'tgl' => $dateFormatted,
+                            'ref_pr' => $noPrHeader,
+                            'ref_quota' => $request->input('ref_quota'),
+                            'for_cus' => $request->input('for_cus'),
+                            'ref_poin' => $request->input('ref_poin'),
+                            'kd_vdr' => $request->input('kd_vdr'),
+                            'nm_vdr' => $request->input('nm_vdr'),
+                            'payment_terms' => $request->input('payment_terms'),
+                            'del_time' => $request->input('del_time'),
+                            'franco_loco' => $request->input('franco_loco'),
+                            'no' => $item['no'] ?? ($existingDetails->count() + 1),
+                            'kd_mat' => $kdMat,
+                            'material' => $item['material'] ?? null,
+                            'qty' => $newQty,
+                            'qty_po' => $newQty,
+                            'gr_mat' => $newQty,
+                            'unit' => $item['unit'] ?? null,
+                            'price' => $priceValue,
+                            'total_price' => $totalPriceValue,
+                            'gr_price' => $totalPriceValue,
+                            'ppn' => $ppnValue,
+                            'ket1' => $this->withRequiredSpace($request->input('ket1')),
+                            'ket2' => $this->withRequiredSpace($request->input('ket2')),
+                            'ket3' => $this->withRequiredSpace($request->input('ket3')),
+                            'ket4' => $this->withRequiredSpace($request->input('ket4')),
+                            'ir_mat' => 0,
+                            'ir_price' => 0,
+                            'end_fl' => 0,
+                            'qtybiayakirim' => 0,
+                            'no_gudang' => 0,
+                            'end_gr' => 0,
+                            'sisa_pr' => max(0, $currentSisa - $newQty),
+                        ]);
+
+                        $detailPrUpdates[] = [
+                            'no_pr' => $noPrHeader,
+                            'kd_material' => $kdMat,
+                            'sisa_pr' => max(0, $currentSisa - $newQty),
+                            'qty_po' => $currentQtyPo + $newQty,
+                        ];
+
                         continue;
                     }
 
                     $priceRaw = $item['price'] ?? null;
                     $isPriceEmpty = $priceRaw === '' || $priceRaw === null;
-                    $priceValue = $isPriceEmpty ? '' : $priceRaw;
+                    $priceValue = $isPriceEmpty ? 0 : $priceRaw;
                     $totalPriceRaw = $item['total_price'] ?? null;
-                    $totalPriceValue = $isPriceEmpty ? '' : ($totalPriceRaw ?? '');
+                    $totalPriceValue = $isPriceEmpty ? 0 : ($totalPriceRaw ?? 0);
                     $qtyValue = $item['qty'] ?? 0;
 
                     $resolvedKdMat = $kdMat ?: ($existingDetail->kd_mat ?? null);
@@ -591,6 +657,10 @@ class PurchaseOrderController
                         if ($detailPr) {
                             $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
                             $currentQtyPo = $parseNumber($detailPr->qty_po ?? 0);
+
+                            if ($qtyDelta > $currentSisa) {
+                                throw new \RuntimeException("Qty material {$resolvedKdMat} tidak boleh melebihi sisa qty PR ({$currentSisa}).");
+                            }
 
                             $newSisa = max(0, $currentSisa - $qtyDelta);
                             $newQtyPo = max(0, $currentQtyPo + $qtyDelta);
@@ -738,6 +808,10 @@ class PurchaseOrderController
                     if ($detailPr) {
                         $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
                         $currentQtyPo = $parseNumber($detailPr->qty_po ?? 0);
+
+                        if ($qtyDelta > $currentSisa) {
+                            throw new \RuntimeException("Qty material {$kdMat} tidak boleh melebihi sisa qty PR ({$currentSisa}).");
+                        }
 
                         $newSisa = max(0, $currentSisa - $qtyDelta);
                         $newQtyPo = max(0, $currentQtyPo + $qtyDelta);

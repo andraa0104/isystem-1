@@ -1395,31 +1395,21 @@ export default function PurchaseOrderInEdit({
                                                     >
                                                         <Pencil className="size-4" />
                                                     </Button>
-                                                    {toNumber(
-                                                        item.sisaQtyPr ?? 0,
-                                                    ) >=
-                                                        toNumber(item.qty ?? 0) &&
-                                                        toNumber(
-                                                            item.sisaQtyDo ?? 0,
-                                                        ) >=
-                                                            toNumber(item.qty ?? 0) &&
-                                                        !item.hasPr && (
-                                                            <>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() =>
-                                                                        handleDeleteItem(
-                                                                            item.id,
-                                                                        )
-                                                                    }
-                                                                    title="Hapus"
-                                                                >
-                                                                    <Trash2 className="size-4" />
-                                                                </Button>
-                                                            </>
-                                                        )}
+                                                    {!item.hasPr && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                handleDeleteItem(
+                                                                    item.id,
+                                                                )
+                                                            }
+                                                            title="Hapus"
+                                                        >
+                                                            <Trash2 className="size-4" />
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </td>
                                         </tr>
