@@ -577,17 +577,29 @@ class PurchaseRequirementController
                 );
             }
         } else {
-            $mainTable = 'tb_material';
-            $query = DB::table('tb_material')
-                ->select('kd_material', 'material', 'unit',
-                    DB::raw('cast(round(coalesce(cast(stok as decimal(18,4)), 0), 0) as bigint) as stok'),
-                    'harga',
+            $mainTable = 'b';
+            $priceColumn = Schema::hasColumn('tb_barang', 'harga_stokg1')
+                ? 'b.harga_stokg1'
+                : (Schema::hasColumn('tb_barang', 'harga_g1') ? 'b.harga_g1' : null);
+
+            $query = DB::table('tb_barang as b')
+                ->select(
+                    'b.kd_material',
+                    'b.material',
+                    'b.unit',
+                    DB::raw('cast((
+                        coalesce(cast(b.stok_g1 as decimal(18,4)), 0) +
+                        coalesce(cast(b.stok_g2 as decimal(18,4)), 0) +
+                        coalesce(cast(b.stok_g3 as decimal(18,4)), 0) +
+                        coalesce(cast(b.stok_g4 as decimal(18,4)), 0)
+                    ) as signed) as stok'),
+                    DB::raw($priceColumn ? "coalesce({$priceColumn}, 0) as harga" : '0 as harga'),
                     DB::raw('0 as sisa_qtypr'),
                     DB::raw('0 as qty_po_in'),
-                    DB::raw('0 as stok_g1'),
-                    DB::raw('0 as stok_g2'),
-                    DB::raw('0 as stok_g3'),
-                    DB::raw('0 as stok_g4')
+                    DB::raw('cast(coalesce(cast(b.stok_g1 as decimal(18,4)), 0) as signed) as stok_g1'),
+                    DB::raw('cast(coalesce(cast(b.stok_g2 as decimal(18,4)), 0) as signed) as stok_g2'),
+                    DB::raw('cast(coalesce(cast(b.stok_g3 as decimal(18,4)), 0) as signed) as stok_g3'),
+                    DB::raw('cast(coalesce(cast(b.stok_g4 as decimal(18,4)), 0) as signed) as stok_g4')
                 );
         }
 

@@ -288,19 +288,18 @@ class DataMaterialController
                         }
                     }
 
-                    // For MI (Realized Stock), also revert tb_material stok, rest_stock, and harga
-                    if ($key === 'mi' && $kdMat !== '' && Schema::hasTable('tb_material')) {
-                        $stockCol = Schema::hasColumn('tb_material', 'stok') ? 'stok' : null;
+                    // For MI (Realized Stock), also revert tb_barang stock and price.
+                    if ($key === 'mi' && $kdMat !== '' && Schema::hasTable('tb_barang')) {
+                        $stockCol = Schema::hasColumn('tb_barang', 'stok_g1') ? 'stok_g1' : null;
                         if ($stockCol) {
-                            DB::table('tb_material')
+                            DB::table('tb_barang')
                                 ->where('kd_material', $kdMat)
                                 ->update([
                                     $stockCol => DB::raw("COALESCE({$stockCol}, 0) - {$qty}"),
-                                    'rest_stock' => DB::raw("COALESCE(rest_stock, 0) - {$qty}")
                                 ]);
                         }
 
-                        if (Schema::hasColumn('tb_material', 'harga')) {
+                        if (Schema::hasColumn('tb_barang', 'harga_stokg1')) {
                             // Revert harga to the next latest MI price
                             $prevPrice = DB::table('tb_mi')
                                 ->where('kd_mat', $kdMat)
@@ -310,9 +309,9 @@ class DataMaterialController
                                 ->value('price');
                             
                             if ($prevPrice !== null) {
-                                DB::table('tb_material')
+                                DB::table('tb_barang')
                                     ->where('kd_material', $kdMat)
-                                    ->update(['harga' => $prevPrice]);
+                                    ->update(['harga_stokg1' => $prevPrice]);
                             }
                         }
                     }

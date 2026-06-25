@@ -154,7 +154,7 @@ class DeliveryOrderController
 
     private function restoreDeletedMaterialsToStockAndMib($rows, string $sourceDocNo): void
     {
-        if ($rows->isEmpty() || !Schema::hasTable('tb_material')) {
+        if ($rows->isEmpty() || !Schema::hasTable('tb_barang')) {
             return;
         }
 
@@ -170,7 +170,7 @@ class DeliveryOrderController
                 continue;
             }
 
-            $materialQuery = DB::table('tb_material');
+            $materialQuery = DB::table('tb_barang');
             if ($kdMat !== '') {
                 $materialQuery->where('kd_material', $kdMat);
             } else {
@@ -182,26 +182,21 @@ class DeliveryOrderController
                 continue;
             }
 
-            $materialHarga = $this->parseNumber($materialRow->harga ?? 0);
-            $sameMainStockPrice = $materialHarga === 0.0 || abs($materialHarga - $doHarga) <= 0.000001;
+            $warehouseOptions = $this->materialWarehouseOptions([$materialRow->kd_material])
+                ->get((string) $materialRow->kd_material, collect());
+            $warehouseOption = $warehouseOptions->first(function ($option) use ($doHarga) {
+                return abs($this->parseNumber($option['price'] ?? 0) - $doHarga) <= 0.000001;
+            }) ?? $warehouseOptions->first();
+            $stockColumn = $this->warehouseStockColumn($warehouseOption['value'] ?? null);
+            $materialHarga = $this->parseNumber($warehouseOption['price'] ?? 0);
+            $sameMainStockPrice = $stockColumn && ($materialHarga === 0.0 || abs($materialHarga - $doHarga) <= 0.000001);
 
             if ($sameMainStockPrice) {
-                $materialUpdate = [];
-                if (Schema::hasColumn('tb_material', 'stok')) {
-                    $materialUpdate['stok'] = $this->parseNumber($materialRow->stok ?? 0) + $qty;
-                }
-                if (Schema::hasColumn('tb_material', 'rest_stock')) {
-                    $materialUpdate['rest_stock'] = $this->parseNumber($materialRow->rest_stock ?? 0) + $qty;
-                }
-                if (Schema::hasColumn('tb_material', 'harga')) {
-                    $materialUpdate['harga'] = $doHarga;
-                }
-
-                if (!empty($materialUpdate)) {
-                    DB::table('tb_material')
-                        ->where('kd_material', $materialRow->kd_material)
-                        ->update($materialUpdate);
-                }
+                DB::table('tb_barang')
+                    ->where('kd_material', $materialRow->kd_material)
+                    ->update([
+                        $stockColumn => $this->parseNumber($materialRow->{$stockColumn} ?? 0) + $qty,
+                    ]);
 
                 continue;
             }
@@ -652,8 +647,15 @@ class DeliveryOrderController
                 ->get();
 
             $kdMats = $rawItems->map(fn($item) => $item->kd_material ?? $item->kd_mat ?? $item->kd_mtrl)->filter()->unique()->all();
-            $stocks = DB::table('tb_material')
+            $stocks = DB::table('tb_barang')
                 ->whereIn('kd_material', $kdMats)
+                ->select('kd_material')
+                ->selectRaw('(
+                    coalesce(cast(stok_g1 as decimal(18,4)), 0) +
+                    coalesce(cast(stok_g2 as decimal(18,4)), 0) +
+                    coalesce(cast(stok_g3 as decimal(18,4)), 0) +
+                    coalesce(cast(stok_g4 as decimal(18,4)), 0)
+                ) as stok')
                 ->pluck('stok', 'kd_material');
             $warehouseOptions = $this->materialWarehouseOptions($kdMats);
 
@@ -685,8 +687,15 @@ class DeliveryOrderController
 
         // Ambil data stok terbaru untuk item yang sudah ada di DO
         $kdMatsDO = $items->pluck('kd_mat')->filter()->unique()->all();
-        $materialsDO = DB::table('tb_material')
+        $materialsDO = DB::table('tb_barang')
             ->whereIn('kd_material', $kdMatsDO)
+            ->select('kd_material')
+            ->selectRaw('(
+                coalesce(cast(stok_g1 as decimal(18,4)), 0) +
+                coalesce(cast(stok_g2 as decimal(18,4)), 0) +
+                coalesce(cast(stok_g3 as decimal(18,4)), 0) +
+                coalesce(cast(stok_g4 as decimal(18,4)), 0)
+            ) as stok')
             ->pluck('stok', 'kd_material');
         $warehouseOptionsDO = $this->materialWarehouseOptions($kdMatsDO);
 
@@ -799,9 +808,11 @@ class DeliveryOrderController
                 $kdMaterialsFromItems = collect($items)->pluck('kd_material')->filter()->unique()->all();
                 $materialNamesFromItems = collect($items)->pluck('material')->filter()->unique()->all();
 
-                $materials = DB::table('tb_material')
+                $materials = DB::table('tb_barang')
                     ->whereIn('kd_material', $kdMaterialsFromItems)
                     ->orWhereIn(DB::raw('lower(trim(material))'), collect($materialNamesFromItems)->map(fn($n) => strtolower(trim($n))))
+                    ->select('*')
+                    ->selectRaw('coalesce(harga_stokg1, 0) as harga')
                     ->get();
                 $materialsMap = $materials->keyBy(fn($row) => strtolower(trim((string)$row->material)));
                 $materialsByCode = $materials->keyBy(fn($row) => strtolower(trim((string)$row->kd_material)));
@@ -1409,10 +1420,17 @@ class DeliveryOrderController
             ], 500);
         }
 
-        // Kita tetap perlu pluck('stok') dari tb_material untuk kalkulasi stock_now di frontend
+        // Kita tetap perlu total stok dari tb_barang untuk kalkulasi stock_now di frontend
         $kdMats = $rawItems->map(fn($item) => $item->kd_material)->filter()->unique()->all();
-        $stocks = DB::table('tb_material')
+        $stocks = DB::table('tb_barang')
             ->whereIn('kd_material', $kdMats)
+            ->select('kd_material')
+            ->selectRaw('(
+                coalesce(cast(stok_g1 as decimal(18,4)), 0) +
+                coalesce(cast(stok_g2 as decimal(18,4)), 0) +
+                coalesce(cast(stok_g3 as decimal(18,4)), 0) +
+                coalesce(cast(stok_g4 as decimal(18,4)), 0)
+            ) as stok')
             ->pluck('stok', 'kd_material');
         $warehouseOptions = $this->materialWarehouseOptions($kdMats);
 

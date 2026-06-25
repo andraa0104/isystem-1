@@ -16,6 +16,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { confirmDelete } from '@/lib/confirm-delete';
@@ -28,6 +35,15 @@ const breadcrumbs = [
     { title: 'Master Data', href: '/master-data/material' },
     { title: 'Material', href: '/master-data/material' },
 ];
+
+const warehouseOptions = [
+    { value: 'g1', label: 'Gudang 1' },
+    { value: 'g2', label: 'Gudang 2' },
+    { value: 'g3', label: 'Gudang 3' },
+    { value: 'g4', label: 'Gudang 4' },
+];
+
+const stockCategoryOptions = ['FAST MOVING', 'SLOW MOVING', 'DEAD STOK'];
 
 const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
@@ -110,7 +126,7 @@ export default function MaterialIndex({ materials }) {
     const [currentPage, setCurrentPage] = useState(1);
     const [stockFilter, setStockFilter] = useState('all');
     const [codeOrder, setCodeOrder] = useState('asc');
-    
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState(null);
@@ -123,8 +139,9 @@ export default function MaterialIndex({ materials }) {
     const { data, setData, post, processing, reset, errors } = useForm({
         material: '',
         unit: '',
+        gudang: '',
+        kategori: '',
         stok: 0,
-        remark: '',
     });
     const {
         data: editData,
@@ -195,7 +212,9 @@ export default function MaterialIndex({ materials }) {
         return items.filter((item) => {
             const values = [item.kd_material, item.material, item.unit];
             return values.some((value) =>
-                String(value ?? '').toLowerCase().includes(term),
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
             );
         });
     }, [materialsList, debouncedSearchTerm, stockFilter, codeOrder]);
@@ -290,7 +309,9 @@ export default function MaterialIndex({ materials }) {
         const filteredRows = term
             ? rows.filter((row) =>
                   [row.kd_material, row.material].some((value) =>
-                      String(value ?? '').toLowerCase().includes(term),
+                      String(value ?? '')
+                          .toLowerCase()
+                          .includes(term),
                   ),
               )
             : rows;
@@ -561,22 +582,22 @@ export default function MaterialIndex({ materials }) {
                                 <table className="w-full table-auto text-sm">
                                     <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                         <tr>
-                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-left">
+                                            <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
                                                 No
                                             </th>
-                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-left">
+                                            <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
                                                 Kode Material
                                             </th>
-                                            <th className="w-full whitespace-nowrap px-2 py-2 text-left">
+                                            <th className="w-full px-2 py-2 text-left whitespace-nowrap">
                                                 Nama Material
                                             </th>
-                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-left">
+                                            <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
                                                 Satuan
                                             </th>
-                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-right">
+                                            <th className="w-1 px-2 py-2 text-right whitespace-nowrap">
                                                 Total Stok
                                             </th>
-                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-center">
+                                            <th className="w-1 px-2 py-2 text-center whitespace-nowrap">
                                                 Aksi
                                             </th>
                                         </tr>
@@ -584,7 +605,10 @@ export default function MaterialIndex({ materials }) {
                                     <tbody>
                                         {tableLoading ? (
                                             <tr>
-                                                <td className="px-4 py-4" colSpan={6}>
+                                                <td
+                                                    className="px-4 py-4"
+                                                    colSpan={6}
+                                                >
                                                     <div className="flex flex-col gap-3">
                                                         <Skeleton className="h-6 w-full opacity-60" />
                                                         <Skeleton className="h-6 w-full opacity-60" />
@@ -624,15 +648,16 @@ export default function MaterialIndex({ materials }) {
                                                         key={`${item.kd_material}-${index}`}
                                                         className="border-t border-sidebar-border/70"
                                                     >
-                                                        <td className="w-1 whitespace-nowrap px-2 py-2">
-                                                            {(pageSize === Infinity
+                                                        <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                            {(pageSize ===
+                                                            Infinity
                                                                 ? index
                                                                 : (currentPage -
                                                                       1) *
                                                                       pageSize +
                                                                   index) + 1}
                                                         </td>
-                                                        <td className="w-1 whitespace-nowrap px-2 py-2 font-medium">
+                                                        <td className="w-1 px-2 py-2 font-medium whitespace-nowrap">
                                                             {renderValue(
                                                                 item.kd_material,
                                                             )}
@@ -640,20 +665,26 @@ export default function MaterialIndex({ materials }) {
                                                         <td className="w-full min-w-0 px-2 py-2">
                                                             <div
                                                                 className="truncate"
-                                                                title={item.material}
+                                                                title={
+                                                                    item.material
+                                                                }
                                                             >
                                                                 {renderValue(
                                                                     item.material,
                                                                 )}
                                                             </div>
                                                         </td>
-                                                        <td className="w-1 whitespace-nowrap px-2 py-2">
-                                                            {renderValue(item.unit)}
+                                                        <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                            {renderValue(
+                                                                item.unit,
+                                                            )}
                                                         </td>
-                                                        <td className="w-1 whitespace-nowrap px-2 py-2 text-right tabular-nums">
-                                                            {formatNumber(item.stok)}
+                                                        <td className="w-1 px-2 py-2 text-right whitespace-nowrap tabular-nums">
+                                                            {formatNumber(
+                                                                item.stok,
+                                                            )}
                                                         </td>
-                                                        <td className="w-1 whitespace-nowrap px-2 py-2">
+                                                        <td className="w-1 px-2 py-2 whitespace-nowrap">
                                                             <div className="flex items-center justify-center gap-2">
                                                                 <ActionIconButton
                                                                     label="Lihat detail stok"
@@ -675,16 +706,20 @@ export default function MaterialIndex({ materials }) {
                                                                 >
                                                                     <Pencil className="h-4 w-4" />
                                                                 </ActionIconButton>
-                                                                <ActionIconButton
-                                                                    label="Hapus"
-                                                                    onClick={() =>
-                                                                        handleDelete(
-                                                                            item,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                                </ActionIconButton>
+                                                                {toNumber(
+                                                                    item.stok,
+                                                                ) === 0 && (
+                                                                    <ActionIconButton
+                                                                        label="Hapus"
+                                                                        onClick={() =>
+                                                                            handleDelete(
+                                                                                item,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                                    </ActionIconButton>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -797,16 +832,16 @@ export default function MaterialIndex({ materials }) {
                                 <table className="w-full table-auto text-sm">
                                     <thead className="bg-muted/50 text-muted-foreground">
                                         <tr>
-                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-left">
+                                            <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
                                                 Gudang
                                             </th>
-                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-right">
+                                            <th className="w-1 px-2 py-2 text-right whitespace-nowrap">
                                                 Stok
                                             </th>
-                                            <th className="w-1 whitespace-nowrap px-2 py-2 text-right">
+                                            <th className="w-1 px-2 py-2 text-right whitespace-nowrap">
                                                 Harga
                                             </th>
-                                            <th className="w-full whitespace-nowrap px-2 py-2 text-left">
+                                            <th className="w-full px-2 py-2 text-left whitespace-nowrap">
                                                 Kategori
                                             </th>
                                         </tr>
@@ -818,14 +853,16 @@ export default function MaterialIndex({ materials }) {
                                                     key={row.label}
                                                     className="border-t border-sidebar-border/70"
                                                 >
-                                                    <td className="w-1 whitespace-nowrap px-2 py-2 font-medium">
+                                                    <td className="w-1 px-2 py-2 font-medium whitespace-nowrap">
                                                         {row.label}
                                                     </td>
-                                                    <td className="w-1 whitespace-nowrap px-2 py-2 text-right tabular-nums">
+                                                    <td className="w-1 px-2 py-2 text-right whitespace-nowrap tabular-nums">
                                                         {formatNumber(row.stok)}
                                                     </td>
-                                                    <td className="w-1 whitespace-nowrap px-2 py-2 text-right tabular-nums">
-                                                        {formatNumber(row.harga)}
+                                                    <td className="w-1 px-2 py-2 text-right whitespace-nowrap tabular-nums">
+                                                        {formatNumber(
+                                                            row.harga,
+                                                        )}
                                                     </td>
                                                     <td className="w-full min-w-0 px-2 py-2">
                                                         <div
@@ -933,10 +970,10 @@ export default function MaterialIndex({ materials }) {
                                 <table className="w-full min-w-[1100px] table-fixed text-sm">
                                     <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
                                         <tr>
-                                            <th className="w-14 whitespace-nowrap px-3 py-2 text-left">
+                                            <th className="w-14 px-3 py-2 text-left whitespace-nowrap">
                                                 No
                                             </th>
-                                            <th className="w-36 whitespace-nowrap px-3 py-2 text-left">
+                                            <th className="w-36 px-3 py-2 text-left whitespace-nowrap">
                                                 Kode Material
                                             </th>
                                             <th className="min-w-0 px-3 py-2 text-left">
@@ -946,13 +983,13 @@ export default function MaterialIndex({ materials }) {
                                                 (gudang) => [
                                                     <th
                                                         key={`${gudang}-stok`}
-                                                        className="w-24 whitespace-nowrap px-3 py-2 text-right"
+                                                        className="w-24 px-3 py-2 text-right whitespace-nowrap"
                                                     >
                                                         Stok {gudang}
                                                     </th>,
                                                     <th
                                                         key={`${gudang}-harga`}
-                                                        className="w-32 whitespace-nowrap px-3 py-2 text-right"
+                                                        className="w-32 px-3 py-2 text-right whitespace-nowrap"
                                                     >
                                                         Harga {gudang}
                                                     </th>,
@@ -971,7 +1008,8 @@ export default function MaterialIndex({ materials }) {
                                                             2
                                                     }
                                                 >
-                                                    Data material tidak tersedia.
+                                                    Data material tidak
+                                                    tersedia.
                                                 </td>
                                             </tr>
                                         ) : (
@@ -981,14 +1019,14 @@ export default function MaterialIndex({ materials }) {
                                                         key={`${row.kd_material}-${index}`}
                                                         className="border-t border-sidebar-border/70"
                                                     >
-                                                        <td className="w-14 whitespace-nowrap px-3 py-2">
+                                                        <td className="w-14 px-3 py-2 whitespace-nowrap">
                                                             {(movementCurrentPage -
                                                                 1) *
                                                                 movementPageSize +
                                                                 index +
                                                                 1}
                                                         </td>
-                                                        <td className="w-36 whitespace-nowrap px-3 py-2 font-medium">
+                                                        <td className="w-36 px-3 py-2 font-medium whitespace-nowrap">
                                                             {renderValue(
                                                                 row.kd_material,
                                                             )}
@@ -1009,9 +1047,10 @@ export default function MaterialIndex({ materials }) {
                                                             (gudang) => [
                                                                 <td
                                                                     key={`${gudang}-stok`}
-                                                                    className="w-24 whitespace-nowrap px-3 py-2 text-right tabular-nums"
+                                                                    className="w-24 px-3 py-2 text-right whitespace-nowrap tabular-nums"
                                                                 >
-                                                                    {row.stocks?.[
+                                                                    {row
+                                                                        .stocks?.[
                                                                         gudang
                                                                     ] ===
                                                                     undefined
@@ -1025,9 +1064,10 @@ export default function MaterialIndex({ materials }) {
                                                                 </td>,
                                                                 <td
                                                                     key={`${gudang}-harga`}
-                                                                    className="w-32 whitespace-nowrap px-3 py-2 text-right tabular-nums"
+                                                                    className="w-32 px-3 py-2 text-right whitespace-nowrap tabular-nums"
                                                                 >
-                                                                    {row.prices?.[
+                                                                    {row
+                                                                        .prices?.[
                                                                         gudang
                                                                     ] ===
                                                                     undefined
@@ -1160,6 +1200,74 @@ export default function MaterialIndex({ materials }) {
                                 )}
                             </div>
                             <div className="space-y-2">
+                                <Label htmlFor="gudang">Gudang</Label>
+                                <Select
+                                    value={data.gudang || 'none'}
+                                    onValueChange={(value) =>
+                                        setData(
+                                            'gudang',
+                                            value === 'none' ? '' : value,
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger id="gudang">
+                                        <SelectValue placeholder="Pilih gudang" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">
+                                            Tidak dipilih
+                                        </SelectItem>
+                                        {warehouseOptions.map((option) => (
+                                            <SelectItem
+                                                key={option.value}
+                                                value={option.value}
+                                            >
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {errors.gudang && (
+                                    <p className="text-xs text-rose-600">
+                                        {errors.gudang}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="kategori">Kategori</Label>
+                                <Select
+                                    value={data.kategori || 'none'}
+                                    onValueChange={(value) =>
+                                        setData(
+                                            'kategori',
+                                            value === 'none' ? '' : value,
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger id="kategori">
+                                        <SelectValue placeholder="Pilih kategori" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">
+                                            Tidak dipilih
+                                        </SelectItem>
+                                        {stockCategoryOptions.map((option) => (
+                                            <SelectItem
+                                                key={option}
+                                                value={option}
+                                            >
+                                                {option}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {errors.kategori && (
+                                    <p className="text-xs text-rose-600">
+                                        {errors.kategori}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-2">
                                 <Label htmlFor="stok">Stok</Label>
                                 <Input
                                     id="stok"
@@ -1173,22 +1281,6 @@ export default function MaterialIndex({ materials }) {
                                 {errors.stok && (
                                     <p className="text-xs text-rose-600">
                                         {errors.stok}
-                                    </p>
-                                )}
-                            </div>
-                            <div className="space-y-2">
-                                <Label htmlFor="remark">Remark</Label>
-                                <Input
-                                    id="remark"
-                                    value={data.remark}
-                                    onChange={(event) =>
-                                        setData('remark', event.target.value)
-                                    }
-                                    placeholder="Catatan tambahan"
-                                />
-                                {errors.remark && (
-                                    <p className="text-xs text-rose-600">
-                                        {errors.remark}
                                     </p>
                                 )}
                             </div>
@@ -1283,18 +1375,33 @@ export default function MaterialIndex({ materials }) {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="edit-remark">Remark</Label>
-                                <Input
-                                    id="edit-remark"
-                                    value={editData.remark}
-                                    onChange={(event) =>
+                                <Label htmlFor="edit-remark">Kategori</Label>
+                                <Select
+                                    value={editData.remark || 'none'}
+                                    onValueChange={(value) =>
                                         setEditData(
                                             'remark',
-                                            event.target.value,
+                                            value === 'none' ? '' : value,
                                         )
                                     }
-                                    placeholder="Catatan tambahan"
-                                />
+                                >
+                                    <SelectTrigger id="edit-remark">
+                                        <SelectValue placeholder="Pilih kategori" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">
+                                            Tidak dipilih
+                                        </SelectItem>
+                                        {stockCategoryOptions.map((option) => (
+                                            <SelectItem
+                                                key={option}
+                                                value={option}
+                                            >
+                                                {option}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                                 {editErrors.remark && (
                                     <p className="text-xs text-rose-600">
                                         {editErrors.remark}

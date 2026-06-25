@@ -1085,9 +1085,14 @@ class DashboardController
             $hmibs = (float) DB::table('tb_mib')->sum('total_price');
         }
 
-        if (Schema::hasTable('tb_material')) {
+        if (Schema::hasTable('tb_barang')) {
             $hasAnyPhysicalTable = true;
-            $hmi = (float) DB::table('tb_material')->selectRaw('SUM(stok * harga) as total_value')->value('total_value');
+            $hmi = (float) DB::table('tb_barang')->selectRaw('SUM(
+                (coalesce(cast(stok_g1 as decimal(18,4)), 0) * coalesce(cast(harga_stokg1 as decimal(18,4)), 0)) +
+                (coalesce(cast(stok_g2 as decimal(18,4)), 0) * coalesce(cast(harga_stokg2 as decimal(18,4)), 0)) +
+                (coalesce(cast(stok_g3 as decimal(18,4)), 0) * coalesce(cast(harga_stokg3 as decimal(18,4)), 0)) +
+                (coalesce(cast(stok_g4 as decimal(18,4)), 0) * coalesce(cast(harga_stokg4 as decimal(18,4)), 0))
+            ) as total_value')->value('total_value');
         }
 
         if (Schema::hasTable('tb_do')) {
@@ -1133,9 +1138,9 @@ class DashboardController
             }
         }
 
-        if (Schema::hasTable('tb_material') && Schema::hasColumn('tb_material', 'tgl_buat')) {
+        if (Schema::hasTable('tb_barang') && Schema::hasColumn('tb_barang', 'tgl_buat')) {
             $tglBuatSql = $this->normalizedDateSql('tgl_buat');
-            $lastUpdateMaterial = DB::table('tb_material')
+            $lastUpdateMaterial = DB::table('tb_barang')
                 ->selectRaw("MAX($tglBuatSql) as last_update")
                 ->value('last_update');
             if ($lastUpdateMaterial) {

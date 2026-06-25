@@ -24,6 +24,62 @@ class DeliveryOrderAddController
         return is_numeric($clean) ? (float) $clean : 0.0;
     }
 
+    private function barangStockTotalExpression(string $alias = ''): string
+    {
+        $prefix = $alias !== '' ? "{$alias}." : '';
+
+        return "(
+            coalesce(cast({$prefix}stok_g1 as decimal(18,4)), 0) +
+            coalesce(cast({$prefix}stok_g2 as decimal(18,4)), 0) +
+            coalesce(cast({$prefix}stok_g3 as decimal(18,4)), 0) +
+            coalesce(cast({$prefix}stok_g4 as decimal(18,4)), 0)
+        )";
+    }
+
+    private function materialWarehouseOptions(string $kdMaterial)
+    {
+        if ($kdMaterial === '' || !Schema::hasTable('tb_barang')) {
+            return collect();
+        }
+
+        $row = DB::table('tb_barang')
+            ->where('kd_material', $kdMaterial)
+            ->first([
+                'stok_g1',
+                'stok_g2',
+                'stok_g3',
+                'stok_g4',
+                'harga_stokg1',
+                'harga_stokg2',
+                'harga_stokg3',
+                'harga_stokg4',
+            ]);
+
+        if (!$row) {
+            return collect();
+        }
+
+        return collect([
+            ['value' => 'g1', 'stock_column' => 'stok_g1', 'stock' => $row->stok_g1 ?? 0, 'price' => $row->harga_stokg1 ?? 0],
+            ['value' => 'g2', 'stock_column' => 'stok_g2', 'stock' => $row->stok_g2 ?? 0, 'price' => $row->harga_stokg2 ?? 0],
+            ['value' => 'g3', 'stock_column' => 'stok_g3', 'stock' => $row->stok_g3 ?? 0, 'price' => $row->harga_stokg3 ?? 0],
+            ['value' => 'g4', 'stock_column' => 'stok_g4', 'stock' => $row->stok_g4 ?? 0, 'price' => $row->harga_stokg4 ?? 0],
+        ])->map(function ($option) {
+            $option['stock'] = $this->parseNumber($option['stock']);
+            $option['price'] = $this->parseNumber($option['price']);
+            return $option;
+        });
+    }
+
+    private function warehouseOptionForPrice(string $kdMaterial, float $price)
+    {
+        $options = $this->materialWarehouseOptions($kdMaterial);
+
+        return $options->first(function ($option) use ($price) {
+            return $option['stock'] > 0 && abs($option['price'] - $price) <= 0.000001;
+        }) ?? $options->first(fn ($option) => $option['stock'] > 0) ?? $options->first();
+    }
+
     private function nextMibNoDoc(): string
     {
         $last = DB::table('tb_kdmib')
@@ -46,7 +102,7 @@ class DeliveryOrderAddController
 
     private function restoreDeletedMaterialsToStockAndMib($rows, string $sourceDocNo): void
     {
-        if ($rows->isEmpty() || !Schema::hasTable('tb_material')) {
+        if ($rows->isEmpty() || !Schema::hasTable('tb_barang')) {
             return;
         }
 
@@ -62,7 +118,7 @@ class DeliveryOrderAddController
                 continue;
             }
 
-            $materialQuery = DB::table('tb_material');
+            $materialQuery = DB::table('tb_barang');
             if ($kdMat !== '') {
                 $materialQuery->where('kd_material', $kdMat);
             } else {
@@ -74,26 +130,17 @@ class DeliveryOrderAddController
                 continue;
             }
 
-            $materialHarga = $this->parseNumber($materialRow->harga ?? 0);
-            $sameMainStockPrice = $materialHarga === 0.0 || abs($materialHarga - $dobHarga) <= 0.000001;
+            $warehouseOption = $this->warehouseOptionForPrice((string) $materialRow->kd_material, $dobHarga);
+            $stockColumn = $warehouseOption['stock_column'] ?? null;
+            $materialHarga = $this->parseNumber($warehouseOption['price'] ?? 0);
+            $sameMainStockPrice = $stockColumn && ($materialHarga === 0.0 || abs($materialHarga - $dobHarga) <= 0.000001);
 
             if ($sameMainStockPrice) {
-                $materialUpdate = [];
-                if (Schema::hasColumn('tb_material', 'stok')) {
-                    $materialUpdate['stok'] = $this->parseNumber($materialRow->stok ?? 0) + $qty;
-                }
-                if (Schema::hasColumn('tb_material', 'rest_stock')) {
-                    $materialUpdate['rest_stock'] = $this->parseNumber($materialRow->rest_stock ?? 0) + $qty;
-                }
-                if (Schema::hasColumn('tb_material', 'harga')) {
-                    $materialUpdate['harga'] = $dobHarga;
-                }
-
-                if (!empty($materialUpdate)) {
-                    DB::table('tb_material')
-                        ->where('kd_material', $materialRow->kd_material)
-                        ->update($materialUpdate);
-                }
+                DB::table('tb_barang')
+                    ->where('kd_material', $materialRow->kd_material)
+                    ->update([
+                        $stockColumn => $this->parseNumber($materialRow->{$stockColumn} ?? 0) + $qty,
+                    ]);
 
                 continue;
             }
@@ -180,8 +227,9 @@ class DeliveryOrderAddController
         $mappedItems = $items->map(function ($item) {
             $lastStock = 0;
             if ($item->kd_mat) {
-                $lastStock = DB::table('tb_material')
+                $lastStock = DB::table('tb_barang')
                     ->where('kd_material', $item->kd_mat)
+                    ->selectRaw($this->barangStockTotalExpression() . ' as stok')
                     ->value('stok');
             }
 
@@ -359,8 +407,9 @@ class DeliveryOrderAddController
                 ?? null;
             $lastStock = 0;
             if ($kdMaterial) {
-                $lastStock = DB::table('tb_material')
+                $lastStock = DB::table('tb_barang')
                     ->where('kd_material', $kdMaterial)
+                    ->selectRaw($this->barangStockTotalExpression() . ' as stok')
                     ->value('stok');
             }
 
@@ -518,14 +567,18 @@ class DeliveryOrderAddController
 
                     $materialRow = null;
                     if (!empty($item['kd_mat'])) {
-                        $materialRow = DB::table('tb_material')
+                        $materialRow = DB::table('tb_barang')
                             ->where('kd_material', $item['kd_mat'])
-                            ->first(['kd_material', 'harga']);
+                            ->select('kd_material')
+                            ->selectRaw('coalesce(harga_stokg1, 0) as harga')
+                            ->first();
                     }
                     if (!$materialRow && !empty($item['mat'])) {
-                        $materialRow = DB::table('tb_material')
+                        $materialRow = DB::table('tb_barang')
                             ->whereRaw('lower(trim(material)) = ?', [strtolower(trim($item['mat']))])
-                            ->first(['kd_material', 'harga']);
+                            ->select('kd_material')
+                            ->selectRaw('coalesce(harga_stokg1, 0) as harga')
+                            ->first();
                     }
 
                     $resolvedKdMat = $item['kd_mat'] ?? $materialRow->kd_material ?? null;
@@ -567,32 +620,25 @@ class DeliveryOrderAddController
 
                     $kdMat = $resolvedKdMat;
                     if ($kdMat) {
-                        $materialRow = DB::table('tb_material')
+                        $materialRow = DB::table('tb_barang')
                             ->where('kd_material', $kdMat)
                             ->first();
                         if ($materialRow) {
-                            $currentStok = $parseNumber($materialRow->stok ?? 0);
-                            $currentRest = $parseNumber($materialRow->rest_stock ?? 0);
+                            $warehouseOption = $this->warehouseOptionForPrice((string) $kdMat, $parseNumber($priceFromMaterial));
+                            $stockColumn = $warehouseOption['stock_column'] ?? null;
+                            if (!$stockColumn) {
+                                continue;
+                            }
+
+                            $currentStok = $parseNumber($materialRow->{$stockColumn} ?? 0);
                             $newStok = $currentStok - $qtyValue;
-                            $newRest = $currentRest - $qtyValue;
                             if ($newStok < 0) {
                                 $newStok = 0;
                             }
-                            if ($newRest < 0) {
-                                $newRest = 0;
-                            }
 
-                            $materialUpdate = [
-                                'stok' => $newStok,
-                                'rest_stock' => $newRest,
-                            ];
-                            if ($qtyValue > 0 && $qtyValue === $currentStok) {
-                                $materialUpdate['harga'] = 0;
-                            }
-
-                            DB::table('tb_material')
+                            DB::table('tb_barang')
                                 ->where('kd_material', $kdMat)
-                                ->update($materialUpdate);
+                                ->update([$stockColumn => $newStok]);
                         }
                     }
                 }
@@ -701,32 +747,29 @@ class DeliveryOrderAddController
                     return;
                 }
 
-                $materialRow = DB::table('tb_material')
+                $materialRow = DB::table('tb_barang')
                     ->where('kd_material', $kdMat)
                     ->first();
                 if ($materialRow) {
+                    $warehouseOption = $this->warehouseOptionForPrice((string) $kdMat, $newHarga);
+                    $stockColumn = $warehouseOption['stock_column'] ?? null;
+                    if (!$stockColumn) {
+                        return;
+                    }
+
                     if ($stockNowValue !== null) {
                         $newStok = $stockNowValue;
-                        $newRest = $stockNowValue;
                     } else {
-                        $currentStok = $parseNumber($materialRow->stok ?? 0);
-                        $currentRest = $parseNumber($materialRow->rest_stock ?? 0);
+                        $currentStok = $parseNumber($materialRow->{$stockColumn} ?? 0);
                         $newStok = $currentStok + $oldQty - $newQty;
-                        $newRest = $currentRest + $oldQty - $newQty;
                         if ($newStok < 0) {
                             $newStok = 0;
                         }
-                        if ($newRest < 0) {
-                            $newRest = 0;
-                        }
                     }
 
-                    DB::table('tb_material')
+                    DB::table('tb_barang')
                         ->where('kd_material', $kdMat)
-                        ->update([
-                            'stok' => $newStok,
-                            'rest_stock' => $newRest,
-                        ]);
+                        ->update([$stockColumn => $newStok]);
                 }
             });
         } catch (\Throwable $exception) {

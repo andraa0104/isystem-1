@@ -71,8 +71,8 @@ class TransferMaterialController
             throw ValidationException::withMessages(['general' => 'Tabel tb_mi tidak ditemukan.']);
         }
 
-        if (!Schema::hasTable('tb_material')) {
-            throw ValidationException::withMessages(['general' => 'Tabel tb_material tidak ditemukan.']);
+        if (!Schema::hasTable('tb_barang')) {
+            throw ValidationException::withMessages(['general' => 'Tabel tb_barang tidak ditemukan.']);
         }
 
         try {
@@ -195,17 +195,17 @@ class TransferMaterialController
                         }
                     }
 
-                    // Update stock in tb_material.stok
-                    if (Schema::hasColumn('tb_material', 'stok')) {
-                        $current = DB::table('tb_material')
+                    // Update stock in tb_barang.stok_g1
+                    if (Schema::hasColumn('tb_barang', 'stok_g1')) {
+                        $current = DB::table('tb_barang')
                             ->where('kd_material', $kdMat)
                             ->lockForUpdate()
-                            ->value('stok');
+                            ->value('stok_g1');
                         $currentNum = is_numeric($current) ? (float) $current : 0;
                         $newStock = $currentNum + $qty;
-                        DB::table('tb_material')
+                        DB::table('tb_barang')
                             ->where('kd_material', $kdMat)
-                            ->update(['stok' => $newStock]);
+                            ->update(['stok_g1' => $newStock]);
                     }
                 }
             });
@@ -494,23 +494,23 @@ class TransferMaterialController
                         ->where($matCol, $kdMat)
                         ->update($detailUpdate);
 
-                    // Update tb_material: stok += qty, harga = price (overwrite, not add)
-                    if (Schema::hasTable('tb_material') && Schema::hasColumn('tb_material', 'kd_material')) {
+                    // Update tb_barang: stok_g1 += qty, harga_stokg1 = price (overwrite, not add)
+                    if (Schema::hasTable('tb_barang') && Schema::hasColumn('tb_barang', 'kd_material')) {
                         $matUpdate = [];
-                        if (Schema::hasColumn('tb_material', 'stok')) {
-                            $currentStock = DB::table('tb_material')
+                        if (Schema::hasColumn('tb_barang', 'stok_g1')) {
+                            $currentStock = DB::table('tb_barang')
                                 ->where('kd_material', $kdMat)
                                 ->lockForUpdate()
-                                ->value('stok');
+                                ->value('stok_g1');
                             $currentStockNum = is_numeric($currentStock) ? (float) $currentStock : 0;
-                            $matUpdate['stok'] = $currentStockNum + $qty;
+                            $matUpdate['stok_g1'] = $currentStockNum + $qty;
                         }
-                        if (Schema::hasColumn('tb_material', 'harga')) {
+                        if (Schema::hasColumn('tb_barang', 'harga_stokg1')) {
                             // Overwrite harga with latest buy price from transfer
-                            $matUpdate['harga'] = $item['price'];
+                            $matUpdate['harga_stokg1'] = $item['price'];
                         }
                         if (!empty($matUpdate)) {
-                            DB::table('tb_material')
+                            DB::table('tb_barang')
                                 ->where('kd_material', $kdMat)
                                 ->update($matUpdate);
                         }

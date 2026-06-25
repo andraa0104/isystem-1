@@ -772,8 +772,12 @@ class FakturPenjualanController
             ]);
         }
 
+        $priceColumn = Schema::hasColumn('tb_barang', 'harga_stokg1')
+            ? 'b.harga_stokg1'
+            : (Schema::hasColumn('tb_barang', 'harga_g1') ? 'b.harga_g1' : null);
+
         $items = DB::table('tb_do as do')
-            ->leftJoin('tb_material as m', 'm.material', '=', 'do.mat')
+            ->leftJoin('tb_barang as b', 'b.material', '=', 'do.mat')
             ->leftJoin('tb_detailpr as pr', function ($join) {
                 $join->on('pr.ref_po', '=', 'do.ref_po')
                     ->on('pr.material', '=', 'do.mat');
@@ -786,9 +790,9 @@ class FakturPenjualanController
                 'do.harga',
                 'do.total',
                 'do.ref_po',
-                'm.harga as harga_material',
+                DB::raw($priceColumn ? "coalesce({$priceColumn}, 0) as harga_material" : '0 as harga_material'),
                 'pr.price_po as price_po',
-                'm.kd_material as kd_material',
+                'b.kd_material as kd_material',
             )
             ->where('do.ref_po', $refPoIn)
             ->orderBy('do.no_do')
@@ -866,8 +870,12 @@ class FakturPenjualanController
             ]);
         }
 
+        $priceColumn = Schema::hasColumn('tb_barang', 'harga_stokg1')
+            ? 'b.harga_stokg1'
+            : (Schema::hasColumn('tb_barang', 'harga_g1') ? 'b.harga_g1' : null);
+
         $items = DB::table('tb_dob as dob')
-            ->leftJoin('tb_material as m', 'm.material', '=', 'dob.mat')
+            ->leftJoin('tb_barang as b', 'b.material', '=', 'dob.mat')
             ->select(
                 'dob.no_dob',
                 'dob.mat',
@@ -875,8 +883,8 @@ class FakturPenjualanController
                 'dob.unit',
                 'dob.harga',
                 'dob.total',
-                'm.harga as harga_material',
-                'm.kd_material as kd_material',
+                DB::raw($priceColumn ? "coalesce({$priceColumn}, 0) as harga_material" : '0 as harga_material'),
+                'b.kd_material as kd_material',
             )
             ->where('dob.ref_do', $noDo)
             ->orderBy('dob.no_dob')

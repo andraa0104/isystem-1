@@ -71,7 +71,12 @@ class InputPembelianController
             'mis' => $this->scalar('tb_mi', 'SUM(harga_mis)'),
             'mib' => $this->scalar('tb_mi', 'SUM(harga_mib)'),
             'mibs' => $this->scalar('tb_mib', 'SUM(total_price)'),
-            'material' => $this->scalar('tb_material', 'SUM(stok * harga)'),
+            'material' => $this->scalar('tb_barang', 'SUM(
+                (COALESCE(CAST(stok_g1 AS DECIMAL(18,4)), 0) * COALESCE(CAST(harga_stokg1 AS DECIMAL(18,4)), 0)) +
+                (COALESCE(CAST(stok_g2 AS DECIMAL(18,4)), 0) * COALESCE(CAST(harga_stokg2 AS DECIMAL(18,4)), 0)) +
+                (COALESCE(CAST(stok_g3 AS DECIMAL(18,4)), 0) * COALESCE(CAST(harga_stokg3 AS DECIMAL(18,4)), 0)) +
+                (COALESCE(CAST(stok_g4 AS DECIMAL(18,4)), 0) * COALESCE(CAST(harga_stokg4 AS DECIMAL(18,4)), 0))
+            )'),
             'do_outstanding' => $this->scalar('tb_do', 'SUM(total)', fn ($q) => $q->whereRaw('COALESCE(Val_inv,0) <> 1')),
             'dob' => $this->scalar('tb_dobi', 'SUM(total)', fn ($q) => $q->whereRaw('COALESCE(status,0) = 0')),
             'dot' => $this->scalar('tb_dob', 'SUM(total)', fn ($q) => $q->whereRaw('COALESCE(status,0) = 0')),

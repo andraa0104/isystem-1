@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class DeliveryOrderCostController
@@ -135,8 +136,21 @@ class DeliveryOrderCostController
             $perPage = 5;
         }
 
-        $query = DB::table('tb_material')
-            ->select('kd_material', 'material', 'unit', 'remark', 'harga')
+        $priceColumn = Schema::hasColumn('tb_barang', 'harga_stokg1')
+            ? 'harga_stokg1'
+            : (Schema::hasColumn('tb_barang', 'harga_g1') ? 'harga_g1' : null);
+        $remarkColumn = Schema::hasColumn('tb_barang', 'katagori_stok1')
+            ? 'katagori_stok1'
+            : (Schema::hasColumn('tb_barang', 'kategori_stok1') ? 'kategori_stok1' : null);
+
+        $query = DB::table('tb_barang')
+            ->select(
+                'kd_material',
+                'material',
+                'unit',
+                DB::raw($remarkColumn ? "{$remarkColumn} as remark" : '"" as remark'),
+                DB::raw($priceColumn ? "coalesce({$priceColumn}, 0) as harga" : '0 as harga')
+            )
             ->orderBy('material');
 
         if ($search) {

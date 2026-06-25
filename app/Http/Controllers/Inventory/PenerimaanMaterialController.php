@@ -38,6 +38,18 @@ class PenerimaanMaterialController
         Cache::tags(self::PENERIMAAN_MATERIAL_RELATED_CACHE_TAGS)->flush();
     }
 
+    private function barangStockTotalExpression(string $alias = ''): string
+    {
+        $prefix = $alias !== '' ? "{$alias}." : '';
+
+        return "(
+            coalesce(cast({$prefix}stok_g1 as decimal(18,4)), 0) +
+            coalesce(cast({$prefix}stok_g2 as decimal(18,4)), 0) +
+            coalesce(cast({$prefix}stok_g3 as decimal(18,4)), 0) +
+            coalesce(cast({$prefix}stok_g4 as decimal(18,4)), 0)
+        )";
+    }
+
     public function index()
     {
         return Inertia::render('inventory/penerimaan-material/index');
@@ -116,7 +128,7 @@ class PenerimaanMaterialController
 
         $data = Cache::tags(self::PENERIMAAN_MATERIAL_CACHE_TAGS)->remember($cacheKey, self::PENERIMAAN_MATERIAL_CACHE_TTL, function () use ($noPo) {
             $query = DB::table('tb_detailpo')
-                ->leftJoin('tb_material', 'tb_material.kd_material', '=', 'tb_detailpo.kd_mat')
+                ->leftJoin('tb_barang', 'tb_barang.kd_material', '=', 'tb_detailpo.kd_mat')
                 ->where('tb_detailpo.no_po', $noPo)
                 ->where('tb_detailpo.gr_mat', '<>', 0)
                 ->select(
@@ -127,8 +139,8 @@ class PenerimaanMaterialController
                     'tb_detailpo.unit',
                     'tb_detailpo.price',
                     'tb_detailpo.no_gudang',
-                    'tb_material.stok as last_stock',
-                    'tb_material.harga as last_price'
+                    DB::raw($this->barangStockTotalExpression('tb_barang') . ' as last_stock'),
+                    DB::raw('coalesce(tb_barang.harga_stokg1, 0) as last_price')
                 )
                 ->orderBy('tb_detailpo.kd_mat');
 
@@ -166,9 +178,9 @@ class PenerimaanMaterialController
             ]);
         }
 
-        if (!Schema::hasTable('tb_material')) {
+        if (!Schema::hasTable('tb_barang')) {
             throw ValidationException::withMessages([
-                'general' => 'Tabel tb_material tidak ditemukan.',
+                'general' => 'Tabel tb_barang tidak ditemukan.',
             ]);
         }
 
@@ -178,10 +190,8 @@ class PenerimaanMaterialController
                 $docTgl = \Carbon\Carbon::parse($data['doc_date'])->format('d.m.Y');
                 $postingTgl = $now->format('d.m.Y');
 
-                // Stock column is `stok` (tb_stok doesn't exist in this DB).
-                $stockColumn = Schema::hasColumn('tb_material', 'stok') ? 'stok' : null;
-                $priceColumn = Schema::hasColumn('tb_material', 'harga') ? 'harga' : null;
-                $stockCol = Schema::hasColumn('tb_material', 'stok') ? 'stok' : null;
+                $stockColumn = Schema::hasColumn('tb_barang', 'stok_g1') ? 'stok_g1' : null;
+                $priceColumn = Schema::hasColumn('tb_barang', 'harga_stokg1') ? 'harga_stokg1' : null;
 
                 $detailMatColumn = Schema::hasColumn('tb_detailpo', 'kd_mat')
                     ? 'kd_mat'
@@ -201,7 +211,7 @@ class PenerimaanMaterialController
 
                 // Bulk fetch Materials
                 $materials = $stockColumn || $priceColumn
-                    ? DB::table('tb_material')
+                    ? DB::table('tb_barang')
                         ->whereIn('kd_material', $kdMaterials)
                         ->get()
                         ->mapWithKeys(fn($item) => [strtolower($item->kd_material) => $item])
@@ -365,13 +375,12 @@ class PenerimaanMaterialController
                                 $currentStockNum = is_numeric($material->{$stockColumn}) ? (float) $material->{$stockColumn} : 0;
                                 $newStock = $currentStockNum + $qtyNum;
                                 $updateData[$stockColumn] = $newStock;
-                                $updateData['rest_stock'] = $newStock; // Sync rest_stock
                             }
                             if ($priceColumn) {
                                 $updateData[$priceColumn] = $row['price'];
                             }
 
-                            DB::table('tb_material')->where('kd_material', $kdMat)->update($updateData);
+                            DB::table('tb_barang')->where('kd_material', $kdMat)->update($updateData);
                         }
                     }
                 }
@@ -424,9 +433,9 @@ class PenerimaanMaterialController
             ]);
         }
 
-        if (!Schema::hasTable('tb_material')) {
+        if (!Schema::hasTable('tb_barang')) {
             throw ValidationException::withMessages([
-                'general' => 'Tabel tb_material tidak ditemukan.',
+                'general' => 'Tabel tb_barang tidak ditemukan.',
             ]);
         }
 
@@ -443,8 +452,8 @@ class PenerimaanMaterialController
                     throw new \RuntimeException('Kolom kd_mat/no_material tidak ditemukan di tb_detailpo.');
                 }
 
-                $priceColumn = Schema::hasColumn('tb_material', 'harga') ? 'harga' : null;
-                $stockCol = Schema::hasColumn('tb_material', 'stok') ? 'stok' : null;
+                $priceColumn = Schema::hasColumn('tb_barang', 'harga_stokg1') ? 'harga_stokg1' : null;
+                $stockCol = Schema::hasColumn('tb_barang', 'stok_g1') ? 'stok_g1' : null;
 
                 $kdMaterials = array_unique(array_column($data['rows'], 'kd_mat'));
 
@@ -456,7 +465,7 @@ class PenerimaanMaterialController
                     ->mapWithKeys(fn($item) => [strtolower($item->{$detailMatColumn}) => $item]);
 
                 // Bulk fetch Materials for stock update
-                $materials = DB::table('tb_material')
+                $materials = DB::table('tb_barang')
                     ->whereIn('kd_material', $kdMaterials)
                     ->get()
                     ->mapWithKeys(fn($item) => [strtolower($item->kd_material) => $item]);
@@ -621,28 +630,6 @@ class PenerimaanMaterialController
                     }
                     */
 
-                    // Update stock and rest_stock and last price in tb_material - Skipped per user request
-                    /*
-                    $material = $materials->get($kdMatLower);
-                    if ($material) {
-                        $updateData = [];
-                        if ($priceColumn) {
-                            $updateData[$priceColumn] = $row['price'];
-                        }
-
-                        // Sync stok and rest_stock
-                        if ($stockCol) {
-                            $currentStockNum = is_numeric($material->{$stockCol}) ? (float) $material->{$stockCol} : 0;
-                            $newStock = $currentStockNum + $qtyNum;
-                            $updateData[$stockCol] = $newStock;
-                            $updateData['rest_stock'] = $newStock;
-                        }
-
-                        if (!empty($updateData)) {
-                            DB::table('tb_material')->where('kd_material', $kdMat)->update($updateData);
-                        }
-                    }
-                    */
                 }
 
                 // Batch insert MI details

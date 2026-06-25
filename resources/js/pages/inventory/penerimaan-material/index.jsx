@@ -366,7 +366,7 @@ export default function PenerimaanMaterialIndex() {
             : priceStr === lastPriceStr;
         const hasStock = Number.isFinite(stockNum) ? stockNum !== 0 : false;
 
-        // MI/MIS only: if stock already exists and PO price differs from last price (tb_material.harga),
+        // MI/MIS only: if stock already exists and PO price differs from the latest tb_barang stock price,
         // block and direct user to MIB. If stock == 0, allow even if price differs.
         if (mode === 'mi' || mode === 'mis') {
             if (hasStock && !isSame) {
