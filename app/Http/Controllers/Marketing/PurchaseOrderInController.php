@@ -26,6 +26,40 @@ class PurchaseOrderInController
         return "Gagal {$action} data PO In. {$type}: " . ($detail !== '' ? $detail : 'Tidak ada detail error dari server.');
     }
 
+    private function recalculateHeaderTotals(string $kodePoin): void
+    {
+        $header = DB::table('tb_poin')
+            ->where('kode_poin', $kodePoin)
+            ->first(['ppn_input_percent']);
+
+        if (!$header) {
+            return;
+        }
+
+        $totalPrice = (float) (DB::table('tb_detailpoin')
+            ->where('kode_poin', $kodePoin)
+            ->selectRaw('coalesce(sum(coalesce(cast(qty as decimal(18,4)), 0) * coalesce(cast(price_po_in as decimal(18,4)), 0)), 0) as total_price')
+            ->value('total_price') ?? 0);
+        $ppnPercentInput = (float) ($header->ppn_input_percent ?? 0);
+        $ppnPercentInputValue = $ppnPercentInput <= 0 ? 0.0 : $ppnPercentInput;
+        $ppnPercentUsed = $ppnPercentInputValue <= 0 ? 0.0 : min(11.0, $ppnPercentInputValue);
+        $dpp = $ppnPercentInput > 0
+            ? round((11 / $ppnPercentInput) * $totalPrice, 2)
+            : $totalPrice;
+        $ppnValue = round($totalPrice * ($ppnPercentUsed / 100), 2);
+        $grandTotal = round($totalPrice + $ppnValue, 2);
+
+        DB::table('tb_poin')
+            ->where('kode_poin', $kodePoin)
+            ->update([
+                'total_price' => $totalPrice,
+                'dpp' => $dpp,
+                'ppn_amount' => $ppnValue,
+                'grand_total' => $grandTotal,
+                'updated_at' => now('Asia/Singapore'),
+            ]);
+    }
+
     private function activeTenantDatabase(?Request $request = null): string
     {
         $request ??= request();
@@ -1128,15 +1162,6 @@ class PurchaseOrderInController
             'dpp' => ['nullable', 'numeric', 'min:0'],
             'ppn_value' => ['nullable', 'numeric', 'min:0'],
             'grand_total' => ['nullable', 'numeric', 'min:0'],
-            'materials' => ['required', 'array', 'min:1'],
-            'materials.*.id' => ['nullable'],
-            'materials.*.kd_material' => ['nullable', 'numeric'],
-            'materials.*.material' => ['required', 'string', 'max:255'],
-            'materials.*.qty' => ['required', 'numeric', 'min:0.0001'],
-            'materials.*.satuan' => ['nullable', 'string', 'max:100'],
-            'materials.*.price_po_in' => ['required', 'numeric', 'min:0'],
-            'materials.*.total_price_po_in' => ['nullable', 'numeric', 'min:0'],
-            'materials.*.remark' => ['nullable', 'string'],
         ]);
 
         try {
@@ -1148,14 +1173,10 @@ class PurchaseOrderInController
                 $ppnPercentInputValue = $ppnPercentInput <= 0 ? 0.0 : $ppnPercentInput;
                 $ppnPercentUsed = $ppnPercentInputValue <= 0 ? 0.0 : min(11.0, $ppnPercentInputValue);
 
-                $totalPrice = (float) ($validated['total_price'] ?? 0);
-                if ($totalPrice <= 0 && is_array($validated['materials'] ?? null)) {
-                    $totalPrice = collect($validated['materials'])->sum(function ($item) {
-                        $qty = (float) ($item['qty'] ?? 0);
-                        $price = (float) ($item['price_po_in'] ?? 0);
-                        return $qty * $price;
-                    });
-                }
+                $totalPrice = (float) (DB::table('tb_detailpoin')
+                    ->where('kode_poin', $kodePoin)
+                    ->selectRaw('coalesce(sum(coalesce(cast(qty as decimal(18,4)), 0) * coalesce(cast(price_po_in as decimal(18,4)), 0)), 0) as total_price')
+                    ->value('total_price') ?? 0);
 
                 $dpp = $ppnPercentInput > 0
                     ? round((11 / $ppnPercentInput) * $totalPrice, 2)
@@ -1181,121 +1202,6 @@ class PurchaseOrderInController
                         'grand_total' => $grandTotal,
                         'updated_at' => $nowGmt8,
                     ]);
-
-                $headerId = (int) (DB::table('tb_poin')
-                    ->where('kode_poin', $kodePoin)
-                    ->value('id') ?? 0);
-
-                $existingDetails = DB::table('tb_detailpoin')
-                    ->where('kode_poin', $kodePoin)
-                    ->select('id', 'qty', 'sisa_qtypr', 'sisa_qtydo', 'created_at')
-                    ->get()
-                    ->keyBy('id');
-
-                $existingIds = $existingDetails->keys()->all();
-
-                $existingSet = array_flip($existingIds);
-                $keptIds = [];
-                $nextId = ((int) (DB::table('tb_detailpoin')->max('id') ?? 0)) + 1;
-
-                $materialKeys = collect($validated['materials'] ?? [])
-                    ->pluck('kd_material')
-                    ->map(fn ($value) => $this->normalizeMaterialCode($value))
-                    ->filter(fn ($value) => $value !== null)
-                    ->unique()
-                    ->all();
-
-                $barangCodeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
-                $materialStocks = DB::table('tb_barang')
-                    ->whereIn($barangCodeColumn, $materialKeys)
-                    ->selectRaw("{$barangCodeColumn} as kd_material")
-                    ->selectRaw($this->barangStockTotalExpression().' as stok')
-                    ->pluck('stok', 'kd_material')
-                    ->all();
-
-                $detailData = [];
-                $keptIds = [];
-
-                foreach (($validated['materials'] ?? []) as $index => $item) {
-                    $qty = (float) ($item['qty'] ?? 0);
-                    $price = (float) ($item['price_po_in'] ?? 0);
-                    $totalDetail = isset($item['total_price_po_in'])
-                        ? (float) $item['total_price_po_in']
-                        : ($qty * $price);
-                    $incomingId = $item['id'] ?? null;
-                    $resolvedId = null;
-
-                    if ($incomingId !== null && $incomingId !== '' && is_numeric($incomingId)) {
-                        $candidate = (int) $incomingId;
-                        if (isset($existingSet[$candidate])) {
-                            $resolvedId = $candidate;
-                        }
-                    }
-
-                    $kdMaterial = $this->normalizeMaterialCode($item['kd_material'] ?? null);
-                    $stok = (float) ($materialStocks[$kdMaterial] ?? 0);
-
-                    if ($resolvedId !== null && $existingDetails->has($resolvedId)) {
-                        $existingDetail = $existingDetails->get($resolvedId);
-                        $originalQty = (float) ($existingDetail->qty ?? 0);
-                        $sisaQtyPrBefore = (float) ($existingDetail->sisa_qtypr ?? 0);
-                        $usedQtyPr = max(0, $originalQty - $sisaQtyPrBefore);
-
-                        if ($sisaQtyPrBefore == 0.0 && $qty <= $originalQty) {
-                            throw ValidationException::withMessages([
-                                "materials.$index.qty" => 'Sisa Qty PR sudah 0. Qty harus lebih dari qty awal.',
-                            ]);
-                        }
-
-                        if ($sisaQtyPrBefore != 0.0 && $qty < $usedQtyPr) {
-                            throw ValidationException::withMessages([
-                                "materials.$index.qty" => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr.',
-                            ]);
-                        }
-
-                        $sisaQtyDoBefore = (float) ($existingDetail->sisa_qtydo ?? $originalQty);
-                        $usedQtyDo = max(0, $originalQty - $sisaQtyDoBefore);
-                        if ($qty < $usedQtyDo) {
-                            throw ValidationException::withMessages([
-                                "materials.$index.qty" => 'Qty tidak boleh kurang dari qty yang sudah ada penerimaan material (MI).',
-                            ]);
-                        }
-                    }
-
-                    $sisaQtyPr = max(0, $qty - $stok);
-
-                    $rowId = $resolvedId !== null ? $resolvedId : $nextId++;
-                    
-                    $detailData[] = [
-                        'id' => $rowId,
-                        'id_poin' => $headerId,
-                        'kode_poin' => $kodePoin,
-                        'kd_material' => $kdMaterial,
-                        'material' => trim((string) ($item['material'] ?? '')),
-                        'qty' => $qty,
-                        'sisa_qtypr' => $sisaQtyPr,
-                        'sisa_qtydo' => $qty,
-                        'satuan' => trim((string) ($item['satuan'] ?? '')),
-                        'price_po_in' => $price,
-                        'total_price_po_in' => $totalDetail,
-                        'remark' => trim((string) ($item['remark'] ?? '')),
-                        'created_at' => $resolvedId === null ? $nowGmt8 : ($existingDetails->get($resolvedId)->created_at ?? $nowGmt8),
-                        'updated_at' => $nowGmt8,
-                    ];
-                    $keptIds[] = $rowId;
-                }
-
-                if (!empty($detailData)) {
-                    DB::table('tb_detailpoin')->upsert($detailData, ['id'], [
-                        'kd_material', 'material', 'qty', 'sisa_qtypr', 'sisa_qtydo',
-                        'satuan', 'price_po_in', 'total_price_po_in', 'remark', 'updated_at'
-                    ]);
-                }
-
-                DB::table('tb_detailpoin')
-                    ->where('kode_poin', $kodePoin)
-                    ->whereNotIn('id', $keptIds)
-                    ->delete();
             });
 
             // [FLUSH] Kosongkan cache saat PO In di-update
@@ -1355,6 +1261,86 @@ class PurchaseOrderInController
                 return response()->json(['message' => $e->getMessage()], 500);
             }
             return back()->with('error', 'Gagal menghapus data: ' . $e->getMessage());
+        }
+    }
+
+    public function storeDetail(Request $request, $kodePoin)
+    {
+        try {
+            $header = DB::table('tb_poin')
+                ->where('kode_poin', $kodePoin)
+                ->first(['id']);
+
+            if (!$header) {
+                return response()->json([
+                    'message' => 'Data PO In tidak ditemukan.',
+                ], 404);
+            }
+
+            $validated = $request->validate([
+                'kd_material' => ['nullable', 'numeric'],
+                'material' => ['required', 'string', 'max:255'],
+                'qty' => ['required', 'numeric', 'min:0.0001'],
+                'satuan' => ['nullable', 'string', 'max:100'],
+                'price_po_in' => ['required', 'numeric', 'min:0'],
+                'total_price_po_in' => ['nullable', 'numeric', 'min:0'],
+                'remark' => ['nullable', 'string'],
+            ]);
+
+            $qty = (float) ($validated['qty'] ?? 0);
+            $price = (float) ($validated['price_po_in'] ?? 0);
+            $total = array_key_exists('total_price_po_in', $validated)
+                ? (float) $validated['total_price_po_in']
+                : ($qty * $price);
+            $nowGmt8 = now('Asia/Singapore');
+
+            $kdMaterial = $this->normalizeMaterialCode($validated['kd_material'] ?? null);
+            $stok = 0;
+            if ($kdMaterial !== null) {
+                $barangCodeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
+                $stok = (float) (DB::table('tb_barang')
+                    ->where($barangCodeColumn, $kdMaterial)
+                    ->selectRaw($this->barangStockTotalExpression().' as stok')
+                    ->value('stok') ?? 0);
+            }
+
+            $sisaQtyPr = max(0, $qty - $stok);
+            $detailId = ((int) (DB::table('tb_detailpoin')->max('id') ?? 0)) + 1;
+
+            DB::table('tb_detailpoin')->insert([
+                'id' => $detailId,
+                'id_poin' => $header->id,
+                'kode_poin' => $kodePoin,
+                'kd_material' => $kdMaterial,
+                'material' => trim((string) $validated['material']),
+                'qty' => $qty,
+                'sisa_qtypr' => $sisaQtyPr,
+                'sisa_qtydo' => $qty,
+                'satuan' => trim((string) ($validated['satuan'] ?? '')),
+                'price_po_in' => $price,
+                'total_price_po_in' => $total,
+                'remark' => trim((string) ($validated['remark'] ?? '')),
+                'created_at' => $nowGmt8,
+                'updated_at' => $nowGmt8,
+            ]);
+
+            $this->recalculateHeaderTotals($kodePoin);
+            Cache::tags(self::POIN_CACHE_TAGS)->flush();
+
+            return response()->json([
+                'message' => 'Material berhasil ditambahkan.',
+                'detail' => [
+                    'id' => $detailId,
+                    'sisa_qtypr' => $sisaQtyPr,
+                    'sisa_qtydo' => $qty,
+                ],
+            ], 201);
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 
@@ -1451,6 +1437,7 @@ class PurchaseOrderInController
                     'updated_at' => $nowGmt8,
                 ]);
 
+            $this->recalculateHeaderTotals($kodePoin);
             // [FLUSH] Bersihkan cache
             Cache::tags(self::POIN_CACHE_TAGS)->flush();
 
@@ -1541,6 +1528,7 @@ class PurchaseOrderInController
                 ], 404);
             }
 
+            $this->recalculateHeaderTotals($kodePoin);
             // [FLUSH] Bersihkan cache
             Cache::tags(self::POIN_CACHE_TAGS)->flush();
 

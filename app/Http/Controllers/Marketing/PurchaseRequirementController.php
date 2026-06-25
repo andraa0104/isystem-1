@@ -1388,6 +1388,77 @@ class PurchaseRequirementController
         return back()->with('success', 'Detail PR berhasil diperbarui.');
     }
 
+    public function clearDetailSisaPr(Request $request, $noPr, $detailNo)
+    {
+        $detail = DB::table('tb_detailpr')
+            ->where('no_pr', $noPr)
+            ->where('no', $detailNo)
+            ->first([
+                'date',
+                'payment',
+                'ref_po',
+                'for_customer',
+                'kd_material',
+                'material',
+                'qty',
+                'unit',
+                'stok',
+                'unit_price',
+                'total_price',
+                'price_po',
+                'margin',
+                'renmark',
+                'sisa_pr',
+            ]);
+
+        if (!$detail) {
+            return back()->with('error', 'Detail PR tidak ditemukan.');
+        }
+
+        $sisaPr = is_numeric($detail->sisa_pr ?? null) ? (float) $detail->sisa_pr : 0;
+        $qty = is_numeric($detail->qty ?? null) ? (float) $detail->qty : 0;
+
+        if ($sisaPr === 0.0 || $sisaPr === $qty) {
+            return back()->with('error', 'Material ini tidak memenuhi syarat update Sisa PR.');
+        }
+
+        $timestamp = now()->format('m/d/Y h:i:s A');
+
+        try {
+            DB::table('tb_detailpr')
+                ->where('no_pr', $noPr)
+                ->where('no', $detailNo)
+                ->update(['sisa_pr' => 0]);
+
+            DB::table('tb_ubah')->insert([
+                'no_pr' => $noPr,
+                'date' => $detail->date,
+                'payment' => $detail->payment,
+                'ref_po' => $detail->ref_po,
+                'no' => $detailNo,
+                'id' => $detailNo,
+                'for_customer' => $detail->for_customer,
+                'kd_material' => $detail->kd_material,
+                'material' => $detail->material,
+                'qty' => $detail->qty,
+                'qty_po' => $detail->qty,
+                'sisa_pr' => 0,
+                'unit' => $detail->unit,
+                'stok' => $detail->stok,
+                'unit_price' => $detail->unit_price,
+                'total_price' => $detail->total_price,
+                'price_po' => $detail->price_po,
+                'margin' => $detail->margin ?: '0%',
+                'renmark' => $detail->renmark ?: ' ',
+                'tgl_ubah' => $timestamp,
+            ]);
+        } catch (\Throwable $exception) {
+            return back()->with('error', 'Gagal memperbarui Sisa PR: ' . $exception->getMessage());
+        }
+
+        return back()->with('success', 'Sisa PR berhasil diubah menjadi 0.');
+    }
+
     public function destroyDetail(Request $request, $noPr, $detailNo)
     {
         $itemCount = DB::table('tb_detailpr')

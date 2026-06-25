@@ -249,6 +249,8 @@ Route::put('marketing/purchase-order-in/{kodePoin}', [PurchaseOrderInController:
     ->name('marketing.purchase-order-in.update');
 Route::delete('marketing/purchase-order-in/{kodePoin}', [PurchaseOrderInController::class, 'destroy'])
     ->name('marketing.purchase-order-in.destroy');
+Route::post('marketing/purchase-order-in/{kodePoin}/detail', [PurchaseOrderInController::class, 'storeDetail'])
+    ->name('marketing.purchase-order-in.detail.store');
 Route::put('marketing/purchase-order-in/{kodePoin}/detail/{detailId}', [PurchaseOrderInController::class, 'updateDetail'])
     ->name('marketing.purchase-order-in.detail.update');
 Route::delete('marketing/purchase-order-in/{kodePoin}/detail/{detailId}', [PurchaseOrderInController::class, 'destroyDetail'])
@@ -302,6 +304,8 @@ Route::put('marketing/purchase-requirement/{noPr}', [PurchaseRequirementControll
     ->name('marketing.purchase-requirement.update');
 Route::put('marketing/purchase-requirement/{noPr}/detail/{detailNo}', [PurchaseRequirementController::class, 'updateDetail'])
     ->name('marketing.purchase-requirement.detail.update');
+Route::put('marketing/purchase-requirement/{noPr}/detail/{detailNo}/clear-sisa-pr', [PurchaseRequirementController::class, 'clearDetailSisaPr'])
+    ->name('marketing.purchase-requirement.detail.clear-sisa-pr');
 Route::delete('marketing/purchase-requirement/{noPr}/detail/{detailNo}', [PurchaseRequirementController::class, 'destroyDetail'])
     ->name('marketing.purchase-requirement.detail.destroy');
 Route::delete('marketing/purchase-requirement/{noPr}', [PurchaseRequirementController::class, 'destroy'])

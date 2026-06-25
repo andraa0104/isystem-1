@@ -223,6 +223,18 @@ export default function PurchaseOrderInEdit({
     );
     const [editingItemId, setEditingItemId] = useState(null);
 
+    const resetItemForm = () => {
+        setItemForm({
+            kodeMaterial: '',
+            material: '',
+            qty: '',
+            unit: '',
+            unitPrice: '',
+            totalPricePoIn: '',
+            note: '',
+        });
+    };
+
     const getItemQtyValidationMessage = (item, nextQty) => {
         if (!item) {
             return '';
@@ -308,25 +320,29 @@ export default function PurchaseOrderInEdit({
 
                     setItems((prev) =>
                         prev.map((item) =>
-                            item.id === editingItemId ? (() => {
-                                const originalQty = toNumber(
-                                    item.originalQty ?? item.qty ?? 0,
-                                );
-                                const usedQtyPr = Math.max(
-                                    0,
-                                    originalQty - toNumber(item.sisaQtyPr ?? 0),
-                                );
+                            item.id === editingItemId
+                                ? (() => {
+                                      const originalQty = toNumber(
+                                          item.originalQty ?? item.qty ?? 0,
+                                      );
+                                      const usedQtyPr = Math.max(
+                                          0,
+                                          originalQty -
+                                              toNumber(item.sisaQtyPr ?? 0),
+                                      );
 
-                                return {
-                                    ...item,
-                                    ...itemForm,
-                                    originalQty: toNumber(itemForm.qty),
-                                    sisaQtyPr: Math.max(
-                                        0,
-                                        toNumber(itemForm.qty) - usedQtyPr,
-                                    ),
-                                };
-                            })() : item,
+                                      return {
+                                          ...item,
+                                          ...itemForm,
+                                          originalQty: toNumber(itemForm.qty),
+                                          sisaQtyPr: Math.max(
+                                              0,
+                                              toNumber(itemForm.qty) -
+                                                  usedQtyPr,
+                                          ),
+                                      };
+                                  })()
+                                : item,
                         ),
                     );
                     toastSuccess(
@@ -350,49 +366,102 @@ export default function PurchaseOrderInEdit({
             } else {
                 setItems((prev) =>
                     prev.map((item) =>
-                        item.id === editingItemId ? (() => {
-                            const originalQty = toNumber(
-                                item.originalQty ?? item.qty ?? 0,
-                            );
-                            const usedQtyPr = Math.max(
-                                0,
-                                originalQty - toNumber(item.sisaQtyPr ?? 0),
-                            );
+                        item.id === editingItemId
+                            ? (() => {
+                                  const originalQty = toNumber(
+                                      item.originalQty ?? item.qty ?? 0,
+                                  );
+                                  const usedQtyPr = Math.max(
+                                      0,
+                                      originalQty -
+                                          toNumber(item.sisaQtyPr ?? 0),
+                                  );
 
-                            return {
-                                ...item,
-                                ...itemForm,
-                                originalQty: toNumber(itemForm.qty),
-                                sisaQtyPr: Math.max(
-                                    0,
-                                    toNumber(itemForm.qty) - usedQtyPr,
-                                ),
-                            };
-                        })() : item,
+                                  return {
+                                      ...item,
+                                      ...itemForm,
+                                      originalQty: toNumber(itemForm.qty),
+                                      sisaQtyPr: Math.max(
+                                          0,
+                                          toNumber(itemForm.qty) - usedQtyPr,
+                                      ),
+                                  };
+                              })()
+                            : item,
                     ),
                 );
             }
 
             setEditingItemId(null);
         } else {
-            setItems((prev) => [
-                ...prev,
-                { ...itemForm, id: `${Date.now()}-${Math.random()}` },
-            ]);
+            setIsSavingItem(true);
+            try {
+                const csrf = document
+                    .querySelector('meta[name="csrf-token"]')
+                    ?.getAttribute('content');
+                const response = await fetch(
+                    `/marketing/purchase-order-in/${encodeURIComponent(purchaseOrderIn?.kode_poin ?? '')}/detail`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Accept: 'application/json',
+                            ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+                        },
+                        body: JSON.stringify({
+                            kd_material: itemForm.kodeMaterial,
+                            material: itemForm.material,
+                            qty: toNumber(itemForm.qty),
+                            satuan: itemForm.unit,
+                            price_po_in: toNumber(itemForm.unitPrice),
+                            total_price_po_in:
+                                toNumber(itemForm.qty) *
+                                toNumber(itemForm.unitPrice),
+                            remark: itemForm.note,
+                        }),
+                    },
+                );
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const firstError = data?.errors
+                        ? Object.values(data.errors)[0]?.[0]
+                        : null;
+                    throw new Error(
+                        firstError ||
+                            data?.message ||
+                            'Gagal menambahkan material.',
+                    );
+                }
+
+                setItems((prev) => [
+                    ...prev,
+                    {
+                        ...itemForm,
+                        id: `db-${data?.detail?.id ?? Date.now()}`,
+                        dbId: data?.detail?.id ?? null,
+                        originalQty: toNumber(itemForm.qty),
+                        sisaQtyPr: toNumber(data?.detail?.sisa_qtypr ?? 0),
+                        sisaQtyDo: toNumber(data?.detail?.sisa_qtydo ?? 0),
+                        hasPr: false,
+                    },
+                ]);
+                toastSuccess(data?.message || 'Material berhasil ditambahkan.');
+            } catch (error) {
+                toastError(error?.message || 'Gagal menambahkan material.');
+                setValidationErrors((prev) => ({
+                    ...prev,
+                    materials: error?.message || 'Gagal menambahkan material.',
+                }));
+                return;
+            } finally {
+                setIsSavingItem(false);
+            }
         }
         setValidationErrors((prev) => ({ ...prev, materials: '' }));
-        setItemForm({
-            kodeMaterial: '',
-            material: '',
-            qty: '',
-            unit: '',
-            unitPrice: '',
-            totalPricePoIn: '',
-            note: '',
-        });
+        resetItemForm();
     };
 
-    const validateBeforeSave = () => {
+    const validateHeaderBeforeSave = () => {
         const errors = {};
         if (!String(form.noPoin ?? '').trim()) {
             errors.noPoin = 'No PO In wajib diisi.';
@@ -413,21 +482,12 @@ export default function PurchaseOrderInEdit({
         if (!String(form.francoLoco ?? '').trim()) {
             errors.francoLoco = 'Franco/Loco wajib diisi.';
         }
-        if (!Array.isArray(items) || items.length === 0) {
-            errors.materials = 'Data material wajib diisi.';
-        }
-        const invalidItem = items
-            .map((item) => getItemQtyValidationMessage(item, toNumber(item.qty)))
-            .find(Boolean);
-        if (invalidItem) {
-            errors.materials = invalidItem;
-        }
         setValidationErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
     const handleSavePoIn = () => {
-        if (!validateBeforeSave()) {
+        if (!validateHeaderBeforeSave()) {
             return;
         }
 
@@ -445,17 +505,6 @@ export default function PurchaseOrderInEdit({
             dpp,
             ppn_value: ppn,
             grand_total: grandTotal,
-            materials: items.map((item) => ({
-                id: item.dbId ?? null,
-                kd_material: item.kodeMaterial,
-                material: item.material,
-                qty: toNumber(item.qty),
-                satuan: item.unit,
-                price_po_in: toNumber(item.unitPrice),
-                total_price_po_in:
-                    toNumber(item.qty) * toNumber(item.unitPrice),
-                remark: item.note,
-            })),
         };
 
         router.put(
@@ -1491,19 +1540,34 @@ export default function PurchaseOrderInEdit({
                         <table className="w-full table-auto text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
-                                    <th className="w-32 px-2 py-2 text-left" rowSpan={2}>
+                                    <th
+                                        className="w-32 px-2 py-2 text-left"
+                                        rowSpan={2}
+                                    >
                                         Kode Material
                                     </th>
-                                    <th className="px-2 py-2 text-left" rowSpan={2}>
+                                    <th
+                                        className="px-2 py-2 text-left"
+                                        rowSpan={2}
+                                    >
                                         Nama Material
                                     </th>
-                                    <th className="px-2 py-2 text-center" colSpan={5}>
+                                    <th
+                                        className="px-2 py-2 text-center"
+                                        colSpan={5}
+                                    >
                                         Stok
                                     </th>
-                                    <th className="w-20 px-2 py-2 text-left" rowSpan={2}>
+                                    <th
+                                        className="w-20 px-2 py-2 text-left"
+                                        rowSpan={2}
+                                    >
                                         Satuan
                                     </th>
-                                    <th className="w-20 px-2 py-2 text-left" rowSpan={2}>
+                                    <th
+                                        className="w-20 px-2 py-2 text-left"
+                                        rowSpan={2}
+                                    >
                                         Action
                                     </th>
                                 </tr>
@@ -1544,28 +1608,28 @@ export default function PurchaseOrderInEdit({
                                         key={item.kd_material}
                                         className="border-t border-sidebar-border/70"
                                     >
-                                        <td className="whitespace-nowrap px-2 py-2">
+                                        <td className="px-2 py-2 whitespace-nowrap">
                                             {item.kd_material ?? '-'}
                                         </td>
                                         <td className="px-2 py-2">
                                             {item.material ?? '-'}
                                         </td>
-                                        <td className="whitespace-nowrap px-2 py-2 text-right">
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
                                             {formatInteger(item.stok_g1)}
                                         </td>
-                                        <td className="whitespace-nowrap px-2 py-2 text-right">
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
                                             {formatInteger(item.stok_g2)}
                                         </td>
-                                        <td className="whitespace-nowrap px-2 py-2 text-right">
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
                                             {formatInteger(item.stok_g3)}
                                         </td>
-                                        <td className="whitespace-nowrap px-2 py-2 text-right">
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
                                             {formatInteger(item.stok_g4)}
                                         </td>
-                                        <td className="whitespace-nowrap px-2 py-2 text-right">
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
                                             {formatInteger(item.stok)}
                                         </td>
-                                        <td className="whitespace-nowrap px-2 py-2">
+                                        <td className="px-2 py-2 whitespace-nowrap">
                                             {item.unit ?? '-'}
                                         </td>
                                         <td className="px-2 py-2">
@@ -1741,13 +1805,13 @@ export default function PurchaseOrderInEdit({
                                         key={item.kd_cs}
                                         className="border-t border-sidebar-border/70"
                                     >
-                                        <td className="whitespace-nowrap px-2 py-2">
+                                        <td className="px-2 py-2 whitespace-nowrap">
                                             {item.kd_cs ?? '-'}
                                         </td>
                                         <td className="px-2 py-2">
                                             {item.nm_cs ?? '-'}
                                         </td>
-                                        <td className="whitespace-nowrap px-2 py-2">
+                                        <td className="px-2 py-2 whitespace-nowrap">
                                             {item.kota_cs ?? '-'}
                                         </td>
                                         <td className="px-2 py-2">
