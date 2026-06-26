@@ -19,6 +19,33 @@ class HandleInertiaRequests extends Middleware
      */
     protected $rootView = 'app';
 
+    private function normalizeMenuAccess(array $menus): array
+    {
+        $normalized = [];
+
+        foreach ($menus as $key => $value) {
+            if (is_array($value)) {
+                $normalized[$key] = [
+                    'view' => (bool) ($value['view'] ?? false),
+                    'create' => (bool) ($value['create'] ?? false),
+                    'update' => (bool) ($value['update'] ?? false),
+                    'delete' => (bool) ($value['delete'] ?? false),
+                ];
+
+                continue;
+            }
+
+            $normalized[$key] = [
+                'view' => (bool) $value,
+                'create' => false,
+                'update' => false,
+                'delete' => false,
+            ];
+        }
+
+        return $normalized;
+    }
+
     /**
      * Determines the current asset version.
      *
@@ -75,7 +102,7 @@ class HandleInertiaRequests extends Middleware
                         if (is_array($userPrivileges)) {
                             if (isset($userPrivileges['menus'])
                                 && is_array($userPrivileges['menus'])) {
-                                $menuAccess = $userPrivileges['menus'];
+                                $menuAccess = $this->normalizeMenuAccess($userPrivileges['menus']);
                                 $hasPrivileges = true;
                             }
 

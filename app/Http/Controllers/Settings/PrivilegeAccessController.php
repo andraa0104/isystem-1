@@ -92,7 +92,7 @@ class PrivilegeAccessController extends Controller
 
         return response()->json([
             'data' => [
-                'menus' => $userPrivileges['menus'] ?? [],
+                'menus' => $this->normalizeMenus($userPrivileges['menus'] ?? []),
                 'dashboard_cards' => $userPrivileges['dashboard_cards'] ?? [],
             ],
         ]);
@@ -111,7 +111,7 @@ class PrivilegeAccessController extends Controller
 
         $all = $this->loadPrivileges();
         $all['users'][$validated['kd_user']] = [
-            'menus' => $validated['menus'],
+            'menus' => $this->normalizeMenus($validated['menus']),
             'dashboard_cards' => $validated['dashboard_cards'] ?? [],
             'updated_at' => now()->format('Y-m-d H:i:s'),
         ];
@@ -146,5 +146,32 @@ class PrivilegeAccessController extends Controller
             'privileges.json',
             json_encode($data, JSON_PRETTY_PRINT)
         );
+    }
+
+    private function normalizeMenus(array $menus): array
+    {
+        $normalized = [];
+
+        foreach ($menus as $key => $value) {
+            if (is_array($value)) {
+                $normalized[$key] = [
+                    'view' => (bool) ($value['view'] ?? false),
+                    'create' => (bool) ($value['create'] ?? false),
+                    'update' => (bool) ($value['update'] ?? false),
+                    'delete' => (bool) ($value['delete'] ?? false),
+                ];
+
+                continue;
+            }
+
+            $normalized[$key] = [
+                'view' => (bool) $value,
+                'create' => false,
+                'update' => false,
+                'delete' => false,
+            ];
+        }
+
+        return $normalized;
     }
 }

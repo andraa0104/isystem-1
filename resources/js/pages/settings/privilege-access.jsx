@@ -21,6 +21,34 @@ const breadcrumbs = [
     },
 ];
 
+const accessActions = [
+    { key: 'view', label: 'View' },
+    { key: 'create', label: 'Create' },
+    { key: 'update', label: 'Update' },
+    { key: 'delete', label: 'Delete' },
+];
+
+const normalizeMenuPermission = (value) => {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+        return {
+            view: !!value.view,
+            create: !!value.create,
+            update: !!value.update,
+            delete: !!value.delete,
+        };
+    }
+
+    return {
+        view: !!value,
+        create: false,
+        update: false,
+        delete: false,
+    };
+};
+
+const hasMenuAction = (access, key, action = 'view') =>
+    !!normalizeMenuPermission(access?.[key])?.[action];
+
 export default function PrivilegeAccess() {
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
@@ -82,10 +110,13 @@ export default function PrivilegeAccess() {
         return `${selectedUser.nm_user ?? '-'} (${selectedUser.tingkat ?? '-'})`;
     }, [selectedUser]);
 
-    const toggleAccess = (key) => {
+    const toggleAccess = (key, action = 'view') => {
         setMenuAccess((prev) => ({
             ...prev,
-            [key]: !prev[key],
+            [key]: {
+                ...normalizeMenuPermission(prev[key]),
+                [action]: !hasMenuAction(prev, key, action),
+            },
         }));
     };
 
@@ -100,7 +131,23 @@ export default function PrivilegeAccess() {
         setMenuAccess((prev) => {
             const next = { ...prev };
             keys.forEach((key) => {
-                next[key] = checked;
+                next[key] = {
+                    ...normalizeMenuPermission(next[key]),
+                    view: checked,
+                };
+            });
+            return next;
+        });
+    };
+
+    const setGroupActionAccess = (keys, action, checked) => {
+        setMenuAccess((prev) => {
+            const next = { ...prev };
+            keys.forEach((key) => {
+                next[key] = {
+                    ...normalizeMenuPermission(next[key]),
+                    [action]: checked,
+                };
             });
             return next;
         });
@@ -343,11 +390,18 @@ export default function PrivilegeAccess() {
                                                 key={key}
                                                 className="flex items-center gap-3"
                                             >
-                                                <Checkbox
-                                                    id={key}
-                                                    checked={!!menuAccess[key]}
+                                                    <Checkbox
+                                                        id={key}
+                                                    checked={hasMenuAction(
+                                                        menuAccess,
+                                                        key,
+                                                        'view',
+                                                    )}
                                                     onCheckedChange={() =>
-                                                        toggleAccess(key)
+                                                        toggleAccess(
+                                                            key,
+                                                            'view',
+                                                        )
                                                     }
                                                 />
                                                 <Label htmlFor={key}>
@@ -372,10 +426,20 @@ export default function PrivilegeAccess() {
                                         const allChecked =
                                             groupKeys.length > 0 &&
                                             groupKeys.every(
-                                                (key) => menuAccess[key],
+                                                (key) =>
+                                                    hasMenuAction(
+                                                        menuAccess,
+                                                        key,
+                                                        'view',
+                                                    ),
                                             );
                                         const someChecked = groupKeys.some(
-                                            (key) => menuAccess[key],
+                                            (key) =>
+                                                hasMenuAction(
+                                                    menuAccess,
+                                                    key,
+                                                    'view',
+                                                ),
                                         );
                                         const groupState = allChecked
                                             ? true
@@ -384,52 +448,139 @@ export default function PrivilegeAccess() {
                                               : false;
 
                                         return (
-                                            <div className="flex items-center gap-3">
-                                                <Checkbox
-                                                    id={`group-${group.title}`}
-                                                    checked={groupState}
-                                                    onCheckedChange={(value) =>
-                                                        setGroupAccess(
-                                                            groupKeys,
-                                                            value === true,
-                                                        )
-                                                    }
-                                                />
-                                                <Label
-                                                    htmlFor={`group-${group.title}`}
-                                                    className="text-sm font-medium"
-                                                >
-                                                    {group.title}
-                                                </Label>
+                                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                                <div className="flex items-center gap-3">
+                                                    <Checkbox
+                                                        id={`group-${group.title}`}
+                                                        checked={groupState}
+                                                        onCheckedChange={(
+                                                            value,
+                                                        ) =>
+                                                            setGroupAccess(
+                                                                groupKeys,
+                                                                value === true,
+                                                            )
+                                                        }
+                                                    />
+                                                    <Label
+                                                        htmlFor={`group-${group.title}`}
+                                                        className="text-sm font-medium"
+                                                    >
+                                                        {group.title}
+                                                    </Label>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {accessActions.map(
+                                                        (action) => {
+                                                            const checked =
+                                                                groupKeys.length >
+                                                                    0 &&
+                                                                groupKeys.every(
+                                                                    (key) =>
+                                                                        hasMenuAction(
+                                                                            menuAccess,
+                                                                            key,
+                                                                            action.key,
+                                                                        ),
+                                                                );
+
+                                                            return (
+                                                                <Button
+                                                                    key={
+                                                                        action.key
+                                                                    }
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant={
+                                                                        checked
+                                                                            ? 'default'
+                                                                            : 'outline'
+                                                                    }
+                                                                    onClick={() =>
+                                                                        setGroupActionAccess(
+                                                                            groupKeys,
+                                                                            action.key,
+                                                                            !checked,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {
+                                                                        action.label
+                                                                    }
+                                                                </Button>
+                                                            );
+                                                        },
+                                                    )}
+                                                </div>
                                             </div>
                                         );
                                     })()}
-                                    <div className="grid gap-3 sm:grid-cols-2">
-                                        {group.items.map((item) => {
-                                            const key = getSectionItemKey(
-                                                group.title,
-                                                item.title,
-                                            );
-                                            return (
-                                                <div
-                                                    key={key}
-                                                    className="flex items-center gap-3"
-                                                >
-                                                    <Checkbox
-                                                        id={key}
-                                                        checked={
-                                                            !!menuAccess[key]
-                                                        }
-                                                        onCheckedChange={() =>
-                                                            toggleAccess(key)
-                                                        }
-                                                    />
-                                                    <Label htmlFor={key}>
-                                                        {item.title}
-                                                    </Label>
-                                                </div>
-                                            );
-                                        })}
+                                    <div className="overflow-x-auto rounded-lg border border-sidebar-border/70">
+                                        <table className="w-full min-w-[620px] text-sm">
+                                            <thead className="bg-muted/50 text-muted-foreground">
+                                                <tr>
+                                                    <th className="px-3 py-2 text-left">
+                                                        Sub Menu
+                                                    </th>
+                                                    {accessActions.map(
+                                                        (action) => (
+                                                            <th
+                                                                key={
+                                                                    action.key
+                                                                }
+                                                                className="w-24 px-3 py-2 text-center"
+                                                            >
+                                                                {action.label}
+                                                            </th>
+                                                        ),
+                                                    )}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {group.items.map((item) => {
+                                                    const key =
+                                                        getSectionItemKey(
+                                                            group.title,
+                                                            item.title,
+                                                        );
+                                                    return (
+                                                        <tr
+                                                            key={key}
+                                                            className="border-t border-sidebar-border/70"
+                                                        >
+                                                            <td className="px-3 py-2 font-medium">
+                                                                {item.title}
+                                                            </td>
+                                                            {accessActions.map(
+                                                                (action) => (
+                                                                    <td
+                                                                        key={
+                                                                            action.key
+                                                                        }
+                                                                        className="px-3 py-2 text-center"
+                                                                    >
+                                                                        <Checkbox
+                                                                            id={`${key}:${action.key}`}
+                                                                            checked={hasMenuAction(
+                                                                                menuAccess,
+                                                                                key,
+                                                                                action.key,
+                                                                            )}
+                                                                            onCheckedChange={() =>
+                                                                                toggleAccess(
+                                                                                    key,
+                                                                                    action.key,
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </td>
+                                                                ),
+                                                            )}
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             ))}

@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
@@ -170,6 +169,10 @@ Route::get('laporan/perubahan-modal/print', [PerubahanModalController::class, 'p
 
 Route::get('master-data/material', [MaterialController::class, 'index'])
     ->name('master-data.material.index');
+Route::get('master-data/material/movement-metric', [MaterialController::class, 'movementMetric'])
+    ->name('master-data.material.movement-metric');
+Route::get('master-data/material/warehouse-summary', [MaterialController::class, 'warehouseSummary'])
+    ->name('master-data.material.warehouse-summary');
 Route::get('master-data/material/export', [MaterialController::class, 'export'])
     ->name('master-data.material.export');
 Route::post('master-data/material', [MaterialController::class, 'store'])

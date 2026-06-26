@@ -5,6 +5,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\SetTenantDatabase;
 use App\Http\Middleware\AuthenticateFromCookie;
 use App\Http\Middleware\EnsureAdminTingkat;
+use App\Http\Middleware\EnsureMenuPrivilege;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\QueryException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -15,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Inertia\Inertia;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -34,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             SetTenantDatabase::class,
             AuthenticateFromCookie::class,
+            EnsureMenuPrivilege::class,
             HandleAppearance::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
@@ -48,6 +51,22 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->header('X-Inertia')) {
                 return Inertia::location(route('login'));
             }
+        });
+
+        $exceptions->render(function (MethodNotAllowedHttpException $exception, Request $request) {
+            if (! $request->isMethod('delete')) {
+                return null;
+            }
+
+            $message = 'Akses delete tidak diizinkan untuk menu ini.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 403);
+            }
+
+            return redirect()
+                ->back()
+                ->with('error', $message);
         });
 
         $exceptions->render(function (Throwable $exception, Request $request) {

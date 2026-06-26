@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAppearance } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
     AlertCircle,
     ClipboardCheck,
@@ -196,8 +196,18 @@ export default function PurchaseOrderInIndex({
     filters = {},
     pagination: initialPagination = {},
 }) {
+    const { auth } = usePage().props;
     const { resolvedAppearance } = useAppearance();
     const isDark = resolvedAppearance === 'dark';
+    const user = auth?.user ?? {};
+    const userLevel = String(user.level ?? '').toLowerCase();
+    const isAdmin = userLevel === 'admin';
+    const menuAccess =
+        user.menu_access?.['Marketing:Purchase Order In (PO In)'] ?? {};
+    const hasPrivileges = user.has_privileges ?? false;
+    const canCreate = isAdmin || (hasPrivileges && menuAccess.create === true);
+    const canUpdate = isAdmin || (hasPrivileges && menuAccess.update === true);
+    const canDelete = isAdmin || (hasPrivileges && menuAccess.delete === true);
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [perPage, setPerPage] = useState(String(filters.per_page ?? '5'));
@@ -687,6 +697,13 @@ export default function PurchaseOrderInIndex({
             return;
         }
 
+        if (!canDelete) {
+            toastError('Akses delete tidak diizinkan untuk menu ini.');
+            setIsConfirmDeleteOpen(false);
+            setConfirmDeleteKode('');
+            return;
+        }
+
         setIsDeleting(true);
         router.delete(
             `/marketing/purchase-order-in/${encodeURIComponent(confirmDeleteKode)}`,
@@ -695,12 +712,26 @@ export default function PurchaseOrderInIndex({
                 headers: {
                     'X-Skip-Loading-Overlay': '1',
                 },
-                onSuccess: () => {
+                onSuccess: (page) => {
+                    setIsDeleting(false);
+                    const flashError = page?.props?.flash?.error;
+                    if (flashError) {
+                        toastError(flashError);
+                        return;
+                    }
+
                     setActiveModal(null);
                     setIsConfirmDeleteOpen(false);
                     setConfirmDeleteKode('');
                 },
-                onError: () => setIsDeleting(false),
+                onError: (errors) => {
+                    setIsDeleting(false);
+                    toastError(
+                        errors?.message ||
+                            errors?.error ||
+                            'Akses delete tidak diizinkan untuk menu ini.',
+                    );
+                },
             },
         );
     };
@@ -750,11 +781,18 @@ export default function PurchaseOrderInIndex({
                                 backgroundColor: '#ffffff',
                                 color: '#0f172a',
                             }}
-                            onClick={() =>
+                            onClick={() => {
+                                if (!canCreate) {
+                                    toastError(
+                                        'Akses create tidak diizinkan untuk menu ini.',
+                                    );
+                                    return;
+                                }
+
                                 router.visit(
                                     '/marketing/purchase-order-in/create',
-                                )
-                            }
+                                );
+                            }}
                         >
                             Tambah PO IN
                         </Button>
@@ -1329,8 +1367,7 @@ export default function PurchaseOrderInIndex({
                                     <span>
                                         Menampilkan{' '}
                                         {Math.min(
-                                            (Number(pagination.page || 1) -
-                                                1) *
+                                            (Number(pagination.page || 1) - 1) *
                                                 Number(
                                                     pagination.per_page || 5,
                                                 ) +
@@ -1386,7 +1423,9 @@ export default function PurchaseOrderInIndex({
                                         disabled={
                                             paginationLoading ||
                                             Number(pagination.page || 1) >=
-                                            Number(pagination.total_pages || 1)
+                                                Number(
+                                                    pagination.total_pages || 1,
+                                                )
                                         }
                                         onClick={() =>
                                             fetchPoInData({
@@ -2062,6 +2101,15 @@ export default function PurchaseOrderInIndex({
                                                             variant="outline"
                                                             size="sm"
                                                             onClick={() => {
+                                                                if (
+                                                                    !canUpdate
+                                                                ) {
+                                                                    toastError(
+                                                                        'Akses edit tidak diizinkan untuk menu ini.',
+                                                                    );
+                                                                    return;
+                                                                }
+
                                                                 setActiveModal(
                                                                     null,
                                                                 );
@@ -2081,6 +2129,15 @@ export default function PurchaseOrderInIndex({
                                                                 size="sm"
                                                                 title="Hapus"
                                                                 onClick={() => {
+                                                                    if (
+                                                                        !canDelete
+                                                                    ) {
+                                                                        toastError(
+                                                                            'Akses delete tidak diizinkan untuk menu ini.',
+                                                                        );
+                                                                        return;
+                                                                    }
+
                                                                     setConfirmDeleteKode(
                                                                         item.kode_poin,
                                                                     );

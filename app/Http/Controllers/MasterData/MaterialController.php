@@ -68,6 +68,109 @@ class MaterialController
         return null;
     }
 
+    private function movementWarehouseExpressions(): array
+    {
+        return [
+            [
+                'warehouse' => 'g1',
+                'stock' => 'stok_g1',
+                'price' => $this->firstExistingColumn('tb_barang', ['harga_stokg1', 'harga_g1', 'harga1']),
+                'category' => $this->firstExistingColumn('tb_barang', ['katagori_stok1', 'kategori_stok1', 'katagori_g1', 'kategori_g1', 'katagori1', 'kategori1']),
+            ],
+            [
+                'warehouse' => 'g2',
+                'stock' => 'stok_g2',
+                'price' => $this->firstExistingColumn('tb_barang', ['harga_stokg2', 'harga_g2', 'harga2']),
+                'category' => $this->firstExistingColumn('tb_barang', ['katagori_stok2', 'kategori_stok2', 'katagori_g2', 'kategori_g2', 'katagori2', 'kategori2']),
+            ],
+            [
+                'warehouse' => 'g3',
+                'stock' => 'stok_g3',
+                'price' => $this->firstExistingColumn('tb_barang', ['harga_stokg3', 'harga_g3', 'harga3']),
+                'category' => $this->firstExistingColumn('tb_barang', ['katagori_stok3', 'kategori_stok3', 'katagori_g3', 'kategori_g3', 'katagori3', 'kategori3']),
+            ],
+            [
+                'warehouse' => 'g4',
+                'stock' => 'stok_g4',
+                'price' => $this->firstExistingColumn('tb_barang', ['harga_stokg4', 'harga_g4', 'harga4']),
+                'category' => $this->firstExistingColumn('tb_barang', ['katagori_stok4', 'kategori_stok4', 'katagori_g4', 'kategori_g4', 'katagori4', 'kategori4']),
+            ],
+        ];
+    }
+
+    private function movementBaseQuery()
+    {
+        $codeColumn = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
+
+        $queries = collect($this->movementWarehouseExpressions())
+            ->filter(fn (array $columns) => $columns['category'] !== null)
+            ->map(function (array $columns) use ($codeColumn) {
+                $priceColumn = $columns['price'];
+                $priceExpression = $priceColumn
+                    ? "coalesce(cast({$priceColumn} as decimal(65,4)), 0)"
+                    : '0';
+
+                return DB::table('tb_barang')
+                    ->selectRaw("
+                        {$codeColumn} as kd_material,
+                        '{$columns['warehouse']}' as gudang,
+                        coalesce(cast({$columns['stock']} as decimal(65,4)), 0) as stok,
+                        {$priceExpression} as harga,
+                        {$columns['category']} as kategori
+                    ");
+            })
+            ->values();
+
+        if ($queries->isEmpty()) {
+            return null;
+        }
+
+        $query = $queries->shift();
+        foreach ($queries as $unionQuery) {
+            $query->unionAll($unionQuery);
+        }
+
+        return DB::query()->fromSub($query, 'movement');
+    }
+
+    private function movementMetricValue(string $category, string $metric, ?string $warehouse = null): int
+    {
+        $matcher = match ($category) {
+            'fast' => 'fast',
+            'slow' => 'slow',
+            'dead' => 'dead',
+            default => null,
+        };
+
+        if ($matcher === null || ! in_array($metric, ['stock', 'items', 'total'], true)) {
+            abort(422, 'Metric tidak valid.');
+        }
+
+        $query = $this->movementBaseQuery();
+        if ($query === null) {
+            return 0;
+        }
+
+        $query->whereRaw('lower(coalesce(kategori, ?)) like ?', ['', "%{$matcher}%"]);
+        if ($warehouse !== null) {
+            $query->where('gudang', $warehouse);
+        }
+
+        if ($metric === 'items') {
+            return (int) DB::query()
+                ->fromSub(
+                    $query->select('kd_material')->groupBy('kd_material'),
+                    'category_items'
+                )
+                ->count();
+        }
+
+        return (int) match ($metric) {
+            'stock' => $query->sum('stok'),
+            'total' => $query->selectRaw('sum(stok * harga) as aggregate')->value('aggregate'),
+        };
+    }
+
     public function index()
     {
         // Inertia::lazy() memastikan kerangka halaman (UI) dirender secara instan,
@@ -116,6 +219,66 @@ class MaterialController
             'materialCount' => Inertia::lazy(function () {
                 return DB::table('tb_barang')->count();
             }),
+        ]);
+    }
+
+    public function movementMetric(Request $request)
+    {
+        $validated = $request->validate([
+            'category' => ['required', 'string', 'in:fast,slow,dead'],
+            'metric' => ['required', 'string', 'in:stock,items,total'],
+            'warehouse' => ['nullable', 'string', 'in:g1,g2,g3,g4'],
+        ]);
+
+        return response()->json([
+            'value' => $this->movementMetricValue(
+                $validated['category'],
+                $validated['metric'],
+                $validated['warehouse'] ?? null
+            ),
+        ]);
+    }
+
+    public function warehouseSummary(Request $request)
+    {
+        $validated = $request->validate([
+            'warehouse' => ['required', 'string', 'in:g1,g2,g3,g4'],
+        ]);
+
+        $query = $this->movementBaseQuery();
+        if ($query === null) {
+            return response()->json([
+                'total' => ['stock' => 0, 'items' => 0, 'total' => 0],
+                'categories' => [],
+            ]);
+        }
+
+        $rows = $query
+            ->where('gudang', $validated['warehouse'])
+            ->whereRaw('lower(trim(coalesce(kategori, ?))) not in (?, ?)', ['', '', '0'])
+            ->get();
+
+        $categories = $rows
+            ->groupBy(fn ($row) => trim((string) ($row->kategori ?? '')))
+            ->map(function ($categoryRows, string $category) {
+                return [
+                    'key' => str($category)->lower()->slug('-')->toString(),
+                    'label' => $category,
+                    'stock' => (int) $categoryRows->sum(fn ($row) => (float) $row->stok),
+                    'items' => $categoryRows->pluck('kd_material')->unique()->count(),
+                    'total' => (int) $categoryRows->sum(fn ($row) => (float) $row->stok * (float) $row->harga),
+                ];
+            })
+            ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+
+        return response()->json([
+            'total' => [
+                'stock' => (int) $rows->sum(fn ($row) => (float) $row->stok),
+                'items' => $rows->pluck('kd_material')->unique()->count(),
+                'total' => (int) $rows->sum(fn ($row) => (float) $row->stok * (float) $row->harga),
+            ],
+            'categories' => $categories,
         ]);
     }
 

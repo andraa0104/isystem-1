@@ -141,7 +141,11 @@ export function AppSidebar() {
     const isAllowed = (key) => {
         if (isAdmin) return true;
         if (!hasPrivileges) return false;
-        return !!menuAccess?.[key];
+        const access = menuAccess?.[key];
+        if (access && typeof access === 'object' && !Array.isArray(access)) {
+            return !!access.view;
+        }
+        return !!access;
     };
 
     const menuTextWrapClass = isCollapsed ? '' : expandedTextWrapClass;
