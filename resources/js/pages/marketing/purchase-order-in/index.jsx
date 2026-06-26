@@ -1126,7 +1126,7 @@ export default function PurchaseOrderInIndex({
                             <input
                                 type="search"
                                 className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background pr-3 pl-9 text-sm"
-                                placeholder="Cari kode PO IN, no PO IN, atau nama customer..."
+                                placeholder="Cari Nomor Document, Ref PO, atau nama customer..."
                                 value={search}
                                 onChange={(event) =>
                                     setSearch(event.target.value)
@@ -1211,10 +1211,10 @@ export default function PurchaseOrderInIndex({
                                         No
                                     </th>
                                     <th className="w-44 px-2 py-2 text-left">
-                                        Kode PO In
+                                        No Document
                                     </th>
                                     <th className="w-40 px-2 py-2 text-left">
-                                        No PO In
+                                        Ref PO
                                     </th>
                                     <th className="w-28 px-2 py-2 text-left">
                                         Date Input
@@ -1434,7 +1434,7 @@ export default function PurchaseOrderInIndex({
                                     <div className="flex flex-wrap gap-1.5">
                                         <div className="min-w-36 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs text-muted-foreground">
-                                                Kode PO In
+                                                No Doc
                                             </p>
                                             <p className="text-sm font-semibold whitespace-nowrap">
                                                 {detailHeader.kode_poin ?? '-'}
@@ -1442,7 +1442,7 @@ export default function PurchaseOrderInIndex({
                                         </div>
                                         <div className="min-w-32 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs text-muted-foreground">
-                                                No PO In
+                                                Ref PO
                                             </p>
                                             <p className="text-sm font-semibold whitespace-nowrap">
                                                 {detailHeader.no_poin ?? '-'}
@@ -1954,7 +1954,7 @@ export default function PurchaseOrderInIndex({
                                             No
                                         </th>
                                         <th className="w-44 px-2 py-2 text-left">
-                                            Kode PO In
+                                            No Doc
                                         </th>
                                         <th className="w-40 px-2 py-2 text-left">
                                             No PO In

@@ -464,7 +464,7 @@ export default function PurchaseOrderInEdit({
     const validateHeaderBeforeSave = () => {
         const errors = {};
         if (!String(form.noPoin ?? '').trim()) {
-            errors.noPoin = 'No PO In wajib diisi.';
+            errors.noPoin = 'No PO Customer wajib diisi.';
         }
         if (!isValidDmyDate(form.date)) {
             errors.date = 'Date PO In wajib format dd/mm/yyyy yang valid.';
@@ -829,7 +829,7 @@ export default function PurchaseOrderInEdit({
                             </div>
                             <div className="grid gap-4 md:grid-cols-3">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="no_poin">No PO In</Label>
+                                    <Label htmlFor="no_poin">No PO Customer/Ref PO</Label>
                                     <Input
                                         id="no_poin"
                                         className={
@@ -838,6 +838,7 @@ export default function PurchaseOrderInEdit({
                                                 : ''
                                         }
                                         placeholder="Auto / manual"
+                                        autoComplete="off"
                                         value={form.noPoin}
                                         onChange={(event) => {
                                             setForm((prev) => ({

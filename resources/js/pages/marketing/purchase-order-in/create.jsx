@@ -257,7 +257,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     const getValidationErrors = () => {
         const errors = {};
         if (!String(form.noPoin ?? '').trim()) {
-            errors.noPoin = 'No PO In wajib diisi.';
+            errors.noPoin = 'No PO Customer wajib diisi.';
         }
         if (!isValidDmyDate(form.date)) {
             errors.date = 'Date PO In wajib format dd/mm/yyyy yang valid.';
@@ -623,7 +623,6 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 : prev.ppnPercent,
                         francoLoco: data.franco || prev.francoLoco,
                         paymentTerm: data.payment_term || prev.paymentTerm,
-                        noPoin: data.next_poin || prev.noPoin,
                     }));
                 }
             }
@@ -787,7 +786,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 <div className="grid gap-4 md:col-span-4 md:grid-cols-3">
                                     <div className="grid gap-2">
                                         <Label htmlFor="no_poin">
-                                            No PO In
+                                            No PO Customer/Ref PO
                                         </Label>
                                         <Input
                                             id="no_poin"
@@ -796,7 +795,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                     ? 'border-red-500 focus-visible:ring-red-500'
                                                     : ''
                                             }
-                                            placeholder="PO In dari Customer"
+                                            placeholder="Nomor PO dari Customer"
+                                            autoComplete="off"
                                             value={form.noPoin}
                                             onChange={(event) => {
                                                 setForm((prev) => ({
