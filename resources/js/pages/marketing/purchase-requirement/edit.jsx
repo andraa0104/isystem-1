@@ -400,7 +400,7 @@ export default function PurchaseRequirementEdit({
 
         Swal.fire({
             title: 'Update Sisa PR?',
-            text: 'Sisa PR material ini akan diubah menjadi 0.',
+            text: 'Sisa PR material ini akan dikembalikan ke PO In, lalu Sisa PR di PR ini diubah menjadi 0.',
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Ya',
@@ -423,6 +423,11 @@ export default function PurchaseRequirementEdit({
                                 it.id === item.id
                                     ? {
                                           ...it,
+                                          qtyDetail: Math.max(
+                                              0,
+                                              parseNumber(it.qtyDetail) -
+                                                  parseNumber(it.qty),
+                                          ),
                                           qty: 0,
                                           originalSisaPr: 0,
                                       }
@@ -434,6 +439,11 @@ export default function PurchaseRequirementEdit({
                                 prev
                                     ? {
                                           ...prev,
+                                          qtyDetail: Math.max(
+                                              0,
+                                              parseNumber(prev.qtyDetail) -
+                                                  parseNumber(prev.qty),
+                                          ),
                                           qty: 0,
                                           originalSisaPr: 0,
                                       }

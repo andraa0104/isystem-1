@@ -219,6 +219,8 @@ class PurchaseOrderInController
         $isPartial = $request->boolean('is_partial', false);
         $summaryOnly = $request->boolean('summary_only', false);
         $summaryScope = (string) $request->query('summary_scope', 'all');
+        $rowsOnly = $request->boolean('rows_only', false);
+        $paginationOnly = $request->boolean('pagination_only', false);
         $dateFilter = (string) $request->query('date_filter', 'today');
         $startDate = (string) $request->query('start_date', '');
         $endDate = (string) $request->query('end_date', '');
@@ -231,12 +233,14 @@ class PurchaseOrderInController
             'is_partial' => $isPartial,
             'summary_only' => $summaryOnly,
             'summary_scope' => $summaryScope,
+            'rows_only' => $rowsOnly,
+            'pagination_only' => $paginationOnly,
             'date_filter' => $dateFilter,
             'start_date' => $startDate,
             'end_date' => $endDate,
         ], $request);
 
-        $data = Cache::tags(self::POIN_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $dateFilter, $startDate, $endDate) {
+        $data = Cache::tags(self::POIN_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate) {
             return $this->getPurchaseOrderInData(
                 $search,
                 $perPage,
@@ -245,6 +249,8 @@ class PurchaseOrderInController
                 $isPartial,
                 $summaryOnly,
                 $summaryScope,
+                $rowsOnly,
+                $paginationOnly,
                 $dateFilter,
                 $startDate,
                 $endDate
@@ -262,11 +268,13 @@ class PurchaseOrderInController
         $isPartial = false,
         $summaryOnly = false,
         $summaryScope = 'all',
+        $rowsOnly = false,
+        $paginationOnly = false,
         $dateFilter = 'today',
         $startDate = '',
         $endDate = ''
     ) {
-        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $dateFilter, $startDate, $endDate) {
+        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate) {
             $detailStats = DB::table('tb_detailpoin')
                 ->select('kode_poin')
                 ->selectRaw('count(*) as total_items')
@@ -318,37 +326,43 @@ class PurchaseOrderInController
                     ];
                 }
 
-                if ($summaryScope === 'outstanding') {
+                if ($summaryScope === 'outstanding' || $summaryScope === 'outstanding_pr' || $summaryScope === 'outstanding_do') {
                     $row = DB::table('tb_poin as p')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                         ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_pr")
                         ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
                         ->first();
 
-                    return [
-                        'summary' => [
-                            'outstanding_pr' => (int) ($row->outstanding_pr ?? 0),
-                            'outstanding_do' => (int) ($row->outstanding_do ?? 0),
-                        ],
-                    ];
+                    $summary = [];
+                    if ($summaryScope === 'outstanding' || $summaryScope === 'outstanding_pr') {
+                        $summary['outstanding_pr'] = (int) ($row->outstanding_pr ?? 0);
+                    }
+                    if ($summaryScope === 'outstanding' || $summaryScope === 'outstanding_do') {
+                        $summary['outstanding_do'] = (int) ($row->outstanding_do ?? 0);
+                    }
+
+                    return ['summary' => $summary];
                 }
 
-                if ($summaryScope === 'sisa') {
+                if ($summaryScope === 'sisa' || $summaryScope === 'sisa_pr' || $summaryScope === 'sisa_do') {
                     $row = DB::table('tb_poin as p')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                         ->selectRaw("count(case when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 1 end) as sisa_pr")
                         ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as sisa_do")
                         ->first();
 
-                    return [
-                        'summary' => [
-                            'sisa_pr' => (int) ($row->sisa_pr ?? 0),
-                            'sisa_do' => (int) ($row->sisa_do ?? 0),
-                        ],
-                    ];
+                    $summary = [];
+                    if ($summaryScope === 'sisa' || $summaryScope === 'sisa_pr') {
+                        $summary['sisa_pr'] = (int) ($row->sisa_pr ?? 0);
+                    }
+                    if ($summaryScope === 'sisa' || $summaryScope === 'sisa_do') {
+                        $summary['sisa_do'] = (int) ($row->sisa_do ?? 0);
+                    }
+
+                    return ['summary' => $summary];
                 }
 
-                if ($summaryScope === 'realized') {
+                if ($summaryScope === 'realized' || $summaryScope === 'realized_pr' || $summaryScope === 'realized_do') {
                     $row = DB::table('tb_poin as p')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                         ->leftJoinSub($doStats, 'dos', function ($join) {
@@ -367,26 +381,29 @@ class PurchaseOrderInController
                         ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_year", [$startYear])
                         ->first();
 
-                    return [
-                        'summary' => [
-                            'realized_pr' => (int) ($row->realized_pr ?? 0),
-                            'realized_do' => (int) ($row->realized_do ?? 0),
-                            'realized_pr_counts' => [
-                                'today' => (int) ($row->realized_pr_today ?? 0),
-                                'week' => (int) ($row->realized_pr_week ?? 0),
-                                'month' => (int) ($row->realized_pr_month ?? 0),
-                                'year' => (int) ($row->realized_pr_year ?? 0),
-                                'all' => (int) ($row->realized_pr ?? 0),
-                            ],
-                            'realized_do_counts' => [
-                                'today' => (int) ($row->realized_do_today ?? 0),
-                                'week' => (int) ($row->realized_do_week ?? 0),
-                                'month' => (int) ($row->realized_do_month ?? 0),
-                                'year' => (int) ($row->realized_do_year ?? 0),
-                                'all' => (int) ($row->realized_do ?? 0),
-                            ],
-                        ],
-                    ];
+                    $summary = [];
+                    if ($summaryScope === 'realized' || $summaryScope === 'realized_pr') {
+                        $summary['realized_pr'] = (int) ($row->realized_pr ?? 0);
+                        $summary['realized_pr_counts'] = [
+                            'today' => (int) ($row->realized_pr_today ?? 0),
+                            'week' => (int) ($row->realized_pr_week ?? 0),
+                            'month' => (int) ($row->realized_pr_month ?? 0),
+                            'year' => (int) ($row->realized_pr_year ?? 0),
+                            'all' => (int) ($row->realized_pr ?? 0),
+                        ];
+                    }
+                    if ($summaryScope === 'realized' || $summaryScope === 'realized_do') {
+                        $summary['realized_do'] = (int) ($row->realized_do ?? 0);
+                        $summary['realized_do_counts'] = [
+                            'today' => (int) ($row->realized_do_today ?? 0),
+                            'week' => (int) ($row->realized_do_week ?? 0),
+                            'month' => (int) ($row->realized_do_month ?? 0),
+                            'year' => (int) ($row->realized_do_year ?? 0),
+                            'all' => (int) ($row->realized_do ?? 0),
+                        ];
+                    }
+
+                    return ['summary' => $summary];
                 }
             }
 
@@ -481,26 +498,30 @@ class PurchaseOrderInController
                 $total = 0;
                 $rows = collect();
             } else {
-                $total = (clone $query)->count();
-                if ($perPage === null) {
-                    $rows = (clone $query)->orderByDesc('p.id')->get();
-                } else {
-                    $rows = (clone $query)
-                        ->orderByDesc('p.id')
-                        ->forPage($page, $perPage)
-                        ->get();
-                }
+                $total = $rowsOnly ? null : (clone $query)->count();
+                $rows = $paginationOnly
+                    ? collect()
+                    : ($perPage === null
+                        ? (clone $query)->orderByDesc('p.id')->get()
+                        : (clone $query)
+                            ->orderByDesc('p.id')
+                            ->forPage($page, $perPage)
+                            ->get());
 
                 if ($isPartial) {
-                    return [
-                        'purchaseOrderIns' => $rows,
-                        'pagination' => [
+                    $response = [];
+                    if (!$paginationOnly) {
+                        $response['purchaseOrderIns'] = $rows;
+                    }
+                    if (!$rowsOnly) {
+                        $response['pagination'] = [
                             'total' => $total,
                             'page' => $page,
                             'per_page' => $perPage === null ? 'all' : $perPage,
                             'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
-                        ],
-                    ];
+                        ];
+                    }
+                    return $response;
                 }
             }
 

@@ -1437,33 +1437,64 @@ class PurchaseRequirementController
         $timestamp = now()->format('m/d/Y h:i:s A');
 
         try {
-            DB::table('tb_detailpr')
-                ->where('no_pr', $noPr)
-                ->where('no', $detailNo)
-                ->update(['sisa_pr' => 0]);
+            DB::transaction(function () use ($noPr, $detailNo, $detail, $sisaPr, $qty, $timestamp) {
+                $kdMaterial = strtolower(trim((string) ($detail->kd_material ?? '')));
+                $refPo = strtolower(trim((string) ($detail->ref_po ?? '')));
 
-            DB::table('tb_ubah')->insert([
-                'no_pr' => $noPr,
-                'date' => $detail->date,
-                'payment' => $detail->payment,
-                'ref_po' => $detail->ref_po,
-                'no' => $detailNo,
-                'id' => $detailNo,
-                'for_customer' => $detail->for_customer,
-                'kd_material' => $detail->kd_material,
-                'material' => $detail->material,
-                'qty' => $detail->qty,
-                'qty_po' => $detail->qty,
-                'sisa_pr' => 0,
-                'unit' => $detail->unit,
-                'stok' => $detail->stok,
-                'unit_price' => $detail->unit_price,
-                'total_price' => $detail->total_price,
-                'price_po' => $detail->price_po,
-                'margin' => $detail->margin ?: '0%',
-                'renmark' => $detail->renmark ?: ' ',
-                'tgl_ubah' => $timestamp,
-            ]);
+                if ($sisaPr > 0 && $kdMaterial !== '' && $refPo !== '') {
+                    $detailPo = DB::table('tb_detailpoin as d')
+                        ->join('tb_poin as p', 'd.kode_poin', '=', 'p.kode_poin')
+                        ->whereRaw('lower(trim(p.no_poin)) = ?', [$refPo])
+                        ->whereRaw('lower(trim(d.kd_material)) = ?', [$kdMaterial])
+                        ->orderBy('d.id', 'desc')
+                        ->first(['d.id']);
+
+                    if ($detailPo) {
+                        DB::table('tb_detailpoin')
+                            ->where('id', $detailPo->id)
+                            ->update([
+                                'sisa_qtypr' => DB::raw(sprintf(
+                                    'coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F',
+                                    $sisaPr
+                                )),
+                            ]);
+                    }
+                }
+
+                DB::table('tb_detailpr')
+                    ->where('no_pr', $noPr)
+                    ->where('no', $detailNo)
+                    ->update([
+                        'qty' => DB::raw(sprintf(
+                            'greatest(coalesce(cast(qty as decimal(18,4)), 0) - %.4F, 0)',
+                            $sisaPr
+                        )),
+                        'sisa_pr' => 0,
+                    ]);
+
+                DB::table('tb_ubah')->insert([
+                    'no_pr' => $noPr,
+                    'date' => $detail->date,
+                    'payment' => $detail->payment,
+                    'ref_po' => $detail->ref_po,
+                    'no' => $detailNo,
+                    'id' => $detailNo,
+                    'for_customer' => $detail->for_customer,
+                    'kd_material' => $detail->kd_material,
+                    'material' => $detail->material,
+                    'qty' => max(0, $qty - $sisaPr),
+                    'qty_po' => max(0, $qty - $sisaPr),
+                    'sisa_pr' => 0,
+                    'unit' => $detail->unit,
+                    'stok' => $detail->stok,
+                    'unit_price' => $detail->unit_price,
+                    'total_price' => $detail->total_price,
+                    'price_po' => $detail->price_po,
+                    'margin' => $detail->margin ?: '0%',
+                    'renmark' => $detail->renmark ?: ' ',
+                    'tgl_ubah' => $timestamp,
+                ]);
+            });
         } catch (\Throwable $exception) {
             return back()->with('error', 'Gagal memperbarui Sisa PR: ' . $exception->getMessage());
         }

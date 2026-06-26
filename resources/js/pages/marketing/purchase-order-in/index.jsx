@@ -215,13 +215,16 @@ export default function PurchaseOrderInIndex({
     const [purchaseOrderIns, setPurchaseOrderIns] = useState(
         initialPurchaseOrderIns,
     );
-    const [loading, setLoading] = useState(true);
     const [tableLoading, setTableLoading] = useState(false);
+    const [paginationLoading, setPaginationLoading] = useState(false);
     const [summary, setSummary] = useState(initialSummary);
     const [summaryLoading, setSummaryLoading] = useState({
-        outstanding: true,
-        sisa: true,
-        realized: true,
+        outstanding_pr: true,
+        outstanding_do: true,
+        sisa_pr: true,
+        sisa_do: true,
+        realized_pr: true,
+        realized_do: true,
         total: true,
     });
     const [outstandingPurchaseOrderIns, setOutstandingPurchaseOrderIns] =
@@ -265,39 +268,31 @@ export default function PurchaseOrderInIndex({
 
     const isFirstRender = useRef(true);
 
-    const fetchPoInData = async (params = {}) => {
-        const isPartial = params.isPartial ?? false;
+    const buildTableQueryParams = (params = {}) => {
+        const queryParams = new URLSearchParams({
+            search: params.search ?? search,
+            per_page: params.per_page ?? perPage,
+            status: params.status ?? statusFilter,
+            date_filter: params.dateFilter ?? tableDateFilter,
+            page:
+                params.page ??
+                (params.isPartial ? pagination.page : (pagination.page ?? 1)),
+        });
 
-        if (isPartial) {
-            setTableLoading(true);
-        } else {
-            setLoading(true);
-            setTableLoading(true);
+        queryParams.append('is_partial', '1');
+        if ((params.dateFilter ?? tableDateFilter) === 'range') {
+            queryParams.set('start_date', params.startDate ?? tableStartDate);
+            queryParams.set('end_date', params.endDate ?? tableEndDate);
         }
 
-        try {
-            const queryParams = new URLSearchParams({
-                search: params.search ?? search,
-                per_page: params.per_page ?? perPage,
-                status: params.status ?? statusFilter,
-                date_filter: params.dateFilter ?? tableDateFilter,
-                page:
-                    params.page ??
-                    (params.isPartial
-                        ? pagination.page
-                        : (pagination.page ?? 1)),
-            });
+        return queryParams;
+    };
 
-            if (isPartial) {
-                queryParams.append('is_partial', '1');
-            }
-            if ((params.dateFilter ?? tableDateFilter) === 'range') {
-                queryParams.set(
-                    'start_date',
-                    params.startDate ?? tableStartDate,
-                );
-                queryParams.set('end_date', params.endDate ?? tableEndDate);
-            }
+    const fetchPoInRows = async (params = {}) => {
+        setTableLoading(true);
+        try {
+            const queryParams = buildTableQueryParams(params);
+            queryParams.append('rows_only', '1');
 
             const response = await fetch(
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
@@ -308,33 +303,39 @@ export default function PurchaseOrderInIndex({
             const data = await response.json();
 
             setPurchaseOrderIns(data.purchaseOrderIns || []);
+        } catch (error) {
+            console.error('Error fetching PO In rows:', error);
+        } finally {
+            setTableLoading(false);
+        }
+    };
 
-            if (!isPartial) {
-                setSummary(data.summary || {});
-                setOutstandingPurchaseOrderIns(
-                    data.outstandingPurchaseOrderIns || [],
-                );
-                setOutstandingDoPurchaseOrderIns(
-                    data.outstandingDoPurchaseOrderIns || [],
-                );
-                setBelumPrPurchaseOrderIns(data.belumPrPurchaseOrderIns || []);
-                setSisaDoPurchaseOrderIns(data.sisaDoPurchaseOrderIns || []);
-                setRealizedPurchaseOrderIns(
-                    data.realizedPurchaseOrderIns || [],
-                );
-                setRealizedDoPurchaseOrderIns(
-                    data.realizedDoPurchaseOrderIns || [],
-                );
-                setAllPurchaseOrderIns(data.allPurchaseOrderIns || []);
-            }
+    const fetchPoInPagination = async (params = {}) => {
+        setPaginationLoading(true);
+        try {
+            const queryParams = buildTableQueryParams(params);
+            queryParams.append('pagination_only', '1');
+
+            const response = await fetch(
+                `/marketing/purchase-order-in/data?${queryParams.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
+            const data = await response.json();
 
             setPagination(data.pagination || {});
         } catch (error) {
-            console.error('Error fetching PO In data:', error);
+            console.error('Error fetching PO In pagination:', error);
         } finally {
-            if (!isPartial) setLoading(false);
-            setTableLoading(false);
+            setPaginationLoading(false);
         }
+    };
+
+    const fetchPoInData = (params = {}) => {
+        const nextParams = { ...params, isPartial: true };
+        fetchPoInRows(nextParams);
+        fetchPoInPagination(nextParams);
     };
 
     const fetchPoInSummaryScope = async (scope) => {
@@ -364,10 +365,15 @@ export default function PurchaseOrderInIndex({
     };
 
     const fetchPoInSummary = () => {
-        setLoading(false);
-        ['outstanding', 'sisa', 'realized', 'total'].forEach((scope) => {
-            fetchPoInSummaryScope(scope);
-        });
+        [
+            'outstanding_pr',
+            'outstanding_do',
+            'sisa_pr',
+            'sisa_do',
+            'realized_pr',
+            'realized_do',
+            'total',
+        ].forEach((scope) => fetchPoInSummaryScope(scope));
     };
 
     useEffect(() => {
@@ -795,7 +801,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Belum PR"
                                 value={summary.outstanding_pr ?? 0}
-                                loading={summaryLoading.outstanding}
+                                loading={summaryLoading.outstanding_pr}
                                 onClick={() => {
                                     setActiveModal('outstanding');
                                     setActiveModalTab('pr');
@@ -807,7 +813,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Belum DO"
                                 value={summary.outstanding_do ?? 0}
-                                loading={summaryLoading.outstanding}
+                                loading={summaryLoading.outstanding_do}
                                 onClick={() => {
                                     setActiveModal('outstanding');
                                     setActiveModalTab('do');
@@ -866,7 +872,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Sisa PR"
                                 value={summary.sisa_pr ?? 0}
-                                loading={summaryLoading.sisa}
+                                loading={summaryLoading.sisa_pr}
                                 onClick={() => {
                                     setActiveModal('sisa');
                                     setActiveModalTab('pr');
@@ -878,7 +884,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Sisa DO"
                                 value={summary.sisa_do ?? 0}
-                                loading={summaryLoading.sisa}
+                                loading={summaryLoading.sisa_do}
                                 onClick={() => {
                                     setActiveModal('sisa');
                                     setActiveModalTab('do');
@@ -958,7 +964,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="PR Selesai"
                                 value={realizedPrCount}
-                                loading={summaryLoading.realized}
+                                loading={summaryLoading.realized_pr}
                                 onClick={() => {
                                     setActiveModal('realized');
                                     setActiveModalTab('pr');
@@ -970,7 +976,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="DO Selesai"
                                 value={realizedDoCount}
-                                loading={summaryLoading.realized}
+                                loading={summaryLoading.realized_do}
                                 onClick={() => {
                                     setActiveModal('realized');
                                     setActiveModalTab('do');
@@ -1314,30 +1320,41 @@ export default function PurchaseOrderInIndex({
                         </table>
                     </div>
                     {String(pagination.per_page) !== 'all' &&
-                        Number(pagination.total || 0) > 0 && (
+                        (paginationLoading ||
+                            Number(pagination.total || 0) > 0) && (
                             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (Number(pagination.page || 1) - 1) *
-                                            Number(pagination.per_page || 5) +
-                                            1,
-                                        Number(pagination.total || 0),
-                                    )}
-                                    -
-                                    {Math.min(
-                                        Number(pagination.page || 1) *
-                                            Number(pagination.per_page || 5),
-                                        Number(pagination.total || 0),
-                                    )}{' '}
-                                    dari {pagination.total} data
-                                </span>
+                                {paginationLoading ? (
+                                    <Skeleton className="h-5 w-48" />
+                                ) : (
+                                    <span>
+                                        Menampilkan{' '}
+                                        {Math.min(
+                                            (Number(pagination.page || 1) -
+                                                1) *
+                                                Number(
+                                                    pagination.per_page || 5,
+                                                ) +
+                                                1,
+                                            Number(pagination.total || 0),
+                                        )}
+                                        -
+                                        {Math.min(
+                                            Number(pagination.page || 1) *
+                                                Number(
+                                                    pagination.per_page || 5,
+                                                ),
+                                            Number(pagination.total || 0),
+                                        )}{' '}
+                                        dari {pagination.total} data
+                                    </span>
+                                )}
                                 <div className="flex items-center gap-2">
                                     <Button
                                         type="button"
                                         variant="outline"
                                         size="sm"
                                         disabled={
+                                            paginationLoading ||
                                             Number(pagination.page || 1) <= 1
                                         }
                                         onClick={() =>
@@ -1354,15 +1371,20 @@ export default function PurchaseOrderInIndex({
                                     >
                                         Sebelumnya
                                     </Button>
-                                    <span>
-                                        Halaman {pagination.page || 1} /{' '}
-                                        {pagination.total_pages || 1}
-                                    </span>
+                                    {paginationLoading ? (
+                                        <Skeleton className="h-5 w-24" />
+                                    ) : (
+                                        <span>
+                                            Halaman {pagination.page || 1} /{' '}
+                                            {pagination.total_pages || 1}
+                                        </span>
+                                    )}
                                     <Button
                                         type="button"
                                         variant="outline"
                                         size="sm"
                                         disabled={
+                                            paginationLoading ||
                                             Number(pagination.page || 1) >=
                                             Number(pagination.total_pages || 1)
                                         }
