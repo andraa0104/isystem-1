@@ -756,7 +756,7 @@ export default function MaterialIndex({ materials }) {
                                                 </span>
                                             </div>
                                             <div className="flex items-center justify-between gap-3">
-                                                <span>Total item material</span>
+                                                <span>Total item</span>
                                                 <span className="font-semibold text-foreground tabular-nums">
                                                     <MetricValue
                                                         loading={
@@ -1557,7 +1557,7 @@ export default function MaterialIndex({ materials }) {
                             </div>
                             <div>
                                 <div className="text-sm text-muted-foreground">
-                                    Total item material
+                                    Total item
                                 </div>
                                 <div className="text-xl font-semibold tabular-nums">
                                     {formatNumber(
