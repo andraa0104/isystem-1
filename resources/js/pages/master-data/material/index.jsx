@@ -466,28 +466,28 @@ export default function MaterialIndex({ materials }) {
             selectedMovement?.rows ??
             (selectedWarehouse
                 ? materialsList.flatMap((material) =>
-                      materialMovementRows(material)
-                          .filter(
-                              (row) =>
-                                  row.gudang.toLowerCase() ===
-                                  selectedWarehouse.value,
-                          )
-                          .filter((row) => {
-                              const kategori = String(row.kategori ?? '')
-                                  .trim()
-                                  .toLowerCase();
-                              return kategori !== '' && kategori !== '0';
-                          }),
-                  )
+                    materialMovementRows(material)
+                        .filter(
+                            (row) =>
+                                row.gudang.toLowerCase() ===
+                                selectedWarehouse.value,
+                        )
+                        .filter((row) => {
+                            const kategori = String(row.kategori ?? '')
+                                .trim()
+                                .toLowerCase();
+                            return kategori !== '' && kategori !== '0';
+                        }),
+                )
                 : []);
         const filteredRows = term
             ? rows.filter((row) =>
-                  [row.kd_material, row.material, row.kategori].some((value) =>
-                      String(value ?? '')
-                          .toLowerCase()
-                          .includes(term),
-                  ),
-              )
+                [row.kd_material, row.material, row.kategori].some((value) =>
+                    String(value ?? '')
+                        .toLowerCase()
+                        .includes(term),
+                ),
+            )
             : rows;
 
         return [...filteredRows].sort((a, b) =>
@@ -669,7 +669,7 @@ export default function MaterialIndex({ materials }) {
                                     </div>
                                     <div>
                                         <div className="text-xs text-muted-foreground">
-                                            Jumlah item material
+                                            Jumlah item
                                         </div>
                                         <div className="text-xl font-semibold tabular-nums">
                                             {loading?.items ? (
@@ -681,7 +681,7 @@ export default function MaterialIndex({ materials }) {
                                     </div>
                                     <div>
                                         <div className="text-xs text-muted-foreground">
-                                            Total harga stok
+                                            Total harga
                                         </div>
                                         <div className="font-semibold tabular-nums">
                                             {loading?.total ? (
@@ -815,7 +815,7 @@ export default function MaterialIndex({ materials }) {
                                                     </div>
                                                     <div className="flex items-center justify-between gap-3">
                                                         <span>
-                                                            Jumlah item material
+                                                            Jumlah item
                                                         </span>
                                                         <span className="font-semibold text-foreground tabular-nums">
                                                             {formatNumber(
@@ -825,7 +825,7 @@ export default function MaterialIndex({ materials }) {
                                                     </div>
                                                     <div className="flex items-center justify-between gap-3">
                                                         <span>
-                                                            Total harga stok
+                                                            Total harga
                                                         </span>
                                                         <span className="font-semibold text-foreground tabular-nums">
                                                             Rp{' '}
@@ -1015,12 +1015,12 @@ export default function MaterialIndex({ materials }) {
                                                     >
                                                         <td className="w-1 px-2 py-2 whitespace-nowrap">
                                                             {(pageSize ===
-                                                            Infinity
+                                                                Infinity
                                                                 ? index
                                                                 : (currentPage -
-                                                                      1) *
-                                                                      pageSize +
-                                                                  index) + 1}
+                                                                    1) *
+                                                                pageSize +
+                                                                index) + 1}
                                                         </td>
                                                         <td className="w-1 px-2 py-2 font-medium whitespace-nowrap">
                                                             {renderValue(
@@ -1074,17 +1074,17 @@ export default function MaterialIndex({ materials }) {
                                                                 {toNumber(
                                                                     item.stok,
                                                                 ) === 0 && (
-                                                                    <ActionIconButton
-                                                                        label="Hapus"
-                                                                        onClick={() =>
-                                                                            handleDelete(
-                                                                                item,
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                                                    </ActionIconButton>
-                                                                )}
+                                                                        <ActionIconButton
+                                                                            label="Hapus"
+                                                                            onClick={() =>
+                                                                                handleDelete(
+                                                                                    item,
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                                        </ActionIconButton>
+                                                                    )}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1285,7 +1285,7 @@ export default function MaterialIndex({ materials }) {
                             </div>
                             <div>
                                 <div className="text-sm text-muted-foreground">
-                                    Jumlah item material
+                                    Jumlah item
                                 </div>
                                 <div className="text-xl font-semibold tabular-nums">
                                     {formatNumber(selectedMovement?.count)}
@@ -1293,7 +1293,7 @@ export default function MaterialIndex({ materials }) {
                             </div>
                             <div>
                                 <div className="text-sm text-muted-foreground">
-                                    Total harga stok
+                                    Total harga
                                 </div>
                                 <div className="text-xl font-semibold tabular-nums">
                                     Rp {formatNumber(selectedMovement?.total)}
@@ -1378,7 +1378,7 @@ export default function MaterialIndex({ materials }) {
                                                     colSpan={
                                                         3 +
                                                         movementWarehouses.length *
-                                                            2
+                                                        2
                                                     }
                                                 >
                                                     Data material tidak
@@ -1426,14 +1426,14 @@ export default function MaterialIndex({ materials }) {
                                                                         .stocks?.[
                                                                         gudang
                                                                     ] ===
-                                                                    undefined
+                                                                        undefined
                                                                         ? '-'
                                                                         : formatNumber(
-                                                                              row
-                                                                                  .stocks[
-                                                                                  gudang
-                                                                              ],
-                                                                          )}
+                                                                            row
+                                                                                .stocks[
+                                                                            gudang
+                                                                            ],
+                                                                        )}
                                                                 </td>,
                                                                 <td
                                                                     key={`${gudang}-harga`}
@@ -1443,14 +1443,14 @@ export default function MaterialIndex({ materials }) {
                                                                         .prices?.[
                                                                         gudang
                                                                     ] ===
-                                                                    undefined
+                                                                        undefined
                                                                         ? '-'
                                                                         : `Rp ${formatNumber(
-                                                                              row
-                                                                                  .prices[
-                                                                                  gudang
-                                                                              ],
-                                                                          )}`}
+                                                                            row
+                                                                                .prices[
+                                                                            gudang
+                                                                            ],
+                                                                        )}`}
                                                                 </td>,
                                                             ],
                                                         )}
@@ -1469,8 +1469,8 @@ export default function MaterialIndex({ materials }) {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (movementCurrentPage - 1) *
-                                            movementPageSize +
-                                            1,
+                                        movementPageSize +
+                                        1,
                                         movementTotalItems,
                                     )}
                                     -
@@ -1567,7 +1567,7 @@ export default function MaterialIndex({ materials }) {
                             </div>
                             <div>
                                 <div className="text-sm text-muted-foreground">
-                                    Total harga stok
+                                    Total harga
                                 </div>
                                 <div className="text-xl font-semibold tabular-nums">
                                     Rp{' '}
@@ -1729,8 +1729,8 @@ export default function MaterialIndex({ materials }) {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (movementCurrentPage - 1) *
-                                            movementPageSize +
-                                            1,
+                                        movementPageSize +
+                                        1,
                                         movementTotalItems,
                                     )}
                                     -
