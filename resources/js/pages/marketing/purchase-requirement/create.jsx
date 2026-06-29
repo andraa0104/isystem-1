@@ -1,5 +1,5 @@
-import { Badge } from '@/components/ui/badge';
 import OverdueInvoiceWarningDialog from '@/components/OverdueInvoiceWarningDialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -30,9 +30,9 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import { Head, router, usePage } from '@inertiajs/react';
+import axios from 'axios';
 import { ArrowLeft, Check, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -132,10 +132,16 @@ export default function PurchaseRequirementCreate() {
     const [customerError, setCustomerError] = useState('');
     const [poinMaterialLoading, setPoinMaterialLoading] = useState(false);
     const [poinMaterialError, setPoinMaterialError] = useState('');
+    const [matchingPoIns, setMatchingPoIns] = useState([]);
+    const [selectedMatchingPoIns, setSelectedMatchingPoIns] = useState([]);
+    const [isMatchingPoModalOpen, setIsMatchingPoModalOpen] = useState(false);
     const [submitError, setSubmitError] = useState('');
     const [overdueWarningOpen, setOverdueWarningOpen] = useState(false);
     const [overdueWarningData, setOverdueWarningData] = useState(null);
     const [hasConfirmedOverdue, setHasConfirmedOverdue] = useState(false);
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [materialToDelete, setMaterialToDelete] = useState(null);
+    const [isDeletingMaterial, setIsDeletingMaterial] = useState(false);
 
     const [formData, setFormData] = useState({
         date: todayValue(),
@@ -144,8 +150,11 @@ export default function PurchaseRequirementCreate() {
         payment: 'Cash Trans',
         isStok: false,
     });
+    const [selectedPoIns, setSelectedPoIns] = useState([]);
 
     const [materialItems, setMaterialItems] = useState([]);
+    const [stockFulfilledDetailIds, setStockFulfilledDetailIds] = useState([]);
+    const [activeMaterialGroupIndex, setActiveMaterialGroupIndex] = useState(0);
     const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
@@ -169,6 +178,40 @@ export default function PurchaseRequirementCreate() {
         totalPrice: 0,
         remark: '',
     });
+
+    const materialGroups = useMemo(() => {
+        const groups = selectedPoIns
+            .map((po) => ({
+                key: po.kode_poin,
+                refPo: po.no_poin,
+                customer: po.customer_name,
+                items: materialItems.filter(
+                    (material) => material.refPo === po.no_poin,
+                ),
+            }))
+            .filter((group) => group.items.length > 0);
+        const manualItems = materialItems.filter((material) => !material.refPo);
+        if (manualItems.length > 0) {
+            groups.push({
+                key: 'manual',
+                refPo: 'Material Manual',
+                customer: '',
+                items: manualItems,
+            });
+        }
+        return groups;
+    }, [materialItems, selectedPoIns]);
+
+    useEffect(() => {
+        setActiveMaterialGroupIndex((current) =>
+            Math.min(current, Math.max(0, materialGroups.length - 1)),
+        );
+    }, [materialGroups.length]);
+
+    const visibleMaterialItems =
+        materialGroups.length > 1
+            ? (materialGroups[activeMaterialGroupIndex]?.items ?? [])
+            : materialItems;
 
     const customerTotalPages = useMemo(() => {
         if (customerPageSize === Infinity) {
@@ -204,13 +247,18 @@ export default function PurchaseRequirementCreate() {
             }
 
             const data = await response.json();
-            let fetchedCustomers = Array.isArray(data?.customers) ? data.customers : [];
+            let fetchedCustomers = Array.isArray(data?.customers)
+                ? data.customers
+                : [];
 
             // PERBAIKAN STEP 1: Filter PO In secara lokal (opsional/fallback)
             // Mengecek apakah properti sisa_qtypr dikirimkan oleh backend untuk header PO IN
-            if (fetchedCustomers.length > 0 && fetchedCustomers[0].sisa_qtypr !== undefined) {
+            if (
+                fetchedCustomers.length > 0 &&
+                fetchedCustomers[0].sisa_qtypr !== undefined
+            ) {
                 fetchedCustomers = fetchedCustomers.filter(
-                    (c) => Number(c.sisa_qtypr) > 0
+                    (c) => Number(c.sisa_qtypr) > 0,
                 );
             }
 
@@ -315,9 +363,11 @@ export default function PurchaseRequirementCreate() {
 
             const data = await response.json();
             const rawItems = Array.isArray(data?.items) ? data.items : [];
+            const selectedPoNumber = data?.selected_po_in?.no_poin ?? '';
+            const selectedCustomer = data?.selected_po_in?.customer_name ?? '';
 
             const filteredItems = rawItems.filter(
-                (item) => Number(item.sisa_qtypr ?? 0) > 0
+                (item) => Number(item.sisa_qtypr ?? 0) > 0,
             );
 
             // --- PROSES AUTOFILL MASSAL BERDASARKAN KODE MATERIAL ---
@@ -328,14 +378,20 @@ export default function PurchaseRequirementCreate() {
                     // Jika harga_modal dari PO In kosong, mari cari ke tb_invin berdasarkan kd_material
                     if (!hargaModalTerakhir && item.kd_material) {
                         try {
-                            const priceRes = await axios.get('/marketing/purchase-requirement/get-last-price', {
-                                params: { kd_mat: item.kd_material }
-                            });
+                            const priceRes = await axios.get(
+                                '/marketing/purchase-requirement/get-last-price',
+                                {
+                                    params: { kd_mat: item.kd_material },
+                                },
+                            );
                             if (priceRes.data && priceRes.data.success) {
                                 hargaModalTerakhir = priceRes.data.harga;
                             }
                         } catch (err) {
-                            console.error(`Gagal autofill harga untuk ${item.kd_material}:`, err);
+                            console.error(
+                                `Gagal autofill harga untuk ${item.kd_material}:`,
+                                err,
+                            );
                         }
                     }
 
@@ -345,6 +401,9 @@ export default function PurchaseRequirementCreate() {
                         stokG3: item.stok_g3 ?? 0,
                         stokG4: item.stok_g4 ?? 0,
                     };
+                    const totalStock = calculateTotalStock(stockBreakdown);
+                    const remainingQtyPr = parseNumber(item.sisa_qtypr);
+                    const orderInQty = parseNumber(item.qty_po_in);
 
                     return {
                         id: item.id ?? `${Date.now()}-${index}`,
@@ -352,21 +411,34 @@ export default function PurchaseRequirementCreate() {
                         kodeMaterial: item.kd_material ?? '',
                         namaMaterial: item.material ?? '',
                         ...stockBreakdown,
-                        stok: calculateTotalStock(stockBreakdown),
-                        qtyPoIn: item.qty_po_in ?? 0,
-                        qtyPr: item.sisa_qtypr ?? 0,
+                        stok: totalStock,
+                        qtyPoIn: orderInQty,
+                        maxQtyPr: remainingQtyPr,
+                        qtyPr: Math.max(0, remainingQtyPr - totalStock),
                         satuan: item.satuan ?? '',
                         hargaPoIn: item.harga_po_in ?? 0,
                         // Diisi dengan harga modal terakhir dari tb_invin hasil dicocokkan tadi
-                        hargaModal: hargaModalTerakhir, 
-                        margin: calculateMargin(item.harga_po_in ?? 0, hargaModalTerakhir),
+                        hargaModal: hargaModalTerakhir,
+                        margin: calculateMargin(
+                            item.harga_po_in ?? 0,
+                            hargaModalTerakhir,
+                        ),
                         remark: item.remark ?? '',
+                        refPo: selectedPoNumber,
+                        forCustomer: selectedCustomer,
                     };
-                })
+                }),
             );
             // --------------------------------------------------------
 
             setMaterialItems(itemsWithAutofilledPrice);
+            setStockFulfilledDetailIds([]);
+            const matches = Array.isArray(data?.matching_po_ins)
+                ? data.matching_po_ins
+                : [];
+            setMatchingPoIns(matches);
+            setSelectedMatchingPoIns(matches.map((item) => item.kode_poin));
+            setIsMatchingPoModalOpen(matches.length > 0);
         } catch {
             setMaterialItems([]);
             setPoinMaterialError('Gagal memuat material dari PO In terpilih.');
@@ -375,56 +447,156 @@ export default function PurchaseRequirementCreate() {
         }
     };
 
-    const handleAddManualMaterial = () => {
-    // --- LOGIKA VALIDASI QUANTITY BARU ---
-    // Jika quantity kosong, undefined, hanya spasi, atau bernilai 0
-    if (!materialForm.quantity || String(materialForm.quantity).trim() === '' || parseNumber(materialForm.quantity) <= 0) {
-        setSubmitError('Field quantity wajib diisi!');
-        return; // Menolak material baru masuk ke dalam tambah ke daftar
-    }
-    // -------------------------------------
-
-    if (!materialForm.kodeMaterial) {
-        setSubmitError('Pilih material terlebih dahulu.');
-        return;
-    }
-
-    const newItem = {
-        id: `manual-${Date.now()}`,
-        no: materialItems.length + 1,
-        kodeMaterial: materialForm.kodeMaterial,
-        namaMaterial: materialForm.namaMaterial,
-        stokG1: materialForm.stokG1,
-        stokG2: materialForm.stokG2,
-        stokG3: materialForm.stokG3,
-        stokG4: materialForm.stokG4,
-        stok: calculateTotalStock(materialForm),
-        qtyPoIn: 0,
-        qtyPr: materialForm.quantity,
-        satuan: materialForm.satuan,
-        hargaPoIn: 0,
-        hargaModal: materialForm.priceEstimate,
-        totalPrice: materialForm.totalPrice,
-        margin: '',
-        remark: materialForm.remark,
+    const addSelectedMatchingPoIns = () => {
+        const selected = matchingPoIns.filter((po) =>
+            selectedMatchingPoIns.includes(po.kode_poin),
+        );
+        setMaterialItems((current) => {
+            const templateByMaterial = new Map(
+                current.map((item) => [item.kodeMaterial.toLowerCase(), item]),
+            );
+            const additions = selected.flatMap((po) =>
+                (po.materials ?? []).map((material, index) => {
+                    const template = templateByMaterial.get(
+                        String(material.kd_material ?? '').toLowerCase(),
+                    );
+                    return {
+                        ...(template ?? {}),
+                        id: material.id,
+                        no: current.length + index + 1,
+                        kodeMaterial: material.kd_material ?? '',
+                        namaMaterial: material.material ?? '',
+                        qtyPoIn: parseNumber(material.qty),
+                        maxQtyPr: parseNumber(material.sisa_qtypr),
+                        qtyPr: Math.max(
+                            0,
+                            parseNumber(material.sisa_qtypr) -
+                                calculateTotalStock(template),
+                        ),
+                        satuan: material.satuan ?? '',
+                        hargaPoIn: material.harga_po_in ?? 0,
+                        margin: calculateMargin(
+                            material.harga_po_in ?? 0,
+                            template?.hargaModal ?? '',
+                        ),
+                        refPo: po.no_poin,
+                        forCustomer: po.customer_name,
+                    };
+                }),
+            );
+            return [...current, ...additions].map((item, index) => ({
+                ...item,
+                no: index + 1,
+            }));
+        });
+        const poNumbers = selected.map((po) => po.no_poin).filter(Boolean);
+        const customers = selected
+            .map((po) => po.customer_name)
+            .filter(Boolean);
+        setSelectedPoIns((current) => [
+            ...current,
+            ...selected
+                .filter(
+                    (po) =>
+                        !current.some(
+                            (existing) => existing.kode_poin === po.kode_poin,
+                        ),
+                )
+                .map((po) => ({
+                    kode_poin: po.kode_poin,
+                    no_poin: po.no_poin,
+                    customer_name: po.customer_name,
+                })),
+        ]);
+        if (poNumbers.length > 0) {
+            setFormData((current) => ({
+                ...current,
+                refPo: [current.refPo, ...poNumbers].filter(Boolean).join(', '),
+                forCustomer: [
+                    ...new Set(
+                        [current.forCustomer, ...customers].filter(Boolean),
+                    ),
+                ].join(', '),
+            }));
+        }
+        setIsMatchingPoModalOpen(false);
     };
 
-    setMaterialItems((prev) => [...prev, newItem]);
-    setMaterialForm({
-        kodeMaterial: '',
-        namaMaterial: '',
-        satuan: '',
-        quantity: '',
-        stokG1: 0,
-        stokG2: 0,
-        stokG3: 0,
-        stokG4: 0,
-        lastStock: 0,
-        priceEstimate: '',
-        totalPrice: 0,
-        remark: '',
-    });
-    setSubmitError('');
+    const removeSelectedPoIn = (po) => {
+        const remaining = selectedPoIns.filter(
+            (item) => item.kode_poin !== po.kode_poin,
+        );
+        setSelectedPoIns(remaining);
+        setMaterialItems((current) =>
+            current
+                .filter((item) => item.refPo !== po.no_poin)
+                .map((item, index) => ({ ...item, no: index + 1 })),
+        );
+        setFormData((current) => ({
+            ...current,
+            refPo: remaining.map((item) => item.no_poin).join(', '),
+            forCustomer: [
+                ...new Set(
+                    remaining.map((item) => item.customer_name).filter(Boolean),
+                ),
+            ].join(', '),
+        }));
+    };
+
+    const handleAddManualMaterial = () => {
+        // --- LOGIKA VALIDASI QUANTITY BARU ---
+        // Jika quantity kosong, undefined, hanya spasi, atau bernilai 0
+        if (
+            !materialForm.quantity ||
+            String(materialForm.quantity).trim() === '' ||
+            parseNumber(materialForm.quantity) <= 0
+        ) {
+            setSubmitError('Field quantity wajib diisi!');
+            return; // Menolak material baru masuk ke dalam tambah ke daftar
+        }
+        // -------------------------------------
+
+        if (!materialForm.kodeMaterial) {
+            setSubmitError('Pilih material terlebih dahulu.');
+            return;
+        }
+
+        const newItem = {
+            id: `manual-${Date.now()}`,
+            no: materialItems.length + 1,
+            kodeMaterial: materialForm.kodeMaterial,
+            namaMaterial: materialForm.namaMaterial,
+            stokG1: materialForm.stokG1,
+            stokG2: materialForm.stokG2,
+            stokG3: materialForm.stokG3,
+            stokG4: materialForm.stokG4,
+            stok: calculateTotalStock(materialForm),
+            qtyPoIn: 0,
+            qtyPr: materialForm.quantity,
+            satuan: materialForm.satuan,
+            hargaPoIn: 0,
+            hargaModal: materialForm.priceEstimate,
+            totalPrice: materialForm.totalPrice,
+            margin: '',
+            remark: materialForm.remark,
+        };
+
+        setMaterialItems((prev) => [...prev, newItem]);
+        setMaterialForm({
+            kodeMaterial: '',
+            namaMaterial: '',
+            satuan: '',
+            quantity: '',
+            stokG1: 0,
+            stokG2: 0,
+            stokG3: 0,
+            stokG4: 0,
+            lastStock: 0,
+            priceEstimate: '',
+            totalPrice: 0,
+            remark: '',
+        });
+        setSubmitError('');
     };
 
     const updateMaterialForm = (field, value) => {
@@ -485,7 +657,45 @@ export default function PurchaseRequirementCreate() {
     };
 
     const handleRemoveMaterial = (id) => {
+        const material = materialItems.find((item) => item.id === id);
+        const isFulfilledByStock =
+            material &&
+            !String(material.id).startsWith('manual-') &&
+            parseNumber(material.qtyPr) === 0 &&
+            calculateTotalStock(material) >= parseNumber(material.qtyPoIn);
+
+        if (isFulfilledByStock) {
+            setMaterialToDelete(material);
+            setIsDeleteConfirmOpen(true);
+            return;
+        }
+
         setMaterialItems((prev) => prev.filter((item) => item.id !== id));
+    };
+
+    const confirmDeleteMaterial = async () => {
+        if (!materialToDelete) return;
+
+        setIsDeletingMaterial(true);
+        try {
+            await axios.put(
+                `/marketing/purchase-requirement/poin-detail/${materialToDelete.id}/clear-sisa`,
+            );
+
+            setStockFulfilledDetailIds((current) => [
+                ...new Set([...current, Number(materialToDelete.id)]),
+            ]);
+            setMaterialItems((prev) =>
+                prev.filter((item) => item.id !== materialToDelete.id),
+            );
+            setIsDeleteConfirmOpen(false);
+            setMaterialToDelete(null);
+        } catch (error) {
+            console.error('Failed to clear PO In qty:', error);
+            alert('Gagal mereset data PO In. Silakan coba lagi.');
+        } finally {
+            setIsDeletingMaterial(false);
+        }
     };
 
     const validateSubmit = () => {
@@ -496,55 +706,64 @@ export default function PurchaseRequirementCreate() {
         const hasInvalidRow = materialItems.some(
             (item) =>
                 parseNumber(item.hargaModal) <= 0 ||
-                parseNumber(item.qtyPr) < 0,
+                parseNumber(item.qtyPr) < 0 ||
+                (item.maxQtyPr !== undefined &&
+                    (parseNumber(item.qtyPr) > parseNumber(item.maxQtyPr) ||
+                        parseNumber(item.qtyPr) + calculateTotalStock(item) <
+                            parseNumber(item.maxQtyPr))),
         );
         if (hasInvalidRow) {
-            return 'Harga modal wajib diisi dan Qty PR tidak boleh negatif.';
+            return 'Harga modal wajib diisi dan Qty PR harus membuat Sisa Qty PR menjadi 0.';
         }
 
         return '';
     };
 
-    const buildSubmitPayload = () => ({
-        date: formData.date,
-        payment: formData.payment,
-        for_customer: formData.forCustomer,
-        ref_po: formData.refPo,
-        materials: materialItems.map((item, index) => ({
-            no: index + 1,
-            detail_id: String(item.id).startsWith('manual-') ? null : item.id,
-            kd_material: item.kodeMaterial,
-            material: item.namaMaterial,
-            qty: item.qtyPr,
-            sisa_pr: item.qtyPr,
-            unit: item.satuan,
-            stok: calculateTotalStock(item),
-            stok_g1: item.stokG1,
-            stok_g2: item.stokG2,
-            stok_g3: item.stokG3,
-            stok_g4: item.stokG4,
-            unit_price: item.hargaModal,
-            total_price: calculateTotalPrice(item.qtyPr, item.hargaModal),
-            price_po: formData.isStok ? item.hargaModal : item.hargaPoIn,
-            margin: formData.isStok ? 0 : item.margin,
-            renmark: item.remark,
-        })),
-    });
+    const buildSubmitPayload = () => {
+        return {
+            date: formData.date,
+            payment: formData.payment,
+            for_customer: formData.forCustomer,
+            ref_po: formData.refPo,
+            stock_fulfilled_detail_ids: stockFulfilledDetailIds,
+            materials: materialItems.map((item, index) => ({
+                no: index + 1,
+                detail_id: String(item.id).startsWith('manual-')
+                    ? null
+                    : item.id,
+                ref_po: item.refPo || formData.refPo,
+                for_customer: item.forCustomer || formData.forCustomer,
+                kd_material: item.kodeMaterial,
+                material: item.namaMaterial,
+                qty: item.qtyPr,
+                sisa_pr: item.qtyPr,
+                poin_consumed_qty:
+                    parseNumber(item.qtyPr) + calculateTotalStock(item),
+                unit: item.satuan,
+                stok: calculateTotalStock(item),
+                stok_g1: item.stokG1,
+                stok_g2: item.stokG2,
+                stok_g3: item.stokG3,
+                stok_g4: item.stokG4,
+                unit_price: item.hargaModal,
+                total_price: calculateTotalPrice(item.qtyPr, item.hargaModal),
+                price_po: formData.isStok ? item.hargaModal : item.hargaPoIn,
+                margin: formData.isStok ? 0 : item.margin,
+                renmark: item.remark,
+            })),
+        };
+    };
 
     const submitPurchaseRequirement = () => {
-        router.post(
-            '/marketing/purchase-requirement',
-            buildSubmitPayload(),
-            {
-                onStart: () => setIsSubmitting(true),
-                onError: () => setIsSubmitting(false),
-                onSuccess: (page) => {
-                    if (page?.props?.flash?.error) {
-                        setIsSubmitting(false);
-                    }
-                },
+        router.post('/marketing/purchase-requirement', buildSubmitPayload(), {
+            onStart: () => setIsSubmitting(true),
+            onError: () => setIsSubmitting(false),
+            onSuccess: (page) => {
+                if (page?.props?.flash?.error) {
+                    setIsSubmitting(false);
+                }
             },
-        );
+        });
     };
 
     const handleSubmit = async (event) => {
@@ -564,18 +783,36 @@ export default function PurchaseRequirementCreate() {
 
         setIsSubmitting(true);
         try {
-            const response = await axios.get(
-                '/marketing/purchase-requirement/overdue-invoices',
-                {
-                    params: { customer: formData.forCustomer },
-                },
+            const customers = selectedPoIns.length
+                ? [
+                      ...new Set(
+                          selectedPoIns
+                              .map((po) => po.customer_name)
+                              .filter(Boolean),
+                      ),
+                  ]
+                : [formData.forCustomer];
+            const responses = await Promise.all(
+                customers.map((customer) =>
+                    axios.get(
+                        '/marketing/purchase-requirement/overdue-invoices',
+                        { params: { customer } },
+                    ),
+                ),
+            );
+            const overdueResponses = responses.filter(
+                (response) =>
+                    Array.isArray(response.data?.invoices) &&
+                    response.data.invoices.length > 0,
             );
 
-            if (
-                Array.isArray(response.data?.invoices) &&
-                response.data.invoices.length > 0
-            ) {
-                setOverdueWarningData(response.data);
+            if (overdueResponses.length > 0) {
+                setOverdueWarningData({
+                    ...overdueResponses[0].data,
+                    invoices: overdueResponses.flatMap(
+                        (response) => response.data.invoices,
+                    ),
+                });
                 setOverdueWarningOpen(true);
                 setIsSubmitting(false);
                 return;
@@ -640,19 +877,17 @@ export default function PurchaseRequirementCreate() {
                                     className="h-5 w-5"
                                     checked={formData.isStok}
                                     onCheckedChange={(checked) => {
+                                        if (checked) {
+                                            setSelectedPoIns([]);
+                                            setMaterialItems([]);
+                                        }
                                         setFormData((prev) => ({
                                             ...prev,
                                             isStok: !!checked,
-                                            refPo: checked
-                                                ? stokValue
-                                                : prev.refPo === stokValue
-                                                  ? ''
-                                                  : prev.refPo,
+                                            refPo: checked ? stokValue : '',
                                             forCustomer: checked
                                                 ? stokValue
-                                                : prev.forCustomer === stokValue
-                                                  ? ''
-                                                  : prev.forCustomer,
+                                                : '',
                                         }));
                                     }}
                                 />
@@ -685,33 +920,41 @@ export default function PurchaseRequirementCreate() {
                                     }
                                 />
                             </label>
+                            {formData.isStok && (
+                                <label className="space-y-2 text-sm">
+                                    <span className="text-muted-foreground">
+                                        Ref PO
+                                    </span>
+                                    <Input
+                                        value={formData.refPo}
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                refPo: value,
+                                                forCustomer: value,
+                                            }));
+                                        }}
+                                    />
+                                </label>
+                            )}
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">
-                                    Ref PO
-                                </span>
-                                <Input
-                                    value={formData.refPo}
-                                    readOnly={formData.isStok}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            refPo: event.target.value,
-                                        }))
-                                    }
-                                />
-                            </label>
-                            <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">
-                                    For Customer
+                                    {formData.isStok
+                                        ? 'For Customer'
+                                        : 'Pilih PO In'}
                                 </span>
                                 <div className="flex gap-2">
-                                    <Input
-                                        value={formData.forCustomer}
-                                        readOnly
-                                    />
+                                    {formData.isStok && (
+                                        <Input
+                                            value={formData.forCustomer}
+                                            readOnly
+                                        />
+                                    )}
                                     <Button
                                         type="button"
                                         variant="outline"
+                                        disabled={formData.isStok}
                                         onClick={() => {
                                             setIsCustomerModalOpen(true);
                                             setCustomerCurrentPage(1);
@@ -724,6 +967,39 @@ export default function PurchaseRequirementCreate() {
                                     </Button>
                                 </div>
                             </label>
+                            {!formData.isStok && selectedPoIns.length > 0 && (
+                                <div className="space-y-2 md:col-span-2">
+                                    <Label>PO In Terpilih</Label>
+                                    <div className="grid gap-2 md:grid-cols-2">
+                                        {selectedPoIns.map((po) => (
+                                            <div
+                                                key={po.kode_poin}
+                                                className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3"
+                                            >
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm font-semibold">
+                                                        {po.no_poin}
+                                                    </p>
+                                                    <p className="truncate text-xs text-muted-foreground">
+                                                        {po.customer_name}
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    title="Hapus PO In"
+                                                    onClick={() =>
+                                                        removeSelectedPoIn(po)
+                                                    }
+                                                >
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <label className="space-y-2 text-sm">
                                 <span className="text-muted-foreground">
                                     Payment
@@ -781,6 +1057,80 @@ export default function PurchaseRequirementCreate() {
                                     <CardContent className="p-0">
                                         {/* Material List (Cards) - Always Used */}
                                         <div className="min-h-[300px] space-y-4 p-6">
+                                            {materialGroups.length > 1 && (
+                                                <div className="rounded-xl border bg-muted/20 p-4">
+                                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            disabled={
+                                                                activeMaterialGroupIndex ===
+                                                                0
+                                                            }
+                                                            onClick={() =>
+                                                                setActiveMaterialGroupIndex(
+                                                                    (current) =>
+                                                                        Math.max(
+                                                                            0,
+                                                                            current -
+                                                                                1,
+                                                                        ),
+                                                                )
+                                                            }
+                                                        >
+                                                            Sebelumnya
+                                                        </Button>
+                                                        <div className="text-center">
+                                                            <p className="text-sm font-bold">
+                                                                {
+                                                                    materialGroups[
+                                                                        activeMaterialGroupIndex
+                                                                    ]?.refPo
+                                                                }
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {materialGroups[
+                                                                    activeMaterialGroupIndex
+                                                                ]?.customer ||
+                                                                    'Material tanpa PO In'}
+                                                            </p>
+                                                            <p className="mt-1 text-[10px] font-medium text-muted-foreground">
+                                                                PO In{' '}
+                                                                {activeMaterialGroupIndex +
+                                                                    1}{' '}
+                                                                dari{' '}
+                                                                {
+                                                                    materialGroups.length
+                                                                }
+                                                            </p>
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            disabled={
+                                                                activeMaterialGroupIndex >=
+                                                                materialGroups.length -
+                                                                    1
+                                                            }
+                                                            onClick={() =>
+                                                                setActiveMaterialGroupIndex(
+                                                                    (current) =>
+                                                                        Math.min(
+                                                                            materialGroups.length -
+                                                                                1,
+                                                                            current +
+                                                                                1,
+                                                                        ),
+                                                                )
+                                                            }
+                                                        >
+                                                            Berikutnya
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
                                             {materialItems.length === 0 ? (
                                                 <div className="flex flex-col items-center justify-center py-20 opacity-40">
                                                     <div className="relative mb-4">
@@ -798,7 +1148,7 @@ export default function PurchaseRequirementCreate() {
                                                 </div>
                                             ) : (
                                                 <div className="grid gap-4">
-                                                    {materialItems.map(
+                                                    {visibleMaterialItems.map(
                                                         (item, idx) => (
                                                             <div
                                                                 key={item.id}
@@ -831,6 +1181,25 @@ export default function PurchaseRequirementCreate() {
                                                                                         item.kodeMaterial
                                                                                     }
                                                                                 </Badge>
+                                                                                {item.refPo && (
+                                                                                    <Badge className="h-5 px-1.5 text-[10px]">
+                                                                                        PO
+                                                                                        In:{' '}
+                                                                                        {
+                                                                                            item.refPo
+                                                                                        }
+                                                                                    </Badge>
+                                                                                )}
+                                                                                {item.forCustomer && (
+                                                                                    <Badge
+                                                                                        variant="secondary"
+                                                                                        className="h-5 px-1.5 text-[10px]"
+                                                                                    >
+                                                                                        {
+                                                                                            item.forCustomer
+                                                                                        }
+                                                                                    </Badge>
+                                                                                )}
                                                                                 {item.satuan && (
                                                                                     <Badge
                                                                                         variant="outline"
@@ -842,21 +1211,50 @@ export default function PurchaseRequirementCreate() {
                                                                                     </Badge>
                                                                                 )}
                                                                                 {[
-                                                                                    ['G1', item.stokG1],
-                                                                                    ['G2', item.stokG2],
-                                                                                    ['G3', item.stokG3],
-                                                                                    ['G4', item.stokG4],
-                                                                                ].map(([label, value]) => (
-                                                                                    <span
-                                                                                        key={label}
-                                                                                        className="rounded-full border border-blue-100 bg-blue-50 px-2 text-[10px] font-bold text-blue-600"
-                                                                                    >
-                                                                                        Stok {label}: {value ?? 0}
-                                                                                    </span>
-                                                                                ))}
+                                                                                    [
+                                                                                        'G1',
+                                                                                        item.stokG1,
+                                                                                    ],
+                                                                                    [
+                                                                                        'G2',
+                                                                                        item.stokG2,
+                                                                                    ],
+                                                                                    [
+                                                                                        'G3',
+                                                                                        item.stokG3,
+                                                                                    ],
+                                                                                    [
+                                                                                        'G4',
+                                                                                        item.stokG4,
+                                                                                    ],
+                                                                                ].map(
+                                                                                    ([
+                                                                                        label,
+                                                                                        value,
+                                                                                    ]) => (
+                                                                                        <span
+                                                                                            key={
+                                                                                                label
+                                                                                            }
+                                                                                            className="rounded-full border border-blue-100 bg-blue-50 px-2 text-[10px] font-bold text-blue-600"
+                                                                                        >
+                                                                                            Stok{' '}
+                                                                                            {
+                                                                                                label
+                                                                                            }
+
+                                                                                            :{' '}
+                                                                                            {value ??
+                                                                                                0}
+                                                                                        </span>
+                                                                                    ),
+                                                                                )}
                                                                                 <span className="flex items-center gap-1.5 rounded-full border border-green-100 bg-green-50 px-2 text-[10px] font-bold text-green-600">
                                                                                     <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-                                                                                    Total Stok: {item.stok ?? 0}
+                                                                                    Total
+                                                                                    Stok:{' '}
+                                                                                    {item.stok ??
+                                                                                        0}
                                                                                 </span>
                                                                             </div>
                                                                         </div>
@@ -902,16 +1300,35 @@ export default function PurchaseRequirementCreate() {
                                                                                     <div className="relative w-full">
                                                                                         <Input
                                                                                             type="number"
-                                                                                            className="h-10 w-full border-primary/20 bg-background text-right text-lg font-black shadow-xs ring-offset-0 focus-visible:ring-2 focus-visible:ring-primary"
+                                                                                            min="0"
+                                                                                            max={
+                                                                                                item.maxQtyPr ??
+                                                                                                undefined
+                                                                                            }
+                                                                                            className={cn(
+                                                                                                'h-10 w-full bg-background text-right text-lg font-black shadow-xs ring-offset-0 focus-visible:ring-2',
+                                                                                                item.maxQtyPr !==
+                                                                                                    undefined &&
+                                                                                                    (parseNumber(
+                                                                                                        item.qtyPr,
+                                                                                                    ) >
+                                                                                                        parseNumber(
+                                                                                                            item.maxQtyPr,
+                                                                                                        ) ||
+                                                                                                        parseNumber(
+                                                                                                            item.qtyPr,
+                                                                                                        ) +
+                                                                                                            calculateTotalStock(
+                                                                                                                item,
+                                                                                                            ) <
+                                                                                                            parseNumber(
+                                                                                                                item.maxQtyPr,
+                                                                                                            ))
+                                                                                                    ? 'border-destructive focus-visible:ring-destructive'
+                                                                                                    : 'border-primary/20 focus-visible:ring-primary',
+                                                                                            )}
                                                                                             value={
                                                                                                 item.qtyPr
-                                                                                            }
-                                                                                            readOnly={
-                                                                                                !String(
-                                                                                                    item.id,
-                                                                                                ).startsWith(
-                                                                                                    'manual-',
-                                                                                                )
                                                                                             }
                                                                                             onChange={(
                                                                                                 e,
@@ -925,6 +1342,62 @@ export default function PurchaseRequirementCreate() {
                                                                                             }
                                                                                         />
                                                                                     </div>
+                                                                                    {item.maxQtyPr !==
+                                                                                        undefined &&
+                                                                                        parseNumber(
+                                                                                            item.qtyPr,
+                                                                                        ) >
+                                                                                            parseNumber(
+                                                                                                item.maxQtyPr,
+                                                                                            ) && (
+                                                                                            <p className="mt-1 text-right text-xs font-medium text-destructive">
+                                                                                                Qty
+                                                                                                PR
+                                                                                                tidak
+                                                                                                boleh
+                                                                                                melebihi
+                                                                                                Qty
+                                                                                                Sisa
+                                                                                                PR
+                                                                                                (
+                                                                                                {renderValue(
+                                                                                                    item.maxQtyPr,
+                                                                                                )}
+                                                                                                ).
+                                                                                            </p>
+                                                                                        )}
+                                                                                    {item.maxQtyPr !==
+                                                                                        undefined &&
+                                                                                        parseNumber(
+                                                                                            item.qtyPr,
+                                                                                        ) <=
+                                                                                            parseNumber(
+                                                                                                item.maxQtyPr,
+                                                                                            ) &&
+                                                                                        parseNumber(
+                                                                                            item.qtyPr,
+                                                                                        ) +
+                                                                                            calculateTotalStock(
+                                                                                                item,
+                                                                                            ) <
+                                                                                            parseNumber(
+                                                                                                item.maxQtyPr,
+                                                                                            ) && (
+                                                                                            <p className="mt-1 text-right text-xs font-medium text-destructive">
+                                                                                                PR
+                                                                                                Input
+                                                                                                tidak
+                                                                                                boleh
+                                                                                                dikurangi
+                                                                                                karena
+                                                                                                Sisa
+                                                                                                Qty
+                                                                                                PR
+                                                                                                harus
+                                                                                                menjadi
+                                                                                                0.
+                                                                                            </p>
+                                                                                        )}
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -1163,8 +1636,7 @@ export default function PurchaseRequirementCreate() {
                                                                 updateMaterialForm(
                                                                     'priceEstimate',
                                                                     parseRupiahInput(
-                                                                        e
-                                                                            .target
+                                                                        e.target
                                                                             .value,
                                                                     ),
                                                                 )
@@ -1505,6 +1977,16 @@ export default function PurchaseRequirementCreate() {
                                                                     : (item.customer_name ??
                                                                       ''),
                                                         }));
+                                                        setSelectedPoIns([
+                                                            {
+                                                                kode_poin:
+                                                                    item.kode_poin,
+                                                                no_poin:
+                                                                    item.no_poin,
+                                                                customer_name:
+                                                                    item.customer_name,
+                                                            },
+                                                        ]);
                                                         setIsCustomerModalOpen(
                                                             false,
                                                         );
@@ -1578,6 +2060,109 @@ export default function PurchaseRequirementCreate() {
                                 </div>
                             </div>
                         )}
+                    </DialogContent>
+                </Dialog>
+                <Dialog
+                    open={isMatchingPoModalOpen}
+                    onOpenChange={setIsMatchingPoModalOpen}
+                >
+                    <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
+                        <DialogHeader>
+                            <DialogTitle>
+                                PO In dengan material yang sama
+                            </DialogTitle>
+                            <DialogDescription>
+                                Pilih PO In tambahan. Quantity setiap PO In akan
+                                disimpan pada baris terpisah.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-3">
+                            {matchingPoIns.map((po) => (
+                                <label
+                                    key={po.kode_poin}
+                                    className="block cursor-pointer rounded-lg border p-4"
+                                >
+                                    <div className="mb-3 flex items-center gap-3">
+                                        <Checkbox
+                                            checked={selectedMatchingPoIns.includes(
+                                                po.kode_poin,
+                                            )}
+                                            onCheckedChange={(checked) =>
+                                                setSelectedMatchingPoIns(
+                                                    (current) =>
+                                                        checked
+                                                            ? [
+                                                                  ...new Set([
+                                                                      ...current,
+                                                                      po.kode_poin,
+                                                                  ]),
+                                                              ]
+                                                            : current.filter(
+                                                                  (value) =>
+                                                                      value !==
+                                                                      po.kode_poin,
+                                                              ),
+                                                )
+                                            }
+                                        />
+                                        <span className="font-semibold">
+                                            {renderValue(po.no_poin)} —{' '}
+                                            {renderValue(po.customer_name)}
+                                        </span>
+                                    </div>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Material</TableHead>
+                                                <TableHead>Qty</TableHead>
+                                                <TableHead>
+                                                    Sisa Qty PR
+                                                </TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {(po.materials ?? []).map(
+                                                (material) => (
+                                                    <TableRow key={material.id}>
+                                                        <TableCell>
+                                                            {renderValue(
+                                                                material.material,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {renderValue(
+                                                                material.qty,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {renderValue(
+                                                                material.sisa_qtypr,
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ),
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </label>
+                            ))}
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsMatchingPoModalOpen(false)}
+                            >
+                                Lewati
+                            </Button>
+                            <Button
+                                type="button"
+                                disabled={selectedMatchingPoIns.length === 0}
+                                onClick={addSelectedMatchingPoIns}
+                            >
+                                Tambahkan PO In
+                            </Button>
+                        </div>
                     </DialogContent>
                 </Dialog>
                 <Dialog
@@ -1772,7 +2357,9 @@ export default function PurchaseRequirementCreate() {
                                                                         };
                                                                     },
                                                                 );
-                                                                setIsMaterialModalOpen(false);
+                                                                setIsMaterialModalOpen(
+                                                                    false,
+                                                                );
                                                             }}
                                                         >
                                                             Pilih
@@ -1851,6 +2438,41 @@ export default function PurchaseRequirementCreate() {
                     </DialogContent>
                 </Dialog>
             </form>
+
+            <Dialog
+                open={isDeleteConfirmOpen}
+                onOpenChange={setIsDeleteConfirmOpen}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Konfirmasi Penghapusan</DialogTitle>
+                        <DialogDescription>
+                            Stok sudah memenuhi kebutuhan material ini. Apakah
+                            Anda yakin ingin menghapus material? Sisa Qty PO
+                            Masuk akan diubah menjadi 0 saat PR disimpan.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-2 pt-4">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsDeleteConfirmOpen(false)}
+                            disabled={isDeletingMaterial}
+                        >
+                            Batal
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={confirmDeleteMaterial}
+                            disabled={isDeletingMaterial}
+                        >
+                            {isDeletingMaterial ? 'Menghapus...' : 'Ya, Hapus'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
             <OverdueInvoiceWarningDialog
                 open={overdueWarningOpen}
                 onOpenChange={setOverdueWarningOpen}

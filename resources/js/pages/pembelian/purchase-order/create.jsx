@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +14,7 @@ import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { Head, router } from '@inertiajs/react';
+import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 
 const breadcrumbs = [
@@ -38,6 +38,11 @@ const parseNumber = (value) => {
     const parsed = Number(normalized);
     return Number.isNaN(parsed) ? 0 : parsed;
 };
+
+const formatInteger = (value) =>
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
+        Math.trunc(parseNumber(value)),
+    );
 
 const hasOverdueMoreThan90Days = (item) =>
     Boolean(item?.has_overdue_gt_90) ||
@@ -393,8 +398,14 @@ export default function PurchaseOrderCreate({
             ...prev,
             kodeMaterial: item.kd_material ?? '',
             material: item.material ?? '',
-            qty: sisaQty ?? '',
-            sisaQty: sisaQty ?? '',
+            qty:
+                sisaQty === null || sisaQty === undefined
+                    ? ''
+                    : String(Math.trunc(parseNumber(sisaQty))),
+            sisaQty:
+                sisaQty === null || sisaQty === undefined
+                    ? ''
+                    : String(Math.trunc(parseNumber(sisaQty))),
             satuan: item.unit ?? '',
             remark: item.renmark ?? item.remark ?? '',
         }));
@@ -419,7 +430,7 @@ export default function PurchaseOrderCreate({
 
         // Buat array baru berisi data lama + data yang baru ditambahkan
         const updatedItems = [...materialItems, newItem];
-        
+
         setMaterialItems(updatedItems);
         setMaterialForm({
             kodeMaterial: '',
@@ -447,10 +458,13 @@ export default function PurchaseOrderCreate({
 
         if (remarksArray.length > 0) {
             try {
-                const response = await axios.post('/pembelian/purchase-order/cluster-remarks', {
-                    remarks: remarksArray,
-                });
-                
+                const response = await axios.post(
+                    '/pembelian/purchase-order/cluster-remarks',
+                    {
+                        remarks: remarksArray,
+                    },
+                );
+
                 setFormData((prev) => ({
                     ...prev,
                     note1: response.data.clustered_remark ?? prev.note1,
@@ -465,14 +479,22 @@ export default function PurchaseOrderCreate({
     };
 
     const handleDeleteMaterial = async (idToRemove) => {
-        const itemToDelete = materialItems.find((item) => item.id === idToRemove);
-        const updatedItems = materialItems.filter((item) => item.id !== idToRemove);
-        
+        const itemToDelete = materialItems.find(
+            (item) => item.id === idToRemove,
+        );
+        const updatedItems = materialItems.filter(
+            (item) => item.id !== idToRemove,
+        );
+
         // Update tabel keranjang
         setMaterialItems(updatedItems);
 
         // Pengecekan AI Clustering: Hanya jalankan hitung ulang jika item yang dihapus memiliki remark
-        if (itemToDelete && itemToDelete.remark && itemToDelete.remark.trim() !== '') {
+        if (
+            itemToDelete &&
+            itemToDelete.remark &&
+            itemToDelete.remark.trim() !== ''
+        ) {
             processRemarksCluster(updatedItems);
         }
     };
@@ -911,10 +933,12 @@ export default function PurchaseOrderCreate({
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        {renderValue(item.qty)}
+                                                        {formatInteger(
+                                                            item.qty,
+                                                        )}
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        {renderValue(
+                                                        {formatInteger(
                                                             item.sisa_pr ??
                                                                 item.Sisa_pr,
                                                         )}
@@ -952,18 +976,23 @@ export default function PurchaseOrderCreate({
                                 <div className="grid gap-2">
                                     <Label>Qty</Label>
                                     <Input
+                                        type="number"
+                                        min="0"
+                                        step="1"
                                         className={
                                             isQtyExceedsSisa
                                                 ? 'border-red-500 focus-visible:ring-red-500'
                                                 : ''
                                         }
                                         value={materialForm.qty}
-                                        onChange={(event) =>
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            if (!/^\d*$/.test(value)) return;
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                qty: event.target.value,
-                                            }))
-                                        }
+                                                qty: value,
+                                            }));
+                                        }}
                                     />
                                     {isQtyExceedsSisa && (
                                         <p className="text-xs text-red-600">
@@ -991,13 +1020,21 @@ export default function PurchaseOrderCreate({
                                         type="text" // Ubah dari number ke text
                                         value={
                                             includePpn
-                                                ? (priceWithPpn ? `Rp. ${new Intl.NumberFormat('id-ID').format(priceWithPpn)}` : 'Rp. 0')
-                                                : (materialForm.basePrice ? `Rp. ${new Intl.NumberFormat('id-ID').format(materialForm.basePrice)}` : '')
+                                                ? priceWithPpn
+                                                    ? `Rp. ${new Intl.NumberFormat('id-ID').format(priceWithPpn)}`
+                                                    : 'Rp. 0'
+                                                : materialForm.basePrice
+                                                  ? `Rp. ${new Intl.NumberFormat('id-ID').format(materialForm.basePrice)}`
+                                                  : ''
                                         }
                                         readOnly={includePpn}
                                         onChange={(event) => {
                                             // Hanya simpan angka murni ke state agar kalkulasi tidak error
-                                            const rawValue = event.target.value.replace(/[^0-9]/g, '');
+                                            const rawValue =
+                                                event.target.value.replace(
+                                                    /[^0-9]/g,
+                                                    '',
+                                                );
                                             setMaterialForm((prev) => ({
                                                 ...prev,
                                                 basePrice: rawValue,
@@ -1131,7 +1168,11 @@ export default function PurchaseOrderCreate({
                                                 <td className="px-4 py-3">
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleDeleteMaterial(item.id)}
+                                                        onClick={() =>
+                                                            handleDeleteMaterial(
+                                                                item.id,
+                                                            )
+                                                        }
                                                         className="font-medium text-red-500 transition hover:text-red-700"
                                                     >
                                                         Hapus
@@ -1166,8 +1207,7 @@ export default function PurchaseOrderCreate({
                                     />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ...">
-
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 ...">
                                 <label className="space-y-2 text-sm md:col-span-2">
                                     <span className="text-muted-foreground">
                                         Note 1
@@ -1180,7 +1220,7 @@ export default function PurchaseOrderCreate({
                                                 note1: event.target.value,
                                             }))
                                         }
-                                        />
+                                    />
                                 </label>
                                 <label className="space-y-2 text-sm md:col-span-2">
                                     <span className="text-muted-foreground">
@@ -1222,7 +1262,7 @@ export default function PurchaseOrderCreate({
                                                 note4: event.target.value,
                                             }))
                                         }
-                                        />
+                                    />
                                 </label>
                             </div>
                         </CardContent>
@@ -1372,7 +1412,8 @@ export default function PurchaseOrderCreate({
                                                         </span>
                                                         {isBlocked && (
                                                             <Badge variant="destructive">
-                                                                Tunggakan &gt; 90 hari
+                                                                Tunggakan &gt;
+                                                                90 hari
                                                             </Badge>
                                                         )}
                                                     </div>

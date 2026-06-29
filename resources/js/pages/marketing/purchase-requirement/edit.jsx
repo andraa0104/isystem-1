@@ -22,7 +22,7 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import axios from 'axios';
 import { CheckCircle2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
 const breadcrumbs = [
@@ -146,6 +146,9 @@ export default function PurchaseRequirementEdit({
             qtyPo: parseNumber(item.qty_po),
             qtyPoIn: parseNumber(item.qty_po_in),
             sisaQtyPoIn: parseNumber(item.sisa_qty_po),
+            refPo: item.ref_po ?? purchaseRequirement?.ref_po ?? '',
+            forCustomer:
+                item.for_customer ?? purchaseRequirement?.for_customer ?? '',
         })),
     );
 
@@ -200,13 +203,40 @@ export default function PurchaseRequirementEdit({
     const [listSearch, setListSearch] = useState('');
     const [listPageSize, setListPageSize] = useState(5);
     const [listCurrentPage, setListCurrentPage] = useState(1);
+    const [activePoTab, setActivePoTab] = useState('');
+
+    const poTabs = useMemo(() => {
+        const groups = new Map();
+        materialItems.forEach((item) => {
+            const refPo = item.refPo || 'Tanpa PO In';
+            if (!groups.has(refPo)) {
+                groups.set(refPo, {
+                    refPo,
+                    customer: item.forCustomer || '',
+                    count: 0,
+                });
+            }
+            groups.get(refPo).count += 1;
+        });
+        return Array.from(groups.values());
+    }, [materialItems]);
+
+    useEffect(() => {
+        if (
+            poTabs.length > 0 &&
+            !poTabs.some((tab) => tab.refPo === activePoTab)
+        ) {
+            setActivePoTab(poTabs[0].refPo);
+        }
+    }, [activePoTab, poTabs]);
 
     const filteredItems = materialItems.filter((item) => {
         const q = listSearch.toLowerCase();
         return (
-            !q ||
-            item.kodeMaterial.toLowerCase().includes(q) ||
-            item.namaMaterial.toLowerCase().includes(q)
+            (!activePoTab || (item.refPo || 'Tanpa PO In') === activePoTab) &&
+            (!q ||
+                item.kodeMaterial.toLowerCase().includes(q) ||
+                item.namaMaterial.toLowerCase().includes(q))
         );
     });
 
@@ -226,9 +256,9 @@ export default function PurchaseRequirementEdit({
     // Reset page when search changes
     useEffect(() => {
         setListCurrentPage(1);
-    }, [listSearch, listPageSize]);
+    }, [listSearch, listPageSize, activePoTab]);
 
-    const openEditCard = (item) => {
+    const openEditCardDirect = (item) => {
         setEditingId(item.id);
         const totalPrice = calculateTotalPrice(
             item.qtyDetail ?? 0,
@@ -252,6 +282,10 @@ export default function PurchaseRequirementEdit({
             margin: item.margin ?? '',
             remark: item.remark ?? '',
         });
+    };
+
+    const openEditCard = (item) => {
+        openEditCardDirect(item);
     };
 
     const getQtyValidationMessage = (source) => {
@@ -383,7 +417,7 @@ export default function PurchaseRequirementEdit({
         const sisaPr = parseNumber(item.qty);
         const qty = parseNumber(item.qtyDetail);
 
-        return sisaPr !== qty && sisaPr !== 0;
+        return sisaPr !== 0;
     };
 
     const handleClearSisaPr = (item) => {
@@ -492,8 +526,8 @@ export default function PurchaseRequirementEdit({
         const payload = {
             date: formData.date,
             payment: formData.payment,
-            for_customer: formData.forCustomer,
-            ref_po: formData.refPo,
+            for_customer: item.forCustomer || formData.forCustomer,
+            ref_po: item.refPo || formData.refPo,
             kd_material: editingDraft.kodeMaterial,
             material: editingDraft.namaMaterial,
             qty: editingDraft.qtyDetail, // tb_detailpr.qty (raw)
@@ -581,6 +615,8 @@ export default function PurchaseRequirementEdit({
                     price_po: item.priceInPo,
                     margin: item.margin,
                     renmark: item.remark,
+                    ref_po: item.refPo || formData.refPo,
+                    for_customer: item.forCustomer || formData.forCustomer,
                 })),
             },
             {
@@ -727,6 +763,36 @@ export default function PurchaseRequirementEdit({
                             </Button>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            {poTabs.length > 1 && (
+                                <div className="overflow-x-auto border-b">
+                                    <div className="flex min-w-max gap-1">
+                                        {poTabs.map((tab) => (
+                                            <button
+                                                key={tab.refPo}
+                                                type="button"
+                                                className={`border-b-2 px-4 py-3 text-left text-sm transition-colors ${
+                                                    activePoTab === tab.refPo
+                                                        ? 'border-primary font-semibold text-primary'
+                                                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                                                }`}
+                                                onClick={() => {
+                                                    closeEditCard();
+                                                    setActivePoTab(tab.refPo);
+                                                }}
+                                            >
+                                                <span className="block">
+                                                    {tab.refPo}
+                                                </span>
+                                                <span className="block max-w-48 truncate text-[11px] font-normal text-muted-foreground">
+                                                    {tab.customer ||
+                                                        'Tanpa customer'}{' '}
+                                                    · {tab.count} material
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             {/* Search & page-size controls */}
                             <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -810,6 +876,17 @@ export default function PurchaseRequirementEdit({
                                                         item.kodeMaterial,
                                                     )}
                                                 </p>
+                                                {item.refPo && (
+                                                    <p className="text-xs font-medium text-primary">
+                                                        PO In: {item.refPo}
+                                                    </p>
+                                                )}
+                                                {item.forCustomer && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Customer:{' '}
+                                                        {item.forCustomer}
+                                                    </p>
+                                                )}
                                                 <div className="flex flex-wrap gap-1 pt-1">
                                                     {[
                                                         ['G1', item.stokG1],

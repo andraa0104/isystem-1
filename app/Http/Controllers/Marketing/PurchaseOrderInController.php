@@ -292,10 +292,13 @@ class PurchaseOrderInController
                 ->whereRaw("trim(coalesce(kdo.ref_po, '')) <> ''")
                 ->groupByRaw('lower(trim(kdo.ref_po))');
 
-            $prStats = DB::table('tb_pr')
-                ->select('ref_po')
-                ->selectRaw("max(coalesce(str_to_date(date, '%d.%m.%Y'), str_to_date(date, '%Y-%m-%d'))) as last_pr_date")
-                ->groupBy('ref_po');
+            $prStats = DB::table('tb_poin as pr_p')
+                ->join('tb_pr as pr', function ($join) {
+                    $join->whereRaw("find_in_set(lower(trim(pr_p.no_poin)), replace(lower(coalesce(pr.ref_po, '')), ' ', '')) > 0");
+                })
+                ->selectRaw('pr_p.no_poin as ref_po')
+                ->selectRaw("max(coalesce(str_to_date(pr.date, '%d.%m.%Y'), str_to_date(pr.date, '%Y-%m-%d'))) as last_pr_date")
+                ->groupBy('pr_p.no_poin');
 
             $now = now();
             $startToday = $now->copy()->startOfDay()->toDateTimeString();
@@ -369,12 +372,12 @@ class PurchaseOrderInController
                             $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
                         })
                         ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 then 1 end) as realized_pr")
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
                         ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null then 1 end) as realized_do")
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_today", [$startToday])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_week", [$startWeek])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_month", [$startMonth])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_year", [$startYear])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_today", [$startToday])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_week", [$startWeek])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_month", [$startMonth])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_year", [$startYear])
                         ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_today", [$startToday])
                         ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_week", [$startWeek])
                         ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_month", [$startMonth])
@@ -460,7 +463,8 @@ class PurchaseOrderInController
                     ->whereNotNull('dos.last_do_date');
             } elseif ($statusFilter === 'realized_pr') {
                 $query->whereRaw('coalesce(ds.unrealized_items, 0) = 0')
-                    ->whereRaw('coalesce(ds.started_items, 0) > 0');
+                    ->whereRaw('coalesce(ds.started_items, 0) > 0')
+                    ->whereNotNull('prs.last_pr_date');
             }
 
             if ($dateFilter === 'today') {
@@ -539,12 +543,12 @@ class PurchaseOrderInController
                 ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
                 ->selectRaw("count(case when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 1 end) as sisa_pr")
                 ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as sisa_do")
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 then 1 end) as realized_pr")
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null then 1 end) as realized_do")
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_today", [$startToday])
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_week", [$startWeek])
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_month", [$startMonth])
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date >= ? then 1 end) as realized_pr_year", [$startYear])
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_today", [$startToday])
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_week", [$startWeek])
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_month", [$startMonth])
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_year", [$startYear])
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_today", [$startToday])
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_week", [$startWeek])
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null and dos.last_do_date >= ? then 1 end) as realized_do_month", [$startMonth])
@@ -1086,21 +1090,6 @@ class PurchaseOrderInController
                     'updated_at' => $nowGmt8,
                 ]);
 
-                $materialKeys = collect($validated['materials'] ?? [])
-                    ->pluck('kd_material')
-                    ->map(fn ($value) => $this->normalizeMaterialCode($value))
-                    ->filter(fn ($value) => $value !== null)
-                    ->unique()
-                    ->all();
-
-                $barangCodeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
-                $materialStocks = DB::table('tb_barang')
-                    ->whereIn($barangCodeColumn, $materialKeys)
-                    ->selectRaw("{$barangCodeColumn} as kd_material")
-                    ->selectRaw($this->barangStockTotalExpression().' as stok')
-                    ->pluck('stok', 'kd_material')
-                    ->all();
-
                 $detailId = (int) (DB::table('tb_detailpoin')->max('id') ?? 0) + 1;
                 $detailData = [];
                 foreach (($validated['materials'] ?? []) as $index => $item) {
@@ -1111,9 +1100,6 @@ class PurchaseOrderInController
                         : ($qty * $price);
 
                     $kdMaterial = $this->normalizeMaterialCode($item['kd_material'] ?? null);
-                    $stok = (float) ($materialStocks[$kdMaterial] ?? 0);
-
-                    $sisaQtyPr = max(0, $qty - $stok);
 
                     $detailData[] = [
                         'id' => $detailId + $index,
@@ -1122,7 +1108,7 @@ class PurchaseOrderInController
                         'kd_material' => $kdMaterial,
                         'material' => trim((string) ($item['material'] ?? '')),
                         'qty' => $qty,
-                        'sisa_qtypr' => $sisaQtyPr,
+                        'sisa_qtypr' => $qty,
                         'sisa_qtydo' => $qty,
                         'satuan' => trim((string) ($item['satuan'] ?? '')),
                         'price_po_in' => $price,
@@ -1135,6 +1121,11 @@ class PurchaseOrderInController
 
                 if (!empty($detailData)) {
                     DB::table('tb_detailpoin')->insert($detailData);
+                    DB::table('tb_detailpoin')
+                        ->where('kode_poin', $kodePoin)
+                        ->update([
+                            'sisa_qtypr' => DB::raw('qty'),
+                        ]);
                 }
             });
 
@@ -1316,16 +1307,7 @@ class PurchaseOrderInController
             $nowGmt8 = now('Asia/Singapore');
 
             $kdMaterial = $this->normalizeMaterialCode($validated['kd_material'] ?? null);
-            $stok = 0;
-            if ($kdMaterial !== null) {
-                $barangCodeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
-                $stok = (float) (DB::table('tb_barang')
-                    ->where($barangCodeColumn, $kdMaterial)
-                    ->selectRaw($this->barangStockTotalExpression().' as stok')
-                    ->value('stok') ?? 0);
-            }
-
-            $sisaQtyPr = max(0, $qty - $stok);
+            $sisaQtyPr = $qty;
             $detailId = ((int) (DB::table('tb_detailpoin')->max('id') ?? 0)) + 1;
 
             DB::table('tb_detailpoin')->insert([
@@ -1431,16 +1413,7 @@ class PurchaseOrderInController
             $nowGmt8 = now('Asia/Singapore');
 
             $kdMaterial = $this->normalizeMaterialCode($validated['kd_material'] ?? null);
-            $stok = 0;
-            if ($kdMaterial !== null) {
-                $barangCodeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
-                $stok = (float) (DB::table('tb_barang')
-                    ->where($barangCodeColumn, $kdMaterial)
-                    ->selectRaw($this->barangStockTotalExpression().' as stok')
-                    ->value('stok') ?? 0);
-            }
-
-            $sisaQtyPr = max(0, $qty - $stok);
+            $sisaQtyPr = max(0, $sisaQtyPrBefore + ($qty - $originalQty));
 
             DB::table('tb_detailpoin')
                 ->where('kode_poin', $kodePoin)

@@ -9,6 +9,33 @@ use Inertia\Inertia;
 
 class PurchaseOrderController
 {
+    private function redistributePurchaseOrderQtyToPr(string $noPr, string $kdMaterial): void
+    {
+        $totalPoQty = (float) (DB::table('tb_detailpo')
+            ->whereRaw('lower(trim(ref_pr)) = ?', [strtolower(trim($noPr))])
+            ->whereRaw('lower(trim(kd_mat)) = ?', [strtolower(trim($kdMaterial))])
+            ->selectRaw('coalesce(sum(cast(qty as decimal(18,4))), 0) as total_qty')
+            ->value('total_qty') ?? 0);
+
+        $remaining = max(0, $totalPoQty);
+        $details = DB::table('tb_detailpr')
+            ->whereRaw('lower(trim(no_pr)) = ?', [strtolower(trim($noPr))])
+            ->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim($kdMaterial))])
+            ->orderByRaw('cast(no as unsigned)')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get(['id', 'qty']);
+
+        foreach ($details as $detail) {
+            $qty = max(0, (float) str_replace(',', '', (string) ($detail->qty ?? 0)));
+            $used = min($qty, $remaining);
+            DB::table('tb_detailpr')->where('id', $detail->id)->update([
+                'qty_po' => $used,
+                'sisa_pr' => max(0, $qty - $used),
+            ]);
+            $remaining -= $used;
+        }
+    }
     private const PO_CACHE_TAGS = ['po_data'];
     private const PO_PR_CACHE_TAGS = ['po_data', 'pr_data'];
     private const PO_VENDOR_CACHE_TAGS = ['po_data', 'vendor_data'];
@@ -150,16 +177,15 @@ class PurchaseOrderController
     {
         $noPr = $request->query('no_pr');
         $query = DB::table('tb_detailpr')
-            ->select(
-                'no_pr',
-                'kd_material',
-                'material',
-                'qty',
-                'sisa_pr',
-                'unit',
-                'renmark'
-            )
-            ->orderBy('no_pr');
+            ->select('no_pr', 'kd_material')
+            ->selectRaw('max(material) as material')
+            ->selectRaw('sum(coalesce(cast(qty as decimal(18,4)), 0)) as qty')
+            ->selectRaw('sum(coalesce(cast(sisa_pr as decimal(18,4)), 0)) as sisa_pr')
+            ->selectRaw('max(unit) as unit')
+            ->selectRaw('max(renmark) as renmark')
+            ->groupBy('no_pr', 'kd_material')
+            ->orderBy('no_pr')
+            ->orderBy('kd_material');
 
         if ($noPr) {
             $query->where('no_pr', $noPr);
@@ -327,7 +353,7 @@ class PurchaseOrderController
                         ->whereIn('kd_material', $kdMats)
                         ->lockForUpdate()
                         ->get()
-                        ->keyBy('kd_material');
+                        ->groupBy('kd_material');
 
                     $parseNumber = static function ($value): float {
                         if ($value === null || $value === '') {
@@ -344,30 +370,21 @@ class PurchaseOrderController
 
                         $kdMat = $item['kd_mat'] ?? null;
                         $qty = (float) ($item['qty'] ?? 0);
-                        $detailPr = $detailPrs->get($kdMat);
+                        $matchingPrDetails = $detailPrs->get($kdMat, collect());
 
-                        if (!$detailPr) {
+                        if ($matchingPrDetails->isEmpty()) {
                             throw new \RuntimeException("Detail PR tidak ditemukan untuk no_pr={$noPrHeader}, kd_material={$kdMat}");
                         }
 
-                        $prQty = $parseNumber($detailPr->qty ?? 0);
-                        $currentSisaPr = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? $prQty);
-                        $currentQtyPo = $parseNumber($detailPr->qty_po ?? 0);
+                        $currentSisaPr = $matchingPrDetails->sum(
+                            fn ($detail) => $parseNumber($detail->sisa_pr ?? $detail->qty ?? 0),
+                        );
 
                         if ($qty > $currentSisaPr) {
                             throw new \RuntimeException("Qty material {$kdMat} tidak boleh melebihi sisa qty PR ({$currentSisaPr}).");
                         }
 
                         $sisaPr = max(0, $currentSisaPr - $qty);
-                        $newQtyPo = $currentQtyPo + $qty;
-
-                        $detailPrUpdates[] = [
-                            'no_pr' => $noPrHeader,
-                            'kd_material' => $kdMat,
-                            'sisa_pr' => $sisaPr,
-                            'qty_po' => $newQtyPo,
-                        ];
-
                         $detailPoPayload[] = [
                             'id' => $maxId,
                             'no_po' => $noPo,
@@ -406,20 +423,12 @@ class PurchaseOrderController
                         ];
                     }
 
-                    // Group updates by KD Material for tb_detailpr
-                    foreach ($detailPrUpdates as $up) {
-                        DB::table('tb_detailpr')
-                            ->where('no_pr', $noPrHeader) // use the common no_pr for store
-                            ->where('kd_material', $up['kd_material'])
-                            ->update([
-                                'sisa_pr' => $up['sisa_pr'],
-                                'qty_po' => $up['qty_po'],
-                            ]);
-                    }
-
                     // Bulk insert tb_detailpo
                     if (!empty($detailPoPayload)) {
                         DB::table('tb_detailpo')->insert($detailPoPayload);
+                    }
+                    foreach ($kdMats as $kdMat) {
+                        $this->redistributePurchaseOrderQtyToPr($noPrHeader, $kdMat);
                     }
                 });
                 break;
@@ -728,6 +737,12 @@ class PurchaseOrderController
                             'qty_po' => $up['qty_po'],
                         ]);
                 }
+                foreach ($kdMatsForPr as $kdMatForPr) {
+                    $this->redistributePurchaseOrderQtyToPr(
+                        $noPrHeader,
+                        $kdMatForPr,
+                    );
+                }
 
                 // Batch tb_ubahpo inserts
                 if (!empty($ubahPoPayload)) {
@@ -823,6 +838,7 @@ class PurchaseOrderController
                                 'sisa_pr' => $newSisa,
                                 'qty_po' => $newQtyPo,
                             ]);
+                        $this->redistributePurchaseOrderQtyToPr($noPr, $kdMat);
                     }
                 }
 
@@ -935,6 +951,12 @@ class PurchaseOrderController
                     ->where('no_po', $noPo)
                     ->where('kd_mat', $kdMat)
                     ->delete();
+                foreach ($prKeys as $key) {
+                    $this->redistributePurchaseOrderQtyToPr(
+                        $key['no_pr'],
+                        $key['kd_material'],
+                    );
+                }
 
                 $totalBeforePpn = (float) DB::table('tb_detailpo')
                     ->where('no_po', $noPo)
@@ -1945,6 +1967,12 @@ class PurchaseOrderController
                 DB::table('tb_detailpo')
                     ->whereRaw('lower(trim(no_po)) = ?', [strtolower($noPo)])
                     ->delete();
+                foreach ($prKeys as $key) {
+                    $this->redistributePurchaseOrderQtyToPr(
+                        $key['no_pr'],
+                        $key['kd_material'],
+                    );
+                }
                 DB::table('tb_po')
                     ->whereRaw('lower(trim(no_po)) = ?', [strtolower($noPo)])
                     ->delete();

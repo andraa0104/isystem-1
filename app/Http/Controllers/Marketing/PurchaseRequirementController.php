@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Carbon\Carbon;
@@ -800,7 +801,60 @@ class PurchaseRequirementController
             })
             ->values();
 
-        return response()->json(['items' => $items]);
+        $selectedMaterialKeys = $items
+            ->filter(fn ($item) => (float) ($item['sisa_qtypr'] ?? 0) > 0)
+            ->pluck('kd_material')
+            ->map(fn ($value) => strtolower(trim((string) $value)))
+            ->filter()
+            ->sort()
+            ->values()
+            ->all();
+
+        $selectedHeader = DB::table('tb_poin')
+            ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower($kodePoin)])
+            ->first(['kode_poin', 'no_poin', 'customer_name']);
+
+        $matchingPoIns = collect();
+        if ($selectedHeader && !empty($selectedMaterialKeys)) {
+            $candidateHeaders = DB::table('tb_poin')
+                ->whereRaw('lower(trim(kode_poin)) <> ?', [strtolower($kodePoin)])
+                ->get(['kode_poin', 'no_poin', 'customer_name']);
+
+            foreach ($candidateHeaders as $candidate) {
+                $candidateItems = DB::table('tb_detailpoin')
+                    ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string) $candidate->kode_poin))])
+                    ->whereRaw('coalesce(cast(sisa_qtypr as decimal(18,4)), 0) > 0')
+                    ->orderBy('id')
+                    ->get(['id', 'kd_material', 'material', 'qty', 'sisa_qtypr', 'satuan', 'price_po_in']);
+                $candidateKeys = $candidateItems
+                    ->pluck('kd_material')
+                    ->map(fn ($value) => strtolower(trim((string) $value)))
+                    ->filter()->sort()->values()->all();
+
+                if ($candidateKeys === $selectedMaterialKeys) {
+                    $matchingPoIns->push([
+                        'kode_poin' => $candidate->kode_poin,
+                        'no_poin' => $candidate->no_poin,
+                        'customer_name' => $candidate->customer_name,
+                        'materials' => $candidateItems->map(fn ($detail) => [
+                            'id' => $detail->id,
+                            'kd_material' => $detail->kd_material,
+                            'material' => $detail->material,
+                            'qty' => (float) $detail->qty,
+                            'sisa_qtypr' => (float) $detail->sisa_qtypr,
+                            'satuan' => $detail->satuan,
+                            'harga_po_in' => (float) $detail->price_po_in,
+                        ])->values(),
+                    ]);
+                }
+            }
+        }
+
+        return response()->json([
+            'items' => $items,
+            'selected_po_in' => $selectedHeader,
+            'matching_po_ins' => $matchingPoIns->values(),
+        ]);
     }
 
     public function edit($noPr)
@@ -848,7 +902,7 @@ class PurchaseRequirementController
                 DB::raw('coalesce(dp.sisa_qtypr, 0) as sisa_qty_po'),
                 DB::raw('coalesce(cast(dp.qty as decimal(18,4)), 0) as qty_po_in')
             )
-            ->selectRaw('coalesce(po.qty_po_used, coalesce(d.qty_po, 0)) as qty_po')
+            ->selectRaw('greatest(coalesce(cast(d.qty as decimal(18,4)), 0) - coalesce(cast(d.sisa_pr as decimal(18,4)), 0), 0) as qty_po')
             ->get();
 
         $purchaseRequirementDetails->transform(function ($item) {
@@ -932,7 +986,11 @@ class PurchaseRequirementController
 
                     $detailIdsToUpdate = [];
                     foreach ($materials as $item) {
-                        if (isset($item['detail_id']) && is_numeric($item['detail_id']) && (float)($item['qty'] ?? 0) > 0) {
+                        if (
+                            isset($item['detail_id']) &&
+                            is_numeric($item['detail_id']) &&
+                            (float) ($item['poin_consumed_qty'] ?? $item['qty'] ?? 0) > 0
+                        ) {
                             $detailIdsToUpdate[] = (int) $item['detail_id'];
                         }
                     }
@@ -941,8 +999,9 @@ class PurchaseRequirementController
                     if (!empty($detailIdsToUpdate)) {
                         $detailPoinLookup = DB::table('tb_detailpoin')
                             ->whereIn('id', $detailIdsToUpdate)
-                            ->pluck('sisa_qtypr', 'id')
-                            ->all();
+                            ->lockForUpdate()
+                            ->get(['id', 'qty', 'sisa_qtypr'])
+                            ->keyBy('id');
                     }
 
                     $kodePoinList = [];
@@ -957,6 +1016,30 @@ class PurchaseRequirementController
                     $insertData = [];
                     foreach ($materials as $index => $item) {
                         $qtyValue = is_numeric($item['qty'] ?? null) ? (float) $item['qty'] : 0;
+                        $poinConsumedQty = is_numeric($item['poin_consumed_qty'] ?? null)
+                            ? max(0, (float) $item['poin_consumed_qty'])
+                            : $qtyValue;
+                        $detailIdForValidation = $item['detail_id'] ?? null;
+                        if (
+                            is_numeric($detailIdForValidation) &&
+                            $detailPoinLookup->has((int) $detailIdForValidation) &&
+                            $qtyValue > (float) $detailPoinLookup->get((int) $detailIdForValidation)->sisa_qtypr
+                        ) {
+                            throw new \RuntimeException(sprintf(
+                                'Qty PR material %s tidak boleh melebihi Sisa Qty PR.',
+                                (string) ($item['kd_material'] ?? '')
+                            ));
+                        }
+                        if (
+                            is_numeric($detailIdForValidation) &&
+                            $detailPoinLookup->has((int) $detailIdForValidation) &&
+                            $poinConsumedQty < (float) $detailPoinLookup->get((int) $detailIdForValidation)->sisa_qtypr
+                        ) {
+                            throw new \RuntimeException(sprintf(
+                                'PR Input material %s tidak boleh dikurangi karena Sisa Qty PR harus menjadi 0.',
+                                (string) ($item['kd_material'] ?? '')
+                            ));
+                        }
                         $stockParts = [
                             $item['stok_g1'] ?? null,
                             $item['stok_g2'] ?? null,
@@ -989,8 +1072,8 @@ class PurchaseRequirementController
                         $insertData[] = [
                             'date' => $request->input('date'),
                             'payment' => $request->input('payment'),
-                            'for_customer' => $request->input('for_customer'),
-                            'ref_po' => $request->input('ref_po'),
+                            'for_customer' => $item['for_customer'] ?? $request->input('for_customer'),
+                            'ref_po' => $item['ref_po'] ?? $request->input('ref_po'),
                             'no' => $item['no'] ?? ($index + 1),
                             'no_pr' => $noPr,
                             'kd_material' => $item['kd_material'] ?? null,
@@ -1007,7 +1090,7 @@ class PurchaseRequirementController
                             'sisa_pr' => $qtyValue,
                         ];
 
-                        if ($qtyValue > 0) {
+                        if ($poinConsumedQty > 0) {
                             $detailId = $item['detail_id'] ?? null;
                             if (is_numeric($detailId)) {
                                 DB::table('tb_detailpoin')
@@ -1015,7 +1098,7 @@ class PurchaseRequirementController
                                     ->update([
                                         'sisa_qtypr' => DB::raw(sprintf(
                                             'greatest(coalesce(cast(sisa_qtypr as decimal(18,4)), 0) - %.4F, 0)',
-                                            $qtyValue
+                                            $poinConsumedQty
                                         )),
                                     ]);
                             } elseif (!empty($kodePoinList)) {
@@ -1025,7 +1108,7 @@ class PurchaseRequirementController
                                     ->update([
                                         'sisa_qtypr' => DB::raw(sprintf(
                                             'greatest(coalesce(cast(sisa_qtypr as decimal(18,4)), 0) - %.4F, 0)',
-                                            $qtyValue
+                                            $poinConsumedQty
                                         )),
                                     ]);
                             }
@@ -1053,10 +1136,12 @@ class PurchaseRequirementController
         }
 
         if ($request->header('X-Inertia')) {
+            Cache::tags(['poin_data'])->flush();
             session()->flash('success', 'Data PR berhasil disimpan.');
             return inertia_location('/marketing/purchase-requirement');
         }
 
+        Cache::tags(['poin_data'])->flush();
         return redirect()
             ->route('marketing.purchase-requirement.index')
             ->with('success', 'Data PR berhasil disimpan.');
@@ -1097,16 +1182,6 @@ class PurchaseRequirementController
                     ->get();
                 $oldDetailsByNo = $oldDetails->keyBy(fn ($row) => (string) $row->no);
 
-                $qtyPoByMaterial = DB::table('tb_detailpo')
-                    ->whereRaw('lower(trim(ref_pr)) = ?', [strtolower(trim((string) $noPr))])
-                    ->select('kd_mat')
-                    ->selectRaw('sum(coalesce(cast(qty as decimal(18,4)), 0)) as qty_po_used')
-                    ->groupBy('kd_mat')
-                    ->get()
-                    ->mapWithKeys(fn ($row) => [
-                        strtolower(trim((string) $row->kd_mat)) => (float) $row->qty_po_used,
-                    ]);
-
                 foreach ($materials as $index => $item) {
                     $noValue = (string) ($item['no'] ?? ($index + 1));
                     $oldDetail = $oldDetailsByNo->get($noValue);
@@ -1118,7 +1193,10 @@ class PurchaseRequirementController
                     $oldQty = (float) ($oldDetail->qty ?? 0);
                     $stock = (float) ($item['stok'] ?? $oldDetail->stok ?? 0);
                     $kdMaterial = strtolower(trim((string) ($item['kd_material'] ?? $oldDetail->kd_material ?? '')));
-                    $qtyPoUsed = (float) ($qtyPoByMaterial->get($kdMaterial, (float) ($oldDetail->qty_po ?? 0)));
+                    $qtyPoUsed = max(
+                        0,
+                        $oldQty - (float) ($oldDetail->sisa_pr ?? 0),
+                    );
                     $qtyPoIn = (float) (DB::table('tb_detailpoin as dp')
                         ->join('tb_poin as p', 'p.kode_poin', '=', 'dp.kode_poin')
                         ->whereRaw('lower(trim(p.no_poin)) = ?', [strtolower(trim((string) ($item['ref_po'] ?? $oldDetail->ref_po ?? $request->input('ref_po'))))])
@@ -1182,27 +1260,28 @@ class PurchaseRequirementController
                 $insertUbah = [];
 
                 $newRefPo = $request->input('ref_po');
-                $kodePoinList = [];
-                if ($newRefPo) {
-                    $kodePoinList = DB::table('tb_poin')
-                        ->whereRaw('lower(trim(no_poin)) = ?', [strtolower(trim((string)$newRefPo))])
-                        ->pluck('kode_poin')
-                        ->map(fn($k) => strtolower(trim($k)))
-                        ->all();
-                }
 
                 foreach ($materials as $index => $item) {
+                    $itemRefPo = $item['ref_po'] ?? $newRefPo;
+                    $kodePoinList = $itemRefPo ? DB::table('tb_poin')
+                        ->whereRaw('lower(trim(no_poin)) = ?', [strtolower(trim((string) $itemRefPo))])
+                        ->pluck('kode_poin')
+                        ->map(fn ($value) => strtolower(trim((string) $value)))
+                        ->all() : [];
                     $noValue = $item['no'] ?? ($index + 1);
                     $qtyRaw = (float)($item['qty'] ?? 0);
                     $stok = (float)($item['stok'] ?? 0);
-                    $kdMaterialKey = strtolower(trim((string) ($item['kd_material'] ?? '')));
-                    $sisaPr = max(0, $qtyRaw - (float) $qtyPoByMaterial->get($kdMaterialKey, 0));
+                    $oldDetail = $oldDetailsByNo->get((string) $noValue);
+                    $initialRealizedQty = $oldDetail
+                        ? max(0, (float) $oldDetail->qty - (float) $oldDetail->sisa_pr)
+                        : 0;
+                    $sisaPr = max(0, $qtyRaw - $initialRealizedQty);
 
                     $insertDetails[] = [
                         'date' => $dateFormatted,
                         'payment' => $request->input('payment'),
-                        'for_customer' => $request->input('for_customer'),
-                        'ref_po' => $newRefPo,
+                        'for_customer' => $item['for_customer'] ?? $request->input('for_customer'),
+                        'ref_po' => $itemRefPo,
                         'no' => $noValue,
                         'no_pr' => $noPr,
                         'kd_material' => $item['kd_material'] ?? null,
@@ -1223,10 +1302,10 @@ class PurchaseRequirementController
                         'no_pr' => $noPr,
                         'date' => $dateFormatted,
                         'payment' => $request->input('payment'),
-                        'ref_po' => $newRefPo,
+                        'ref_po' => $itemRefPo,
                         'no' => $noValue,
                         'id' => $noValue,
-                        'for_customer' => $request->input('for_customer'),
+                        'for_customer' => $item['for_customer'] ?? $request->input('for_customer'),
                         'kd_material' => $item['kd_material'] ?? null,
                         'material' => $item['material'] ?? null,
                         'qty' => $qtyRaw,
@@ -1297,11 +1376,10 @@ class PurchaseRequirementController
         try {
             $oldQty = is_numeric($existingDetail->qty ?? null) ? (float) $existingDetail->qty : 0;
             $newQty = is_numeric($request->input('qty')) ? (float) $request->input('qty') : 0;
-            $qtyPoUsed = (float) (DB::table('tb_detailpo')
-                ->whereRaw('lower(trim(ref_pr)) = ?', [strtolower(trim((string) $noPr))])
-                ->whereRaw('lower(trim(kd_mat)) = ?', [strtolower(trim((string) ($request->input('kd_material') ?: $existingDetail->kd_material)))])
-                ->selectRaw('coalesce(sum(cast(qty as decimal(18,4))), 0) as total_qty')
-                ->value('total_qty') ?? 0);
+            $qtyPoUsed = max(
+                0,
+                $oldQty - (float) ($existingDetail->sisa_pr ?? 0),
+            );
             $kdMaterial = strtolower(trim((string) ($request->input('kd_material') ?: $existingDetail->kd_material)));
             $refPo = strtolower(trim((string) ($request->input('ref_po') ?: $existingDetail->ref_po)));
             $qtyPoIn = (float) (DB::table('tb_detailpoin as dp')
@@ -1430,7 +1508,7 @@ class PurchaseRequirementController
         $sisaPr = is_numeric($detail->sisa_pr ?? null) ? (float) $detail->sisa_pr : 0;
         $qty = is_numeric($detail->qty ?? null) ? (float) $detail->qty : 0;
 
-        if ($sisaPr === 0.0 || $sisaPr === $qty) {
+        if ($sisaPr === 0.0) {
             return back()->with('error', 'Material ini tidak memenuhi syarat update Sisa PR.');
         }
 
@@ -1665,11 +1743,22 @@ class PurchaseRequirementController
         }
 
         if ($request->header('X-Inertia')) {
+            Cache::tags(['poin_data'])->flush();
             session()->flash('success', 'Data PR berhasil dihapus.');
             return inertia_location('/marketing/purchase-requirement');
         }
-
+        Cache::tags(['poin_data'])->flush();
         return response()->json(['message' => 'Data PR berhasil dihapus.']);
+    }
+
+    public function clearPoInSisaQtyPr($id)
+    {
+        try {
+            DB::table('tb_detailpoin')->where('id', $id)->update(['sisa_qtypr' => 0]);
+            return response()->json(['success' => true, 'message' => 'PO In quantity cleared successfully.']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'Failed to clear quantity.', 'error' => $e->getMessage()], 500);
+        }
     }
 
     public function print(Request $request, $noPr)
