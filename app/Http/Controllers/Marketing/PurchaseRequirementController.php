@@ -1593,14 +1593,17 @@ class PurchaseRequirementController
         $detail = DB::table('tb_detailpr')
             ->where('no_pr', $noPr)
             ->where('no', $detailNo)
-            ->first(['qty', 'kd_material', 'ref_po']);
+            ->first(['qty', 'kd_material', 'ref_po', 'stok']);
 
         if (!$detail) {
             return back()->with('error', 'Detail PR tidak ditemukan.');
         }
 
         $qtyValue = is_numeric($detail->qty ?? null) ? (float) $detail->qty : 0;
-        if ($qtyValue > 0) {
+        $stokValue = is_numeric($detail->stok ?? null) ? (float) $detail->stok : 0;
+        $totalReturn = $qtyValue + $stokValue;
+
+        if ($totalReturn > 0) {
             $kdMaterial = strtolower(trim((string) ($detail->kd_material ?? '')));
             $refPo = strtolower(trim((string) ($detail->ref_po ?? '')));
 
@@ -1617,8 +1620,9 @@ class PurchaseRequirementController
                         ->where('id', $detailPo->id)
                         ->update([
                             'sisa_qtypr' => DB::raw(sprintf(
-                                'coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F',
-                                $qtyValue
+                                'case when coalesce(cast(qty as decimal(18,4)), 0) > 0 then least(cast(qty as decimal(18,4)), coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F) else coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F end',
+                                $totalReturn,
+                                $totalReturn
                             )),
                         ]);
                 }
@@ -1673,14 +1677,17 @@ class PurchaseRequirementController
                     $updatesByPo = [];
                     foreach ($details as $row) {
                         $qtyValue = is_numeric($row->qty ?? null) ? (float) $row->qty : 0;
+                        $stokValue = is_numeric($row->stok ?? null) ? (float) $row->stok : 0;
+                        $totalReturn = $qtyValue + $stokValue;
+
                         $kdMaterial = strtolower(trim((string) ($row->kd_material ?? '')));
                         $refPo = strtolower(trim((string) ($row->ref_po ?? '')));
 
-                        if ($qtyValue <= 0 || $kdMaterial === '' || $refPo === '') continue;
+                        if ($totalReturn <= 0 || $kdMaterial === '' || $refPo === '') continue;
                         
                         $updatesByPo[$refPo][] = [
                             'kd_material' => $kdMaterial,
-                            'qty' => $qtyValue
+                            'qty' => $totalReturn
                         ];
                     }
 
@@ -1699,7 +1706,8 @@ class PurchaseRequirementController
                                 ->whereIn(DB::raw('lower(trim(kode_poin))'), $kodePoinList)
                                 ->update([
                                     'sisa_qtypr' => DB::raw(sprintf(
-                                        'coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F',
+                                        'case when coalesce(cast(qty as decimal(18,4)), 0) > 0 then least(cast(qty as decimal(18,4)), coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F) else coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F end',
+                                        $up['qty'],
                                         $up['qty']
                                     )),
                                 ]);
