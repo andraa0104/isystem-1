@@ -1,4 +1,5 @@
 import { ActionIconButton } from '@/components/action-icon-button';
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -26,9 +27,10 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { confirmDelete } from '@/lib/confirm-delete';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -157,6 +159,18 @@ export default function MaterialIndex({ materials }) {
     const [viewingMaterial, setViewingMaterial] = useState(null);
     const [movementModal, setMovementModal] = useState(null);
     const [warehouseModal, setWarehouseModal] = useState(null);
+    const [isOutstandingModalOpen, setIsOutstandingModalOpen] = useState(false);
+    const [outstandingList, setOutstandingList] = useState([]);
+    const [outstandingLoading, setOutstandingLoading] = useState(false);
+    const [outstandingError, setOutstandingError] = useState('');
+    const [outstandingCount, setOutstandingCount] = useState(0);
+    const [outstandingTotal, setOutstandingTotal] = useState(0);
+    const [outstandingSummaryLoading, setOutstandingSummaryLoading] =
+        useState(true);
+    const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
+    const [outstandingPageSize, setOutstandingPageSize] = useState(5);
+    const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
+    const [isDeletingDo, setIsDeletingDo] = useState(false);
     const [movementSearchTerm, setMovementSearchTerm] = useState('');
     const [movementPageSize, setMovementPageSize] = useState(5);
     const [movementCurrentPage, setMovementCurrentPage] = useState(1);
@@ -323,7 +337,81 @@ export default function MaterialIndex({ materials }) {
     useEffect(() => {
         fetchAllMovementMetrics();
         fetchAllWarehouseSummaries();
+
+        fetch(
+            '/marketing/delivery-order/data?period=today&fetch_type=summary',
+            { headers: { Accept: 'application/json' } },
+        )
+            .then((response) => {
+                if (!response.ok) throw new Error('Request failed');
+                return response.json();
+            })
+            .then((summary) => {
+                setOutstandingCount(summary?.outstandingCount ?? 0);
+                setOutstandingTotal(summary?.outstandingTotal ?? 0);
+            })
+            .catch(() => {})
+            .finally(() => setOutstandingSummaryLoading(false));
     }, []);
+
+    const loadOutstanding = () => {
+        if (outstandingLoading || outstandingList.length > 0) return;
+        setOutstandingLoading(true);
+        setOutstandingError('');
+        fetch('/marketing/delivery-order/outstanding', {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) throw new Error('Request failed');
+                return response.json();
+            })
+            .then((result) => {
+                const list =
+                    result?.deliveryOrders?.data ?? result?.deliveryOrders;
+                setOutstandingList(Array.isArray(list) ? list : []);
+            })
+            .catch(() =>
+                setOutstandingError('Gagal memuat data DO outstanding.'),
+            )
+            .finally(() => setOutstandingLoading(false));
+    };
+
+    const handleDeleteDo = (item) => {
+        if (isDeletingDo) return;
+        setIsOutstandingModalOpen(false);
+        Swal.fire({
+            title: 'Hapus DO?',
+            text: `No DO: ${item.no_do}`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, hapus',
+            cancelButtonText: 'Batal',
+        }).then((result) => {
+            if (!result.isConfirmed) return;
+            setIsDeletingDo(true);
+            router.delete(
+                `/marketing/delivery-order/${encodeURIComponent(item.no_do)}`,
+                {
+                    preserveScroll: true,
+                    preserveState: true,
+                    onSuccess: () => {
+                        setOutstandingList((current) =>
+                            current.filter((row) => row.no_do !== item.no_do),
+                        );
+                        setOutstandingCount((value) => Math.max(0, value - 1));
+                        setOutstandingTotal((value) =>
+                            Math.max(
+                                0,
+                                value - (Number(item.total ?? item.Total) || 0),
+                            ),
+                        );
+                        setIsDeletingDo(false);
+                    },
+                    onError: () => setIsDeletingDo(false),
+                },
+            );
+        });
+    };
 
     // --- Debounce Input Pencarian (Optimasi Filter Tabel) ---
     useEffect(() => {
@@ -381,6 +469,54 @@ export default function MaterialIndex({ materials }) {
         const startIndex = (currentPage - 1) * pageSize;
         return filteredMaterials.slice(startIndex, startIndex + pageSize);
     }, [filteredMaterials, currentPage, pageSize]);
+
+    const outstandingDeliveryOrders = useMemo(() => {
+        const term = outstandingSearchTerm.trim().toLowerCase();
+        return outstandingList
+            .filter((item) =>
+                !term
+                    ? true
+                    : [item.no_do, item.ref_po, item.nm_cs].some((value) =>
+                          String(value ?? '')
+                              .toLowerCase()
+                              .includes(term),
+                      ),
+            )
+            .sort((a, b) => {
+                const dateCompare = String(b.date ?? '').localeCompare(
+                    String(a.date ?? ''),
+                );
+                return dateCompare !== 0
+                    ? dateCompare
+                    : String(b.no_do ?? '').localeCompare(
+                          String(a.no_do ?? ''),
+                      );
+            });
+    }, [outstandingList, outstandingSearchTerm]);
+
+    const outstandingTotalItems = outstandingDeliveryOrders.length;
+    const outstandingTotalPages = useMemo(
+        () =>
+            outstandingPageSize === Infinity
+                ? 1
+                : Math.max(
+                      1,
+                      Math.ceil(outstandingTotalItems / outstandingPageSize),
+                  ),
+        [outstandingPageSize, outstandingTotalItems],
+    );
+    const displayedOutstandingDeliveryOrders = useMemo(() => {
+        if (outstandingPageSize === Infinity) return outstandingDeliveryOrders;
+        const start = (outstandingCurrentPage - 1) * outstandingPageSize;
+        return outstandingDeliveryOrders.slice(
+            start,
+            start + outstandingPageSize,
+        );
+    }, [
+        outstandingCurrentPage,
+        outstandingDeliveryOrders,
+        outstandingPageSize,
+    ]);
 
     const movementData = useMemo(() => {
         const base = movementCategories.reduce((acc, category) => {
@@ -466,28 +602,28 @@ export default function MaterialIndex({ materials }) {
             selectedMovement?.rows ??
             (selectedWarehouse
                 ? materialsList.flatMap((material) =>
-                    materialMovementRows(material)
-                        .filter(
-                            (row) =>
-                                row.gudang.toLowerCase() ===
-                                selectedWarehouse.value,
-                        )
-                        .filter((row) => {
-                            const kategori = String(row.kategori ?? '')
-                                .trim()
-                                .toLowerCase();
-                            return kategori !== '' && kategori !== '0';
-                        }),
-                )
+                      materialMovementRows(material)
+                          .filter(
+                              (row) =>
+                                  row.gudang.toLowerCase() ===
+                                  selectedWarehouse.value,
+                          )
+                          .filter((row) => {
+                              const kategori = String(row.kategori ?? '')
+                                  .trim()
+                                  .toLowerCase();
+                              return kategori !== '' && kategori !== '0';
+                          }),
+                  )
                 : []);
         const filteredRows = term
             ? rows.filter((row) =>
-                [row.kd_material, row.material, row.kategori].some((value) =>
-                    String(value ?? '')
-                        .toLowerCase()
-                        .includes(term),
-                ),
-            )
+                  [row.kd_material, row.material, row.kategori].some((value) =>
+                      String(value ?? '')
+                          .toLowerCase()
+                          .includes(term),
+                  ),
+              )
             : rows;
 
         return [...filteredRows].sort((a, b) =>
@@ -521,6 +657,16 @@ export default function MaterialIndex({ materials }) {
             setMovementCurrentPage(movementTotalPages);
         }
     }, [movementCurrentPage, movementTotalPages]);
+
+    useEffect(() => {
+        setOutstandingCurrentPage(1);
+    }, [outstandingPageSize, outstandingSearchTerm]);
+
+    useEffect(() => {
+        if (outstandingCurrentPage > outstandingTotalPages) {
+            setOutstandingCurrentPage(outstandingTotalPages);
+        }
+    }, [outstandingCurrentPage, outstandingTotalPages]);
 
     // --- Handlers ---
     const handleSubmit = (event) => {
@@ -619,7 +765,42 @@ export default function MaterialIndex({ materials }) {
                     </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-4">
+                    <button
+                        type="button"
+                        className="text-left"
+                        onClick={() => {
+                            setIsOutstandingModalOpen(true);
+                            loadOutstanding();
+                        }}
+                    >
+                        <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
+                            <CardHeader className="pb-2">
+                                <CardDescription>
+                                    DO Outstanding
+                                </CardDescription>
+                                <CardTitle className="text-2xl">
+                                    {outstandingSummaryLoading ? (
+                                        <Skeleton className="h-8 w-16" />
+                                    ) : (
+                                        outstandingCount
+                                    )}
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <p className="text-xs text-muted-foreground">
+                                    Grand total outstanding
+                                </p>
+                                <div className="mt-1 text-sm font-semibold">
+                                    {outstandingSummaryLoading ? (
+                                        <Skeleton className="h-5 w-24" />
+                                    ) : (
+                                        `Rp ${formatNumber(outstandingTotal)}`
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </button>
                     {movementCategories.map((category) => {
                         const item = movementMetrics[category.key];
                         const loading = movementMetricLoading[category.key];
@@ -814,9 +995,7 @@ export default function MaterialIndex({ materials }) {
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between gap-3">
-                                                        <span>
-                                                            Jumlah item
-                                                        </span>
+                                                        <span>Jumlah item</span>
                                                         <span className="font-semibold text-foreground tabular-nums">
                                                             {formatNumber(
                                                                 category.items,
@@ -824,9 +1003,7 @@ export default function MaterialIndex({ materials }) {
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between gap-3">
-                                                        <span>
-                                                            Total harga
-                                                        </span>
+                                                        <span>Total harga</span>
                                                         <span className="font-semibold text-foreground tabular-nums">
                                                             Rp{' '}
                                                             {formatNumber(
@@ -1015,12 +1192,12 @@ export default function MaterialIndex({ materials }) {
                                                     >
                                                         <td className="w-1 px-2 py-2 whitespace-nowrap">
                                                             {(pageSize ===
-                                                                Infinity
+                                                            Infinity
                                                                 ? index
                                                                 : (currentPage -
-                                                                    1) *
-                                                                pageSize +
-                                                                index) + 1}
+                                                                      1) *
+                                                                      pageSize +
+                                                                  index) + 1}
                                                         </td>
                                                         <td className="w-1 px-2 py-2 font-medium whitespace-nowrap">
                                                             {renderValue(
@@ -1074,17 +1251,17 @@ export default function MaterialIndex({ materials }) {
                                                                 {toNumber(
                                                                     item.stok,
                                                                 ) === 0 && (
-                                                                        <ActionIconButton
-                                                                            label="Hapus"
-                                                                            onClick={() =>
-                                                                                handleDelete(
-                                                                                    item,
-                                                                                )
-                                                                            }
-                                                                        >
-                                                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                                                        </ActionIconButton>
-                                                                    )}
+                                                                    <ActionIconButton
+                                                                        label="Hapus"
+                                                                        onClick={() =>
+                                                                            handleDelete(
+                                                                                item,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                                    </ActionIconButton>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1145,6 +1322,215 @@ export default function MaterialIndex({ materials }) {
                     </CardContent>
                 </Card>
             </div>
+
+            <Dialog
+                open={isOutstandingModalOpen}
+                onOpenChange={(open) => {
+                    setIsOutstandingModalOpen(open);
+                    if (open) {
+                        loadOutstanding();
+                    } else {
+                        setOutstandingSearchTerm('');
+                        setOutstandingPageSize(5);
+                        setOutstandingCurrentPage(1);
+                    }
+                }}
+            >
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
+                    <DialogHeader>
+                        <DialogTitle>DO Outstanding</DialogTitle>
+                        <DialogDescription>
+                            Pilih Delivery Order yang masih outstanding.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                        <label>
+                            Tampilkan
+                            <select
+                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                value={
+                                    outstandingPageSize === Infinity
+                                        ? 'all'
+                                        : outstandingPageSize
+                                }
+                                onChange={(event) => {
+                                    setOutstandingPageSize(
+                                        event.target.value === 'all'
+                                            ? Infinity
+                                            : Number(event.target.value),
+                                    );
+                                }}
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value="all">Semua</option>
+                            </select>
+                        </label>
+                        <label>
+                            Cari
+                            <input
+                                type="search"
+                                className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                placeholder="Cari nomor DO, ref PO, customer..."
+                                value={outstandingSearchTerm}
+                                onChange={(event) =>
+                                    setOutstandingSearchTerm(event.target.value)
+                                }
+                            />
+                        </label>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                        <table className="w-full text-sm">
+                            <thead className="bg-muted/50 text-muted-foreground">
+                                <tr>
+                                    <th className="px-4 py-3 text-left">
+                                        No DO
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Date
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Ref PO
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Customer
+                                    </th>
+                                    <th className="px-4 py-3 text-left">
+                                        Action
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <PlainTableStateRows
+                                    loading={outstandingLoading}
+                                    columns={5}
+                                    rows={5}
+                                    isEmpty={
+                                        !outstandingLoading &&
+                                        displayedOutstandingDeliveryOrders.length ===
+                                            0
+                                    }
+                                    emptyMessage={
+                                        outstandingError ||
+                                        'Tidak ada DO outstanding.'
+                                    }
+                                />
+                                {displayedOutstandingDeliveryOrders.map(
+                                    (item) => (
+                                        <tr
+                                            key={`outstanding-${item.no_do}`}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {item.no_do}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.date}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {item.ref_po}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.nm_cs)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    <Link
+                                                        href={`/marketing/delivery-order/${encodeURIComponent(item.no_do)}/edit`}
+                                                        className="text-muted-foreground transition hover:text-foreground"
+                                                        aria-label="Edit"
+                                                        title="Edit"
+                                                        onClick={() =>
+                                                            setIsOutstandingModalOpen(
+                                                                false,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Pencil className="size-4" />
+                                                    </Link>
+                                                    <button
+                                                        type="button"
+                                                        className="text-destructive transition hover:text-red-600"
+                                                        aria-label="Hapus"
+                                                        title="Hapus"
+                                                        onClick={() =>
+                                                            handleDeleteDo(item)
+                                                        }
+                                                    >
+                                                        <Trash2 className="size-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ),
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {outstandingPageSize !== Infinity &&
+                        outstandingTotalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (outstandingCurrentPage - 1) *
+                                            outstandingPageSize +
+                                            1,
+                                        outstandingTotalItems,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        outstandingCurrentPage *
+                                            outstandingPageSize,
+                                        outstandingTotalItems,
+                                    )}{' '}
+                                    dari {outstandingTotalItems} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setOutstandingCurrentPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
+                                        }
+                                        disabled={outstandingCurrentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span>
+                                        Halaman {outstandingCurrentPage} dari{' '}
+                                        {outstandingTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setOutstandingCurrentPage((page) =>
+                                                Math.min(
+                                                    outstandingTotalPages,
+                                                    page + 1,
+                                                ),
+                                            )
+                                        }
+                                        disabled={
+                                            outstandingCurrentPage ===
+                                            outstandingTotalPages
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                </DialogContent>
+            </Dialog>
 
             <Dialog
                 open={Boolean(viewingMaterial)}
@@ -1378,7 +1764,7 @@ export default function MaterialIndex({ materials }) {
                                                     colSpan={
                                                         3 +
                                                         movementWarehouses.length *
-                                                        2
+                                                            2
                                                     }
                                                 >
                                                     Data material tidak
@@ -1426,14 +1812,14 @@ export default function MaterialIndex({ materials }) {
                                                                         .stocks?.[
                                                                         gudang
                                                                     ] ===
-                                                                        undefined
+                                                                    undefined
                                                                         ? '-'
                                                                         : formatNumber(
-                                                                            row
-                                                                                .stocks[
-                                                                            gudang
-                                                                            ],
-                                                                        )}
+                                                                              row
+                                                                                  .stocks[
+                                                                                  gudang
+                                                                              ],
+                                                                          )}
                                                                 </td>,
                                                                 <td
                                                                     key={`${gudang}-harga`}
@@ -1443,14 +1829,14 @@ export default function MaterialIndex({ materials }) {
                                                                         .prices?.[
                                                                         gudang
                                                                     ] ===
-                                                                        undefined
+                                                                    undefined
                                                                         ? '-'
                                                                         : `Rp ${formatNumber(
-                                                                            row
-                                                                                .prices[
-                                                                            gudang
-                                                                            ],
-                                                                        )}`}
+                                                                              row
+                                                                                  .prices[
+                                                                                  gudang
+                                                                              ],
+                                                                          )}`}
                                                                 </td>,
                                                             ],
                                                         )}
@@ -1469,8 +1855,8 @@ export default function MaterialIndex({ materials }) {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (movementCurrentPage - 1) *
-                                        movementPageSize +
-                                        1,
+                                            movementPageSize +
+                                            1,
                                         movementTotalItems,
                                     )}
                                     -
@@ -1729,8 +2115,8 @@ export default function MaterialIndex({ materials }) {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (movementCurrentPage - 1) *
-                                        movementPageSize +
-                                        1,
+                                            movementPageSize +
+                                            1,
                                         movementTotalItems,
                                     )}
                                     -

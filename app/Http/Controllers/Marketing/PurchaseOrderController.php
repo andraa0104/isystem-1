@@ -9,18 +9,30 @@ use Inertia\Inertia;
 
 class PurchaseOrderController
 {
-    private function redistributePurchaseOrderQtyToPr(string $noPr, string $kdMaterial): void
+    private function redistributePurchaseOrderQtyToPr(string $noPr, string $kdMaterial, ?string $customer = null, ?string $refPoin = null): void
     {
-        $totalPoQty = (float) (DB::table('tb_detailpo')
+        $poQuery = DB::table('tb_detailpo')
             ->whereRaw('lower(trim(ref_pr)) = ?', [strtolower(trim($noPr))])
-            ->whereRaw('lower(trim(kd_mat)) = ?', [strtolower(trim($kdMaterial))])
+            ->whereRaw('lower(trim(kd_mat)) = ?', [strtolower(trim($kdMaterial))]);
+        $prQuery = DB::table('tb_detailpr')
+            ->whereRaw('lower(trim(no_pr)) = ?', [strtolower(trim($noPr))])
+            ->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim($kdMaterial))]);
+
+        if ($customer !== null) {
+            $poQuery->whereRaw('lower(trim(for_cus)) = ?', [strtolower(trim($customer))]);
+            $prQuery->whereRaw('lower(trim(for_customer)) = ?', [strtolower(trim($customer))]);
+        }
+        if ($refPoin !== null) {
+            $poQuery->whereRaw('lower(trim(ref_poin)) = ?', [strtolower(trim($refPoin))]);
+            $prQuery->whereRaw('lower(trim(ref_po)) = ?', [strtolower(trim($refPoin))]);
+        }
+
+        $totalPoQty = (float) ($poQuery
             ->selectRaw('coalesce(sum(cast(qty as decimal(18,4))), 0) as total_qty')
             ->value('total_qty') ?? 0);
 
         $remaining = max(0, $totalPoQty);
-        $details = DB::table('tb_detailpr')
-            ->whereRaw('lower(trim(no_pr)) = ?', [strtolower(trim($noPr))])
-            ->whereRaw('lower(trim(kd_material)) = ?', [strtolower(trim($kdMaterial))])
+        $details = $prQuery
             ->orderByRaw('cast(no as unsigned)')
             ->orderBy('id')
             ->lockForUpdate()
@@ -138,17 +150,23 @@ class PurchaseOrderController
             )
             ->groupBy(DB::raw('lower(trim(nm_cs))'));
 
+        $customerExpr = "coalesce(nullif(trim(dpr.for_customer), ''), nullif(trim(poin.customer_name), ''), trim(pr.for_customer))";
+        $refPoExpr = "coalesce(nullif(trim(poin.no_poin), ''), nullif(trim(dpr.ref_po), ''), trim(pr.ref_po))";
+
         $purchaseRequirements = DB::table('tb_detailpr as dpr')
             ->join('tb_pr as pr', 'pr.no_pr', '=', 'dpr.no_pr')
-            ->leftJoinSub($overdueCustomers, 'overdue', function ($join) {
-                $join->on(DB::raw('lower(trim(pr.for_customer))'), '=', 'overdue.customer_key');
+            ->leftJoin('tb_poin as poin', function ($join) {
+                $join->on(DB::raw('lower(trim(poin.no_poin))'), '=', DB::raw('lower(trim(dpr.ref_po))'));
+            })
+            ->leftJoinSub($overdueCustomers, 'overdue', function ($join) use ($customerExpr) {
+                $join->on(DB::raw("lower({$customerExpr})"), '=', 'overdue.customer_key');
             })
             ->whereRaw("coalesce(cast(replace(dpr.sisa_pr, ',', '') as decimal(65,4)), 0) > 0")
             ->select(
                 'pr.no_pr',
                 'pr.date',
-                'pr.for_customer',
-                'pr.ref_po',
+                DB::raw("{$customerExpr} as for_customer"),
+                DB::raw("{$refPoExpr} as ref_po"),
                 DB::raw('coalesce(overdue.oldest_overdue_days, 0) as oldest_overdue_days'),
                 DB::raw('case when coalesce(overdue.oldest_overdue_days, 0) > 90 then 1 else 0 end as has_overdue_gt_90')
             )
@@ -168,6 +186,27 @@ class PurchaseOrderController
             return $item;
         });
 
+        $purchaseRequirements = $purchaseRequirements
+            ->groupBy('no_pr')
+            ->map(function ($rows) {
+                $first = $rows->first();
+                $customers = $rows->map(fn ($row) => [
+                    'for_customer' => $row->for_customer,
+                    'ref_po' => $row->ref_po,
+                    'oldest_overdue_days' => $row->oldest_overdue_days,
+                    'has_overdue_gt_90' => $row->has_overdue_gt_90,
+                ])->values();
+
+                return [
+                    'no_pr' => $first->no_pr,
+                    'date' => $first->date,
+                    'customers' => $customers,
+                    'has_overdue_gt_90' => $customers->contains('has_overdue_gt_90', true),
+                    'all_customers_blocked' => $customers->every('has_overdue_gt_90', true),
+                ];
+            })
+            ->values();
+
         return response()->json([
             'purchaseRequirements' => $purchaseRequirements,
         ]);
@@ -176,19 +215,34 @@ class PurchaseOrderController
     public function purchaseRequirementDetails(Request $request)
     {
         $noPr = $request->query('no_pr');
+        $selections = json_decode((string) $request->query('selections', '[]'), true);
+        $selections = is_array($selections) ? $selections : [];
         $query = DB::table('tb_detailpr')
-            ->select('no_pr', 'kd_material')
+            ->select('no_pr', 'kd_material', 'for_customer', 'ref_po')
             ->selectRaw('max(material) as material')
             ->selectRaw('sum(coalesce(cast(qty as decimal(18,4)), 0)) as qty')
             ->selectRaw('sum(coalesce(cast(sisa_pr as decimal(18,4)), 0)) as sisa_pr')
             ->selectRaw('max(unit) as unit')
             ->selectRaw('max(renmark) as renmark')
-            ->groupBy('no_pr', 'kd_material')
+            ->groupBy('no_pr', 'kd_material', 'for_customer', 'ref_po')
             ->orderBy('no_pr')
             ->orderBy('kd_material');
 
         if ($noPr) {
             $query->where('no_pr', $noPr);
+        }
+        if (!empty($selections)) {
+            $query->where(function ($selectionQuery) use ($selections) {
+                foreach ($selections as $selection) {
+                    $customer = strtolower(trim((string) ($selection['for_customer'] ?? '')));
+                    $refPo = strtolower(trim((string) ($selection['ref_po'] ?? '')));
+                    $selectionQuery->orWhere(function ($pairQuery) use ($customer, $refPo) {
+                        $pairQuery
+                            ->whereRaw('lower(trim(for_customer)) = ?', [$customer])
+                            ->whereRaw('lower(trim(ref_po)) = ?', [$refPo]);
+                    });
+                }
+            });
         }
 
         $items = $query->get();
@@ -259,6 +313,22 @@ class PurchaseOrderController
 
     public function store(Request $request)
     {
+        $dueDateExpr = "coalesce(date(jth_tempo), str_to_date(jth_tempo, '%Y-%m-%d'), str_to_date(jth_tempo, '%Y/%m/%d'), str_to_date(jth_tempo, '%d/%m/%Y'), str_to_date(jth_tempo, '%d-%m-%Y'), str_to_date(jth_tempo, '%d.%m.%Y'))";
+        foreach (collect($request->input('materials', []))->unique('for_customer') as $material) {
+            $customer = trim((string) ($material['for_customer'] ?? ''));
+            $refPoin = trim((string) ($material['ref_poin'] ?? ''));
+            $oldestOverdueDays = (int) (DB::table('tb_kdfakturpenjualan')
+                ->whereRaw('lower(trim(nm_cs)) = ?', [strtolower($customer)])
+                ->whereRaw('coalesce(cast(saldo_piutang as decimal(18,4)), 0) > 0')
+                ->whereRaw("{$dueDateExpr} < ?", [\Carbon\Carbon::today()->toDateString()])
+                ->selectRaw("max(datediff(?, {$dueDateExpr})) as oldest_overdue_days", [\Carbon\Carbon::today()->toDateString()])
+                ->value('oldest_overdue_days') ?? 0);
+
+            if ($oldestOverdueDays > 90) {
+                return back()->with('error', "Customer {$customer} dengan ref PO {$refPoin} tidak bisa dibuat PO keluar karena memiliki tunggakan lebih dari 90 hari.");
+            }
+        }
+
         $database = $request->session()->get('tenant.database')
             ?? $request->cookie('tenant_database');
         $allowed = config('tenants.databases', []);
@@ -370,7 +440,13 @@ class PurchaseOrderController
 
                         $kdMat = $item['kd_mat'] ?? null;
                         $qty = (float) ($item['qty'] ?? 0);
-                        $matchingPrDetails = $detailPrs->get($kdMat, collect());
+                        $itemCustomer = trim((string) ($item['for_customer'] ?? ''));
+                        $itemRefPoin = trim((string) ($item['ref_poin'] ?? ''));
+                        $matchingPrDetails = $detailPrs->get($kdMat, collect())
+                            ->filter(fn ($detail) =>
+                                strtolower(trim((string) $detail->for_customer)) === strtolower($itemCustomer)
+                                && strtolower(trim((string) $detail->ref_po)) === strtolower($itemRefPoin)
+                            );
 
                         if ($matchingPrDetails->isEmpty()) {
                             throw new \RuntimeException("Detail PR tidak ditemukan untuk no_pr={$noPrHeader}, kd_material={$kdMat}");
@@ -391,8 +467,8 @@ class PurchaseOrderController
                             'tgl' => $dateFormatted,
                             'ref_pr' => $noPrHeader,
                             'ref_quota' => $request->input('ref_quota'),
-                            'for_cus' => $request->input('for_cus'),
-                            'ref_poin' => $request->input('ref_poin'),
+                            'for_cus' => $itemCustomer,
+                            'ref_poin' => $itemRefPoin,
                             'kd_vdr' => $request->input('kd_vdr'),
                             'nm_vdr' => $request->input('nm_vdr'),
                             'payment_terms' => $request->input('payment_terms'),
@@ -427,8 +503,18 @@ class PurchaseOrderController
                     if (!empty($detailPoPayload)) {
                         DB::table('tb_detailpo')->insert($detailPoPayload);
                     }
-                    foreach ($kdMats as $kdMat) {
-                        $this->redistributePurchaseOrderQtyToPr($noPrHeader, $kdMat);
+                    $redistributionScopes = collect($materials)->unique(fn ($item) => implode('|', [
+                        $item['kd_mat'] ?? '',
+                        $item['for_customer'] ?? '',
+                        $item['ref_poin'] ?? '',
+                    ]));
+                    foreach ($redistributionScopes as $scope) {
+                        $this->redistributePurchaseOrderQtyToPr(
+                            $noPrHeader,
+                            (string) ($scope['kd_mat'] ?? ''),
+                            (string) ($scope['for_customer'] ?? ''),
+                            (string) ($scope['ref_poin'] ?? ''),
+                        );
                     }
                 });
                 break;
@@ -642,6 +728,14 @@ class PurchaseOrderController
                     $oldQty = $parseNumber($existingDetail->qty ?? 0);
                     $newQty = $parseNumber($qtyValue);
                     $qtyDelta = $newQty - $oldQty;
+                    $newGrMat = max(
+                        0,
+                        $parseNumber($existingDetail->gr_mat ?? 0) + $qtyDelta,
+                    );
+                    $newDetailSisaPr = max(
+                        0,
+                        $parseNumber($existingDetail->sisa_pr ?? 0) - $qtyDelta,
+                    );
 
                     // Update tb_detailpo
                     DB::table('tb_detailpo')
@@ -649,6 +743,9 @@ class PurchaseOrderController
                         ->update([
                             'tgl' => $dateFormatted,
                             'qty' => $qtyValue,
+                            'qty_po' => $newQty,
+                            'gr_mat' => $newGrMat,
+                            'sisa_pr' => $newDetailSisaPr,
                             'price' => $priceValue,
                             'total_price' => $totalPriceValue,
                             'gr_price' => $totalPriceValue,
@@ -800,12 +897,23 @@ class PurchaseOrderController
                 $oldQty = $parseNumber($detailRow->qty ?? 0);
                 $newQty = $parseNumber($request->input('qty', 0));
                 $qtyDelta = $newQty - $oldQty;
+                $newGrMat = max(
+                    0,
+                    $parseNumber($detailRow->gr_mat ?? 0) + $qtyDelta,
+                );
+                $newDetailSisaPr = max(
+                    0,
+                    $parseNumber($detailRow->sisa_pr ?? 0) - $qtyDelta,
+                );
 
                 DB::table('tb_detailpo')
                     ->where('no_po', $noPo)
                     ->where('id', $detailId)
                     ->update([
                         'qty' => $request->input('qty', 0),
+                        'qty_po' => $newQty,
+                        'gr_mat' => $newGrMat,
+                        'sisa_pr' => $newDetailSisaPr,
                         'price' => $request->input('price', 0),
                         'total_price' => $request->input('total_price', 0),
                         'gr_price' => $request->input('total_price', 0),

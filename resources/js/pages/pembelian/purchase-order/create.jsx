@@ -48,6 +48,11 @@ const hasOverdueMoreThan90Days = (item) =>
     Boolean(item?.has_overdue_gt_90) ||
     parseNumber(item?.oldest_overdue_days) > 90;
 
+const getPrCustomers = (item) =>
+    Array.isArray(item?.customers) && item.customers.length > 0
+        ? item.customers
+        : [item];
+
 const formatRupiah = (value) => {
     const number = Number(value);
     if (Number.isNaN(number)) {
@@ -68,6 +73,7 @@ export default function PurchaseOrderCreate({
 }) {
     const [step, setStep] = useState(1);
     const [isPrModalOpen, setIsPrModalOpen] = useState(false);
+    const [blockedPr, setBlockedPr] = useState(null);
     const [isVendorModalOpen, setIsVendorModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [prList, setPrList] = useState(purchaseRequirements);
@@ -96,6 +102,7 @@ export default function PurchaseOrderCreate({
         forCustomer: '',
         refPoMasuk: '',
         refQuota: '',
+        selectedCustomers: [],
         kodeVendor: '',
         namaVendor: '',
         attended: '',
@@ -117,6 +124,8 @@ export default function PurchaseOrderCreate({
         satuan: '',
         basePrice: '',
         remark: '',
+        forCustomer: '',
+        refPo: '',
     });
 
     const [includePpn, setIncludePpn] = useState(false);
@@ -128,7 +137,13 @@ export default function PurchaseOrderCreate({
 
         if (term) {
             items = prList.filter((item) => {
-                const values = [item.no_pr, item.ref_po, item.for_customer];
+                const values = [
+                    item.no_pr,
+                    ...getPrCustomers(item).flatMap((customer) => [
+                        customer.ref_po,
+                        customer.for_customer,
+                    ]),
+                ];
                 return values.some((value) =>
                     String(value ?? '')
                         .toLowerCase()
@@ -217,15 +232,37 @@ export default function PurchaseOrderCreate({
         !isQtyExceedsSisa &&
         basePriceValue > 0;
 
-    const handlePrSelect = (item) => {
+    const applyPrSelection = (item) => {
+        const eligibleCustomers = getPrCustomers(item).filter(
+            (customer) => !hasOverdueMoreThan90Days(customer),
+        );
+
+        if (eligibleCustomers.length === 0) return;
+
         setFormData((prev) => ({
             ...prev,
             refPr: item.no_pr ?? '',
-            forCustomer: item.for_customer ?? '',
-            refPoMasuk: item.ref_po ?? '',
+            forCustomer: eligibleCustomers
+                .map((customer) => customer.for_customer)
+                .join(', '),
+            refPoMasuk: eligibleCustomers
+                .map((customer) => customer.ref_po)
+                .join(', '),
             refQuota: item.ref_quota ?? '',
+            selectedCustomers: eligibleCustomers,
         }));
         setIsPrModalOpen(false);
+    };
+
+    const handlePrSelect = (item) => {
+        const blockedCustomers = getPrCustomers(item).filter(
+            hasOverdueMoreThan90Days,
+        );
+        if (blockedCustomers.length > 0) {
+            setBlockedPr(item);
+            return;
+        }
+        applyPrSelection(item);
     };
 
     const handleVendorSelect = async (item) => {
@@ -331,7 +368,7 @@ export default function PurchaseOrderCreate({
         }
     };
 
-    const loadPrDetails = async (noPr) => {
+    const loadPrDetails = async (noPr, selections) => {
         if (!noPr) {
             return;
         }
@@ -339,7 +376,10 @@ export default function PurchaseOrderCreate({
         setPrDetailError(null);
         try {
             const response = await fetch(
-                `/pembelian/purchase-order/pr-details?no_pr=${encodeURIComponent(noPr)}`,
+                `/pembelian/purchase-order/pr-details?${new URLSearchParams({
+                    no_pr: noPr,
+                    selections: JSON.stringify(selections ?? []),
+                }).toString()}`,
                 { headers: { Accept: 'application/json' } },
             );
             if (!response.ok) {
@@ -408,6 +448,8 @@ export default function PurchaseOrderCreate({
                     : String(Math.trunc(parseNumber(sisaQty))),
             satuan: item.unit ?? '',
             remark: item.renmark ?? item.remark ?? '',
+            forCustomer: item.for_customer ?? '',
+            refPo: item.ref_po ?? '',
         }));
     };
 
@@ -426,6 +468,8 @@ export default function PurchaseOrderCreate({
             ppn: ppnValue,
             totalPrice: totalPriceValue,
             remark: materialForm.remark,
+            forCustomer: materialForm.forCustomer,
+            refPo: materialForm.refPo,
         };
 
         // Buat array baru berisi data lama + data yang baru ditambahkan
@@ -440,6 +484,8 @@ export default function PurchaseOrderCreate({
             satuan: '',
             basePrice: '',
             remark: '',
+            forCustomer: '',
+            refPo: '',
         });
         setIncludePpn(false);
 
@@ -544,6 +590,8 @@ export default function PurchaseOrderCreate({
                     price: item.price,
                     total_price: item.totalPrice,
                     ppn: item.ppn,
+                    for_customer: item.forCustomer,
+                    ref_poin: item.refPo,
                 })),
             },
             {
@@ -580,11 +628,11 @@ export default function PurchaseOrderCreate({
 
     useEffect(() => {
         if (formData.refPr) {
-            loadPrDetails(formData.refPr);
+            loadPrDetails(formData.refPr, formData.selectedCustomers);
         } else {
             setPrDetailList([]);
         }
-    }, [formData.refPr]);
+    }, [formData.refPr, formData.selectedCustomers]);
 
     useEffect(() => {
         if (includePpn) {
@@ -687,29 +735,13 @@ export default function PurchaseOrderCreate({
                                 <span className="text-muted-foreground">
                                     Ref PO Masuk
                                 </span>
-                                <Input
-                                    value={formData.refPoMasuk}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            refPoMasuk: event.target.value,
-                                        }))
-                                    }
-                                />
+                                <Input value={formData.refPoMasuk} readOnly />
                             </label>
                             <label className="space-y-2 text-sm md:col-span-3">
                                 <span className="text-muted-foreground">
                                     For Customer
                                 </span>
-                                <Input
-                                    value={formData.forCustomer}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            forCustomer: event.target.value,
-                                        }))
-                                    }
-                                />
+                                <Input value={formData.forCustomer} readOnly />
                             </label>
                         </CardContent>
                         <div className="flex justify-end gap-2 px-6 pb-6">
@@ -901,6 +933,7 @@ export default function PurchaseOrderCreate({
                                                     ? () =>
                                                           loadPrDetails(
                                                               formData.refPr,
+                                                              formData.selectedCustomers,
                                                           )
                                                     : undefined
                                             }
@@ -1389,12 +1422,14 @@ export default function PurchaseOrderCreate({
                                         emptyTitle="Tidak ada PR outstanding."
                                     />
                                     {displayedPr.map((item) => {
-                                        const isBlocked =
-                                            hasOverdueMoreThan90Days(item);
+                                        const customers = getPrCustomers(item);
+                                        const isBlocked = Boolean(
+                                            item.all_customers_blocked,
+                                        );
 
                                         return (
                                             <tr
-                                                key={item.no_pr}
+                                                key={`${item.no_pr}-${item.for_customer}-${item.ref_po}`}
                                                 className="border-t border-sidebar-border/70"
                                             >
                                                 <td className="px-4 py-3">
@@ -1404,22 +1439,47 @@ export default function PurchaseOrderCreate({
                                                     {renderValue(item.date)}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <span>
-                                                            {renderValue(
-                                                                item.for_customer,
-                                                            )}
-                                                        </span>
-                                                        {isBlocked && (
-                                                            <Badge variant="destructive">
-                                                                Tunggakan &gt;
-                                                                90 hari
-                                                            </Badge>
+                                                    <div className="space-y-2">
+                                                        {customers.map(
+                                                            (customer) => (
+                                                                <div
+                                                                    key={`${customer.for_customer}-${customer.ref_po}`}
+                                                                    className="flex flex-wrap items-center gap-2"
+                                                                >
+                                                                    <span>
+                                                                        {renderValue(
+                                                                            customer.for_customer,
+                                                                        )}
+                                                                    </span>
+                                                                    {hasOverdueMoreThan90Days(
+                                                                        customer,
+                                                                    ) && (
+                                                                        <Badge variant="destructive">
+                                                                            Tunggakan
+                                                                            &gt;
+                                                                            90
+                                                                            hari
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
+                                                            ),
                                                         )}
                                                     </div>
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {renderValue(item.ref_po)}
+                                                    <div className="space-y-2">
+                                                        {customers.map(
+                                                            (customer) => (
+                                                                <div
+                                                                    key={`${customer.for_customer}-${customer.ref_po}`}
+                                                                >
+                                                                    {renderValue(
+                                                                        customer.ref_po,
+                                                                    )}
+                                                                </div>
+                                                            ),
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex flex-col items-start gap-1">
@@ -1508,6 +1568,48 @@ export default function PurchaseOrderCreate({
                                 </div>
                             </div>
                         )}
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={blockedPr !== null}
+                    onOpenChange={(open) => {
+                        if (!open) setBlockedPr(null);
+                    }}
+                >
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>
+                                PO Keluar Tidak Dapat Dibuat
+                            </DialogTitle>
+                        </DialogHeader>
+                        <p className="text-sm text-muted-foreground">
+                            Customer{' '}
+                            <span className="font-semibold text-foreground">
+                                {getPrCustomers(blockedPr)
+                                    .filter(hasOverdueMoreThan90Days)
+                                    .map(
+                                        (customer) =>
+                                            `${renderValue(customer.for_customer)} (ref PO ${renderValue(customer.ref_po)})`,
+                                    )
+                                    .join(', ')}
+                            </span>{' '}
+                            tidak bisa dibuat PO keluar karena memiliki
+                            tunggakan lebih dari 90 hari. Hanya customer tanpa
+                            tunggakan tersebut yang akan diproses.
+                        </p>
+                        <div className="flex justify-end">
+                            <Button
+                                type="button"
+                                onClick={() => {
+                                    const selectedPr = blockedPr;
+                                    setBlockedPr(null);
+                                    applyPrSelection(selectedPr);
+                                }}
+                            >
+                                Lanjutkan
+                            </Button>
+                        </div>
                     </DialogContent>
                 </Dialog>
 
