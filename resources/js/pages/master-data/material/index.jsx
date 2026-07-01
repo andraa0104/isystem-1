@@ -177,11 +177,13 @@ export default function MaterialIndex({ materials }) {
     const [outstandingLoading, setOutstandingLoading] = useState(false);
     const [outstandingError, setOutstandingError] = useState('');
     const [outstandingCount, setOutstandingCount] = useState(0);
+    const [outstandingQty, setOutstandingQty] = useState(0);
     const [outstandingTotal, setOutstandingTotal] = useState(0);
     const [outstandingCountLoading, setOutstandingCountLoading] =
         useState(true);
     const [outstandingTotalLoading, setOutstandingTotalLoading] =
         useState(true);
+    const [outstandingQtyLoading, setOutstandingQtyLoading] = useState(true);
     const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
     const [outstandingPageSize, setOutstandingPageSize] = useState(5);
     const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
@@ -199,10 +201,13 @@ export default function MaterialIndex({ materials }) {
     const [dotOutstandingList, setDotOutstandingList] = useState([]);
     const [dotOutstandingLoading, setDotOutstandingLoading] = useState(false);
     const [dotOutstandingCount, setDotOutstandingCount] = useState(0);
+    const [dotOutstandingQty, setDotOutstandingQty] = useState(0);
     const [dotOutstandingTotal, setDotOutstandingTotal] = useState(0);
     const [dotOutstandingCountLoading, setDotOutstandingCountLoading] =
         useState(true);
     const [dotOutstandingTotalLoading, setDotOutstandingTotalLoading] =
+        useState(true);
+    const [dotOutstandingQtyLoading, setDotOutstandingQtyLoading] =
         useState(true);
     const [dotOutstandingError, setDotOutstandingError] = useState('');
     const [dotOutstandingSearch, setDotOutstandingSearch] = useState('');
@@ -224,10 +229,13 @@ export default function MaterialIndex({ materials }) {
     const [doCostOutstandingLoading, setDoCostOutstandingLoading] =
         useState(false);
     const [doCostOutstandingCount, setDoCostOutstandingCount] = useState(0);
+    const [doCostOutstandingQty, setDoCostOutstandingQty] = useState(0);
     const [doCostOutstandingTotal, setDoCostOutstandingTotal] = useState(0);
     const [doCostOutstandingCountLoading, setDoCostOutstandingCountLoading] =
         useState(true);
     const [doCostOutstandingTotalLoading, setDoCostOutstandingTotalLoading] =
+        useState(true);
+    const [doCostOutstandingQtyLoading, setDoCostOutstandingQtyLoading] =
         useState(true);
     const [doCostOutstandingError, setDoCostOutstandingError] = useState('');
     const [doCostOutstandingSearch, setDoCostOutstandingSearch] = useState('');
@@ -454,6 +462,11 @@ export default function MaterialIndex({ materials }) {
             setOutstandingTotalLoading,
         );
         loadMetric(
+            '/marketing/delivery-order/outstanding-metric?metric=qty',
+            setOutstandingQty,
+            setOutstandingQtyLoading,
+        );
+        loadMetric(
             '/marketing/delivery-order-add/outstanding-metric?metric=count',
             setDotOutstandingCount,
             setDotOutstandingCountLoading,
@@ -464,6 +477,11 @@ export default function MaterialIndex({ materials }) {
             setDotOutstandingTotalLoading,
         );
         loadMetric(
+            '/marketing/delivery-order-add/outstanding-metric?metric=qty',
+            setDotOutstandingQty,
+            setDotOutstandingQtyLoading,
+        );
+        loadMetric(
             '/pembelian/delivery-order-cost/outstanding-metric?metric=count',
             setDoCostOutstandingCount,
             setDoCostOutstandingCountLoading,
@@ -472,6 +490,11 @@ export default function MaterialIndex({ materials }) {
             '/pembelian/delivery-order-cost/outstanding-metric?metric=total',
             setDoCostOutstandingTotal,
             setDoCostOutstandingTotalLoading,
+        );
+        loadMetric(
+            '/pembelian/delivery-order-cost/outstanding-metric?metric=qty',
+            setDoCostOutstandingQty,
+            setDoCostOutstandingQtyLoading,
         );
     };
 
@@ -1425,24 +1448,44 @@ export default function MaterialIndex({ materials }) {
                                     <CardDescription>
                                         DO Outstanding
                                     </CardDescription>
-                                    <CardTitle className="text-2xl">
-                                        {outstandingCountLoading ? (
-                                            <Skeleton className="h-8 w-16" />
-                                        ) : (
-                                            outstandingCount
-                                        )}
-                                    </CardTitle>
+                                    <CardTitle>DO Outstanding</CardTitle>
                                 </CardHeader>
-                                <CardContent>
-                                    <p className="text-xs text-muted-foreground">
-                                        Grand total outstanding
-                                    </p>
-                                    <div className="mt-1 text-sm font-semibold">
-                                        {outstandingTotalLoading ? (
-                                            <Skeleton className="h-5 w-24" />
-                                        ) : (
-                                            `Rp ${formatNumber(outstandingTotal)}`
-                                        )}
+                                <CardContent className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Jumlah item
+                                        </p>
+                                        <div className="text-xl font-semibold">
+                                            {outstandingCountLoading ? (
+                                                <Skeleton className="h-7 w-16" />
+                                            ) : (
+                                                formatNumber(outstandingCount)
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Jumlah qty
+                                        </p>
+                                        <div className="text-xl font-semibold">
+                                            {outstandingQtyLoading ? (
+                                                <Skeleton className="h-7 w-20" />
+                                            ) : (
+                                                formatNumber(outstandingQty)
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="col-span-2 border-t pt-3">
+                                        <p className="text-xs text-muted-foreground">
+                                            Grand total outstanding
+                                        </p>
+                                        <div className="mt-1 text-sm font-semibold">
+                                            {outstandingTotalLoading ? (
+                                                <Skeleton className="h-5 w-24" />
+                                            ) : (
+                                                `Rp ${formatNumber(outstandingTotal)}`
+                                            )}
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -1459,24 +1502,46 @@ export default function MaterialIndex({ materials }) {
                             <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
                                 <CardHeader className="pb-2">
                                     <CardDescription>DO Add</CardDescription>
-                                    <CardTitle className="text-2xl">
-                                        {dotOutstandingCountLoading ? (
-                                            <Skeleton className="h-8 w-16" />
-                                        ) : (
-                                            dotOutstandingCount
-                                        )}
-                                    </CardTitle>
+                                    <CardTitle>DO Add</CardTitle>
                                 </CardHeader>
-                                <CardContent>
-                                    <p className="text-xs text-muted-foreground">
-                                        DOT Belum Dibebankan
-                                    </p>
-                                    <div className="mt-1 text-sm font-semibold">
-                                        {dotOutstandingTotalLoading ? (
-                                            <Skeleton className="h-5 w-24" />
-                                        ) : (
-                                            `Rp ${formatNumber(dotOutstandingTotal)}`
-                                        )}
+                                <CardContent className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Jumlah item
+                                        </p>
+                                        <div className="text-xl font-semibold">
+                                            {dotOutstandingCountLoading ? (
+                                                <Skeleton className="h-7 w-16" />
+                                            ) : (
+                                                formatNumber(
+                                                    dotOutstandingCount,
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Jumlah qty
+                                        </p>
+                                        <div className="text-xl font-semibold">
+                                            {dotOutstandingQtyLoading ? (
+                                                <Skeleton className="h-7 w-20" />
+                                            ) : (
+                                                formatNumber(dotOutstandingQty)
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="col-span-2 border-t pt-3">
+                                        <p className="text-xs text-muted-foreground">
+                                            DOT Belum Dibebankan
+                                        </p>
+                                        <div className="mt-1 text-sm font-semibold">
+                                            {dotOutstandingTotalLoading ? (
+                                                <Skeleton className="h-5 w-24" />
+                                            ) : (
+                                                `Rp ${formatNumber(dotOutstandingTotal)}`
+                                            )}
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -1493,24 +1558,48 @@ export default function MaterialIndex({ materials }) {
                             <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
                                 <CardHeader className="pb-2">
                                     <CardDescription>DO Cost</CardDescription>
-                                    <CardTitle className="text-2xl">
-                                        {doCostOutstandingCountLoading ? (
-                                            <Skeleton className="h-8 w-16" />
-                                        ) : (
-                                            doCostOutstandingCount
-                                        )}
-                                    </CardTitle>
+                                    <CardTitle>DO Cost</CardTitle>
                                 </CardHeader>
-                                <CardContent>
-                                    <p className="text-xs text-muted-foreground">
-                                        DO Biaya Belum Dibebankan
-                                    </p>
-                                    <div className="mt-1 text-sm font-semibold">
-                                        {doCostOutstandingTotalLoading ? (
-                                            <Skeleton className="h-5 w-24" />
-                                        ) : (
-                                            `Rp ${formatNumber(doCostOutstandingTotal)}`
-                                        )}
+                                <CardContent className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Jumlah item
+                                        </p>
+                                        <div className="text-xl font-semibold">
+                                            {doCostOutstandingCountLoading ? (
+                                                <Skeleton className="h-7 w-16" />
+                                            ) : (
+                                                formatNumber(
+                                                    doCostOutstandingCount,
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Jumlah qty
+                                        </p>
+                                        <div className="text-xl font-semibold">
+                                            {doCostOutstandingQtyLoading ? (
+                                                <Skeleton className="h-7 w-20" />
+                                            ) : (
+                                                formatNumber(
+                                                    doCostOutstandingQty,
+                                                )
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="col-span-2 border-t pt-3">
+                                        <p className="text-xs text-muted-foreground">
+                                            DO Biaya Belum Dibebankan
+                                        </p>
+                                        <div className="mt-1 text-sm font-semibold">
+                                            {doCostOutstandingTotalLoading ? (
+                                                <Skeleton className="h-5 w-24" />
+                                            ) : (
+                                                `Rp ${formatNumber(doCostOutstandingTotal)}`
+                                            )}
+                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>

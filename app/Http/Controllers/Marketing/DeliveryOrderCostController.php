@@ -26,6 +26,13 @@ class DeliveryOrderCostController
             ]);
         }
 
+        if ($metric === 'qty') {
+            return response()->json([
+                'value' => (float) DB::table('tb_dobi')->where('status', 0)
+                    ->sum(DB::raw('coalesce(cast(qty as decimal(18,4)), 0)')),
+            ]);
+        }
+
         return response()->json(['message' => 'Metric tidak valid.'], 422);
     }
 
