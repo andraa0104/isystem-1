@@ -1532,7 +1532,8 @@ class PurchaseRequirementController
                             ->where('id', $detailPo->id)
                             ->update([
                                 'sisa_qtypr' => DB::raw(sprintf(
-                                    'coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F',
+                                    'case when coalesce(cast(qty as decimal(18,4)), 0) > 0 then least(cast(qty as decimal(18,4)), coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F) else coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F end',
+                                    $sisaPr,
                                     $sisaPr
                                 )),
                             ]);

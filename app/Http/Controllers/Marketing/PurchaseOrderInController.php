@@ -18,6 +18,34 @@ class PurchaseOrderInController
     private const CUSTOMER_CACHE_TAGS = ['customer_data'];
     private const LOOKUP_CACHE_TTL = 30;
 
+    public function export(Request $request)
+    {
+        $validated = $request->validate([
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+        ]);
+
+        $purchaseOrders = DB::table('tb_poin')
+            ->whereDate('created_at', '>=', $validated['start_date'])
+            ->whereDate('created_at', '<=', $validated['end_date'])
+            ->orderByDesc('created_at')
+            ->orderByDesc('kode_poin')
+            ->get();
+
+        $detailsByDocument = DB::table('tb_detailpoin')
+            ->whereIn('kode_poin', $purchaseOrders->pluck('kode_poin'))
+            ->orderBy('id')
+            ->get()
+            ->groupBy('kode_poin');
+
+        return response()->view('exports.purchase-order-in', [
+            'purchaseOrders' => $purchaseOrders,
+            'detailsByDocument' => $detailsByDocument,
+            'startDate' => $validated['start_date'],
+            'endDate' => $validated['end_date'],
+        ]);
+    }
+
     private function formatFailureMessage(string $action, Throwable $e): string
     {
         $type = $e instanceof QueryException ? 'Error SQL/database' : 'Error sistem';

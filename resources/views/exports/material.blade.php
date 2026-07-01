@@ -44,19 +44,18 @@
                     <th>Kode Material</th>
                     <th>Nama Material</th>
                     <th>Satuan</th>
-                    <th>Total Stok</th>
-                    <th>Stok G1</th>
-                    <th>Harga G1</th>
-                    <th>Kategori G1</th>
-                    <th>Stok G2</th>
-                    <th>Harga G2</th>
-                    <th>Kategori G2</th>
-                    <th>Stok G3</th>
-                    <th>Harga G3</th>
-                    <th>Kategori G3</th>
-                    <th>Stok G4</th>
-                    <th>Harga G4</th>
-                    <th>Kategori G4</th>
+                    @if ($warehouse === 'all')
+                        <th>Total Stok</th>
+                        @foreach (['g1' => 'G1', 'g2' => 'G2', 'g3' => 'G3', 'g4' => 'G4'] as $key => $label)
+                            <th>Stok {{ $label }}</th>
+                            <th>Harga {{ $label }}</th>
+                            <th>Kategori {{ $label }}</th>
+                        @endforeach
+                    @else
+                        <th>Stok {{ strtoupper($warehouse) }}</th>
+                        <th>Harga {{ strtoupper($warehouse) }}</th>
+                        <th>Kategori {{ strtoupper($warehouse) }}</th>
+                    @endif
                 </tr>
             </thead>
             <tbody>
@@ -66,23 +65,23 @@
                         <td>{{ $material->kd_material ?? '-' }}</td>
                         <td>{{ $material->material ?? '-' }}</td>
                         <td>{{ $material->unit ?? '-' }}</td>
-                        <td>{{ $material->stok ?? '-' }}</td>
-                        <td>{{ $material->stok_g1 ?? '-' }}</td>
-                        <td>{{ $material->harga_stokg1 ?? '-' }}</td>
-                        <td>{{ $material->kategori_stok1 ?? '-' }}</td>
-                        <td>{{ $material->stok_g2 ?? '-' }}</td>
-                        <td>{{ $material->harga_stokg2 ?? '-' }}</td>
-                        <td>{{ $material->kategori_stok2 ?? '-' }}</td>
-                        <td>{{ $material->stok_g3 ?? '-' }}</td>
-                        <td>{{ $material->harga_stokg3 ?? '-' }}</td>
-                        <td>{{ $material->kategori_stok3 ?? '-' }}</td>
-                        <td>{{ $material->stok_g4 ?? '-' }}</td>
-                        <td>{{ $material->harga_stokg4 ?? '-' }}</td>
-                        <td>{{ $material->kategori_stok4 ?? '-' }}</td>
+                        @if ($warehouse === 'all')
+                            <td>{{ $material->stok ?? '-' }}</td>
+                            @foreach (['g1' => 1, 'g2' => 2, 'g3' => 3, 'g4' => 4] as $key => $number)
+                                <td>{{ $material->{'stok_'.$key} ?? '-' }}</td>
+                                <td>{{ $material->{'harga_stok'.$key} ?? '-' }}</td>
+                                <td>{{ $material->{'kategori_stok'.$number} ?? '-' }}</td>
+                            @endforeach
+                        @else
+                            @php($number = substr($warehouse, 1))
+                            <td>{{ $material->stok ?? '-' }}</td>
+                            <td>{{ $material->{'harga_stok'.$warehouse} ?? '-' }}</td>
+                            <td>{{ $material->{'kategori_stok'.$number} ?? '-' }}</td>
+                        @endif
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="17" style="text-align: center;">
+                        <td colspan="{{ $warehouse === 'all' ? 17 : 7 }}" style="text-align: center;">
                             Data material belum tersedia.
                         </td>
                     </tr>

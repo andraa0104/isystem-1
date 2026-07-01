@@ -9,6 +9,26 @@ use Inertia\Inertia;
 
 class DeliveryOrderCostController
 {
+    public function outstandingMetric(Request $request)
+    {
+        $metric = $request->query('metric');
+
+        if ($metric === 'count') {
+            return response()->json([
+                'value' => DB::table('tb_dobi')->where('status', 0)->distinct('no_alokasi')->count('no_alokasi'),
+            ]);
+        }
+
+        if ($metric === 'total') {
+            return response()->json([
+                'value' => (float) DB::table('tb_dobi')->where('status', 0)
+                    ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)')),
+            ]);
+        }
+
+        return response()->json(['message' => 'Metric tidak valid.'], 422);
+    }
+
     public function index()
     {
         $deliveryOrders = DB::table('tb_dobi')

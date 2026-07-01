@@ -9,6 +9,29 @@ use Inertia\Inertia;
 
 class DeliveryOrderController
 {
+    public function outstandingMetric(Request $request)
+    {
+        $metric = $request->query('metric');
+
+        if ($metric === 'count') {
+            $query = DB::table('tb_do')
+                ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
+                ->where('val_inv', 0)
+                ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv');
+
+            return response()->json(['value' => DB::query()->fromSub($query, 'outstanding_do')->count()]);
+        }
+
+        if ($metric === 'total') {
+            return response()->json([
+                'value' => (float) DB::table('tb_do')->where('val_inv', 0)
+                    ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)')),
+            ]);
+        }
+
+        return response()->json(['message' => 'Metric tidak valid.'], 422);
+    }
+
     private function materialWarehouseOptions(array $kdMaterials)
     {
         $kdMaterials = collect($kdMaterials)->filter()->unique()->values()->all();

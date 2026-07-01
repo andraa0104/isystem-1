@@ -27,10 +27,9 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { confirmDelete } from '@/lib/confirm-delete';
-import { Head, Link, router, useForm } from '@inertiajs/react';
-import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import Swal from 'sweetalert2';
+import { Head, router, useForm } from '@inertiajs/react';
+import { ChevronDown, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -105,6 +104,12 @@ const movementCategories = [
     { key: 'dead', title: 'Dead Stok', matcher: 'dead' },
 ];
 
+const inventoryCardTypes = [
+    { key: 'mis', title: 'MIS', balanceLabel: 'MIS' },
+    { key: 'mib', title: 'MIB', balanceLabel: 'MIB' },
+    { key: 'mibs', title: 'MIBS', balanceLabel: 'MIBS' },
+];
+
 const movementMetricKeys = ['stock', 'items', 'total'];
 
 const createMovementMetricState = (value) =>
@@ -144,6 +149,8 @@ export default function MaterialIndex({ materials }) {
     // --- States Utama ---
     const [materialsList, setMaterialsList] = useState([]);
     const [tableLoading, setTableLoading] = useState(true);
+    const [activeCardTab, setActiveCardTab] = useState('');
+    const loadedCardTabs = useRef(new Set());
 
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -154,6 +161,12 @@ export default function MaterialIndex({ materials }) {
     const [codeOrder, setCodeOrder] = useState('asc');
 
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [exportFilters, setExportFilters] = useState({
+        warehouse: 'all',
+        category: 'all',
+        stock: 'all',
+    });
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState(null);
     const [viewingMaterial, setViewingMaterial] = useState(null);
@@ -165,12 +178,96 @@ export default function MaterialIndex({ materials }) {
     const [outstandingError, setOutstandingError] = useState('');
     const [outstandingCount, setOutstandingCount] = useState(0);
     const [outstandingTotal, setOutstandingTotal] = useState(0);
-    const [outstandingSummaryLoading, setOutstandingSummaryLoading] =
+    const [outstandingCountLoading, setOutstandingCountLoading] =
+        useState(true);
+    const [outstandingTotalLoading, setOutstandingTotalLoading] =
         useState(true);
     const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
     const [outstandingPageSize, setOutstandingPageSize] = useState(5);
     const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
-    const [isDeletingDo, setIsDeletingDo] = useState(false);
+    const [selectedDo, setSelectedDo] = useState(null);
+    const [isDetailDoModalOpen, setIsDetailDoModalOpen] = useState(false);
+    const [selectedDoDetails, setSelectedDoDetails] = useState([]);
+    const [selectedDoAddress, setSelectedDoAddress] = useState('');
+    const [detailDoLoading, setDetailDoLoading] = useState(false);
+    const [detailDoError, setDetailDoError] = useState('');
+    const [detailDoSearch, setDetailDoSearch] = useState('');
+    const [detailDoPageSize, setDetailDoPageSize] = useState(5);
+    const [detailDoCurrentPage, setDetailDoCurrentPage] = useState(1);
+    const [isDotOutstandingModalOpen, setIsDotOutstandingModalOpen] =
+        useState(false);
+    const [dotOutstandingList, setDotOutstandingList] = useState([]);
+    const [dotOutstandingLoading, setDotOutstandingLoading] = useState(false);
+    const [dotOutstandingCount, setDotOutstandingCount] = useState(0);
+    const [dotOutstandingTotal, setDotOutstandingTotal] = useState(0);
+    const [dotOutstandingCountLoading, setDotOutstandingCountLoading] =
+        useState(true);
+    const [dotOutstandingTotalLoading, setDotOutstandingTotalLoading] =
+        useState(true);
+    const [dotOutstandingError, setDotOutstandingError] = useState('');
+    const [dotOutstandingSearch, setDotOutstandingSearch] = useState('');
+    const [dotOutstandingPageSize, setDotOutstandingPageSize] = useState(5);
+    const [dotOutstandingCurrentPage, setDotOutstandingCurrentPage] =
+        useState(1);
+    const [selectedDot, setSelectedDot] = useState(null);
+    const [isDotDetailModalOpen, setIsDotDetailModalOpen] = useState(false);
+    const [dotDetailItems, setDotDetailItems] = useState([]);
+    const [dotDetailHeader, setDotDetailHeader] = useState(null);
+    const [dotDetailLoading, setDotDetailLoading] = useState(false);
+    const [dotDetailError, setDotDetailError] = useState('');
+    const [dotDetailSearch, setDotDetailSearch] = useState('');
+    const [dotDetailPageSize, setDotDetailPageSize] = useState(5);
+    const [dotDetailCurrentPage, setDotDetailCurrentPage] = useState(1);
+    const [isDoCostOutstandingModalOpen, setIsDoCostOutstandingModalOpen] =
+        useState(false);
+    const [doCostOutstandingList, setDoCostOutstandingList] = useState([]);
+    const [doCostOutstandingLoading, setDoCostOutstandingLoading] =
+        useState(false);
+    const [doCostOutstandingCount, setDoCostOutstandingCount] = useState(0);
+    const [doCostOutstandingTotal, setDoCostOutstandingTotal] = useState(0);
+    const [doCostOutstandingCountLoading, setDoCostOutstandingCountLoading] =
+        useState(true);
+    const [doCostOutstandingTotalLoading, setDoCostOutstandingTotalLoading] =
+        useState(true);
+    const [doCostOutstandingError, setDoCostOutstandingError] = useState('');
+    const [doCostOutstandingSearch, setDoCostOutstandingSearch] = useState('');
+    const [doCostOutstandingPageSize, setDoCostOutstandingPageSize] =
+        useState(5);
+    const [doCostOutstandingCurrentPage, setDoCostOutstandingCurrentPage] =
+        useState(1);
+    const [isDoCostDetailModalOpen, setIsDoCostDetailModalOpen] =
+        useState(false);
+    const [doCostDetailItems, setDoCostDetailItems] = useState([]);
+    const [doCostDetailHeader, setDoCostDetailHeader] = useState(null);
+    const [doCostDetailLoading, setDoCostDetailLoading] = useState(false);
+    const [doCostDetailError, setDoCostDetailError] = useState('');
+    const [doCostDetailSearch, setDoCostDetailSearch] = useState('');
+    const [doCostDetailPageSize, setDoCostDetailPageSize] = useState(5);
+    const [doCostDetailCurrentPage, setDoCostDetailCurrentPage] = useState(1);
+    const [inventorySummaries, setInventorySummaries] = useState(() =>
+        Object.fromEntries(
+            inventoryCardTypes.map(({ key }) => [
+                key,
+                { items: 0, qty: 0, total: 0 },
+            ]),
+        ),
+    );
+    const [inventorySummaryLoading, setInventorySummaryLoading] = useState(() =>
+        Object.fromEntries(
+            inventoryCardTypes.map(({ key }) => [
+                key,
+                { items: true, qty: true, total: true },
+            ]),
+        ),
+    );
+    const [inventoryModalType, setInventoryModalType] = useState(null);
+    const [inventoryRows, setInventoryRows] = useState([]);
+    const [inventoryRowsTotal, setInventoryRowsTotal] = useState(0);
+    const [inventoryRowsLoading, setInventoryRowsLoading] = useState(false);
+    const [inventoryRowsError, setInventoryRowsError] = useState('');
+    const [inventoryRowsSearch, setInventoryRowsSearch] = useState('');
+    const [inventoryRowsPageSize, setInventoryRowsPageSize] = useState(5);
+    const [inventoryRowsCurrentPage, setInventoryRowsCurrentPage] = useState(1);
     const [movementSearchTerm, setMovementSearchTerm] = useState('');
     const [movementPageSize, setMovementPageSize] = useState(5);
     const [movementCurrentPage, setMovementCurrentPage] = useState(1);
@@ -334,25 +431,49 @@ export default function MaterialIndex({ materials }) {
         });
     };
 
-    useEffect(() => {
-        fetchAllMovementMetrics();
-        fetchAllWarehouseSummaries();
+    const fetchDoMetrics = () => {
+        const loadMetric = (url, setter, loadingSetter) => {
+            fetch(url, { headers: { Accept: 'application/json' } })
+                .then((response) => {
+                    if (!response.ok) throw new Error('Request failed');
+                    return response.json();
+                })
+                .then((result) => setter(toNumber(result?.value)))
+                .catch(() => {})
+                .finally(() => loadingSetter(false));
+        };
 
-        fetch(
-            '/marketing/delivery-order/data?period=today&fetch_type=summary',
-            { headers: { Accept: 'application/json' } },
-        )
-            .then((response) => {
-                if (!response.ok) throw new Error('Request failed');
-                return response.json();
-            })
-            .then((summary) => {
-                setOutstandingCount(summary?.outstandingCount ?? 0);
-                setOutstandingTotal(summary?.outstandingTotal ?? 0);
-            })
-            .catch(() => {})
-            .finally(() => setOutstandingSummaryLoading(false));
-    }, []);
+        loadMetric(
+            '/marketing/delivery-order/outstanding-metric?metric=count',
+            setOutstandingCount,
+            setOutstandingCountLoading,
+        );
+        loadMetric(
+            '/marketing/delivery-order/outstanding-metric?metric=total',
+            setOutstandingTotal,
+            setOutstandingTotalLoading,
+        );
+        loadMetric(
+            '/marketing/delivery-order-add/outstanding-metric?metric=count',
+            setDotOutstandingCount,
+            setDotOutstandingCountLoading,
+        );
+        loadMetric(
+            '/marketing/delivery-order-add/outstanding-metric?metric=total',
+            setDotOutstandingTotal,
+            setDotOutstandingTotalLoading,
+        );
+        loadMetric(
+            '/pembelian/delivery-order-cost/outstanding-metric?metric=count',
+            setDoCostOutstandingCount,
+            setDoCostOutstandingCountLoading,
+        );
+        loadMetric(
+            '/pembelian/delivery-order-cost/outstanding-metric?metric=total',
+            setDoCostOutstandingTotal,
+            setDoCostOutstandingTotalLoading,
+        );
+    };
 
     const loadOutstanding = () => {
         if (outstandingLoading || outstandingList.length > 0) return;
@@ -376,41 +497,122 @@ export default function MaterialIndex({ materials }) {
             .finally(() => setOutstandingLoading(false));
     };
 
-    const handleDeleteDo = (item) => {
-        if (isDeletingDo) return;
+    const loadDotOutstanding = () => {
+        if (dotOutstandingLoading || dotOutstandingList.length > 0) return;
+        setDotOutstandingLoading(true);
+        setDotOutstandingError('');
+        fetch('/marketing/delivery-order-add/outstanding', {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) throw new Error('Request failed');
+                return response.json();
+            })
+            .then((result) => {
+                setDotOutstandingList(
+                    Array.isArray(result?.deliveryOrders)
+                        ? result.deliveryOrders
+                        : [],
+                );
+            })
+            .catch(() =>
+                setDotOutstandingError('Gagal memuat data DOT outstanding.'),
+            )
+            .finally(() => setDotOutstandingLoading(false));
+    };
+
+    const handleOpenDotDetail = (item) => {
+        setIsDotOutstandingModalOpen(false);
+        setSelectedDot(item);
+        setIsDotDetailModalOpen(true);
+        setDotDetailItems([]);
+        setDotDetailHeader(null);
+        setDotDetailError('');
+        setDotDetailSearch('');
+        setDotDetailPageSize(5);
+        setDotDetailCurrentPage(1);
+        setDotDetailLoading(true);
+        fetch(
+            `/marketing/delivery-order-add/details?${new URLSearchParams({ no_dob: item.no_dob })}`,
+            { headers: { Accept: 'application/json' } },
+        )
+            .then((response) => {
+                if (!response.ok) throw new Error('Request failed');
+                return response.json();
+            })
+            .then((result) => {
+                setDotDetailItems(
+                    Array.isArray(result?.details) ? result.details : [],
+                );
+                setDotDetailHeader(result?.header ?? null);
+            })
+            .catch(() => setDotDetailError('Gagal memuat detail DOT.'))
+            .finally(() => setDotDetailLoading(false));
+    };
+
+    const loadDoCostOutstanding = () => {
+        if (doCostOutstandingLoading || doCostOutstandingList.length > 0)
+            return;
+        setDoCostOutstandingLoading(true);
+        setDoCostOutstandingError('');
+        fetch('/pembelian/delivery-order-cost/outstanding', {
+            headers: { Accept: 'application/json' },
+        })
+            .then((response) => {
+                if (!response.ok) throw new Error('Request failed');
+                return response.json();
+            })
+            .then((result) =>
+                setDoCostOutstandingList(
+                    Array.isArray(result?.deliveryOrders)
+                        ? result.deliveryOrders
+                        : [],
+                ),
+            )
+            .catch(() =>
+                setDoCostOutstandingError('Gagal memuat data DO Cost.'),
+            )
+            .finally(() => setDoCostOutstandingLoading(false));
+    };
+
+    const handleOpenDoCostDetail = (item) => {
+        setIsDoCostOutstandingModalOpen(false);
+        setIsDoCostDetailModalOpen(true);
+        setDoCostDetailItems([]);
+        setDoCostDetailHeader(null);
+        setDoCostDetailError('');
+        setDoCostDetailSearch('');
+        setDoCostDetailPageSize(5);
+        setDoCostDetailCurrentPage(1);
+        setDoCostDetailLoading(true);
+        fetch(
+            `/pembelian/delivery-order-cost/details?no_alokasi=${encodeURIComponent(item.no_alokasi)}`,
+            { headers: { Accept: 'application/json' } },
+        )
+            .then((response) => {
+                if (!response.ok) throw new Error('Request failed');
+                return response.json();
+            })
+            .then((result) => {
+                setDoCostDetailItems(
+                    Array.isArray(result?.details) ? result.details : [],
+                );
+                setDoCostDetailHeader(result?.header ?? null);
+            })
+            .catch(() => setDoCostDetailError('Gagal memuat detail DO Cost.'))
+            .finally(() => setDoCostDetailLoading(false));
+    };
+
+    const handleOpenDetailDo = (item) => {
         setIsOutstandingModalOpen(false);
-        Swal.fire({
-            title: 'Hapus DO?',
-            text: `No DO: ${item.no_do}`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, hapus',
-            cancelButtonText: 'Batal',
-        }).then((result) => {
-            if (!result.isConfirmed) return;
-            setIsDeletingDo(true);
-            router.delete(
-                `/marketing/delivery-order/${encodeURIComponent(item.no_do)}`,
-                {
-                    preserveScroll: true,
-                    preserveState: true,
-                    onSuccess: () => {
-                        setOutstandingList((current) =>
-                            current.filter((row) => row.no_do !== item.no_do),
-                        );
-                        setOutstandingCount((value) => Math.max(0, value - 1));
-                        setOutstandingTotal((value) =>
-                            Math.max(
-                                0,
-                                value - (Number(item.total ?? item.Total) || 0),
-                            ),
-                        );
-                        setIsDeletingDo(false);
-                    },
-                    onError: () => setIsDeletingDo(false),
-                },
-            );
-        });
+        setSelectedDo(item);
+        setIsDetailDoModalOpen(true);
+        setSelectedDoDetails([]);
+        setSelectedDoAddress('');
+        setDetailDoError('');
+        setDetailDoSearch('');
+        setDetailDoPageSize(5);
+        setDetailDoCurrentPage(1);
     };
 
     // --- Debounce Input Pencarian (Optimasi Filter Tabel) ---
@@ -517,6 +719,152 @@ export default function MaterialIndex({ materials }) {
         outstandingDeliveryOrders,
         outstandingPageSize,
     ]);
+
+    const detailDoTotalItems = selectedDoDetails.length;
+    const detailDoTotalPages = Math.max(
+        1,
+        detailDoPageSize === Infinity
+            ? 1
+            : Math.ceil(detailDoTotalItems / detailDoPageSize),
+    );
+    const displayedDoDetails = useMemo(() => {
+        if (detailDoPageSize === Infinity) return selectedDoDetails;
+        const start = (detailDoCurrentPage - 1) * detailDoPageSize;
+        return selectedDoDetails.slice(start, start + detailDoPageSize);
+    }, [detailDoCurrentPage, detailDoPageSize, selectedDoDetails]);
+    const selectedDoGrandTotal = useMemo(
+        () =>
+            selectedDoDetails.reduce(
+                (total, detail) =>
+                    total + toNumber(detail?.total ?? detail?.Total),
+                0,
+            ),
+        [selectedDoDetails],
+    );
+    const filteredDotOutstanding = useMemo(() => {
+        const term = dotOutstandingSearch.trim().toLowerCase();
+        return dotOutstandingList.filter((item) => {
+            if (!term) return true;
+            return [item.no_dob, item.ref_do, item.nm_cs].some((value) =>
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
+            );
+        });
+    }, [dotOutstandingList, dotOutstandingSearch]);
+    const dotOutstandingTotalPages = Math.max(
+        1,
+        dotOutstandingPageSize === Infinity
+            ? 1
+            : Math.ceil(filteredDotOutstanding.length / dotOutstandingPageSize),
+    );
+    const displayedDotOutstanding = useMemo(() => {
+        if (dotOutstandingPageSize === Infinity) return filteredDotOutstanding;
+        const start = (dotOutstandingCurrentPage - 1) * dotOutstandingPageSize;
+        return filteredDotOutstanding.slice(
+            start,
+            start + dotOutstandingPageSize,
+        );
+    }, [
+        dotOutstandingCurrentPage,
+        dotOutstandingPageSize,
+        filteredDotOutstanding,
+    ]);
+    const filteredDotDetails = useMemo(() => {
+        const term = dotDetailSearch.trim().toLowerCase();
+        if (!term) return dotDetailItems;
+        return dotDetailItems.filter((item) =>
+            String(item.mat ?? '')
+                .toLowerCase()
+                .includes(term),
+        );
+    }, [dotDetailItems, dotDetailSearch]);
+    const dotDetailTotalPages = Math.max(
+        1,
+        dotDetailPageSize === Infinity
+            ? 1
+            : Math.ceil(filteredDotDetails.length / dotDetailPageSize),
+    );
+    const displayedDotDetails = useMemo(() => {
+        if (dotDetailPageSize === Infinity) return filteredDotDetails;
+        const start = (dotDetailCurrentPage - 1) * dotDetailPageSize;
+        return filteredDotDetails.slice(start, start + dotDetailPageSize);
+    }, [dotDetailCurrentPage, dotDetailPageSize, filteredDotDetails]);
+    const dotDetailGrandTotal = useMemo(
+        () =>
+            dotDetailItems.reduce(
+                (total, item) => total + toNumber(item.total ?? item.Total),
+                0,
+            ),
+        [dotDetailItems],
+    );
+    const filteredDoCostOutstanding = useMemo(() => {
+        const term = doCostOutstandingSearch.trim().toLowerCase();
+        if (!term) return doCostOutstandingList;
+        return doCostOutstandingList.filter((item) =>
+            [item.no_alokasi, item.ref_permintaan, item.kd_cs].some((value) =>
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
+            ),
+        );
+    }, [doCostOutstandingList, doCostOutstandingSearch]);
+    const doCostOutstandingTotalPages = Math.max(
+        1,
+        doCostOutstandingPageSize === Infinity
+            ? 1
+            : Math.ceil(
+                  filteredDoCostOutstanding.length / doCostOutstandingPageSize,
+              ),
+    );
+    const displayedDoCostOutstanding = useMemo(() => {
+        if (doCostOutstandingPageSize === Infinity)
+            return filteredDoCostOutstanding;
+        const start =
+            (doCostOutstandingCurrentPage - 1) * doCostOutstandingPageSize;
+        return filteredDoCostOutstanding.slice(
+            start,
+            start + doCostOutstandingPageSize,
+        );
+    }, [
+        doCostOutstandingCurrentPage,
+        doCostOutstandingPageSize,
+        filteredDoCostOutstanding,
+    ]);
+    const filteredDoCostDetails = useMemo(() => {
+        const term = doCostDetailSearch.trim().toLowerCase();
+        if (!term) return doCostDetailItems;
+        return doCostDetailItems.filter((item) =>
+            String(item.mat ?? '')
+                .toLowerCase()
+                .includes(term),
+        );
+    }, [doCostDetailItems, doCostDetailSearch]);
+    const doCostDetailTotalPages = Math.max(
+        1,
+        doCostDetailPageSize === Infinity
+            ? 1
+            : Math.ceil(filteredDoCostDetails.length / doCostDetailPageSize),
+    );
+    const displayedDoCostDetails = useMemo(() => {
+        if (doCostDetailPageSize === Infinity) return filteredDoCostDetails;
+        const start = (doCostDetailCurrentPage - 1) * doCostDetailPageSize;
+        return filteredDoCostDetails.slice(start, start + doCostDetailPageSize);
+    }, [doCostDetailCurrentPage, doCostDetailPageSize, filteredDoCostDetails]);
+    const doCostDetailGrandTotal = useMemo(
+        () =>
+            doCostDetailItems.reduce(
+                (total, item) => total + toNumber(item.total ?? item.Total),
+                0,
+            ),
+        [doCostDetailItems],
+    );
+    const inventoryRowsTotalPages = Math.max(
+        1,
+        inventoryRowsPageSize === Infinity
+            ? 1
+            : Math.ceil(inventoryRowsTotal / inventoryRowsPageSize),
+    );
 
     const movementData = useMemo(() => {
         const base = movementCategories.reduce((acc, category) => {
@@ -668,6 +1016,187 @@ export default function MaterialIndex({ materials }) {
         }
     }, [outstandingCurrentPage, outstandingTotalPages]);
 
+    useEffect(() => {
+        if (!selectedDo || !isDetailDoModalOpen) return;
+        const timer = setTimeout(
+            () => {
+                setDetailDoLoading(true);
+                setDetailDoError('');
+                const params = new URLSearchParams({ no_do: selectedDo.no_do });
+                if (detailDoSearch.trim()) {
+                    params.append('search', detailDoSearch.trim());
+                }
+                fetch(
+                    `/marketing/delivery-order/details?${params.toString()}`,
+                    {
+                        headers: { Accept: 'application/json' },
+                    },
+                )
+                    .then((response) => {
+                        if (!response.ok) throw new Error('Request failed');
+                        return response.json();
+                    })
+                    .then((result) => {
+                        setSelectedDoDetails(
+                            Array.isArray(result?.deliveryOrderDetails)
+                                ? result.deliveryOrderDetails
+                                : [],
+                        );
+                        setSelectedDoAddress(result?.customerAddress ?? '');
+                        setDetailDoCurrentPage(1);
+                    })
+                    .catch(() => setDetailDoError('Gagal memuat detail DO.'))
+                    .finally(() => setDetailDoLoading(false));
+            },
+            detailDoSearch ? 500 : 0,
+        );
+        return () => clearTimeout(timer);
+    }, [detailDoSearch, isDetailDoModalOpen, selectedDo]);
+
+    useEffect(() => {
+        if (detailDoCurrentPage > detailDoTotalPages) {
+            setDetailDoCurrentPage(detailDoTotalPages);
+        }
+    }, [detailDoCurrentPage, detailDoTotalPages]);
+
+    useEffect(() => {
+        setDotOutstandingCurrentPage(1);
+    }, [dotOutstandingPageSize, dotOutstandingSearch]);
+
+    useEffect(() => {
+        if (dotOutstandingCurrentPage > dotOutstandingTotalPages) {
+            setDotOutstandingCurrentPage(dotOutstandingTotalPages);
+        }
+    }, [dotOutstandingCurrentPage, dotOutstandingTotalPages]);
+
+    useEffect(() => {
+        setDotDetailCurrentPage(1);
+    }, [dotDetailPageSize, dotDetailSearch]);
+
+    useEffect(() => {
+        setDoCostOutstandingCurrentPage(1);
+    }, [doCostOutstandingPageSize, doCostOutstandingSearch]);
+
+    useEffect(() => {
+        if (doCostOutstandingCurrentPage > doCostOutstandingTotalPages) {
+            setDoCostOutstandingCurrentPage(doCostOutstandingTotalPages);
+        }
+    }, [doCostOutstandingCurrentPage, doCostOutstandingTotalPages]);
+
+    useEffect(() => {
+        setDoCostDetailCurrentPage(1);
+    }, [doCostDetailPageSize, doCostDetailSearch]);
+
+    const fetchInventoryMetrics = () => {
+        inventoryCardTypes.forEach(({ key }) => {
+            ['items', 'qty', 'total'].forEach((metric) => {
+                fetch(
+                    `/master-data/material/inventory-summary?type=${key}&metric=${metric}`,
+                    { headers: { Accept: 'application/json' } },
+                )
+                    .then((response) => {
+                        if (!response.ok) throw new Error('Request failed');
+                        return response.json();
+                    })
+                    .then((result) =>
+                        setInventorySummaries((current) => ({
+                            ...current,
+                            [key]: {
+                                ...current[key],
+                                [metric]: toNumber(result?.value),
+                            },
+                        })),
+                    )
+                    .catch(() => {})
+                    .finally(() =>
+                        setInventorySummaryLoading((current) => ({
+                            ...current,
+                            [key]: {
+                                ...current[key],
+                                [metric]: false,
+                            },
+                        })),
+                    );
+            });
+        });
+    };
+
+    const handleCardTabChange = (tab) => {
+        if (activeCardTab === tab) {
+            setActiveCardTab('');
+            return;
+        }
+        setActiveCardTab(tab);
+        if (loadedCardTabs.current.has(tab)) return;
+        loadedCardTabs.current.add(tab);
+
+        if (tab === 'category') fetchAllMovementMetrics();
+        if (tab === 'do') fetchDoMetrics();
+        if (tab === 'inventory') fetchInventoryMetrics();
+        if (tab === 'warehouse') fetchAllWarehouseSummaries();
+    };
+
+    const refreshLoadedCardMetrics = () => {
+        if (loadedCardTabs.current.has('category')) fetchAllMovementMetrics();
+        if (loadedCardTabs.current.has('warehouse'))
+            fetchAllWarehouseSummaries();
+    };
+
+    useEffect(() => {
+        if (!inventoryModalType) return;
+        const timer = setTimeout(
+            () => {
+                setInventoryRowsLoading(true);
+                setInventoryRowsError('');
+                const params = new URLSearchParams({
+                    type: inventoryModalType,
+                    search: inventoryRowsSearch,
+                    page: String(inventoryRowsCurrentPage),
+                    per_page:
+                        inventoryRowsPageSize === Infinity
+                            ? 'all'
+                            : String(inventoryRowsPageSize),
+                });
+                fetch(`/master-data/material/inventory-rows?${params}`, {
+                    headers: { Accept: 'application/json' },
+                })
+                    .then((response) => {
+                        if (!response.ok) throw new Error('Request failed');
+                        return response.json();
+                    })
+                    .then((result) => {
+                        setInventoryRows(
+                            Array.isArray(result?.rows) ? result.rows : [],
+                        );
+                        setInventoryRowsTotal(toNumber(result?.total));
+                    })
+                    .catch(() => {
+                        setInventoryRows([]);
+                        setInventoryRowsTotal(0);
+                        setInventoryRowsError('Gagal memuat data material.');
+                    })
+                    .finally(() => setInventoryRowsLoading(false));
+            },
+            inventoryRowsSearch ? 400 : 0,
+        );
+        return () => clearTimeout(timer);
+    }, [
+        inventoryModalType,
+        inventoryRowsCurrentPage,
+        inventoryRowsPageSize,
+        inventoryRowsSearch,
+    ]);
+
+    useEffect(() => {
+        setInventoryRowsCurrentPage(1);
+    }, [inventoryModalType, inventoryRowsPageSize, inventoryRowsSearch]);
+
+    useEffect(() => {
+        if (inventoryRowsCurrentPage > inventoryRowsTotalPages) {
+            setInventoryRowsCurrentPage(inventoryRowsTotalPages);
+        }
+    }, [inventoryRowsCurrentPage, inventoryRowsTotalPages]);
+
     // --- Handlers ---
     const handleSubmit = (event) => {
         event.preventDefault();
@@ -676,8 +1205,7 @@ export default function MaterialIndex({ materials }) {
             onSuccess: () => {
                 reset();
                 setIsModalOpen(false);
-                fetchAllMovementMetrics();
-                fetchAllWarehouseSummaries();
+                refreshLoadedCardMetrics();
             },
         });
     };
@@ -694,6 +1222,16 @@ export default function MaterialIndex({ materials }) {
         setIsEditModalOpen(true);
     };
 
+    const handleExport = () => {
+        const params = new URLSearchParams(exportFilters);
+        window.open(
+            `/master-data/material/export?${params.toString()}`,
+            '_blank',
+            'noopener,noreferrer',
+        );
+        setIsExportModalOpen(false);
+    };
+
     const handleUpdate = (event) => {
         event.preventDefault();
         if (!editingMaterial?.kd_material) {
@@ -707,8 +1245,7 @@ export default function MaterialIndex({ materials }) {
                     resetEdit();
                     setEditingMaterial(null);
                     setIsEditModalOpen(false);
-                    fetchAllMovementMetrics();
-                    fetchAllWarehouseSummaries();
+                    refreshLoadedCardMetrics();
                 },
             },
         );
@@ -728,8 +1265,7 @@ export default function MaterialIndex({ materials }) {
             {
                 preserveScroll: true,
                 onSuccess: () => {
-                    fetchAllMovementMetrics();
-                    fetchAllWarehouseSummaries();
+                    refreshLoadedCardMetrics();
                 },
             },
         );
@@ -749,14 +1285,12 @@ export default function MaterialIndex({ materials }) {
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <Button variant="outline" asChild>
-                            <a
-                                href="/master-data/material/export"
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                Export Data
-                            </a>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setIsExportModalOpen(true)}
+                        >
+                            Export Data
                         </Button>
                         <Button onClick={() => setIsModalOpen(true)}>
                             <Plus className="mr-2 h-4 w-4" />
@@ -765,266 +1299,481 @@ export default function MaterialIndex({ materials }) {
                     </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-4">
-                    <button
-                        type="button"
-                        className="text-left"
-                        onClick={() => {
-                            setIsOutstandingModalOpen(true);
-                            loadOutstanding();
-                        }}
+                <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-xl border bg-gradient-to-r from-slate-900/80 via-slate-800/70 to-slate-900/60 px-4 py-3 text-left shadow-sm"
+                    onClick={() => handleCardTabChange('category')}
+                >
+                    <span
+                        className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition-transform ${activeCardTab === 'category' ? 'rotate-180' : ''}`}
                     >
-                        <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
-                            <CardHeader className="pb-2">
-                                <CardDescription>
-                                    DO Outstanding
-                                </CardDescription>
-                                <CardTitle className="text-2xl">
-                                    {outstandingSummaryLoading ? (
-                                        <Skeleton className="h-8 w-16" />
-                                    ) : (
-                                        outstandingCount
-                                    )}
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-xs text-muted-foreground">
-                                    Grand total outstanding
-                                </p>
-                                <div className="mt-1 text-sm font-semibold">
-                                    {outstandingSummaryLoading ? (
-                                        <Skeleton className="h-5 w-24" />
-                                    ) : (
-                                        `Rp ${formatNumber(outstandingTotal)}`
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </button>
-                    {movementCategories.map((category) => {
-                        const item = movementMetrics[category.key];
-                        const loading = movementMetricLoading[category.key];
+                        <ChevronDown className="h-4 w-4" />
+                    </span>
+                    <span className="font-semibold text-white">Kategori</span>
+                </button>
 
-                        return (
-                            <Card
-                                key={category.key}
-                                role="button"
-                                tabIndex={0}
-                                className="cursor-pointer transition-colors hover:bg-muted/40"
-                                onClick={() => {
-                                    setMovementModal(category.key);
-                                    setMovementSearchTerm('');
-                                    setMovementPageSize(5);
-                                    setMovementCurrentPage(1);
-                                }}
-                                onKeyDown={(event) => {
-                                    if (
-                                        event.key === 'Enter' ||
-                                        event.key === ' '
-                                    ) {
-                                        event.preventDefault();
+                {activeCardTab === 'category' && (
+                    <div className="grid gap-4 md:grid-cols-3">
+                        {movementCategories.map((category) => {
+                            const item = movementMetrics[category.key];
+                            const loading = movementMetricLoading[category.key];
+
+                            return (
+                                <Card
+                                    key={category.key}
+                                    role="button"
+                                    tabIndex={0}
+                                    className="cursor-pointer transition-colors hover:bg-muted/40"
+                                    onClick={() => {
                                         setMovementModal(category.key);
                                         setMovementSearchTerm('');
                                         setMovementPageSize(5);
                                         setMovementCurrentPage(1);
-                                    }
-                                }}
-                            >
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (
+                                            event.key === 'Enter' ||
+                                            event.key === ' '
+                                        ) {
+                                            event.preventDefault();
+                                            setMovementModal(category.key);
+                                            setMovementSearchTerm('');
+                                            setMovementPageSize(5);
+                                            setMovementCurrentPage(1);
+                                        }
+                                    }}
+                                >
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                                            {category.title}
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <div className="text-xs text-muted-foreground">
+                                                Jumlah stok
+                                            </div>
+                                            <div className="text-xl font-semibold tabular-nums">
+                                                {loading?.stock ? (
+                                                    <Skeleton className="h-7 w-20" />
+                                                ) : (
+                                                    formatNumber(item?.stock)
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-muted-foreground">
+                                                Jumlah item
+                                            </div>
+                                            <div className="text-xl font-semibold tabular-nums">
+                                                {loading?.items ? (
+                                                    <Skeleton className="h-7 w-16" />
+                                                ) : (
+                                                    formatNumber(item?.items)
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="col-span-2 border-t pt-3">
+                                            <div className="text-xs text-muted-foreground">
+                                                Total harga
+                                            </div>
+                                            <div className="font-semibold tabular-nums">
+                                                {loading?.total ? (
+                                                    <Skeleton className="h-6 w-24" />
+                                                ) : (
+                                                    <>
+                                                        Rp{' '}
+                                                        {formatNumber(
+                                                            item?.total,
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                )}
+
+                <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-xl border bg-gradient-to-r from-slate-900/80 via-slate-800/70 to-slate-900/60 px-4 py-3 text-left shadow-sm"
+                    onClick={() => handleCardTabChange('do')}
+                >
+                    <span
+                        className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition-transform ${activeCardTab === 'do' ? 'rotate-180' : ''}`}
+                    >
+                        <ChevronDown className="h-4 w-4" />
+                    </span>
+                    <span className="font-semibold text-white">DO</span>
+                </button>
+
+                {activeCardTab === 'do' && (
+                    <div className="grid gap-4 md:grid-cols-3">
+                        <button
+                            type="button"
+                            className="h-full w-full text-left"
+                            onClick={() => {
+                                setIsOutstandingModalOpen(true);
+                                loadOutstanding();
+                            }}
+                        >
+                            <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
                                 <CardHeader className="pb-2">
-                                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                                        {category.title}
+                                    <CardDescription>
+                                        DO Outstanding
+                                    </CardDescription>
+                                    <CardTitle className="text-2xl">
+                                        {outstandingCountLoading ? (
+                                            <Skeleton className="h-8 w-16" />
+                                        ) : (
+                                            outstandingCount
+                                        )}
                                     </CardTitle>
                                 </CardHeader>
-                                <CardContent className="grid gap-3 sm:grid-cols-3">
-                                    <div>
-                                        <div className="text-xs text-muted-foreground">
-                                            Jumlah stok
-                                        </div>
-                                        <div className="text-xl font-semibold tabular-nums">
-                                            {loading?.stock ? (
-                                                <Skeleton className="h-7 w-20" />
-                                            ) : (
-                                                formatNumber(item?.stock)
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs text-muted-foreground">
-                                            Jumlah item
-                                        </div>
-                                        <div className="text-xl font-semibold tabular-nums">
-                                            {loading?.items ? (
-                                                <Skeleton className="h-7 w-16" />
-                                            ) : (
-                                                formatNumber(item?.items)
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs text-muted-foreground">
-                                            Total harga
-                                        </div>
-                                        <div className="font-semibold tabular-nums">
-                                            {loading?.total ? (
-                                                <Skeleton className="h-6 w-24" />
-                                            ) : (
-                                                <>
-                                                    Rp{' '}
-                                                    {formatNumber(item?.total)}
-                                                </>
-                                            )}
-                                        </div>
+                                <CardContent>
+                                    <p className="text-xs text-muted-foreground">
+                                        Grand total outstanding
+                                    </p>
+                                    <div className="mt-1 text-sm font-semibold">
+                                        {outstandingTotalLoading ? (
+                                            <Skeleton className="h-5 w-24" />
+                                        ) : (
+                                            `Rp ${formatNumber(outstandingTotal)}`
+                                        )}
                                     </div>
                                 </CardContent>
                             </Card>
-                        );
-                    })}
-                </div>
+                        </button>
 
-                <div className="grid gap-4 xl:grid-cols-4">
-                    {warehouseOptions.map((warehouse) => {
-                        const summary = warehouseSummaries[warehouse.value];
+                        <button
+                            type="button"
+                            className="h-full w-full text-left"
+                            onClick={() => {
+                                setIsDotOutstandingModalOpen(true);
+                                loadDotOutstanding();
+                            }}
+                        >
+                            <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
+                                <CardHeader className="pb-2">
+                                    <CardDescription>DO Add</CardDescription>
+                                    <CardTitle className="text-2xl">
+                                        {dotOutstandingCountLoading ? (
+                                            <Skeleton className="h-8 w-16" />
+                                        ) : (
+                                            dotOutstandingCount
+                                        )}
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-xs text-muted-foreground">
+                                        DOT Belum Dibebankan
+                                    </p>
+                                    <div className="mt-1 text-sm font-semibold">
+                                        {dotOutstandingTotalLoading ? (
+                                            <Skeleton className="h-5 w-24" />
+                                        ) : (
+                                            `Rp ${formatNumber(dotOutstandingTotal)}`
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </button>
 
-                        return (
-                            <Card
-                                key={warehouse.value}
-                                role="button"
-                                tabIndex={0}
-                                className="cursor-pointer transition-colors hover:bg-muted/40"
-                                onClick={() => {
-                                    setWarehouseModal(warehouse.value);
-                                    setMovementSearchTerm('');
-                                    setMovementPageSize(5);
-                                    setMovementCurrentPage(1);
-                                }}
-                                onKeyDown={(event) => {
-                                    if (
-                                        event.key === 'Enter' ||
-                                        event.key === ' '
-                                    ) {
-                                        event.preventDefault();
+                        <button
+                            type="button"
+                            className="h-full w-full text-left"
+                            onClick={() => {
+                                setIsDoCostOutstandingModalOpen(true);
+                                loadDoCostOutstanding();
+                            }}
+                        >
+                            <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
+                                <CardHeader className="pb-2">
+                                    <CardDescription>DO Cost</CardDescription>
+                                    <CardTitle className="text-2xl">
+                                        {doCostOutstandingCountLoading ? (
+                                            <Skeleton className="h-8 w-16" />
+                                        ) : (
+                                            doCostOutstandingCount
+                                        )}
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <p className="text-xs text-muted-foreground">
+                                        DO Biaya Belum Dibebankan
+                                    </p>
+                                    <div className="mt-1 text-sm font-semibold">
+                                        {doCostOutstandingTotalLoading ? (
+                                            <Skeleton className="h-5 w-24" />
+                                        ) : (
+                                            `Rp ${formatNumber(doCostOutstandingTotal)}`
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </button>
+                    </div>
+                )}
+
+                <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-xl border bg-gradient-to-r from-slate-900/80 via-slate-800/70 to-slate-900/60 px-4 py-3 text-left shadow-sm"
+                    onClick={() => handleCardTabChange('inventory')}
+                >
+                    <span
+                        className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition-transform ${activeCardTab === 'inventory' ? 'rotate-180' : ''}`}
+                    >
+                        <ChevronDown className="h-4 w-4" />
+                    </span>
+                    <span className="font-semibold text-white">
+                        MIS, MIB, MIBS
+                    </span>
+                </button>
+
+                {activeCardTab === 'inventory' && (
+                    <div className="grid gap-4 md:grid-cols-3">
+                        {inventoryCardTypes.map((card) => {
+                            const summary = inventorySummaries[card.key];
+                            const loading = inventorySummaryLoading[card.key];
+                            return (
+                                <Card
+                                    key={card.key}
+                                    role="button"
+                                    tabIndex={0}
+                                    className="cursor-pointer transition hover:border-primary/60 hover:shadow-md"
+                                    onClick={() => {
+                                        setInventoryRowsSearch('');
+                                        setInventoryRowsPageSize(5);
+                                        setInventoryRowsCurrentPage(1);
+                                        setInventoryModalType(card.key);
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (
+                                            event.key === 'Enter' ||
+                                            event.key === ' '
+                                        ) {
+                                            event.preventDefault();
+                                            setInventoryModalType(card.key);
+                                        }
+                                    }}
+                                >
+                                    <CardHeader className="pb-2">
+                                        <CardTitle>{card.title}</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <div className="text-xs text-muted-foreground">
+                                                Jumlah item
+                                            </div>
+                                            <div className="text-xl font-semibold">
+                                                {loading?.items ? (
+                                                    <Skeleton className="h-7 w-16" />
+                                                ) : (
+                                                    formatNumber(summary?.items)
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div className="text-xs text-muted-foreground">
+                                                Jumlah qty
+                                            </div>
+                                            <div className="text-xl font-semibold">
+                                                {loading?.qty ? (
+                                                    <Skeleton className="h-7 w-20" />
+                                                ) : (
+                                                    formatNumber(summary?.qty)
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="col-span-2 border-t pt-3">
+                                            <div className="text-xs text-muted-foreground">
+                                                Total harga
+                                            </div>
+                                            <div className="font-semibold">
+                                                {loading?.total ? (
+                                                    <Skeleton className="h-6 w-28" />
+                                                ) : (
+                                                    `Rp ${formatNumber(summary?.total)}`
+                                                )}
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                )}
+
+                <button
+                    type="button"
+                    className="flex w-full items-center gap-3 rounded-xl border bg-gradient-to-r from-slate-900/80 via-slate-800/70 to-slate-900/60 px-4 py-3 text-left shadow-sm"
+                    onClick={() => handleCardTabChange('warehouse')}
+                >
+                    <span
+                        className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition-transform ${activeCardTab === 'warehouse' ? 'rotate-180' : ''}`}
+                    >
+                        <ChevronDown className="h-4 w-4" />
+                    </span>
+                    <span className="font-semibold text-white">Gudang</span>
+                </button>
+
+                {activeCardTab === 'warehouse' && (
+                    <div className="grid gap-4 xl:grid-cols-4">
+                        {warehouseOptions.map((warehouse) => {
+                            const summary = warehouseSummaries[warehouse.value];
+
+                            return (
+                                <Card
+                                    key={warehouse.value}
+                                    role="button"
+                                    tabIndex={0}
+                                    className="cursor-pointer transition-colors hover:bg-muted/40"
+                                    onClick={() => {
                                         setWarehouseModal(warehouse.value);
                                         setMovementSearchTerm('');
                                         setMovementPageSize(5);
                                         setMovementCurrentPage(1);
-                                    }
-                                }}
-                            >
-                                <CardHeader className="pb-2">
-                                    <CardTitle className="text-sm font-medium text-muted-foreground">
-                                        {warehouse.label}
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="rounded-md border border-sidebar-border/70 bg-muted/30 p-3">
-                                        <div className="mb-2 text-sm font-semibold">
-                                            Total Gudang
-                                        </div>
-                                        <div className="grid gap-2 text-xs text-muted-foreground">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span>Total stok</span>
-                                                <span className="font-semibold text-foreground tabular-nums">
-                                                    <MetricValue
-                                                        loading={
-                                                            summary?.loading
-                                                        }
-                                                    >
-                                                        {formatNumber(
-                                                            summary?.total
-                                                                ?.stock,
-                                                        )}
-                                                    </MetricValue>
-                                                </span>
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (
+                                            event.key === 'Enter' ||
+                                            event.key === ' '
+                                        ) {
+                                            event.preventDefault();
+                                            setWarehouseModal(warehouse.value);
+                                            setMovementSearchTerm('');
+                                            setMovementPageSize(5);
+                                            setMovementCurrentPage(1);
+                                        }
+                                    }}
+                                >
+                                    <CardHeader className="pb-2">
+                                        <CardTitle className="text-sm font-medium text-muted-foreground">
+                                            {warehouse.label}
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="rounded-md border border-sidebar-border/70 bg-muted/30 p-3">
+                                            <div className="mb-2 text-sm font-semibold">
+                                                Total Gudang
                                             </div>
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span>Total item</span>
-                                                <span className="font-semibold text-foreground tabular-nums">
-                                                    <MetricValue
-                                                        loading={
-                                                            summary?.loading
-                                                        }
-                                                    >
-                                                        {formatNumber(
-                                                            summary?.total
-                                                                ?.items,
-                                                        )}
-                                                    </MetricValue>
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center justify-between gap-3">
-                                                <span>Total harga</span>
-                                                <span className="font-semibold text-foreground tabular-nums">
-                                                    <MetricValue
-                                                        loading={
-                                                            summary?.loading
-                                                        }
-                                                        className="h-5 w-20"
-                                                    >
-                                                        Rp{' '}
-                                                        {formatNumber(
-                                                            summary?.total
-                                                                ?.total,
-                                                        )}
-                                                    </MetricValue>
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {summary?.loading ? (
-                                        <div className="space-y-3">
-                                            <Skeleton className="h-28 w-full" />
-                                            <Skeleton className="h-28 w-full" />
-                                        </div>
-                                    ) : summary?.categories?.length > 0 ? (
-                                        summary.categories.map((category) => (
-                                            <div
-                                                key={`${warehouse.value}-${category.key}`}
-                                                className="rounded-md border border-sidebar-border/70 p-3"
-                                            >
-                                                <div className="mb-2 text-sm font-semibold">
-                                                    {category.label}
+                                            <div className="grid gap-2 text-xs text-muted-foreground">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <span>Total stok</span>
+                                                    <span className="font-semibold text-foreground tabular-nums">
+                                                        <MetricValue
+                                                            loading={
+                                                                summary?.loading
+                                                            }
+                                                        >
+                                                            {formatNumber(
+                                                                summary?.total
+                                                                    ?.stock,
+                                                            )}
+                                                        </MetricValue>
+                                                    </span>
                                                 </div>
-                                                <div className="grid gap-2 text-xs text-muted-foreground">
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <span>Jumlah stok</span>
-                                                        <span className="font-semibold text-foreground tabular-nums">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <span>Total item</span>
+                                                    <span className="font-semibold text-foreground tabular-nums">
+                                                        <MetricValue
+                                                            loading={
+                                                                summary?.loading
+                                                            }
+                                                        >
                                                             {formatNumber(
-                                                                category.stock,
+                                                                summary?.total
+                                                                    ?.items,
                                                             )}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <span>Jumlah item</span>
-                                                        <span className="font-semibold text-foreground tabular-nums">
-                                                            {formatNumber(
-                                                                category.items,
-                                                            )}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <span>Total harga</span>
-                                                        <span className="font-semibold text-foreground tabular-nums">
+                                                        </MetricValue>
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <span>Total harga</span>
+                                                    <span className="font-semibold text-foreground tabular-nums">
+                                                        <MetricValue
+                                                            loading={
+                                                                summary?.loading
+                                                            }
+                                                            className="h-5 w-20"
+                                                        >
                                                             Rp{' '}
                                                             {formatNumber(
-                                                                category.total,
+                                                                summary?.total
+                                                                    ?.total,
                                                             )}
-                                                        </span>
-                                                    </div>
+                                                        </MetricValue>
+                                                    </span>
                                                 </div>
                                             </div>
-                                        ))
-                                    ) : (
-                                        <div className="rounded-md border border-dashed border-sidebar-border/70 p-3 text-sm text-muted-foreground">
-                                            Belum ada kategori stok di gudang
-                                            ini.
                                         </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        );
-                    })}
-                </div>
+
+                                        {summary?.loading ? (
+                                            <div className="space-y-3">
+                                                <Skeleton className="h-28 w-full" />
+                                                <Skeleton className="h-28 w-full" />
+                                            </div>
+                                        ) : summary?.categories?.length > 0 ? (
+                                            summary.categories.map(
+                                                (category) => (
+                                                    <div
+                                                        key={`${warehouse.value}-${category.key}`}
+                                                        className="rounded-md border border-sidebar-border/70 p-3"
+                                                    >
+                                                        <div className="mb-2 text-sm font-semibold">
+                                                            {category.label}
+                                                        </div>
+                                                        <div className="grid gap-2 text-xs text-muted-foreground">
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <span>
+                                                                    Jumlah stok
+                                                                </span>
+                                                                <span className="font-semibold text-foreground tabular-nums">
+                                                                    {formatNumber(
+                                                                        category.stock,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <span>
+                                                                    Jumlah item
+                                                                </span>
+                                                                <span className="font-semibold text-foreground tabular-nums">
+                                                                    {formatNumber(
+                                                                        category.items,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <span>
+                                                                    Total harga
+                                                                </span>
+                                                                <span className="font-semibold text-foreground tabular-nums">
+                                                                    Rp{' '}
+                                                                    {formatNumber(
+                                                                        category.total,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ),
+                                            )
+                                        ) : (
+                                            <div className="rounded-md border border-dashed border-sidebar-border/70 p-3 text-sm text-muted-foreground">
+                                                Belum ada kategori stok di
+                                                gudang ini.
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                )}
 
                 <Card>
                     <CardHeader>
@@ -1324,6 +2073,1376 @@ export default function MaterialIndex({ materials }) {
             </div>
 
             <Dialog
+                open={Boolean(inventoryModalType)}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setInventoryModalType(null);
+                        setInventoryRows([]);
+                        setInventoryRowsTotal(0);
+                        setInventoryRowsError('');
+                    }
+                }}
+            >
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none">
+                    <DialogHeader>
+                        <DialogTitle>
+                            Data {inventoryModalType?.toUpperCase()}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Data material read-only tanpa kolom aksi.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                        <label>
+                            Tampilkan
+                            <select
+                                className="ml-2 rounded-md border bg-background px-2 py-1"
+                                value={
+                                    inventoryRowsPageSize === Infinity
+                                        ? 'all'
+                                        : inventoryRowsPageSize
+                                }
+                                onChange={(event) =>
+                                    setInventoryRowsPageSize(
+                                        event.target.value === 'all'
+                                            ? Infinity
+                                            : Number(event.target.value),
+                                    )
+                                }
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value="all">Semua</option>
+                            </select>
+                        </label>
+                        <label>
+                            Cari
+                            <input
+                                type="search"
+                                className="ml-2 w-64 rounded-md border bg-background px-3 py-1 md:w-80"
+                                placeholder="Cari nomor dokumen, ref PO, atau material..."
+                                value={inventoryRowsSearch}
+                                onChange={(event) =>
+                                    setInventoryRowsSearch(event.target.value)
+                                }
+                            />
+                        </label>
+                    </div>
+                    <div className="overflow-x-auto rounded-xl border">
+                        <table className="w-full text-sm">
+                            <thead className="bg-muted/50 text-muted-foreground">
+                                <tr>
+                                    {(inventoryModalType === 'mibs'
+                                        ? [
+                                              'No MIB',
+                                              'Material',
+                                              'Qty',
+                                              'Price',
+                                              'Total Price',
+                                              'MIBS',
+                                          ]
+                                        : [
+                                              'No MI',
+                                              'Date',
+                                              'Ref PO',
+                                              'Material',
+                                              'Qty',
+                                              'Price',
+                                              'Total Price',
+                                              inventoryModalType?.toUpperCase(),
+                                          ]
+                                    ).map((heading) => (
+                                        <th
+                                            key={heading}
+                                            className={
+                                                [
+                                                    'Qty',
+                                                    'Price',
+                                                    'Total Price',
+                                                    'MIS',
+                                                    'MIB',
+                                                    'MIBS',
+                                                ].includes(heading)
+                                                    ? 'px-4 py-3 text-right'
+                                                    : 'px-4 py-3 text-left'
+                                            }
+                                        >
+                                            {heading}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <PlainTableStateRows
+                                    loading={inventoryRowsLoading}
+                                    columns={
+                                        inventoryModalType === 'mibs' ? 6 : 8
+                                    }
+                                    rows={5}
+                                    isEmpty={
+                                        !inventoryRowsLoading &&
+                                        inventoryRows.length === 0
+                                    }
+                                    emptyMessage={
+                                        inventoryRowsError || 'Tidak ada data.'
+                                    }
+                                />
+                                {!inventoryRowsLoading &&
+                                    inventoryRows.map((row, index) =>
+                                        inventoryModalType === 'mibs' ? (
+                                            <tr
+                                                key={`${row.no_doc}-${index}`}
+                                                className="border-t"
+                                            >
+                                                <td className="px-4 py-3 font-medium">
+                                                    {renderValue(row.no_doc)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(row.material)}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {formatNumber(row.qty)}{' '}
+                                                    {row.unit}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {formatNumber(row.price)}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {formatNumber(
+                                                        row.total_price,
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {formatNumber(
+                                                        row.balance_qty,
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            <tr
+                                                key={`${row.no_doc}-${index}`}
+                                                className="border-t"
+                                            >
+                                                <td className="px-4 py-3 font-medium">
+                                                    {renderValue(row.no_doc)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(row.doc_tgl)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(row.ref_po)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(row.material)}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {formatNumber(row.qty)}{' '}
+                                                    {row.unit}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {formatNumber(row.price)}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {formatNumber(
+                                                        row.total_price,
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    {formatNumber(
+                                                        row.balance_qty,
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ),
+                                    )}
+                            </tbody>
+                        </table>
+                    </div>
+                    {inventoryRowsPageSize !== Infinity &&
+                        inventoryRowsTotal > 0 && (
+                            <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                <span>
+                                    Halaman {inventoryRowsCurrentPage} dari{' '}
+                                    {inventoryRowsTotalPages}
+                                </span>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={
+                                            inventoryRowsCurrentPage === 1
+                                        }
+                                        onClick={() =>
+                                            setInventoryRowsCurrentPage(
+                                                (page) => Math.max(1, page - 1),
+                                            )
+                                        }
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={
+                                            inventoryRowsCurrentPage ===
+                                            inventoryRowsTotalPages
+                                        }
+                                        onClick={() =>
+                                            setInventoryRowsCurrentPage(
+                                                (page) =>
+                                                    Math.min(
+                                                        inventoryRowsTotalPages,
+                                                        page + 1,
+                                                    ),
+                                            )
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={isExportModalOpen}
+                onOpenChange={setIsExportModalOpen}
+            >
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Pilih Filter Export</DialogTitle>
+                        <DialogDescription>
+                            Tentukan data material yang akan diekspor.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="export-warehouse">Gudang</Label>
+                            <Select
+                                value={exportFilters.warehouse}
+                                onValueChange={(value) =>
+                                    setExportFilters((current) => ({
+                                        ...current,
+                                        warehouse: value,
+                                    }))
+                                }
+                            >
+                                <SelectTrigger id="export-warehouse">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">
+                                        Semua Gudang
+                                    </SelectItem>
+                                    <SelectItem value="g1">Gudang 1</SelectItem>
+                                    <SelectItem value="g2">Gudang 2</SelectItem>
+                                    <SelectItem value="g3">Gudang 3</SelectItem>
+                                    <SelectItem value="g4">Gudang 4</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="export-category">Kategori</Label>
+                            <Select
+                                value={exportFilters.category}
+                                onValueChange={(value) =>
+                                    setExportFilters((current) => ({
+                                        ...current,
+                                        category: value,
+                                    }))
+                                }
+                            >
+                                <SelectTrigger id="export-category">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">
+                                        Semua Kategori
+                                    </SelectItem>
+                                    <SelectItem value="fast">
+                                        Fast Moving
+                                    </SelectItem>
+                                    <SelectItem value="slow">
+                                        Slow Moving
+                                    </SelectItem>
+                                    <SelectItem value="dead">
+                                        Dead Stok
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="export-stock">Stok</Label>
+                            <Select
+                                value={exportFilters.stock}
+                                onValueChange={(value) =>
+                                    setExportFilters((current) => ({
+                                        ...current,
+                                        stock: value,
+                                    }))
+                                }
+                            >
+                                <SelectTrigger id="export-stock">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">
+                                        Semua Stok
+                                    </SelectItem>
+                                    <SelectItem value="highest">
+                                        Stok Terbanyak
+                                    </SelectItem>
+                                    <SelectItem value="lowest">
+                                        Stok Sedikit (&gt;0)
+                                    </SelectItem>
+                                    <SelectItem value="empty">
+                                        Stok Kosong
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsExportModalOpen(false)}
+                            >
+                                Batal
+                            </Button>
+                            <Button type="button" onClick={handleExport}>
+                                Export
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={isDoCostDetailModalOpen}
+                onOpenChange={(open) => {
+                    setIsDoCostDetailModalOpen(open);
+                    if (!open) {
+                        setDoCostDetailItems([]);
+                        setDoCostDetailHeader(null);
+                        setDoCostDetailSearch('');
+                        setDoCostDetailError('');
+                    }
+                }}
+            >
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none">
+                    <DialogHeader>
+                        <DialogTitle>Detail Delivery Order Cost</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Detail Delivery Order Cost terpilih.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-3">
+                            {[
+                                [
+                                    'Nomor DO Biaya',
+                                    doCostDetailHeader?.no_alokasi,
+                                ],
+                                ['Date', doCostDetailHeader?.date],
+                                ['Posting Date', doCostDetailHeader?.pos_tgl],
+                                [
+                                    'Permintaan',
+                                    doCostDetailHeader?.ref_permintaan,
+                                ],
+                                ['Departemen', doCostDetailHeader?.kd_cs],
+                                ['Nama', doCostDetailHeader?.nm_cs],
+                            ].map(([label, value]) => (
+                                <div key={label}>
+                                    <div className="text-muted-foreground">
+                                        {label}
+                                    </div>
+                                    <div className="font-semibold">
+                                        {renderValue(value)}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <label>
+                                Tampilkan
+                                <select
+                                    className="ml-2 rounded-md border bg-background px-2 py-1"
+                                    value={
+                                        doCostDetailPageSize === Infinity
+                                            ? 'all'
+                                            : doCostDetailPageSize
+                                    }
+                                    onChange={(event) =>
+                                        setDoCostDetailPageSize(
+                                            event.target.value === 'all'
+                                                ? Infinity
+                                                : Number(event.target.value),
+                                        )
+                                    }
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </label>
+                            <label>
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 w-64 rounded-md border bg-background px-3 py-1 md:w-80"
+                                    placeholder="Cari material..."
+                                    value={doCostDetailSearch}
+                                    onChange={(event) =>
+                                        setDoCostDetailSearch(
+                                            event.target.value,
+                                        )
+                                    }
+                                />
+                            </label>
+                        </div>
+                        <div className="overflow-x-auto rounded-lg border">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        {[
+                                            'No',
+                                            'Material',
+                                            'Qty',
+                                            'Satuan',
+                                            'Harga',
+                                            'Total',
+                                            'Remark',
+                                        ].map((heading) => (
+                                            <th
+                                                key={heading}
+                                                className="px-4 py-3 text-left"
+                                            >
+                                                {heading}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        loading={doCostDetailLoading}
+                                        columns={7}
+                                        rows={5}
+                                        isEmpty={
+                                            !doCostDetailLoading &&
+                                            displayedDoCostDetails.length === 0
+                                        }
+                                        emptyMessage={
+                                            doCostDetailError ||
+                                            'Tidak ada data.'
+                                        }
+                                    />
+                                    {!doCostDetailLoading &&
+                                        displayedDoCostDetails.map(
+                                            (item, index) => (
+                                                <tr
+                                                    key={`${item.no_alokasi}-${index}`}
+                                                    className="border-t"
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        {doCostDetailPageSize ===
+                                                        Infinity
+                                                            ? index + 1
+                                                            : (doCostDetailCurrentPage -
+                                                                  1) *
+                                                                  doCostDetailPageSize +
+                                                              index +
+                                                              1}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(item.mat)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {formatNumber(item.qty)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(item.unit)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {formatNumber(
+                                                            item.harga,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {formatNumber(
+                                                            item.total,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(
+                                                            item.remark,
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ),
+                                        )}
+                                </tbody>
+                            </table>
+                        </div>
+                        {doCostDetailPageSize !== Infinity &&
+                            filteredDoCostDetails.length > 0 && (
+                                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                    <span>
+                                        Halaman {doCostDetailCurrentPage} dari{' '}
+                                        {doCostDetailTotalPages}
+                                    </span>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={
+                                                doCostDetailCurrentPage === 1
+                                            }
+                                            onClick={() =>
+                                                setDoCostDetailCurrentPage(
+                                                    (page) =>
+                                                        Math.max(1, page - 1),
+                                                )
+                                            }
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={
+                                                doCostDetailCurrentPage ===
+                                                doCostDetailTotalPages
+                                            }
+                                            onClick={() =>
+                                                setDoCostDetailCurrentPage(
+                                                    (page) =>
+                                                        Math.min(
+                                                            doCostDetailTotalPages,
+                                                            page + 1,
+                                                        ),
+                                                )
+                                            }
+                                        >
+                                            Selanjutnya
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        <div className="text-right text-sm font-semibold">
+                            Grand Total: Rp{' '}
+                            {formatNumber(doCostDetailGrandTotal)}
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={isDoCostOutstandingModalOpen}
+                onOpenChange={(open) => {
+                    setIsDoCostOutstandingModalOpen(open);
+                    if (open) loadDoCostOutstanding();
+                }}
+            >
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none">
+                    <DialogHeader>
+                        <DialogTitle>DO Cost Belum Dibebankan</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Daftar DO Cost yang belum dibebankan.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                        <label>
+                            Tampilkan
+                            <select
+                                className="ml-2 rounded-md border bg-background px-2 py-1"
+                                value={
+                                    doCostOutstandingPageSize === Infinity
+                                        ? 'all'
+                                        : doCostOutstandingPageSize
+                                }
+                                onChange={(event) =>
+                                    setDoCostOutstandingPageSize(
+                                        event.target.value === 'all'
+                                            ? Infinity
+                                            : Number(event.target.value),
+                                    )
+                                }
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value="all">Semua</option>
+                            </select>
+                        </label>
+                        <label>
+                            Cari
+                            <input
+                                type="search"
+                                className="ml-2 w-64 rounded-md border bg-background px-3 py-1 md:w-80"
+                                placeholder="Cari no alokasi, permintaan..."
+                                value={doCostOutstandingSearch}
+                                onChange={(event) =>
+                                    setDoCostOutstandingSearch(
+                                        event.target.value,
+                                    )
+                                }
+                            />
+                        </label>
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border">
+                        <table className="w-full text-sm">
+                            <thead className="bg-muted/50 text-muted-foreground">
+                                <tr>
+                                    {[
+                                        'No DOBi',
+                                        'Date',
+                                        'Permintaan',
+                                        'Departemen',
+                                        'Action',
+                                    ].map((heading) => (
+                                        <th
+                                            key={heading}
+                                            className="px-4 py-3 text-left"
+                                        >
+                                            {heading}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <PlainTableStateRows
+                                    loading={doCostOutstandingLoading}
+                                    columns={5}
+                                    rows={5}
+                                    isEmpty={
+                                        !doCostOutstandingLoading &&
+                                        displayedDoCostOutstanding.length === 0
+                                    }
+                                    emptyMessage={
+                                        doCostOutstandingError ||
+                                        'Tidak ada data.'
+                                    }
+                                />
+                                {!doCostOutstandingLoading &&
+                                    displayedDoCostOutstanding.map((item) => (
+                                        <tr
+                                            key={`cost-${item.no_alokasi}`}
+                                            className="border-t"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.no_alokasi)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.date)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(
+                                                    item.ref_permintaan,
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.kd_cs)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <button
+                                                    type="button"
+                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                    title="Lihat detail DO Cost"
+                                                    aria-label="Lihat detail DO Cost"
+                                                    onClick={() =>
+                                                        handleOpenDoCostDetail(
+                                                            item,
+                                                        )
+                                                    }
+                                                >
+                                                    <Eye className="size-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {doCostOutstandingPageSize !== Infinity &&
+                        filteredDoCostOutstanding.length > 0 && (
+                            <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                <span>
+                                    Halaman {doCostOutstandingCurrentPage} dari{' '}
+                                    {doCostOutstandingTotalPages}
+                                </span>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={
+                                            doCostOutstandingCurrentPage === 1
+                                        }
+                                        onClick={() =>
+                                            setDoCostOutstandingCurrentPage(
+                                                (page) => Math.max(1, page - 1),
+                                            )
+                                        }
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={
+                                            doCostOutstandingCurrentPage ===
+                                            doCostOutstandingTotalPages
+                                        }
+                                        onClick={() =>
+                                            setDoCostOutstandingCurrentPage(
+                                                (page) =>
+                                                    Math.min(
+                                                        doCostOutstandingTotalPages,
+                                                        page + 1,
+                                                    ),
+                                            )
+                                        }
+                                    >
+                                        Selanjutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={isDotDetailModalOpen}
+                onOpenChange={(open) => {
+                    setIsDotDetailModalOpen(open);
+                    if (!open) {
+                        setSelectedDot(null);
+                        setDotDetailItems([]);
+                        setDotDetailHeader(null);
+                        setDotDetailSearch('');
+                        setDotDetailError('');
+                    }
+                }}
+            >
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none">
+                    <DialogHeader>
+                        <DialogTitle>Detail Delivery Order Bantu</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Detail Delivery Order Bantu terpilih.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {selectedDot && (
+                        <div className="space-y-4">
+                            <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-3">
+                                {[
+                                    ['Nomor DOB', dotDetailHeader?.no_dob],
+                                    ['Date', dotDetailHeader?.date],
+                                    ['Posting Date', dotDetailHeader?.pos_tgl],
+                                    ['Nama Customer', dotDetailHeader?.nm_cs],
+                                    ['Ref DO', dotDetailHeader?.ref_do],
+                                ].map(([label, value]) => (
+                                    <div key={label}>
+                                        <div className="text-muted-foreground">
+                                            {label}
+                                        </div>
+                                        <div className="font-semibold">
+                                            {renderValue(value)}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <label>
+                                    Tampilkan
+                                    <select
+                                        className="ml-2 rounded-md border bg-background px-2 py-1"
+                                        value={
+                                            dotDetailPageSize === Infinity
+                                                ? 'all'
+                                                : dotDetailPageSize
+                                        }
+                                        onChange={(event) =>
+                                            setDotDetailPageSize(
+                                                event.target.value === 'all'
+                                                    ? Infinity
+                                                    : Number(
+                                                          event.target.value,
+                                                      ),
+                                            )
+                                        }
+                                    >
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                        <option value="all">Semua</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Cari
+                                    <input
+                                        type="search"
+                                        className="ml-2 w-64 rounded-md border bg-background px-3 py-1"
+                                        placeholder="Cari nama material..."
+                                        value={dotDetailSearch}
+                                        onChange={(event) =>
+                                            setDotDetailSearch(
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                </label>
+                            </div>
+                            <div className="overflow-x-auto rounded-lg border">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-muted/50 text-muted-foreground">
+                                        <tr>
+                                            {[
+                                                'No',
+                                                'Nama Material',
+                                                'Satuan',
+                                                'Harga',
+                                                'Total',
+                                                'Remark',
+                                            ].map((heading) => (
+                                                <th
+                                                    key={heading}
+                                                    className="px-4 py-3 text-left"
+                                                >
+                                                    {heading}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <PlainTableStateRows
+                                            loading={dotDetailLoading}
+                                            columns={6}
+                                            rows={5}
+                                            isEmpty={
+                                                !dotDetailLoading &&
+                                                displayedDotDetails.length === 0
+                                            }
+                                            emptyMessage={
+                                                dotDetailError ||
+                                                'Tidak ada data material.'
+                                            }
+                                        />
+                                        {!dotDetailLoading &&
+                                            displayedDotDetails.map(
+                                                (item, index) => (
+                                                    <tr
+                                                        key={`${item.no_dob}-${index}`}
+                                                        className="border-t"
+                                                    >
+                                                        <td className="px-4 py-3">
+                                                            {dotDetailPageSize ===
+                                                            Infinity
+                                                                ? index + 1
+                                                                : (dotDetailCurrentPage -
+                                                                      1) *
+                                                                      dotDetailPageSize +
+                                                                  index +
+                                                                  1}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(
+                                                                item.mat,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(
+                                                                item.qty,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {formatNumber(
+                                                                item.harga,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {formatNumber(
+                                                                item.total,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(
+                                                                item.remark,
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ),
+                                            )}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {dotDetailPageSize !== Infinity &&
+                                filteredDotDetails.length > 0 && (
+                                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                        <span>
+                                            Halaman {dotDetailCurrentPage} dari{' '}
+                                            {dotDetailTotalPages}
+                                        </span>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={
+                                                    dotDetailCurrentPage === 1
+                                                }
+                                                onClick={() =>
+                                                    setDotDetailCurrentPage(
+                                                        (page) =>
+                                                            Math.max(
+                                                                1,
+                                                                page - 1,
+                                                            ),
+                                                    )
+                                                }
+                                            >
+                                                Sebelumnya
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={
+                                                    dotDetailCurrentPage ===
+                                                    dotDetailTotalPages
+                                                }
+                                                onClick={() =>
+                                                    setDotDetailCurrentPage(
+                                                        (page) =>
+                                                            Math.min(
+                                                                dotDetailTotalPages,
+                                                                page + 1,
+                                                            ),
+                                                    )
+                                                }
+                                            >
+                                                Selanjutnya
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            <div className="text-right text-sm font-semibold">
+                                Grand Total: Rp{' '}
+                                {formatNumber(dotDetailGrandTotal)}
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={isDotOutstandingModalOpen}
+                onOpenChange={(open) => {
+                    setIsDotOutstandingModalOpen(open);
+                    if (open) loadDotOutstanding();
+                }}
+            >
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none">
+                    <DialogHeader>
+                        <DialogTitle>DOT Belum Dibebankan</DialogTitle>
+                        <DialogDescription className="sr-only">
+                            Daftar DOT yang belum dibebankan.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                        <label>
+                            Tampilkan
+                            <select
+                                className="ml-2 rounded-md border bg-background px-2 py-1"
+                                value={
+                                    dotOutstandingPageSize === Infinity
+                                        ? 'all'
+                                        : dotOutstandingPageSize
+                                }
+                                onChange={(event) =>
+                                    setDotOutstandingPageSize(
+                                        event.target.value === 'all'
+                                            ? Infinity
+                                            : Number(event.target.value),
+                                    )
+                                }
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value="all">Semua</option>
+                            </select>
+                        </label>
+                        <label>
+                            Cari
+                            <input
+                                type="search"
+                                className="ml-2 w-64 rounded-md border bg-background px-3 py-1 md:w-80"
+                                placeholder="Cari no DOT, ref DO, customer..."
+                                value={dotOutstandingSearch}
+                                onChange={(event) =>
+                                    setDotOutstandingSearch(event.target.value)
+                                }
+                            />
+                        </label>
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border">
+                        <table className="w-full text-sm">
+                            <thead className="bg-muted/50 text-muted-foreground">
+                                <tr>
+                                    {[
+                                        'No DOT',
+                                        'Ref DO',
+                                        'Customer',
+                                        'Action',
+                                    ].map((heading) => (
+                                        <th
+                                            key={heading}
+                                            className="px-4 py-3 text-left"
+                                        >
+                                            {heading}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <PlainTableStateRows
+                                    loading={dotOutstandingLoading}
+                                    columns={4}
+                                    rows={5}
+                                    isEmpty={
+                                        !dotOutstandingLoading &&
+                                        displayedDotOutstanding.length === 0
+                                    }
+                                    emptyMessage={
+                                        dotOutstandingError || 'Tidak ada data.'
+                                    }
+                                />
+                                {!dotOutstandingLoading &&
+                                    displayedDotOutstanding.map((item) => (
+                                        <tr
+                                            key={`dot-${item.no_dob}`}
+                                            className="border-t"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.no_dob)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.ref_do)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {renderValue(item.nm_cs)}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <button
+                                                    type="button"
+                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                    title="Lihat detail DOT"
+                                                    aria-label="Lihat detail DOT"
+                                                    onClick={() =>
+                                                        handleOpenDotDetail(
+                                                            item,
+                                                        )
+                                                    }
+                                                >
+                                                    <Eye className="size-4" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    {dotOutstandingPageSize !== Infinity &&
+                        filteredDotOutstanding.length > 0 && (
+                            <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                <span>
+                                    Halaman {dotOutstandingCurrentPage} dari{' '}
+                                    {dotOutstandingTotalPages}
+                                </span>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={
+                                            dotOutstandingCurrentPage === 1
+                                        }
+                                        onClick={() =>
+                                            setDotOutstandingCurrentPage(
+                                                (page) => Math.max(1, page - 1),
+                                            )
+                                        }
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={
+                                            dotOutstandingCurrentPage ===
+                                            dotOutstandingTotalPages
+                                        }
+                                        onClick={() =>
+                                            setDotOutstandingCurrentPage(
+                                                (page) =>
+                                                    Math.min(
+                                                        dotOutstandingTotalPages,
+                                                        page + 1,
+                                                    ),
+                                            )
+                                        }
+                                    >
+                                        Selanjutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={isDetailDoModalOpen}
+                onOpenChange={(open) => {
+                    setIsDetailDoModalOpen(open);
+                    if (!open) {
+                        setSelectedDo(null);
+                        setSelectedDoDetails([]);
+                        setSelectedDoAddress('');
+                        setDetailDoError('');
+                        setDetailDoSearch('');
+                        setDetailDoPageSize(5);
+                        setDetailDoCurrentPage(1);
+                    }
+                }}
+            >
+                <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
+                    <DialogHeader>
+                        <DialogTitle>Detail Delivery Order</DialogTitle>
+                        <DialogDescription>
+                            Ringkasan data dan item Delivery Order terpilih.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {selectedDo && (
+                        <div className="space-y-5">
+                            <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
+                                {[
+                                    ['Nomor DO', selectedDo.no_do],
+                                    ['Date', selectedDo.date],
+                                    ['Ref. PO', selectedDo.ref_po],
+                                    ['Nama Customer', selectedDo.nm_cs],
+                                ].map(([label, value]) => (
+                                    <div key={label} className="space-y-1">
+                                        <div>{label}</div>
+                                        <div className="font-semibold text-foreground">
+                                            {renderValue(value)}
+                                        </div>
+                                    </div>
+                                ))}
+                                <div className="space-y-1 sm:col-span-2">
+                                    <div>Alamat</div>
+                                    <div className="font-semibold text-foreground">
+                                        {renderValue(selectedDoAddress)}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm text-muted-foreground">
+                                    <label>
+                                        Tampilkan
+                                        <select
+                                            className="ml-2 h-8 rounded-md border border-input bg-background px-2 text-xs"
+                                            value={
+                                                detailDoPageSize === Infinity
+                                                    ? 'all'
+                                                    : detailDoPageSize
+                                            }
+                                            onChange={(event) => {
+                                                setDetailDoPageSize(
+                                                    event.target.value === 'all'
+                                                        ? Infinity
+                                                        : Number(
+                                                              event.target
+                                                                  .value,
+                                                          ),
+                                                );
+                                                setDetailDoCurrentPage(1);
+                                            }}
+                                        >
+                                            <option value={5}>5</option>
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value="all">Semua</option>
+                                        </select>
+                                    </label>
+                                    <label>
+                                        Cari
+                                        <input
+                                            type="search"
+                                            className="ml-2 h-8 w-44 rounded-md border border-input bg-background px-3 text-xs"
+                                            placeholder="Cari material..."
+                                            value={detailDoSearch}
+                                            onChange={(event) =>
+                                                setDetailDoSearch(
+                                                    event.target.value,
+                                                )
+                                            }
+                                        />
+                                    </label>
+                                </div>
+                                <table className="w-full text-sm">
+                                    <thead className="bg-muted/50 text-muted-foreground">
+                                        <tr>
+                                            {[
+                                                'No',
+                                                'Material',
+                                                'Qty',
+                                                'Harga',
+                                                'Total',
+                                                'Remark',
+                                            ].map((heading) => (
+                                                <th
+                                                    key={heading}
+                                                    className="px-4 py-3 text-left"
+                                                >
+                                                    {heading}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <PlainTableStateRows
+                                            loading={detailDoLoading}
+                                            columns={6}
+                                            rows={5}
+                                            isEmpty={
+                                                !detailDoLoading &&
+                                                displayedDoDetails.length === 0
+                                            }
+                                            emptyMessage={
+                                                detailDoError ||
+                                                'Tidak ada detail DO.'
+                                            }
+                                        />
+                                        {!detailDoLoading &&
+                                            displayedDoDetails.map(
+                                                (detail, index) => (
+                                                    <tr
+                                                        key={`${detail.no_do}-${index}`}
+                                                        className="border-t border-sidebar-border/70"
+                                                    >
+                                                        <td className="px-4 py-3">
+                                                            {detailDoPageSize ===
+                                                            Infinity
+                                                                ? index + 1
+                                                                : (detailDoCurrentPage -
+                                                                      1) *
+                                                                      detailDoPageSize +
+                                                                  index +
+                                                                  1}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(
+                                                                detail.mat,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(
+                                                                [
+                                                                    detail.qty,
+                                                                    detail.unit,
+                                                                ]
+                                                                    .filter(
+                                                                        Boolean,
+                                                                    )
+                                                                    .join(' '),
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {formatNumber(
+                                                                detail.harga,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {formatNumber(
+                                                                detail.total,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(
+                                                                detail.remark,
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ),
+                                            )}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {detailDoPageSize !== Infinity &&
+                                detailDoTotalItems > 0 && (
+                                    <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                                        <span>
+                                            Halaman {detailDoCurrentPage} dari{' '}
+                                            {detailDoTotalPages}
+                                        </span>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={
+                                                    detailDoCurrentPage === 1
+                                                }
+                                                onClick={() =>
+                                                    setDetailDoCurrentPage(
+                                                        (page) =>
+                                                            Math.max(
+                                                                1,
+                                                                page - 1,
+                                                            ),
+                                                    )
+                                                }
+                                            >
+                                                Sebelumnya
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={
+                                                    detailDoCurrentPage ===
+                                                    detailDoTotalPages
+                                                }
+                                                onClick={() =>
+                                                    setDetailDoCurrentPage(
+                                                        (page) =>
+                                                            Math.min(
+                                                                detailDoTotalPages,
+                                                                page + 1,
+                                                            ),
+                                                    )
+                                                }
+                                            >
+                                                Berikutnya
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
+                            <div className="text-right text-sm text-muted-foreground">
+                                Grand Total:{' '}
+                                <span className="font-semibold text-foreground">
+                                    Rp {formatNumber(selectedDoGrandTotal)}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
                 open={isOutstandingModalOpen}
                 onOpenChange={(open) => {
                     setIsOutstandingModalOpen(open);
@@ -1438,32 +3557,17 @@ export default function MaterialIndex({ materials }) {
                                                 {renderValue(item.nm_cs)}
                                             </td>
                                             <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
-                                                    <Link
-                                                        href={`/marketing/delivery-order/${encodeURIComponent(item.no_do)}/edit`}
-                                                        className="text-muted-foreground transition hover:text-foreground"
-                                                        aria-label="Edit"
-                                                        title="Edit"
-                                                        onClick={() =>
-                                                            setIsOutstandingModalOpen(
-                                                                false,
-                                                            )
-                                                        }
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Link>
-                                                    <button
-                                                        type="button"
-                                                        className="text-destructive transition hover:text-red-600"
-                                                        aria-label="Hapus"
-                                                        title="Hapus"
-                                                        onClick={() =>
-                                                            handleDeleteDo(item)
-                                                        }
-                                                    >
-                                                        <Trash2 className="size-4" />
-                                                    </button>
-                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                    aria-label="Lihat detail DO"
+                                                    title="Lihat detail DO"
+                                                    onClick={() =>
+                                                        handleOpenDetailDo(item)
+                                                    }
+                                                >
+                                                    <Eye className="size-4" />
+                                                </button>
                                             </td>
                                         </tr>
                                     ),

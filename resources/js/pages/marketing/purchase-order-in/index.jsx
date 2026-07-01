@@ -196,6 +196,11 @@ export default function PurchaseOrderInIndex({
     filters = {},
     pagination: initialPagination = {},
 }) {
+    const today = new Date().toISOString().slice(0, 10);
+    const monthStart = `${today.slice(0, 8)}01`;
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [exportStartDate, setExportStartDate] = useState(monthStart);
+    const [exportEndDate, setExportEndDate] = useState(today);
     const { auth } = usePage().props;
     const { resolvedAppearance } = useAppearance();
     const isDark = resolvedAppearance === 'dark';
@@ -760,6 +765,72 @@ export default function PurchaseOrderInIndex({
     return (
         <>
             <Head title="Purchase Order In" />
+            <Dialog
+                open={isExportModalOpen}
+                onOpenChange={setIsExportModalOpen}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Range Tanggal Export</DialogTitle>
+                        <DialogDescription>
+                            Pilih range berdasarkan Date Doc.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <label className="block space-y-2 text-sm">
+                            <span className="font-medium">Tanggal Awal</span>
+                            <input
+                                type="date"
+                                className="h-10 w-full rounded-md border border-input bg-background px-3"
+                                value={exportStartDate}
+                                max={exportEndDate}
+                                onChange={(event) =>
+                                    setExportStartDate(event.target.value)
+                                }
+                            />
+                        </label>
+                        <label className="block space-y-2 text-sm">
+                            <span className="font-medium">Tanggal Akhir</span>
+                            <input
+                                type="date"
+                                className="h-10 w-full rounded-md border border-input bg-background px-3"
+                                value={exportEndDate}
+                                min={exportStartDate}
+                                onChange={(event) =>
+                                    setExportEndDate(event.target.value)
+                                }
+                            />
+                        </label>
+                        <div className="flex justify-end gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsExportModalOpen(false)}
+                            >
+                                Batal
+                            </Button>
+                            <Button
+                                type="button"
+                                disabled={!exportStartDate || !exportEndDate}
+                                onClick={() => {
+                                    const params = new URLSearchParams({
+                                        start_date: exportStartDate,
+                                        end_date: exportEndDate,
+                                    });
+                                    window.open(
+                                        `/marketing/purchase-order-in/export?${params}`,
+                                        '_blank',
+                                        'noopener,noreferrer',
+                                    );
+                                    setIsExportModalOpen(false);
+                                }}
+                            >
+                                Export
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
             <div className="flex h-full flex-1 flex-col gap-5 p-4">
                 {/* Header section with explicit hex background for maximum compatibility */}
                 <section
@@ -775,27 +846,39 @@ export default function PurchaseOrderInIndex({
                                 Purchase Order In (PO In)
                             </h1>
                         </div>
-                        <Button
-                            className="border-2 border-slate-700 bg-[#ffffff] font-bold text-[#0f172a] hover:bg-[#f1f5f9]"
-                            style={{
-                                backgroundColor: '#ffffff',
-                                color: '#0f172a',
-                            }}
-                            onClick={() => {
-                                if (!canCreate) {
-                                    toastError(
-                                        'Akses create tidak diizinkan untuk menu ini.',
-                                    );
-                                    return;
-                                }
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                className="border-2 border-slate-700 bg-[#ffffff] font-bold text-[#0f172a] hover:bg-[#f1f5f9]"
+                                style={{
+                                    backgroundColor: '#ffffff',
+                                    color: '#0f172a',
+                                }}
+                                onClick={() => setIsExportModalOpen(true)}
+                            >
+                                Export Data
+                            </Button>
+                            <Button
+                                className="border-2 border-slate-700 bg-[#ffffff] font-bold text-[#0f172a] hover:bg-[#f1f5f9]"
+                                style={{
+                                    backgroundColor: '#ffffff',
+                                    color: '#0f172a',
+                                }}
+                                onClick={() => {
+                                    if (!canCreate) {
+                                        toastError(
+                                            'Akses create tidak diizinkan untuk menu ini.',
+                                        );
+                                        return;
+                                    }
 
-                                router.visit(
-                                    '/marketing/purchase-order-in/create',
-                                );
-                            }}
-                        >
-                            Tambah PO IN
-                        </Button>
+                                    router.visit(
+                                        '/marketing/purchase-order-in/create',
+                                    );
+                                }}
+                            >
+                                Tambah PO IN
+                            </Button>
+                        </div>
                     </div>
                 </section>
 

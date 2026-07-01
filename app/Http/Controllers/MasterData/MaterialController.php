@@ -398,8 +398,16 @@ class MaterialController
             ->with('success', 'Data material berhasil disimpan.');
     }
 
-    public function export()
+    public function export(Request $request)
     {
+        $filters = $request->validate([
+            'warehouse' => ['nullable', 'in:all,g1,g2,g3,g4'],
+            'category' => ['nullable', 'in:all,fast,slow,dead'],
+            'stock' => ['nullable', 'in:all,highest,lowest,empty'],
+        ]);
+        $warehouse = $filters['warehouse'] ?? 'all';
+        $category = $filters['category'] ?? 'all';
+        $stockFilter = $filters['stock'] ?? 'all';
         $codeColumn = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
         $nameColumn = $this->resolveColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
         $unitColumn = $this->resolveColumn('tb_barang', ['unit', 'satuan'], 'unit');
@@ -412,17 +420,22 @@ class MaterialController
         $kategoriG3 = $this->optionalColumnSelect('tb_barang', ['katagori_stok3', 'kategori_stok3', 'katagori_g3', 'kategori_g3', 'katagori3', 'kategori3'], 'kategori_stok3');
         $kategoriG4 = $this->optionalColumnSelect('tb_barang', ['katagori_stok4', 'kategori_stok4', 'katagori_g4', 'kategori_g4', 'katagori4', 'kategori4'], 'kategori_stok4');
 
-        $materials = DB::table('tb_barang')
+        $stockExpression = $warehouse === 'all'
+            ? '(coalesce(cast(stok_g1 as decimal(65,4)), 0) + coalesce(cast(stok_g2 as decimal(65,4)), 0) + coalesce(cast(stok_g3 as decimal(65,4)), 0) + coalesce(cast(stok_g4 as decimal(65,4)), 0))'
+            : 'coalesce(cast(stok_'.$warehouse.' as decimal(65,4)), 0)';
+
+        $categoryColumns = collect($this->movementWarehouseExpressions())
+            ->filter(fn (array $columns) => $warehouse === 'all' || $columns['warehouse'] === $warehouse)
+            ->pluck('category')
+            ->filter()
+            ->values();
+
+        $query = DB::table('tb_barang')
             ->selectRaw("
                 {$codeColumn} as kd_material,
                 {$nameColumn} as material,
                 {$unitColumn} as unit,
-                cast((
-                    coalesce(cast(stok_g1 as decimal(65,4)), 0) +
-                    coalesce(cast(stok_g2 as decimal(65,4)), 0) +
-                    coalesce(cast(stok_g3 as decimal(65,4)), 0) +
-                    coalesce(cast(stok_g4 as decimal(65,4)), 0)
-                ) as signed) as stok,
+                cast({$stockExpression} as signed) as stok,
                 stok_g1,
                 {$hargaG1},
                 {$kategoriG1},
@@ -435,13 +448,124 @@ class MaterialController
                 stok_g4,
                 {$hargaG4},
                 {$kategoriG4}
-            ")
-            ->orderBy($codeColumn)
-            ->get();
+            ");
+
+        if ($category !== 'all' && $categoryColumns->isNotEmpty()) {
+            $categoryNeedle = match ($category) {
+                'fast' => 'fast',
+                'slow' => 'slow',
+                'dead' => 'dead',
+            };
+            $query->where(function ($categoryQuery) use ($categoryColumns, $categoryNeedle) {
+                foreach ($categoryColumns as $column) {
+                    $categoryQuery->orWhereRaw('lower(trim(coalesce('.$column.", ''))) like ?", ['%'.$categoryNeedle.'%']);
+                }
+            });
+        }
+
+        if ($stockFilter === 'empty') {
+            $query->whereRaw("{$stockExpression} = 0");
+        } elseif ($stockFilter === 'lowest') {
+            $query->whereRaw("{$stockExpression} > 0")
+                ->orderByRaw("{$stockExpression} asc");
+        } elseif ($stockFilter === 'highest') {
+            $query->orderByRaw("{$stockExpression} desc");
+        }
+
+        $materials = $query->orderBy($codeColumn)->get();
 
         return response()->view('exports.material', [
             'materials' => $materials,
+            'warehouse' => $warehouse,
         ]);
+    }
+
+    public function inventorySummary(Request $request)
+    {
+        $validated = $request->validate([
+            'type' => ['required', 'in:mis,mib,mibs'],
+            'metric' => ['required', 'in:items,qty,total'],
+        ]);
+        $type = $validated['type'];
+        $metric = $validated['metric'];
+
+        if ($type === 'mis' || $type === 'mib') {
+            $qtyColumn = $type;
+            $totalColumn = 'harga_'.$type;
+            $query = DB::table('tb_mi')->where($qtyColumn, '>', 0);
+            $value = match ($metric) {
+                'items' => $query->count(),
+                'qty' => (float) $query->sum($qtyColumn),
+                'total' => (float) $query->sum($totalColumn),
+            };
+
+            return response()->json(['value' => $value]);
+        }
+
+        $query = DB::table('tb_mib')
+            ->whereRaw('coalesce(cast(qty as decimal(65,4)), 0) <> coalesce(cast(transfer as decimal(65,4)), 0)');
+
+        $value = match ($metric) {
+            'items' => $query->count(),
+            'qty' => (float) $query->sum(DB::raw('coalesce(cast(qty as decimal(65,4)), 0) - coalesce(cast(transfer as decimal(65,4)), 0)')),
+            'total' => (float) $query->sum(DB::raw('coalesce(cast(total_price as decimal(65,4)), 0)')),
+        };
+
+        return response()->json(['value' => $value]);
+    }
+
+    public function inventoryRows(Request $request)
+    {
+        $validated = $request->validate([
+            'type' => ['required', 'in:mis,mib,mibs'],
+            'search' => ['nullable', 'string', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable'],
+        ]);
+        $type = $validated['type'];
+        $search = trim((string) ($validated['search'] ?? ''));
+        $page = max(1, (int) ($validated['page'] ?? 1));
+        $perPageRaw = $validated['per_page'] ?? 5;
+        $perPage = $perPageRaw === 'all' ? null : max(1, (int) $perPageRaw);
+
+        if ($type === 'mis' || $type === 'mib') {
+            $qtyColumn = $type;
+            $totalColumn = 'harga_'.$type;
+            $query = DB::table('tb_mi')->where($qtyColumn, '>', 0);
+            if ($search !== '') {
+                $query->where(function ($nested) use ($search) {
+                    $nested->where('no_doc', 'like', '%'.$search.'%')
+                        ->orWhere('ref_po', 'like', '%'.$search.'%')
+                        ->orWhere('material', 'like', '%'.$search.'%');
+                });
+            }
+            $query->select([
+                'no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price',
+                DB::raw($totalColumn.' as total_price'),
+                DB::raw($qtyColumn.' as balance_qty'),
+            ]);
+        } else {
+            $query = DB::table('tb_mib')
+                ->whereRaw('coalesce(cast(qty as decimal(65,4)), 0) <> coalesce(cast(transfer as decimal(65,4)), 0)');
+            if ($search !== '') {
+                $query->where(function ($nested) use ($search) {
+                    $nested->where('no_doc', 'like', '%'.$search.'%')
+                        ->orWhere('material', 'like', '%'.$search.'%');
+                });
+            }
+            $query->select([
+                'no_doc', 'material', 'qty', 'unit', 'price', 'total_price',
+                DB::raw('coalesce(cast(qty as decimal(65,4)), 0) - coalesce(cast(transfer as decimal(65,4)), 0) as balance_qty'),
+            ]);
+        }
+
+        $total = (clone $query)->count();
+        $query->orderByDesc('no_doc');
+        if ($perPage !== null) {
+            $query->forPage($page, $perPage);
+        }
+
+        return response()->json(['rows' => $query->get(), 'total' => $total]);
     }
 
     public function update(Request $request, string $kdMaterial)

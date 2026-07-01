@@ -173,6 +173,10 @@ Route::get('master-data/material/movement-metric', [MaterialController::class, '
     ->name('master-data.material.movement-metric');
 Route::get('master-data/material/warehouse-summary', [MaterialController::class, 'warehouseSummary'])
     ->name('master-data.material.warehouse-summary');
+Route::get('master-data/material/inventory-summary', [MaterialController::class, 'inventorySummary'])
+    ->name('master-data.material.inventory-summary');
+Route::get('master-data/material/inventory-rows', [MaterialController::class, 'inventoryRows'])
+    ->name('master-data.material.inventory-rows');
 Route::get('master-data/material/export', [MaterialController::class, 'export'])
     ->name('master-data.material.export');
 Route::post('master-data/material', [MaterialController::class, 'store'])
@@ -240,6 +244,8 @@ Route::get('marketing/purchase-order-in', [PurchaseOrderInController::class, 'in
     ->name('marketing.purchase-order-in.index');
 Route::get('marketing/purchase-order-in/data', [PurchaseOrderInController::class, 'data'])
     ->name('marketing.purchase-order-in.data');
+Route::get('marketing/purchase-order-in/export', [PurchaseOrderInController::class, 'export'])
+    ->name('marketing.purchase-order-in.export');
 Route::post('pembelian/purchase-order/cluster-remarks', [\App\Http\Controllers\Marketing\AIPredictionController::class, 'clusterRemarks'])
     ->name('pembelian.purchase-order.cluster-remarks');
 Route::get('marketing/purchase-order-in/create', [PurchaseOrderInController::class, 'create'])
@@ -367,6 +373,8 @@ Route::get('marketing/delivery-order/details', [DeliveryOrderController::class, 
     ->name('marketing.delivery-order.details');
 Route::get('marketing/delivery-order/data', [DeliveryOrderController::class, 'data'])
     ->name('marketing.delivery-order.data');
+Route::get('marketing/delivery-order/outstanding-metric', [DeliveryOrderController::class, 'outstandingMetric'])
+    ->name('marketing.delivery-order.outstanding-metric');
 Route::get('marketing/delivery-order/outstanding', [DeliveryOrderController::class, 'outstanding'])
     ->name('marketing.delivery-order.outstanding');
 Route::get('marketing/delivery-order/realized', [DeliveryOrderController::class, 'realized'])
@@ -399,6 +407,8 @@ Route::get('marketing/delivery-order-add/details', [DeliveryOrderAddController::
     ->name('marketing.delivery-order-add.details');
 Route::get('marketing/delivery-order-add/outstanding', [DeliveryOrderAddController::class, 'outstanding'])
     ->name('marketing.delivery-order-add.outstanding');
+Route::get('marketing/delivery-order-add/outstanding-metric', [DeliveryOrderAddController::class, 'outstandingMetric'])
+    ->name('marketing.delivery-order-add.outstanding-metric');
 Route::get('marketing/delivery-order-add/outstanding-do', [DeliveryOrderAddController::class, 'outstandingDo'])
     ->name('marketing.delivery-order-add.outstanding-do');
 Route::get('marketing/delivery-order-add/pr-materials', [DeliveryOrderAddController::class, 'prMaterials'])
@@ -428,6 +438,8 @@ Route::get('pembelian/delivery-order-cost/details', [DeliveryOrderCostController
     ->name('pembelian.delivery-order-cost.details');
 Route::get('pembelian/delivery-order-cost/outstanding', [DeliveryOrderCostController::class, 'outstanding'])
     ->name('pembelian.delivery-order-cost.outstanding');
+Route::get('pembelian/delivery-order-cost/outstanding-metric', [DeliveryOrderCostController::class, 'outstandingMetric'])
+    ->name('pembelian.delivery-order-cost.outstanding-metric');
 Route::get('pembelian/delivery-order-cost/materials', [DeliveryOrderCostController::class, 'materials'])
     ->name('pembelian.delivery-order-cost.materials');
 Route::post('pembelian/delivery-order-cost', [DeliveryOrderCostController::class, 'store'])

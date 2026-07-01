@@ -10,6 +10,26 @@ use Carbon\Carbon;
 
 class DeliveryOrderAddController
 {
+    public function outstandingMetric(Request $request)
+    {
+        $metric = $request->query('metric');
+
+        if ($metric === 'count') {
+            return response()->json([
+                'value' => DB::table('tb_dob')->where('status', 0)->distinct('no_dob')->count('no_dob'),
+            ]);
+        }
+
+        if ($metric === 'total') {
+            return response()->json([
+                'value' => (float) DB::table('tb_dob')->where('status', 0)
+                    ->sum(DB::raw('coalesce(cast(total as decimal(18,4)), 0)')),
+            ]);
+        }
+
+        return response()->json(['message' => 'Metric tidak valid.'], 422);
+    }
+
     private function parseNumber($value): float
     {
         if ($value === null) {

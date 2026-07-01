@@ -41,7 +41,9 @@ const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
 const normalizeCustomerName = (value) =>
-    String(value ?? '').trim().toLowerCase();
+    String(value ?? '')
+        .trim()
+        .toLowerCase();
 
 const getValue = (source, keys) => {
     for (const key of keys) {
@@ -67,14 +69,20 @@ const parseFlexibleDate = (value) => {
 
     const ymd = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
     if (ymd) {
-        const date = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
+        const date = new Date(
+            Number(ymd[1]),
+            Number(ymd[2]) - 1,
+            Number(ymd[3]),
+        );
         return Number.isNaN(date.getTime()) ? null : date;
     }
 
     const dmy = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/);
     if (dmy) {
         const year =
-            String(dmy[3]).length === 2 ? Number(`20${dmy[3]}`) : Number(dmy[3]);
+            String(dmy[3]).length === 2
+                ? Number(`20${dmy[3]}`)
+                : Number(dmy[3]);
         const date = new Date(year, Number(dmy[2]) - 1, Number(dmy[1]));
         return Number.isNaN(date.getTime()) ? null : date;
     }
@@ -155,71 +163,79 @@ export default function PurchaseRequirementIndex({
 }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-    
-    const [purchaseRequirementsList, setPurchaseRequirementsList] = useState([]);
-    
+
+    const [purchaseRequirementsList, setPurchaseRequirementsList] = useState(
+        [],
+    );
+
     const [statusFilter, setStatusFilter] = useState('outstanding');
     const [tableDateFilter, setTableDateFilter] = useState('all');
     const [tableStartDate, setTableStartDate] = useState('');
     const [tableEndDate, setTableEndDate] = useState('');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
-    
-    const [outstandingCountState, setOutstandingCountState] = useState(outstandingCount);
-    const [outstandingTotalState, setOutstandingTotalState] = useState(outstandingTotal);
+
+    const [outstandingCountState, setOutstandingCountState] =
+        useState(outstandingCount);
+    const [outstandingTotalState, setOutstandingTotalState] =
+        useState(outstandingTotal);
     const [sisaPoCountState, setSisaPoCountState] = useState(sisaPoCount);
     const [sisaPoTotalState, setSisaPoTotalState] = useState(sisaPoTotal);
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
     const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
-    
+
     const [tableLoading, setTableLoading] = useState(false);
     const [summaryLoading, setSummaryLoading] = useState(false);
     const [isRealizedLoading, setIsRealizedLoading] = useState(false);
-    
+
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
-    
+
     const [selectedPr, setSelectedPr] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isOutstandingModalOpen, setIsOutstandingModalOpen] = useState(false);
     const [isSisaPoModalOpen, setIsSisaPoModalOpen] = useState(false);
     const [isRealizedModalOpen, setIsRealizedModalOpen] = useState(false);
-    
+
     const [outstandingSearchTerm, setOutstandingSearchTerm] = useState('');
-    const [debouncedOutstandingSearchTerm, setDebouncedOutstandingSearchTerm] = useState('');
+    const [debouncedOutstandingSearchTerm, setDebouncedOutstandingSearchTerm] =
+        useState('');
     const [outstandingPageSize, setOutstandingPageSize] = useState(5);
     const [outstandingCurrentPage, setOutstandingCurrentPage] = useState(1);
-    
+
     const [sisaPoSearchTerm, setSisaPoSearchTerm] = useState('');
-    const [debouncedSisaPoSearchTerm, setDebouncedSisaPoSearchTerm] = useState('');
+    const [debouncedSisaPoSearchTerm, setDebouncedSisaPoSearchTerm] =
+        useState('');
     const [sisaPoPageSize, setSisaPoPageSize] = useState(5);
     const [sisaPoCurrentPage, setSisaPoCurrentPage] = useState(1);
-    
+
     const [realizedSearchTerm, setRealizedSearchTerm] = useState('');
-    const [debouncedRealizedSearchTerm, setDebouncedRealizedSearchTerm] = useState('');
+    const [debouncedRealizedSearchTerm, setDebouncedRealizedSearchTerm] =
+        useState('');
     const [realizedPageSize, setRealizedPageSize] = useState(5);
     const [realizedCurrentPage, setRealizedCurrentPage] = useState(1);
-    
+
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
-    const [debouncedMaterialSearchTerm, setDebouncedMaterialSearchTerm] = useState('');
+    const [debouncedMaterialSearchTerm, setDebouncedMaterialSearchTerm] =
+        useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
-    
+
     const [selectedDetails, setSelectedDetails] = useState([]);
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState('');
-    
+
     const [outstandingList, setOutstandingList] = useState([]);
     const [outstandingLoading, setOutstandingLoading] = useState(false);
     const [outstandingError, setOutstandingError] = useState('');
-    
+
     const [sisaPoList, setSisaPoList] = useState([]);
     const [sisaPoLoading, setSisaPoLoading] = useState(false);
     const [sisaPoError, setSisaPoError] = useState('');
-    
+
     const [realizedList, setRealizedList] = useState([]);
     const [realizedLoading, setRealizedLoading] = useState(false);
     const [realizedError, setRealizedError] = useState('');
-    
+
     const [isDeleting, setIsDeleting] = useState(false);
     const [overdueCustomers, setOverdueCustomers] = useState(new Set());
     const [overdueDialogOpen, setOverdueDialogOpen] = useState(false);
@@ -242,7 +258,9 @@ export default function PurchaseRequirementIndex({
         });
 
         try {
-            const params = new URLSearchParams({ customer: normalizedCustomer });
+            const params = new URLSearchParams({
+                customer: normalizedCustomer,
+            });
             const response = await fetch(
                 `/marketing/purchase-requirement/overdue-invoices?${params.toString()}`,
                 { headers: { Accept: 'application/json' } },
@@ -268,7 +286,9 @@ export default function PurchaseRequirementIndex({
 
     const renderCustomerWithOverdueMarker = (customer) => {
         const value = renderValue(customer);
-        const hasOverdue = overdueCustomers.has(normalizeCustomerName(customer));
+        const hasOverdue = overdueCustomers.has(
+            normalizeCustomerName(customer),
+        );
 
         return (
             <div className="flex min-w-0 flex-nowrap items-center gap-2">
@@ -276,7 +296,7 @@ export default function PurchaseRequirementIndex({
                 {hasOverdue && (
                     <button
                         type="button"
-                        className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 transition hover:border-red-300 hover:bg-red-100"
+                        className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-red-700 uppercase transition hover:border-red-300 hover:bg-red-100"
                         onClick={() => handleOpenOverdueDialog(customer)}
                         disabled={overdueDialogLoading}
                         title="Lihat tunggakan tagihan"
@@ -310,76 +330,104 @@ export default function PurchaseRequirementIndex({
     }, [searchTerm]);
 
     useEffect(() => {
-        const timer = setTimeout(() => setDebouncedOutstandingSearchTerm(outstandingSearchTerm), 300);
+        const timer = setTimeout(
+            () => setDebouncedOutstandingSearchTerm(outstandingSearchTerm),
+            300,
+        );
         return () => clearTimeout(timer);
     }, [outstandingSearchTerm]);
 
     useEffect(() => {
-        const timer = setTimeout(() => setDebouncedSisaPoSearchTerm(sisaPoSearchTerm), 300);
+        const timer = setTimeout(
+            () => setDebouncedSisaPoSearchTerm(sisaPoSearchTerm),
+            300,
+        );
         return () => clearTimeout(timer);
     }, [sisaPoSearchTerm]);
 
     useEffect(() => {
-        const timer = setTimeout(() => setDebouncedRealizedSearchTerm(realizedSearchTerm), 300);
+        const timer = setTimeout(
+            () => setDebouncedRealizedSearchTerm(realizedSearchTerm),
+            300,
+        );
         return () => clearTimeout(timer);
     }, [realizedSearchTerm]);
 
     useEffect(() => {
-        const timer = setTimeout(() => setDebouncedMaterialSearchTerm(materialSearchTerm), 300);
+        const timer = setTimeout(
+            () => setDebouncedMaterialSearchTerm(materialSearchTerm),
+            300,
+        );
         return () => clearTimeout(timer);
     }, [materialSearchTerm]);
 
-    const fetchTableData = useCallback(async (newPeriod, currentStatus, startDate = '', endDate = '') => {
-        setTableLoading(true);
-        try {
-            // JIKA STATUS TEREALISASI, AMBIL LANGSUNG DARI ENDPOINT MILIK CARD!
-            if (currentStatus === 'realized') {
-                const params = new URLSearchParams({ period: newPeriod });
-                const response = await fetch(`/marketing/purchase-requirement/realized?${params.toString()}`, {
-                    headers: { Accept: 'application/json' }
+    const fetchTableData = useCallback(
+        async (newPeriod, currentStatus, startDate = '', endDate = '') => {
+            setTableLoading(true);
+            try {
+                // JIKA STATUS TEREALISASI, AMBIL LANGSUNG DARI ENDPOINT MILIK CARD!
+                if (currentStatus === 'realized') {
+                    const params = new URLSearchParams({ period: newPeriod });
+                    const response = await fetch(
+                        `/marketing/purchase-requirement/realized?${params.toString()}`,
+                        {
+                            headers: { Accept: 'application/json' },
+                        },
+                    );
+                    const data = await response.json();
+
+                    const list = Array.isArray(data?.purchaseRequirements)
+                        ? data.purchaseRequirements
+                        : [];
+                    const optimizedList = list.map((item) => {
+                        const parsed = parseFlexibleDate(item.date);
+                        return {
+                            ...item,
+                            _parsedDateTs: parsed ? parsed.getTime() : null,
+                        };
+                    });
+
+                    setPurchaseRequirementsList(optimizedList);
+                    setTableLoading(false);
+                    return;
+                }
+
+                // JIKA BUKAN TEREALISASI, AMBIL DARI ENDPOINT TABEL BIASA
+                let url = `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=table&status=${currentStatus}`;
+                if (newPeriod === 'range' && startDate && endDate) {
+                    url += `&start_date=${startDate}&end_date=${endDate}`;
+                }
+
+                const response = await fetch(url, {
+                    headers: { Accept: 'application/json' },
                 });
                 const data = await response.json();
-                
-                const list = Array.isArray(data?.purchaseRequirements) ? data.purchaseRequirements : [];
-                const optimizedList = list.map(item => {
-                    const parsed = parseFlexibleDate(item.date);
-                    return { ...item, _parsedDateTs: parsed ? parsed.getTime() : null };
-                });
-                
-                setPurchaseRequirementsList(optimizedList);
-                setTableLoading(false);
-                return;
-            }
 
-            // JIKA BUKAN TEREALISASI, AMBIL DARI ENDPOINT TABEL BIASA
-            let url = `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=table&status=${currentStatus}`;
-            if (newPeriod === 'range' && startDate && endDate) {
-                url += `&start_date=${startDate}&end_date=${endDate}`;
+                const rawList = data.purchaseRequirements || [];
+                const optimizedList = rawList.map((item) => {
+                    const parsed = parseFlexibleDate(item.date);
+                    return {
+                        ...item,
+                        _parsedDateTs: parsed ? parsed.getTime() : null,
+                    };
+                });
+
+                setPurchaseRequirementsList(optimizedList);
+            } catch (error) {
+                console.error('Error fetching PR Table data:', error);
+            } finally {
+                setTableLoading(false);
             }
-            
-            const response = await fetch(url, { headers: { Accept: 'application/json' } });
-            const data = await response.json();
-            
-            const rawList = data.purchaseRequirements || [];
-            const optimizedList = rawList.map(item => {
-                const parsed = parseFlexibleDate(item.date);
-                return { ...item, _parsedDateTs: parsed ? parsed.getTime() : null };
-            });
-            
-            setPurchaseRequirementsList(optimizedList);
-        } catch (error) {
-            console.error('Error fetching PR Table data:', error);
-        } finally {
-            setTableLoading(false);
-        }
-    }, []);
+        },
+        [],
+    );
 
     const fetchSummaryData = useCallback(async (newPeriod) => {
         setSummaryLoading(true);
         try {
             const response = await fetch(
                 `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=summary`,
-                { headers: { Accept: 'application/json' } }
+                { headers: { Accept: 'application/json' } },
             );
             const data = await response.json();
             setOutstandingCountState(data.outstandingCount || 0);
@@ -415,25 +463,43 @@ export default function PurchaseRequirementIndex({
     useEffect(() => {
         if (!isTableMounted.current) {
             isTableMounted.current = true;
-            if (purchaseRequirements?.length > 0 && tableDateFilter === 'all' && statusFilter === 'outstanding') {
+            if (
+                purchaseRequirements?.length > 0 &&
+                tableDateFilter === 'all' &&
+                statusFilter === 'outstanding'
+            ) {
                 return;
             }
         }
-        
+
         if (tableDateFilter === 'range' && (!tableStartDate || !tableEndDate)) {
             return;
         }
-        
+
         // Memanggil data dengan menyertakan statusFilter!
-        fetchTableData(tableDateFilter, statusFilter, tableStartDate, tableEndDate);
-    }, [tableDateFilter, statusFilter, tableStartDate, tableEndDate, fetchTableData]);
+        fetchTableData(
+            tableDateFilter,
+            statusFilter,
+            tableStartDate,
+            tableEndDate,
+        );
+    }, [
+        tableDateFilter,
+        statusFilter,
+        tableStartDate,
+        tableEndDate,
+        fetchTableData,
+    ]);
 
     useEffect(() => {
         if (purchaseRequirements?.length > 0) {
             const timer = setTimeout(() => {
                 const optimizedList = purchaseRequirements.map((item) => {
                     const parsed = parseFlexibleDate(item.date);
-                    return { ...item, _parsedDateTs: parsed ? parsed.getTime() : null };
+                    return {
+                        ...item,
+                        _parsedDateTs: parsed ? parsed.getTime() : null,
+                    };
                 });
                 setPurchaseRequirementsList(optimizedList);
             }, 10);
@@ -460,7 +526,11 @@ export default function PurchaseRequirementIndex({
         if (tableDateFilter === 'all') return null;
 
         const now = new Date();
-        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const today = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+        );
         let start, end;
 
         if (tableDateFilter === 'today') {
@@ -474,7 +544,15 @@ export default function PurchaseRequirementIndex({
             end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
         } else if (tableDateFilter === 'this_month') {
             start = new Date(today.getFullYear(), today.getMonth(), 1);
-            end = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+            end = new Date(
+                today.getFullYear(),
+                today.getMonth() + 1,
+                0,
+                23,
+                59,
+                59,
+                999,
+            );
         } else if (tableDateFilter === 'this_year') {
             start = new Date(today.getFullYear(), 0, 1);
             end = new Date(today.getFullYear(), 11, 31, 23, 59, 59, 999);
@@ -483,42 +561,68 @@ export default function PurchaseRequirementIndex({
             const e = parseFlexibleDate(tableEndDate);
             if (!s || !e) return { start: Infinity, end: -Infinity };
             start = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-            end = new Date(e.getFullYear(), e.getMonth(), e.getDate(), 23, 59, 59, 999);
+            end = new Date(
+                e.getFullYear(),
+                e.getMonth(),
+                e.getDate(),
+                23,
+                59,
+                59,
+                999,
+            );
         }
         return { start: start.getTime(), end: end.getTime() };
     }, [tableDateFilter, tableStartDate, tableEndDate]);
 
-
     const filteredPurchaseRequirements = useMemo(() => {
         const term = debouncedSearchTerm.trim().toLowerCase();
-        
+
         const filtered = purchaseRequirementsList.filter((item) => {
             // KEMBALIKAN FILTER TANGGAL: Agar bisa membaca data dari Card dengan benar
             if (dateFilterBounds) {
                 if (!item._parsedDateTs) return false;
-                if (item._parsedDateTs < dateFilterBounds.start || item._parsedDateTs > dateFilterBounds.end) {
+                if (
+                    item._parsedDateTs < dateFilterBounds.start ||
+                    item._parsedDateTs > dateFilterBounds.end
+                ) {
                     return false;
                 }
             }
 
             const outstanding = Number(item.outstanding_count ?? 0) > 0;
             const sisaPoStatus = Number(item.sisa_po_count ?? 0) > 0;
-            
+
             // LOGIKA KETAT TEREALISASI: 100% Sesuai Card (Semua material sudah tidak ada sisa PR)
             const realized = !outstanding && !sisaPoStatus;
-            
+
             if (statusFilter === 'outstanding' && !outstanding) return false;
             if (statusFilter === 'sisa_po' && !sisaPoStatus) return false;
             if (statusFilter === 'realized' && !realized) return false;
 
             if (!term) return true;
 
-            const values = [item.no_pr, item.date, item.for_customer, item.ref_po];
-            return values.some((value) => String(value ?? '').toLowerCase().includes(term));
+            const values = [
+                item.no_pr,
+                item.date,
+                item.for_customer,
+                item.ref_po,
+            ];
+            return values.some((value) =>
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
+            );
         });
-        
-        return filtered.sort((a, b) => String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')));
-    }, [purchaseRequirementsList, debouncedSearchTerm, statusFilter, dateFilterBounds]);
+
+        return filtered.sort((a, b) =>
+            String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')),
+        );
+    }, [
+        purchaseRequirementsList,
+        debouncedSearchTerm,
+        statusFilter,
+        dateFilterBounds,
+    ]);
 
     const totalItems = filteredPurchaseRequirements.length;
     const totalPages = useMemo(() => {
@@ -529,7 +633,10 @@ export default function PurchaseRequirementIndex({
     const displayedPurchaseRequirements = useMemo(() => {
         if (pageSize === Infinity) return filteredPurchaseRequirements;
         const startIndex = (currentPage - 1) * pageSize;
-        return filteredPurchaseRequirements.slice(startIndex, startIndex + pageSize);
+        return filteredPurchaseRequirements.slice(
+            startIndex,
+            startIndex + pageSize,
+        );
     }, [currentPage, filteredPurchaseRequirements, pageSize]);
 
     const outstandingPurchaseRequirements = useMemo(() => {
@@ -537,44 +644,79 @@ export default function PurchaseRequirementIndex({
         return outstandingList
             .map((item) => ({
                 ...item,
-                _canDelete: Number(item.can_delete ?? item.canDelete ?? 0) === 1,
+                _canDelete:
+                    Number(item.can_delete ?? item.canDelete ?? 0) === 1,
             }))
             .filter((item) => {
                 const outstanding = Number(item.outstanding_count ?? 0) > 0;
                 if (!outstanding) return false;
                 if (!term) return true;
 
-                const values = [item.no_pr, item.date, item.for_customer, item.ref_po];
-                return values.some((value) => String(value ?? '').toLowerCase().includes(term));
+                const values = [
+                    item.no_pr,
+                    item.date,
+                    item.for_customer,
+                    item.ref_po,
+                ];
+                return values.some((value) =>
+                    String(value ?? '')
+                        .toLowerCase()
+                        .includes(term),
+                );
             })
-            .sort((a, b) => String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')));
+            .sort((a, b) =>
+                String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')),
+            );
     }, [outstandingList, debouncedOutstandingSearchTerm]);
 
     const outstandingTotalItems = outstandingPurchaseRequirements.length;
     const outstandingTotalPages = useMemo(() => {
         if (outstandingPageSize === Infinity) return 1;
-        return Math.max(1, Math.ceil(outstandingTotalItems / outstandingPageSize));
+        return Math.max(
+            1,
+            Math.ceil(outstandingTotalItems / outstandingPageSize),
+        );
     }, [outstandingPageSize, outstandingTotalItems]);
 
     const displayedOutstandingPurchaseRequirements = useMemo(() => {
-        if (outstandingPageSize === Infinity) return outstandingPurchaseRequirements;
+        if (outstandingPageSize === Infinity)
+            return outstandingPurchaseRequirements;
         const startIndex = (outstandingCurrentPage - 1) * outstandingPageSize;
-        return outstandingPurchaseRequirements.slice(startIndex, startIndex + outstandingPageSize);
-    }, [outstandingCurrentPage, outstandingPageSize, outstandingPurchaseRequirements]);
+        return outstandingPurchaseRequirements.slice(
+            startIndex,
+            startIndex + outstandingPageSize,
+        );
+    }, [
+        outstandingCurrentPage,
+        outstandingPageSize,
+        outstandingPurchaseRequirements,
+    ]);
 
     const sisaPoPurchaseRequirements = useMemo(() => {
         const term = debouncedSisaPoSearchTerm.trim().toLowerCase();
         return sisaPoList
             .map((item) => ({
                 ...item,
-                _canDelete: Number(item.can_delete ?? item.canDelete ?? 0) === 1,
+                _canDelete:
+                    Number(item.can_delete ?? item.canDelete ?? 0) === 1,
             }))
             .filter((item) => {
                 if (!term) return true;
-                const values = [item.no_pr, item.date, item.for_customer, item.ref_po];
-                return values.some((value) => String(value ?? '').toLowerCase().includes(term));
+                const values = [
+                    item.no_pr,
+                    item.date,
+                    item.for_customer,
+                    item.ref_po,
+                ];
+                return values.some((value) =>
+                    String(value ?? '')
+                        .toLowerCase()
+                        .includes(term),
+                );
             })
-            .sort((a, b) => String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')));
+            .sort((a, b) =>
+                String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')),
+            );
     }, [sisaPoList, debouncedSisaPoSearchTerm]);
 
     const sisaPoTotalItems = sisaPoPurchaseRequirements.length;
@@ -586,7 +728,10 @@ export default function PurchaseRequirementIndex({
     const displayedSisaPoPurchaseRequirements = useMemo(() => {
         if (sisaPoPageSize === Infinity) return sisaPoPurchaseRequirements;
         const startIndex = (sisaPoCurrentPage - 1) * sisaPoPageSize;
-        return sisaPoPurchaseRequirements.slice(startIndex, startIndex + sisaPoPageSize);
+        return sisaPoPurchaseRequirements.slice(
+            startIndex,
+            startIndex + sisaPoPageSize,
+        );
     }, [sisaPoCurrentPage, sisaPoPageSize, sisaPoPurchaseRequirements]);
 
     const realizedPurchaseRequirements = useMemo(() => {
@@ -594,10 +739,21 @@ export default function PurchaseRequirementIndex({
         return realizedList
             .filter((item) => {
                 if (!term) return true;
-                const values = [item.no_pr, item.date, item.for_customer, item.ref_po];
-                return values.some((value) => String(value ?? '').toLowerCase().includes(term));
+                const values = [
+                    item.no_pr,
+                    item.date,
+                    item.for_customer,
+                    item.ref_po,
+                ];
+                return values.some((value) =>
+                    String(value ?? '')
+                        .toLowerCase()
+                        .includes(term),
+                );
             })
-            .sort((a, b) => String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')));
+            .sort((a, b) =>
+                String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')),
+            );
     }, [realizedList, debouncedRealizedSearchTerm]);
 
     const realizedTotalItems = realizedPurchaseRequirements.length;
@@ -609,7 +765,10 @@ export default function PurchaseRequirementIndex({
     const displayedRealizedPurchaseRequirements = useMemo(() => {
         if (realizedPageSize === Infinity) return realizedPurchaseRequirements;
         const startIndex = (realizedCurrentPage - 1) * realizedPageSize;
-        return realizedPurchaseRequirements.slice(startIndex, startIndex + realizedPageSize);
+        return realizedPurchaseRequirements.slice(
+            startIndex,
+            startIndex + realizedPageSize,
+        );
     }, [realizedCurrentPage, realizedPageSize, realizedPurchaseRequirements]);
 
     const filteredMaterialDetails = useMemo(() => {
@@ -618,13 +777,22 @@ export default function PurchaseRequirementIndex({
 
         return selectedDetails.filter((detail) => {
             const values = [
-                detail.material, detail.Material,
-                detail.qty, detail.Qty,
-                detail.satuan, detail.Satuan,
-                detail.sisa_pr, detail.Sisa_pr,
-                detail.remark, detail.Remark,
+                detail.material,
+                detail.Material,
+                detail.qty,
+                detail.Qty,
+                detail.satuan,
+                detail.Satuan,
+                detail.sisa_pr,
+                detail.Sisa_pr,
+                detail.remark,
+                detail.Remark,
             ];
-            return values.some((value) => String(value ?? '').toLowerCase().includes(term));
+            return values.some((value) =>
+                String(value ?? '')
+                    .toLowerCase()
+                    .includes(term),
+            );
         });
     }, [debouncedMaterialSearchTerm, selectedDetails]);
 
@@ -637,7 +805,10 @@ export default function PurchaseRequirementIndex({
     const displayedMaterialDetails = useMemo(() => {
         if (materialPageSize === Infinity) return filteredMaterialDetails;
         const startIndex = (materialCurrentPage - 1) * materialPageSize;
-        return filteredMaterialDetails.slice(startIndex, startIndex + materialPageSize);
+        return filteredMaterialDetails.slice(
+            startIndex,
+            startIndex + materialPageSize,
+        );
     }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
 
     const handleOpenModal = (item) => {
@@ -648,9 +819,9 @@ export default function PurchaseRequirementIndex({
         setDetailLoading(true);
         setMaterialSearchTerm('');
         setDebouncedMaterialSearchTerm('');
-        setMaterialPageSize(5); 
+        setMaterialPageSize(5);
         setMaterialCurrentPage(1);
-        
+
         const params = new URLSearchParams({ no_pr: item.no_pr });
         fetch(`/marketing/purchase-requirement/details?${params.toString()}`, {
             headers: { Accept: 'application/json' },
@@ -660,15 +831,20 @@ export default function PurchaseRequirementIndex({
                 return response.json();
             })
             .then((data) => {
-                setSelectedDetails(Array.isArray(data?.purchaseRequirementDetails) ? data.purchaseRequirementDetails : []);
+                setSelectedDetails(
+                    Array.isArray(data?.purchaseRequirementDetails)
+                        ? data.purchaseRequirementDetails
+                        : [],
+                );
             })
             .catch(() => setDetailError('Gagal memuat detail PR.'))
             .finally(() => setDetailLoading(false));
     };
 
     const loadOutstanding = (force = false) => {
-        if (outstandingLoading || (!force && outstandingList.length > 0)) return;
-        
+        if (outstandingLoading || (!force && outstandingList.length > 0))
+            return;
+
         setOutstandingLoading(true);
         setOutstandingError('');
         fetch('/marketing/purchase-requirement/outstanding', {
@@ -679,15 +855,21 @@ export default function PurchaseRequirementIndex({
                 return response.json();
             })
             .then((data) => {
-                setOutstandingList(Array.isArray(data?.purchaseRequirements) ? data.purchaseRequirements : []);
+                setOutstandingList(
+                    Array.isArray(data?.purchaseRequirements)
+                        ? data.purchaseRequirements
+                        : [],
+                );
             })
-            .catch(() => setOutstandingError('Gagal memuat data PR outstanding.'))
+            .catch(() =>
+                setOutstandingError('Gagal memuat data PR outstanding.'),
+            )
             .finally(() => setOutstandingLoading(false));
     };
 
     const loadSisaPo = (force = false) => {
         if (sisaPoLoading || (!force && sisaPoList.length > 0)) return;
-        
+
         setSisaPoLoading(true);
         setSisaPoError('');
         fetch('/marketing/purchase-requirement/sisa-po', {
@@ -698,7 +880,11 @@ export default function PurchaseRequirementIndex({
                 return response.json();
             })
             .then((data) => {
-                setSisaPoList(Array.isArray(data?.purchaseRequirements) ? data.purchaseRequirements : []);
+                setSisaPoList(
+                    Array.isArray(data?.purchaseRequirements)
+                        ? data.purchaseRequirements
+                        : [],
+                );
             })
             .catch(() => setSisaPoError('Gagal memuat data PR sisa PO.'))
             .finally(() => setSisaPoLoading(false));
@@ -707,12 +893,13 @@ export default function PurchaseRequirementIndex({
     const loadRealized = (customPeriod, force = false) => {
         const targetPeriod = customPeriod ?? periodFilter;
         if (realizedLoading) return;
-        if (!force && realizedList.length > 0 && periodFilter === targetPeriod) return;
-        
+        if (!force && realizedList.length > 0 && periodFilter === targetPeriod)
+            return;
+
         setIsRealizedLoading(true);
         setRealizedLoading(true);
         setRealizedError('');
-        
+
         const params = new URLSearchParams({ period: targetPeriod });
         fetch(`/marketing/purchase-requirement/realized?${params.toString()}`, {
             headers: { Accept: 'application/json' },
@@ -722,7 +909,9 @@ export default function PurchaseRequirementIndex({
                 return response.json();
             })
             .then((data) => {
-                const list = Array.isArray(data?.purchaseRequirements) ? data.purchaseRequirements : [];
+                const list = Array.isArray(data?.purchaseRequirements)
+                    ? data.purchaseRequirements
+                    : [];
                 setRealizedList(list);
                 setRealizedCountState(list.length);
                 setRealizedTotalState(data?.realizedTotal ?? 0);
@@ -735,16 +924,45 @@ export default function PurchaseRequirementIndex({
             });
     };
 
-    useEffect(() => { setCurrentPage(1); }, [pageSize, searchTerm, statusFilter, tableDateFilter, tableStartDate, tableEndDate]);
-    useEffect(() => { setOutstandingCurrentPage(1); }, [outstandingPageSize, outstandingSearchTerm]);
-    useEffect(() => { setSisaPoCurrentPage(1); }, [sisaPoPageSize, sisaPoSearchTerm]);
-    useEffect(() => { setRealizedCurrentPage(1); }, [realizedPageSize, realizedSearchTerm]);
-    
-    useEffect(() => { if (currentPage > totalPages) setCurrentPage(totalPages); }, [currentPage, totalPages]);
-    useEffect(() => { if (outstandingCurrentPage > outstandingTotalPages) setOutstandingCurrentPage(outstandingTotalPages); }, [outstandingCurrentPage, outstandingTotalPages]);
-    useEffect(() => { if (sisaPoCurrentPage > sisaPoTotalPages) setSisaPoCurrentPage(sisaPoTotalPages); }, [sisaPoCurrentPage, sisaPoTotalPages]);
-    useEffect(() => { if (realizedCurrentPage > realizedTotalPages) setRealizedCurrentPage(realizedTotalPages); }, [realizedCurrentPage, realizedTotalPages]);
-    useEffect(() => { if (materialCurrentPage > materialTotalPages) setMaterialCurrentPage(materialTotalPages); }, [materialCurrentPage, materialTotalPages]);
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [
+        pageSize,
+        searchTerm,
+        statusFilter,
+        tableDateFilter,
+        tableStartDate,
+        tableEndDate,
+    ]);
+    useEffect(() => {
+        setOutstandingCurrentPage(1);
+    }, [outstandingPageSize, outstandingSearchTerm]);
+    useEffect(() => {
+        setSisaPoCurrentPage(1);
+    }, [sisaPoPageSize, sisaPoSearchTerm]);
+    useEffect(() => {
+        setRealizedCurrentPage(1);
+    }, [realizedPageSize, realizedSearchTerm]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) setCurrentPage(totalPages);
+    }, [currentPage, totalPages]);
+    useEffect(() => {
+        if (outstandingCurrentPage > outstandingTotalPages)
+            setOutstandingCurrentPage(outstandingTotalPages);
+    }, [outstandingCurrentPage, outstandingTotalPages]);
+    useEffect(() => {
+        if (sisaPoCurrentPage > sisaPoTotalPages)
+            setSisaPoCurrentPage(sisaPoTotalPages);
+    }, [sisaPoCurrentPage, sisaPoTotalPages]);
+    useEffect(() => {
+        if (realizedCurrentPage > realizedTotalPages)
+            setRealizedCurrentPage(realizedTotalPages);
+    }, [realizedCurrentPage, realizedTotalPages]);
+    useEffect(() => {
+        if (materialCurrentPage > materialTotalPages)
+            setMaterialCurrentPage(materialTotalPages);
+    }, [materialCurrentPage, materialTotalPages]);
 
     const showToast = (message, variant = 'error') => {
         if (!message) return;
@@ -763,7 +981,7 @@ export default function PurchaseRequirementIndex({
 
         const activeEl = document.activeElement;
         if (activeEl instanceof HTMLElement) activeEl.blur();
-        
+
         setIsOutstandingModalOpen(false);
 
         Swal.fire({
@@ -788,7 +1006,9 @@ export default function PurchaseRequirementIndex({
                             onSuccess: (page) => resolve(page.props),
                             onError: (errors) => {
                                 const firstError = Object.values(errors)[0];
-                                Swal.showValidationMessage(firstError || 'Gagal menghapus data PR.');
+                                Swal.showValidationMessage(
+                                    firstError || 'Gagal menghapus data PR.',
+                                );
                                 resolve(false);
                             },
                         },
@@ -797,10 +1017,16 @@ export default function PurchaseRequirementIndex({
             },
         }).then((result) => {
             if (!result.isConfirmed) return;
-            setOutstandingList((prev) => prev.filter((item) => item.no_pr !== noPr));
+            setOutstandingList((prev) =>
+                prev.filter((item) => item.no_pr !== noPr),
+            );
             setSisaPoList((prev) => prev.filter((item) => item.no_pr !== noPr));
-            setPurchaseRequirementsList((prev) => prev.filter((item) => item.no_pr !== noPr));
-            setOutstandingCountState((prev) => Math.max(0, Number(prev || 0) - 1));
+            setPurchaseRequirementsList((prev) =>
+                prev.filter((item) => item.no_pr !== noPr),
+            );
+            setOutstandingCountState((prev) =>
+                Math.max(0, Number(prev || 0) - 1),
+            );
 
             router.reload({
                 only: [
@@ -836,7 +1062,11 @@ export default function PurchaseRequirementIndex({
                     </div>
                     <Button
                         type="button"
-                        onClick={() => router.visit('/marketing/purchase-requirement/create')}
+                        onClick={() =>
+                            router.visit(
+                                '/marketing/purchase-requirement/create',
+                            )
+                        }
                     >
                         Tambah PR
                     </Button>
@@ -957,9 +1187,15 @@ export default function PurchaseRequirementIndex({
                                         }}
                                     >
                                         <option value="today">Hari Ini</option>
-                                        <option value="this_week">Minggu Ini</option>
-                                        <option value="this_month">Bulan Ini</option>
-                                        <option value="this_year">Tahun Ini</option>
+                                        <option value="this_week">
+                                            Minggu Ini
+                                        </option>
+                                        <option value="this_month">
+                                            Bulan Ini
+                                        </option>
+                                        <option value="this_year">
+                                            Tahun Ini
+                                        </option>
                                     </select>
                                     <Button
                                         variant="ghost"
@@ -991,7 +1227,13 @@ export default function PurchaseRequirementIndex({
                             <select
                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                 value={pageSize === Infinity ? 'all' : pageSize}
-                                onChange={(e) => setPageSize(e.target.value === 'all' ? Infinity : Number(e.target.value))}
+                                onChange={(e) =>
+                                    setPageSize(
+                                        e.target.value === 'all'
+                                            ? Infinity
+                                            : Number(e.target.value),
+                                    )
+                                }
                             >
                                 <option value={5}>5</option>
                                 <option value={10}>10</option>
@@ -1005,10 +1247,14 @@ export default function PurchaseRequirementIndex({
                             <select
                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                 value={statusFilter}
-                                onChange={(event) => setStatusFilter(event.target.value)}
+                                onChange={(event) =>
+                                    setStatusFilter(event.target.value)
+                                }
                             >
                                 <option value="all">Semua Data</option>
-                                <option value="outstanding">PR Outstanding</option>
+                                <option value="outstanding">
+                                    PR Outstanding
+                                </option>
                                 <option value="sisa_po">PR Sisa PO</option>
                                 <option value="realized">PR Terealisasi</option>
                             </select>
@@ -1018,7 +1264,9 @@ export default function PurchaseRequirementIndex({
                             <select
                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                 value={tableDateFilter}
-                                onChange={(event) => setTableDateFilter(event.target.value)}
+                                onChange={(event) =>
+                                    setTableDateFilter(event.target.value)
+                                }
                             >
                                 <option value="today">Hari Ini</option>
                                 <option value="this_week">Minggu Ini</option>
@@ -1036,7 +1284,11 @@ export default function PurchaseRequirementIndex({
                                         type="date"
                                         className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                         value={tableStartDate}
-                                        onChange={(event) => setTableStartDate(event.target.value)}
+                                        onChange={(event) =>
+                                            setTableStartDate(
+                                                event.target.value,
+                                            )
+                                        }
                                     />
                                 </label>
                                 <label className="text-sm text-muted-foreground">
@@ -1045,7 +1297,9 @@ export default function PurchaseRequirementIndex({
                                         type="date"
                                         className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                         value={tableEndDate}
-                                        onChange={(event) => setTableEndDate(event.target.value)}
+                                        onChange={(event) =>
+                                            setTableEndDate(event.target.value)
+                                        }
                                     />
                                 </label>
                             </>
@@ -1058,7 +1312,9 @@ export default function PurchaseRequirementIndex({
                             className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
                             placeholder="Cari customer, no PR, ref PO..."
                             value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
+                            onChange={(event) =>
+                                setSearchTerm(event.target.value)
+                            }
                         />
                     </label>
                 </div>
@@ -1067,11 +1323,21 @@ export default function PurchaseRequirementIndex({
                     <table className="w-full table-fixed text-sm">
                         <thead className="bg-muted/50 text-muted-foreground">
                             <tr>
-                                <th className="w-40 px-2 py-3 text-left">No PR</th>
-                                <th className="w-28 px-2 py-3 text-left">Date</th>
-                                <th className="px-2 py-3 text-left">Customer</th>
-                                <th className="w-40 px-2 py-3 text-left">Ref PO</th>
-                                <th className="w-24 px-2 py-3 text-left">Action</th>
+                                <th className="w-40 px-2 py-3 text-left">
+                                    No PR
+                                </th>
+                                <th className="w-28 px-2 py-3 text-left">
+                                    Date
+                                </th>
+                                <th className="px-2 py-3 text-left">
+                                    Customer
+                                </th>
+                                <th className="w-40 px-2 py-3 text-left">
+                                    Ref PO
+                                </th>
+                                <th className="w-28 px-2 py-3 text-left">
+                                    Action
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1090,19 +1356,27 @@ export default function PurchaseRequirementIndex({
                                         key={item.no_pr}
                                         className="border-t border-sidebar-border/70"
                                     >
-                                        <td className="px-2 py-3 whitespace-nowrap">{item.no_pr}</td>
-                                        <td className="px-2 py-3 whitespace-nowrap">{item.date}</td>
+                                        <td className="px-2 py-3 whitespace-nowrap">
+                                            {item.no_pr}
+                                        </td>
+                                        <td className="px-2 py-3 whitespace-nowrap">
+                                            {item.date}
+                                        </td>
                                         <td className="px-2 py-3">
                                             {renderCustomerWithOverdueMarker(
                                                 item.for_customer,
                                             )}
                                         </td>
-                                        <td className="px-2 py-3">{item.ref_po}</td>
-                                        <td className="px-2 py-3">
-                                            <div className="flex items-center gap-2">
+                                        <td className="px-2 py-3 align-top [overflow-wrap:anywhere] break-words whitespace-normal">
+                                            {item.ref_po}
+                                        </td>
+                                        <td className="w-28 px-2 py-3 align-top whitespace-nowrap">
+                                            <div className="flex min-w-max items-center gap-2">
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleOpenModal(item)}
+                                                    onClick={() =>
+                                                        handleOpenModal(item)
+                                                    }
                                                     className="text-muted-foreground transition hover:text-foreground"
                                                     title="Lihat"
                                                 >
@@ -1135,13 +1409,23 @@ export default function PurchaseRequirementIndex({
                 {pageSize !== Infinity && totalItems > 0 && (
                     <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                         <span>
-                            Menampilkan {Math.min((currentPage - 1) * pageSize + 1, totalItems)}-{Math.min(currentPage * pageSize, totalItems)} dari {totalItems} data
+                            Menampilkan{' '}
+                            {Math.min(
+                                (currentPage - 1) * pageSize + 1,
+                                totalItems,
+                            )}
+                            -{Math.min(currentPage * pageSize, totalItems)} dari{' '}
+                            {totalItems} data
                         </span>
                         <div className="flex items-center gap-2">
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                                onClick={() =>
+                                    setCurrentPage((page) =>
+                                        Math.max(1, page - 1),
+                                    )
+                                }
                                 disabled={currentPage === 1}
                             >
                                 Sebelumnya
@@ -1152,7 +1436,11 @@ export default function PurchaseRequirementIndex({
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                                onClick={() =>
+                                    setCurrentPage((page) =>
+                                        Math.min(totalPages, page + 1),
+                                    )
+                                }
                                 disabled={currentPage === totalPages}
                             >
                                 Berikutnya
@@ -1160,7 +1448,7 @@ export default function PurchaseRequirementIndex({
                         </div>
                     </div>
                 )}
-                
+
                 <Dialog
                     open={isModalOpen}
                     onOpenChange={(open) => {
@@ -1170,63 +1458,115 @@ export default function PurchaseRequirementIndex({
                             setSelectedDetails([]);
                             setDetailError('');
                             setDetailLoading(false);
-                            setMaterialPageSize(5); 
+                            setMaterialPageSize(5);
                             setMaterialCurrentPage(1);
                         }
                     }}
                 >
-                    <DialogContent
-                        className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none"
-                    >
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
                         <DialogHeader>
-                            <DialogTitle>Detail Purchase Requirement</DialogTitle>
+                            <DialogTitle>
+                                Detail Purchase Requirement
+                            </DialogTitle>
                             <DialogDescription>
-                                Menampilkan informasi header dan material pada PR.
+                                Menampilkan informasi header dan material pada
+                                PR.
                             </DialogDescription>
                         </DialogHeader>
 
-                        {!selectedPr && <p className="text-sm text-muted-foreground">Data tidak tersedia.</p>}
+                        {!selectedPr && (
+                            <p className="text-sm text-muted-foreground">
+                                Data tidak tersedia.
+                            </p>
+                        )}
 
                         {selectedPr && (
                             <div className="flex flex-col gap-6 text-sm">
                                 <div className="grid gap-2">
                                     <div className="grid grid-cols-[150px_1fr] gap-2">
-                                        <span className="text-muted-foreground">No PR</span>
-                                        <span>{renderValue(selectedPr.no_pr)}</span>
-                                    </div>
-                                    <div className="grid grid-cols-[150px_1fr] gap-2">
-                                        <span className="text-muted-foreground">Date</span>
-                                        <span>{renderValue(selectedPr.date)}</span>
-                                    </div>
-                                    <div className="grid grid-cols-[150px_1fr] gap-2">
-                                        <span className="text-muted-foreground">Customer</span>
-                                        <span>{renderValue(selectedPr.for_customer)}</span>
-                                    </div>
-                                    <div className="grid grid-cols-[150px_1fr] gap-2">
-                                        <span className="text-muted-foreground">Ref PO</span>
-                                        <span>{renderValue(selectedPr.ref_po)}</span>
-                                    </div>
-                                    <div className="grid grid-cols-[150px_1fr] gap-2">
-                                        <span className="text-muted-foreground">Payment Term</span>
+                                        <span className="text-muted-foreground">
+                                            No PR
+                                        </span>
                                         <span>
-                                            {getValue(selectedPr, ['payment','Payment','payment_term']) !== '-'
-                                                ? getValue(selectedPr, ['payment','Payment','payment_term'])
-                                                : getValue(selectedDetails?.[0], ['payment','Payment','payment_term'])}
+                                            {renderValue(selectedPr.no_pr)}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-[150px_1fr] gap-2">
+                                        <span className="text-muted-foreground">
+                                            Date
+                                        </span>
+                                        <span>
+                                            {renderValue(selectedPr.date)}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-[150px_1fr] gap-2">
+                                        <span className="text-muted-foreground">
+                                            Customer
+                                        </span>
+                                        <span>
+                                            {renderValue(
+                                                selectedPr.for_customer,
+                                            )}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-[150px_1fr] gap-2">
+                                        <span className="text-muted-foreground">
+                                            Ref PO
+                                        </span>
+                                        <span>
+                                            {renderValue(selectedPr.ref_po)}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-[150px_1fr] gap-2">
+                                        <span className="text-muted-foreground">
+                                            Payment Term
+                                        </span>
+                                        <span>
+                                            {getValue(selectedPr, [
+                                                'payment',
+                                                'Payment',
+                                                'payment_term',
+                                            ]) !== '-'
+                                                ? getValue(selectedPr, [
+                                                      'payment',
+                                                      'Payment',
+                                                      'payment_term',
+                                                  ])
+                                                : getValue(
+                                                      selectedDetails?.[0],
+                                                      [
+                                                          'payment',
+                                                          'Payment',
+                                                          'payment_term',
+                                                      ],
+                                                  )}
                                         </span>
                                     </div>
                                 </div>
 
                                 <div className="space-y-3">
-                                    <h3 className="text-base font-semibold">Data Material</h3>
+                                    <h3 className="text-base font-semibold">
+                                        Data Material
+                                    </h3>
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <label className="text-sm text-muted-foreground">
                                             Tampilkan
                                             <select
                                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                                value={materialPageSize === Infinity ? 'all' : materialPageSize}
+                                                value={
+                                                    materialPageSize ===
+                                                    Infinity
+                                                        ? 'all'
+                                                        : materialPageSize
+                                                }
                                                 onChange={(event) => {
-                                                    const value = event.target.value;
-                                                    setMaterialPageSize(value === 'all' ? Infinity : Number(value));
+                                                    const value =
+                                                        event.target.value;
+                                                    setMaterialPageSize(
+                                                        value === 'all'
+                                                            ? Infinity
+                                                            : Number(value),
+                                                    );
                                                     setMaterialCurrentPage(1);
                                                 }}
                                             >
@@ -1234,7 +1574,9 @@ export default function PurchaseRequirementIndex({
                                                 <option value={10}>10</option>
                                                 <option value={25}>25</option>
                                                 <option value={50}>50</option>
-                                                <option value="all">Semua</option>
+                                                <option value="all">
+                                                    Semua
+                                                </option>
                                             </select>
                                         </label>
                                         <label className="text-sm text-muted-foreground">
@@ -1244,7 +1586,11 @@ export default function PurchaseRequirementIndex({
                                                 className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
                                                 placeholder="Cari material..."
                                                 value={materialSearchTerm}
-                                                onChange={(event) => setMaterialSearchTerm(event.target.value)}
+                                                onChange={(event) =>
+                                                    setMaterialSearchTerm(
+                                                        event.target.value,
+                                                    )
+                                                }
                                             />
                                         </label>
                                     </div>
@@ -1252,11 +1598,21 @@ export default function PurchaseRequirementIndex({
                                         <table className="w-full text-sm">
                                             <thead className="bg-muted/50 text-muted-foreground">
                                                 <tr>
-                                                    <th className="w-14 px-2 py-3 text-left">No</th>
-                                                    <th className="px-2 py-3 text-left">Material</th>
-                                                    <th className="w-px px-2 py-3 text-left whitespace-nowrap">Qty</th>
-                                                    <th className="w-px px-2 py-3 text-left whitespace-nowrap">Sisa PR</th>
-                                                    <th className="px-2 py-3 text-left">Remark</th>
+                                                    <th className="w-14 px-2 py-3 text-left">
+                                                        No
+                                                    </th>
+                                                    <th className="px-2 py-3 text-left">
+                                                        Material
+                                                    </th>
+                                                    <th className="w-px px-2 py-3 text-left whitespace-nowrap">
+                                                        Qty
+                                                    </th>
+                                                    <th className="w-px px-2 py-3 text-left whitespace-nowrap">
+                                                        Sisa PR
+                                                    </th>
+                                                    <th className="px-2 py-3 text-left">
+                                                        Remark
+                                                    </th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -1264,53 +1620,161 @@ export default function PurchaseRequirementIndex({
                                                     loading={detailLoading}
                                                     columns={6}
                                                     rows={5}
-                                                    isEmpty={!detailLoading && displayedMaterialDetails.length === 0}
-                                                    emptyMessage={detailError || 'Belum ada data material.'}
+                                                    isEmpty={
+                                                        !detailLoading &&
+                                                        displayedMaterialDetails.length ===
+                                                            0
+                                                    }
+                                                    emptyMessage={
+                                                        detailError ||
+                                                        'Belum ada data material.'
+                                                    }
                                                 />
-                                                {displayedMaterialDetails.map((detail, index) => (
-                                                    <tr key={`${detail.no_pr}-${index}`} className="border-t border-sidebar-border/70">
-                                                        <td className="px-2 py-3">
-                                                            {(materialPageSize === Infinity ? index : (materialCurrentPage - 1) * materialPageSize + index) + 1}
-                                                        </td>
-                                                        <td className="px-2 py-3">{getValue(detail, ['material', 'Material'])}</td>
-                                                        <td className="px-2 py-3 whitespace-nowrap">
-                                                            {getValue(detail, ['qty', 'Qty', 'quantity', 'Quantity'])}  {getValue(detail, ['satuan', 'Satuan', 'unit', 'Unit'])}
-                                                        </td>
-                                                        <td className="px-2 py-3 whitespace-nowrap">{getValue(detail, ['sisa_pr', 'Sisa_pr', 'Sisa_PR'])}</td>
-                                                        <td className="px-2 py-3">{getValue(detail, ['renmark', 'Renmark', 'remark', 'Remark', 'keterangan', 'Keterangan'])}</td>
-                                                    </tr>
-                                                ))}
+                                                {displayedMaterialDetails.map(
+                                                    (detail, index) => (
+                                                        <tr
+                                                            key={`${detail.no_pr}-${index}`}
+                                                            className="border-t border-sidebar-border/70"
+                                                        >
+                                                            <td className="px-2 py-3">
+                                                                {(materialPageSize ===
+                                                                Infinity
+                                                                    ? index
+                                                                    : (materialCurrentPage -
+                                                                          1) *
+                                                                          materialPageSize +
+                                                                      index) +
+                                                                    1}
+                                                            </td>
+                                                            <td className="px-2 py-3">
+                                                                {getValue(
+                                                                    detail,
+                                                                    [
+                                                                        'material',
+                                                                        'Material',
+                                                                    ],
+                                                                )}
+                                                            </td>
+                                                            <td className="px-2 py-3 whitespace-nowrap">
+                                                                {getValue(
+                                                                    detail,
+                                                                    [
+                                                                        'qty',
+                                                                        'Qty',
+                                                                        'quantity',
+                                                                        'Quantity',
+                                                                    ],
+                                                                )}{' '}
+                                                                {getValue(
+                                                                    detail,
+                                                                    [
+                                                                        'satuan',
+                                                                        'Satuan',
+                                                                        'unit',
+                                                                        'Unit',
+                                                                    ],
+                                                                )}
+                                                            </td>
+                                                            <td className="px-2 py-3 whitespace-nowrap">
+                                                                {getValue(
+                                                                    detail,
+                                                                    [
+                                                                        'sisa_pr',
+                                                                        'Sisa_pr',
+                                                                        'Sisa_PR',
+                                                                    ],
+                                                                )}
+                                                            </td>
+                                                            <td className="px-2 py-3">
+                                                                {getValue(
+                                                                    detail,
+                                                                    [
+                                                                        'renmark',
+                                                                        'Renmark',
+                                                                        'remark',
+                                                                        'Remark',
+                                                                        'keterangan',
+                                                                        'Keterangan',
+                                                                    ],
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ),
+                                                )}
                                             </tbody>
                                         </table>
                                     </div>
-                                    {materialPageSize !== Infinity && materialTotalItems > 0 && (
-                                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                            <span>
-                                                Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialTotalItems)}-{Math.min(materialCurrentPage * materialPageSize, materialTotalItems)} dari {materialTotalItems} data
-                                            </span>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => setMaterialCurrentPage((page) => Math.max(1, page - 1))}
-                                                    disabled={materialCurrentPage === 1}
-                                                >
-                                                    Sebelumnya
-                                                </Button>
-                                                <span className="text-sm text-muted-foreground">
-                                                    Halaman {materialCurrentPage} dari {materialTotalPages}
+                                    {materialPageSize !== Infinity &&
+                                        materialTotalItems > 0 && (
+                                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                                <span>
+                                                    Menampilkan{' '}
+                                                    {Math.min(
+                                                        (materialCurrentPage -
+                                                            1) *
+                                                            materialPageSize +
+                                                            1,
+                                                        materialTotalItems,
+                                                    )}
+                                                    -
+                                                    {Math.min(
+                                                        materialCurrentPage *
+                                                            materialPageSize,
+                                                        materialTotalItems,
+                                                    )}{' '}
+                                                    dari {materialTotalItems}{' '}
+                                                    data
                                                 </span>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => setMaterialCurrentPage((page) => Math.min(materialTotalPages, page + 1))}
-                                                    disabled={materialCurrentPage === materialTotalPages}
-                                                >
-                                                    Berikutnya
-                                                </Button>
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setMaterialCurrentPage(
+                                                                (page) =>
+                                                                    Math.max(
+                                                                        1,
+                                                                        page -
+                                                                            1,
+                                                                    ),
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            materialCurrentPage ===
+                                                            1
+                                                        }
+                                                    >
+                                                        Sebelumnya
+                                                    </Button>
+                                                    <span className="text-sm text-muted-foreground">
+                                                        Halaman{' '}
+                                                        {materialCurrentPage}{' '}
+                                                        dari{' '}
+                                                        {materialTotalPages}
+                                                    </span>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setMaterialCurrentPage(
+                                                                (page) =>
+                                                                    Math.min(
+                                                                        materialTotalPages,
+                                                                        page +
+                                                                            1,
+                                                                    ),
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            materialCurrentPage ===
+                                                            materialTotalPages
+                                                        }
+                                                    >
+                                                        Berikutnya
+                                                    </Button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
                                 </div>
                             </div>
                         )}
@@ -1334,7 +1798,8 @@ export default function PurchaseRequirementIndex({
                         <DialogHeader>
                             <DialogTitle>PR Outstanding</DialogTitle>
                             <DialogDescription>
-                                Daftar PR yang belum terealisasi sama sekali (belum ada material dibuat PO).
+                                Daftar PR yang belum terealisasi sama sekali
+                                (belum ada material dibuat PO).
                             </DialogDescription>
                         </DialogHeader>
 
@@ -1343,10 +1808,18 @@ export default function PurchaseRequirementIndex({
                                 Tampilkan
                                 <select
                                     className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={outstandingPageSize === Infinity ? 'all' : outstandingPageSize}
+                                    value={
+                                        outstandingPageSize === Infinity
+                                            ? 'all'
+                                            : outstandingPageSize
+                                    }
                                     onChange={(event) => {
                                         const value = event.target.value;
-                                        setOutstandingPageSize(value === 'all' ? Infinity : Number(value));
+                                        setOutstandingPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value),
+                                        );
                                         setOutstandingCurrentPage(1);
                                     }}
                                 >
@@ -1364,7 +1837,11 @@ export default function PurchaseRequirementIndex({
                                     className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
                                     placeholder="Cari customer, no PR, ref PO..."
                                     value={outstandingSearchTerm}
-                                    onChange={(event) => setOutstandingSearchTerm(event.target.value)}
+                                    onChange={(event) =>
+                                        setOutstandingSearchTerm(
+                                            event.target.value,
+                                        )
+                                    }
                                 />
                             </label>
                         </div>
@@ -1373,11 +1850,21 @@ export default function PurchaseRequirementIndex({
                             <table className="w-full table-auto text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
                                     <tr>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">No PR</th>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Date</th>
-                                        <th className="w-full whitespace-nowrap px-2 py-2 text-left">Customer</th>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Ref PO</th>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Action</th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            No PR
+                                        </th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            Date
+                                        </th>
+                                        <th className="w-full px-2 py-2 text-left whitespace-nowrap">
+                                            Customer
+                                        </th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            Ref PO
+                                        </th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            Action
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1385,88 +1872,149 @@ export default function PurchaseRequirementIndex({
                                         loading={outstandingLoading}
                                         columns={5}
                                         rows={5}
-                                        isEmpty={!outstandingLoading && displayedOutstandingPurchaseRequirements.length === 0}
-                                        emptyMessage={outstandingError || 'Tidak ada PR outstanding.'}
+                                        isEmpty={
+                                            !outstandingLoading &&
+                                            displayedOutstandingPurchaseRequirements.length ===
+                                                0
+                                        }
+                                        emptyMessage={
+                                            outstandingError ||
+                                            'Tidak ada PR outstanding.'
+                                        }
                                     />
-                                    {displayedOutstandingPurchaseRequirements.map((item) => (
-                                        <tr key={`outstanding-${item.no_pr}`} className="border-t border-sidebar-border/70">
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.no_pr}</td>
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.date}</td>
-                                            <td className="w-full min-w-0 whitespace-nowrap px-2 py-2">
-                                                <div className="min-w-0">
-                                                    {renderCustomerWithOverdueMarker(
-                                                        item.for_customer,
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.ref_po}</td>
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setIsOutstandingModalOpen(false);
-                                                            handleOpenModal(item);
-                                                        }}
-                                                        className="text-muted-foreground transition hover:text-foreground"
-                                                        title="Lihat"
-                                                    >
-                                                        <Eye className="size-4" />
-                                                    </button>
-                                                    <Link
-                                                        href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/edit`}
-                                                        className="text-muted-foreground transition hover:text-foreground"
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Link>
-                                                    {item._canDelete && (
+                                    {displayedOutstandingPurchaseRequirements.map(
+                                        (item) => (
+                                            <tr
+                                                key={`outstanding-${item.no_pr}`}
+                                                className="border-t border-sidebar-border/70"
+                                            >
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    {item.no_pr}
+                                                </td>
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    {item.date}
+                                                </td>
+                                                <td className="w-full min-w-0 px-2 py-2 whitespace-nowrap">
+                                                    <div className="min-w-0">
+                                                        {renderCustomerWithOverdueMarker(
+                                                            item.for_customer,
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    {item.ref_po}
+                                                </td>
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
                                                         <button
                                                             type="button"
-                                                            className="text-muted-foreground transition hover:text-destructive"
-                                                            title="Hapus"
-                                                            disabled={isDeleting}
-                                                            onClick={() => handleDelete(item.no_pr)}
+                                                            onClick={() => {
+                                                                setIsOutstandingModalOpen(
+                                                                    false,
+                                                                );
+                                                                handleOpenModal(
+                                                                    item,
+                                                                );
+                                                            }}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Lihat"
                                                         >
-                                                            <Trash2 className="size-4" />
+                                                            <Eye className="size-4" />
                                                         </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                        <Link
+                                                            href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/edit`}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Link>
+                                                        {item._canDelete && (
+                                                            <button
+                                                                type="button"
+                                                                className="text-muted-foreground transition hover:text-destructive"
+                                                                title="Hapus"
+                                                                disabled={
+                                                                    isDeleting
+                                                                }
+                                                                onClick={() =>
+                                                                    handleDelete(
+                                                                        item.no_pr,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ),
+                                    )}
                                 </tbody>
                             </table>
                         </div>
 
-                        {outstandingPageSize !== Infinity && outstandingTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan {Math.min((outstandingCurrentPage - 1) * outstandingPageSize + 1, outstandingTotalItems)}-{Math.min(outstandingCurrentPage * outstandingPageSize, outstandingTotalItems)} dari {outstandingTotalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setOutstandingCurrentPage((page) => Math.max(1, page - 1))}
-                                        disabled={outstandingCurrentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span className="text-sm text-muted-foreground">
-                                        Halaman {outstandingCurrentPage} dari {outstandingTotalPages}
+                        {outstandingPageSize !== Infinity &&
+                            outstandingTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                    <span>
+                                        Menampilkan{' '}
+                                        {Math.min(
+                                            (outstandingCurrentPage - 1) *
+                                                outstandingPageSize +
+                                                1,
+                                            outstandingTotalItems,
+                                        )}
+                                        -
+                                        {Math.min(
+                                            outstandingCurrentPage *
+                                                outstandingPageSize,
+                                            outstandingTotalItems,
+                                        )}{' '}
+                                        dari {outstandingTotalItems} data
                                     </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setOutstandingCurrentPage((page) => Math.min(outstandingTotalPages, page + 1))}
-                                        disabled={outstandingCurrentPage === outstandingTotalPages}
-                                    >
-                                        Berikutnya
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setOutstandingCurrentPage(
+                                                    (page) =>
+                                                        Math.max(1, page - 1),
+                                                )
+                                            }
+                                            disabled={
+                                                outstandingCurrentPage === 1
+                                            }
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground">
+                                            Halaman {outstandingCurrentPage}{' '}
+                                            dari {outstandingTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setOutstandingCurrentPage(
+                                                    (page) =>
+                                                        Math.min(
+                                                            outstandingTotalPages,
+                                                            page + 1,
+                                                        ),
+                                                )
+                                            }
+                                            disabled={
+                                                outstandingCurrentPage ===
+                                                outstandingTotalPages
+                                            }
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
                     </DialogContent>
                 </Dialog>
 
@@ -1487,7 +2035,8 @@ export default function PurchaseRequirementIndex({
                         <DialogHeader>
                             <DialogTitle>PR Sisa PO</DialogTitle>
                             <DialogDescription>
-                                Daftar PR yang sudah mulai dibuat PO namun masih memiliki sisa material.
+                                Daftar PR yang sudah mulai dibuat PO namun masih
+                                memiliki sisa material.
                             </DialogDescription>
                         </DialogHeader>
 
@@ -1496,10 +2045,18 @@ export default function PurchaseRequirementIndex({
                                 Tampilkan
                                 <select
                                     className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={sisaPoPageSize === Infinity ? 'all' : sisaPoPageSize}
+                                    value={
+                                        sisaPoPageSize === Infinity
+                                            ? 'all'
+                                            : sisaPoPageSize
+                                    }
                                     onChange={(event) => {
                                         const value = event.target.value;
-                                        setSisaPoPageSize(value === 'all' ? Infinity : Number(value));
+                                        setSisaPoPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value),
+                                        );
                                         setSisaPoCurrentPage(1);
                                     }}
                                 >
@@ -1517,7 +2074,9 @@ export default function PurchaseRequirementIndex({
                                     className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
                                     placeholder="Cari customer, no PR, ref PO..."
                                     value={sisaPoSearchTerm}
-                                    onChange={(event) => setSisaPoSearchTerm(event.target.value)}
+                                    onChange={(event) =>
+                                        setSisaPoSearchTerm(event.target.value)
+                                    }
                                 />
                             </label>
                         </div>
@@ -1526,11 +2085,21 @@ export default function PurchaseRequirementIndex({
                             <table className="w-full table-auto text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
                                     <tr>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">No PR</th>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Date</th>
-                                        <th className="w-full whitespace-nowrap px-2 py-2 text-left">Customer</th>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Ref PO</th>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Action</th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            No PR
+                                        </th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            Date
+                                        </th>
+                                        <th className="w-full px-2 py-2 text-left whitespace-nowrap">
+                                            Customer
+                                        </th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            Ref PO
+                                        </th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            Action
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1538,88 +2107,144 @@ export default function PurchaseRequirementIndex({
                                         loading={sisaPoLoading}
                                         columns={5}
                                         rows={5}
-                                        isEmpty={!sisaPoLoading && displayedSisaPoPurchaseRequirements.length === 0}
-                                        emptyMessage={sisaPoError || 'Tidak ada PR sisa PO.'}
+                                        isEmpty={
+                                            !sisaPoLoading &&
+                                            displayedSisaPoPurchaseRequirements.length ===
+                                                0
+                                        }
+                                        emptyMessage={
+                                            sisaPoError ||
+                                            'Tidak ada PR sisa PO.'
+                                        }
                                     />
-                                    {displayedSisaPoPurchaseRequirements.map((item) => (
-                                        <tr key={`sisa-po-${item.no_pr}`} className="border-t border-sidebar-border/70">
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.no_pr}</td>
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.date}</td>
-                                            <td className="w-full min-w-0 whitespace-nowrap px-2 py-2">
-                                                <div className="min-w-0">
-                                                    {renderCustomerWithOverdueMarker(
-                                                        item.for_customer,
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.ref_po}</td>
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setIsSisaPoModalOpen(false);
-                                                            handleOpenModal(item);
-                                                        }}
-                                                        className="text-muted-foreground transition hover:text-foreground"
-                                                        title="Lihat"
-                                                    >
-                                                        <Eye className="size-4" />
-                                                    </button>
-                                                    <Link
-                                                        href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/edit`}
-                                                        className="text-muted-foreground transition hover:text-foreground"
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Link>
-                                                    {item._canDelete && (
+                                    {displayedSisaPoPurchaseRequirements.map(
+                                        (item) => (
+                                            <tr
+                                                key={`sisa-po-${item.no_pr}`}
+                                                className="border-t border-sidebar-border/70"
+                                            >
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    {item.no_pr}
+                                                </td>
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    {item.date}
+                                                </td>
+                                                <td className="w-full min-w-0 px-2 py-2 whitespace-nowrap">
+                                                    <div className="min-w-0">
+                                                        {renderCustomerWithOverdueMarker(
+                                                            item.for_customer,
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    {item.ref_po}
+                                                </td>
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
                                                         <button
                                                             type="button"
-                                                            className="text-muted-foreground transition hover:text-destructive"
-                                                            title="Hapus"
-                                                            disabled={isDeleting}
-                                                            onClick={() => handleDelete(item.no_pr)}
+                                                            onClick={() => {
+                                                                setIsSisaPoModalOpen(
+                                                                    false,
+                                                                );
+                                                                handleOpenModal(
+                                                                    item,
+                                                                );
+                                                            }}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Lihat"
                                                         >
-                                                            <Trash2 className="size-4" />
+                                                            <Eye className="size-4" />
                                                         </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                        <Link
+                                                            href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/edit`}
+                                                            className="text-muted-foreground transition hover:text-foreground"
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Link>
+                                                        {item._canDelete && (
+                                                            <button
+                                                                type="button"
+                                                                className="text-muted-foreground transition hover:text-destructive"
+                                                                title="Hapus"
+                                                                disabled={
+                                                                    isDeleting
+                                                                }
+                                                                onClick={() =>
+                                                                    handleDelete(
+                                                                        item.no_pr,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ),
+                                    )}
                                 </tbody>
                             </table>
                         </div>
 
-                        {sisaPoPageSize !== Infinity && sisaPoTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan {Math.min((sisaPoCurrentPage - 1) * sisaPoPageSize + 1, sisaPoTotalItems)}-{Math.min(sisaPoCurrentPage * sisaPoPageSize, sisaPoTotalItems)} dari {sisaPoTotalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setSisaPoCurrentPage((page) => Math.max(1, page - 1))}
-                                        disabled={sisaPoCurrentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span className="text-sm text-muted-foreground">
-                                        Halaman {sisaPoCurrentPage} dari {sisaPoTotalPages}
+                        {sisaPoPageSize !== Infinity &&
+                            sisaPoTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                    <span>
+                                        Menampilkan{' '}
+                                        {Math.min(
+                                            (sisaPoCurrentPage - 1) *
+                                                sisaPoPageSize +
+                                                1,
+                                            sisaPoTotalItems,
+                                        )}
+                                        -
+                                        {Math.min(
+                                            sisaPoCurrentPage * sisaPoPageSize,
+                                            sisaPoTotalItems,
+                                        )}{' '}
+                                        dari {sisaPoTotalItems} data
                                     </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setSisaPoCurrentPage((page) => Math.min(sisaPoTotalPages, page + 1))}
-                                        disabled={sisaPoCurrentPage === sisaPoTotalPages}
-                                    >
-                                        Berikutnya
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setSisaPoCurrentPage((page) =>
+                                                    Math.max(1, page - 1),
+                                                )
+                                            }
+                                            disabled={sisaPoCurrentPage === 1}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground">
+                                            Halaman {sisaPoCurrentPage} dari{' '}
+                                            {sisaPoTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setSisaPoCurrentPage((page) =>
+                                                    Math.min(
+                                                        sisaPoTotalPages,
+                                                        page + 1,
+                                                    ),
+                                                )
+                                            }
+                                            disabled={
+                                                sisaPoCurrentPage ===
+                                                sisaPoTotalPages
+                                            }
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
                     </DialogContent>
                 </Dialog>
 
@@ -1640,7 +2265,8 @@ export default function PurchaseRequirementIndex({
                         <DialogHeader>
                             <DialogTitle>PR Terealisasi</DialogTitle>
                             <DialogDescription>
-                                Daftar PR yang sudah terealisasi sesuai periode terpilih.
+                                Daftar PR yang sudah terealisasi sesuai periode
+                                terpilih.
                             </DialogDescription>
                         </DialogHeader>
 
@@ -1649,10 +2275,18 @@ export default function PurchaseRequirementIndex({
                                 Tampilkan
                                 <select
                                     className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={realizedPageSize === Infinity ? 'all' : realizedPageSize}
+                                    value={
+                                        realizedPageSize === Infinity
+                                            ? 'all'
+                                            : realizedPageSize
+                                    }
                                     onChange={(event) => {
                                         const value = event.target.value;
-                                        setRealizedPageSize(value === 'all' ? Infinity : Number(value));
+                                        setRealizedPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value),
+                                        );
                                         setRealizedCurrentPage(1);
                                     }}
                                 >
@@ -1670,7 +2304,11 @@ export default function PurchaseRequirementIndex({
                                     className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
                                     placeholder="Cari no PR, customer, ref PO..."
                                     value={realizedSearchTerm}
-                                    onChange={(event) => setRealizedSearchTerm(event.target.value)}
+                                    onChange={(event) =>
+                                        setRealizedSearchTerm(
+                                            event.target.value,
+                                        )
+                                    }
                                 />
                             </label>
                         </div>
@@ -1679,11 +2317,21 @@ export default function PurchaseRequirementIndex({
                             <table className="w-full table-auto text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
                                     <tr>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">No PR</th>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Date</th>
-                                        <th className="w-full whitespace-nowrap px-2 py-2 text-left">Customer</th>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Ref PO</th>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Action</th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            No PR
+                                        </th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            Date
+                                        </th>
+                                        <th className="w-full px-2 py-2 text-left whitespace-nowrap">
+                                            Customer
+                                        </th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            Ref PO
+                                        </th>
+                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                            Action
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1691,70 +2339,124 @@ export default function PurchaseRequirementIndex({
                                         loading={realizedLoading}
                                         columns={5}
                                         rows={5}
-                                        isEmpty={!realizedLoading && displayedRealizedPurchaseRequirements.length === 0}
-                                        emptyMessage={realizedError || 'Tidak ada PR terealisasi.'}
+                                        isEmpty={
+                                            !realizedLoading &&
+                                            displayedRealizedPurchaseRequirements.length ===
+                                                0
+                                        }
+                                        emptyMessage={
+                                            realizedError ||
+                                            'Tidak ada PR terealisasi.'
+                                        }
                                     />
-                                    {displayedRealizedPurchaseRequirements.map((item) => (
-                                        <tr key={`realized-${item.no_pr}`} className="border-t border-sidebar-border/70">
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.no_pr}</td>
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">{getValue(item, ['date', 'tgl'])}</td>
-                                            <td className="w-full min-w-0 whitespace-nowrap px-2 py-2">
-                                                <div className="min-w-0">
-                                                    {renderCustomerWithOverdueMarker(
-                                                        getValue(item, [
-                                                            'for_customer',
-                                                        ]),
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">{item.ref_po}</td>
-                                            <td className="w-1 whitespace-nowrap px-2 py-2">
-                                                <button
-                                                    type="button"
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    title="Lihat"
-                                                    onClick={() => {
-                                                        setIsRealizedModalOpen(false);
-                                                        handleOpenModal(item);
-                                                    }}
-                                                >
-                                                    <Eye className="size-4" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {displayedRealizedPurchaseRequirements.map(
+                                        (item) => (
+                                            <tr
+                                                key={`realized-${item.no_pr}`}
+                                                className="border-t border-sidebar-border/70"
+                                            >
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    {item.no_pr}
+                                                </td>
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    {getValue(item, [
+                                                        'date',
+                                                        'tgl',
+                                                    ])}
+                                                </td>
+                                                <td className="w-full min-w-0 px-2 py-2 whitespace-nowrap">
+                                                    <div className="min-w-0">
+                                                        {renderCustomerWithOverdueMarker(
+                                                            getValue(item, [
+                                                                'for_customer',
+                                                            ]),
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    {item.ref_po}
+                                                </td>
+                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                    <button
+                                                        type="button"
+                                                        className="text-muted-foreground transition hover:text-foreground"
+                                                        title="Lihat"
+                                                        onClick={() => {
+                                                            setIsRealizedModalOpen(
+                                                                false,
+                                                            );
+                                                            handleOpenModal(
+                                                                item,
+                                                            );
+                                                        }}
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ),
+                                    )}
                                 </tbody>
                             </table>
                         </div>
 
-                        {realizedPageSize !== Infinity && realizedTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan {Math.min((realizedCurrentPage - 1) * realizedPageSize + 1, realizedTotalItems)}-{Math.min(realizedCurrentPage * realizedPageSize, realizedTotalItems)} dari {realizedTotalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setRealizedCurrentPage((page) => Math.max(1, page - 1))}
-                                        disabled={realizedCurrentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span className="text-sm text-muted-foreground">
-                                        Halaman {realizedCurrentPage} from {realizedTotalPages}
+                        {realizedPageSize !== Infinity &&
+                            realizedTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                    <span>
+                                        Menampilkan{' '}
+                                        {Math.min(
+                                            (realizedCurrentPage - 1) *
+                                                realizedPageSize +
+                                                1,
+                                            realizedTotalItems,
+                                        )}
+                                        -
+                                        {Math.min(
+                                            realizedCurrentPage *
+                                                realizedPageSize,
+                                            realizedTotalItems,
+                                        )}{' '}
+                                        dari {realizedTotalItems} data
                                     </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setRealizedCurrentPage((page) => Math.min(realizedTotalPages, page + 1))}
-                                        disabled={realizedCurrentPage === realizedTotalPages}
-                                    >
-                                        Berikutnya
-                                    </Button>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setRealizedCurrentPage((page) =>
+                                                    Math.max(1, page - 1),
+                                                )
+                                            }
+                                            disabled={realizedCurrentPage === 1}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground">
+                                            Halaman {realizedCurrentPage} from{' '}
+                                            {realizedTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                setRealizedCurrentPage((page) =>
+                                                    Math.min(
+                                                        realizedTotalPages,
+                                                        page + 1,
+                                                    ),
+                                                )
+                                            }
+                                            disabled={
+                                                realizedCurrentPage ===
+                                                realizedTotalPages
+                                            }
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+                            )}
                     </DialogContent>
                 </Dialog>
                 <OverdueInvoiceWarningDialog
@@ -1770,7 +2472,7 @@ export default function PurchaseRequirementIndex({
                     description={
                         overdueDialogLoading
                             ? 'Memuat data tunggakan tagihan customer...'
-                        : 'Daftar tagihan customer yang sudah melewati jatuh tempo.'
+                            : 'Daftar tagihan customer yang sudah melewati jatuh tempo.'
                     }
                 />
                 <InvoiceDetailDialog
