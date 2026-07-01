@@ -27,7 +27,7 @@
                     <th>No Doc</th><th>Date Doc</th><th>Ref PO</th><th>Customer</th>
                     <th>Date PO</th><th>Delivery Date</th><th>Franco/Loco</th><th>Keterangan</th>
                     <th>PPN (%)</th><th>Total Price</th><th>Price PPN</th><th>Grand Total</th>
-                    <th>Material</th><th>Qty</th><th>Price</th><th>Total Price Material</th><th>Remark</th>
+                    <th>Material</th><th>Qty</th><th>Satuan</th><th>Price</th><th>Total Price Material</th><th>Remark</th>
                 </tr>
             </thead>
             <tbody>
@@ -54,14 +54,15 @@
                                 <td rowspan="{{ $rowspan }}" class="number">{{ number_format((float) ($purchaseOrder->grand_total ?? 0), 0, ',', '.') }}</td>
                             @endif
                             <td>{{ $detail->material ?? '-' }}</td>
-                            <td class="number">{{ isset($detail) ? number_format((float) $detail->qty, 0, ',', '.') : '-' }} {{ $detail->satuan ?? '' }}</td>
+                            <td class="number">{{ isset($detail) ? number_format((float) $detail->qty, 0, ',', '.') : '-' }}</td>
+                            <td>{{ $detail->satuan ?? '-' }}</td>
                             <td class="number">{{ isset($detail) ? number_format((float) $detail->price_po_in, 0, ',', '.') : '-' }}</td>
                             <td class="number">{{ isset($detail) ? number_format((float) $detail->total_price_po_in, 0, ',', '.') : '-' }}</td>
                             <td>{{ $detail->remark ?? '-' }}</td>
                         </tr>
                     @endforeach
                 @empty
-                    <tr><td colspan="17" style="text-align:center">Data Purchase Order In belum tersedia.</td></tr>
+                    <tr><td colspan="18" style="text-align:center">Data Purchase Order In belum tersedia.</td></tr>
                 @endforelse
             </tbody>
         </table>
