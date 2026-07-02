@@ -927,8 +927,9 @@ class PurchaseRequirementController
             ?? $request->cookie('tenant_database');
         $allowed = config('tenants.databases', []);
         $rawPrefix = in_array($database, $allowed, true) ? $database : 'SJA';
+        $companyCode = config("tenants.company_codes.$rawPrefix");
         $labelPrefix = config("tenants.labels.$rawPrefix");
-        $prefixSource = $labelPrefix ?: $rawPrefix;
+        $prefixSource = $companyCode ?: ($labelPrefix ?: $rawPrefix);
         $prefix = strtoupper(preg_replace('/[^A-Z0-9]/i', '', $prefixSource));
         if (str_starts_with($prefix, 'DB')) {
             $prefix = substr($prefix, 2);

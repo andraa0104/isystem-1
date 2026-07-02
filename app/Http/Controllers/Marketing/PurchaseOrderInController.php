@@ -142,6 +142,11 @@ class PurchaseOrderInController
     private function resolveDatabasePrefix(Request $request): string
     {
         $database = $this->activeTenantDatabase($request);
+        $configuredPrefix = config("tenants.company_codes.$database");
+
+        if (is_string($configuredPrefix) && trim($configuredPrefix) !== '') {
+            return strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $configuredPrefix));
+        }
 
         $prefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', preg_replace('/^db/i', '', $database)));
         return $prefix !== '' ? $prefix : 'SYS';
