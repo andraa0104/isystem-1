@@ -281,8 +281,6 @@ export default function PurchaseOrderInIndex({
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const isFirstRender = useRef(true);
-    const isFirstSearchRender = useRef(true);
     const tableRequestId = useRef(0);
 
     const buildTableQueryParams = (params = {}) => {
@@ -378,26 +376,32 @@ export default function PurchaseOrderInIndex({
     };
 
     useEffect(() => {
-        if (isFirstRender.current) {
-            isFirstRender.current = false;
-            fetchPoInData({ isPartial: true });
-            fetchPoInSummary();
-        } else {
-            fetchPoInData({ page: 1, isPartial: true });
-        }
-    }, [perPage, statusFilter, tableDateFilter, tableStartDate, tableEndDate]);
+        fetchPoInSummary();
+    }, []);
 
     useEffect(() => {
-        if (isFirstSearchRender.current) {
-            isFirstSearchRender.current = false;
-            return;
-        }
-
         const timer = setTimeout(() => {
-            fetchPoInData({ search, page: 1, isPartial: true });
-        }, 400);
+            fetchPoInData({
+                search,
+                per_page: perPage,
+                status: statusFilter,
+                dateFilter: tableDateFilter,
+                startDate: tableStartDate,
+                endDate: tableEndDate,
+                page: 1,
+                isPartial: true,
+            });
+        }, 250);
+
         return () => clearTimeout(timer);
-    }, [search]);
+    }, [
+        search,
+        perPage,
+        statusFilter,
+        tableDateFilter,
+        tableStartDate,
+        tableEndDate,
+    ]);
 
     const realizedPeriodKey = useMemo(() => {
         if (realizedPeriod === 'this_week') return 'week';
@@ -1272,15 +1276,9 @@ export default function PurchaseOrderInIndex({
                             <select
                                 className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
                                 value={tableDateFilter}
-                                onChange={(event) => {
-                                    const dateFilter = event.target.value;
-                                    setTableDateFilter(dateFilter);
-                                    fetchPoInData({
-                                        dateFilter,
-                                        page: 1,
-                                        isPartial: true,
-                                    });
-                                }}
+                                onChange={(event) =>
+                                    setTableDateFilter(event.target.value)
+                                }
                             >
                                 <option value="today">Hari Ini</option>
                                 <option value="this_week">Minggu Ini</option>
