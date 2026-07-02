@@ -258,7 +258,7 @@ class PurchaseOrderInController
         $startDate = (string) $request->query('start_date', '');
         $endDate = (string) $request->query('end_date', '');
 
-        $cacheKey = $this->poinCacheKey('index-data', [
+        $cacheKey = $this->poinCacheKey('index-data-v2', [
             'search' => $search,
             'per_page' => $perPageInput,
             'status' => $statusFilter,
@@ -505,31 +505,19 @@ class PurchaseOrderInController
             }
 
             if ($dateFilter === 'today') {
-                $query->whereBetween('p.created_at', [
-                    $now->copy()->startOfDay()->toDateTimeString(),
-                    $now->copy()->endOfDay()->toDateTimeString(),
-                ]);
+                $query->whereDate('p.created_at', $now->toDateString());
             } elseif ($dateFilter === 'this_week') {
-                $query->whereBetween('p.created_at', [
-                    $now->copy()->startOfWeek()->toDateTimeString(),
-                    $now->copy()->endOfWeek()->toDateTimeString(),
-                ]);
+                $query->whereDate('p.created_at', '>=', $now->copy()->startOfWeek()->toDateString())
+                    ->whereDate('p.created_at', '<=', $now->copy()->endOfWeek()->toDateString());
             } elseif ($dateFilter === 'this_month') {
-                $query->whereBetween('p.created_at', [
-                    $now->copy()->startOfMonth()->toDateTimeString(),
-                    $now->copy()->endOfMonth()->toDateTimeString(),
-                ]);
+                $query->whereYear('p.created_at', $now->year)
+                    ->whereMonth('p.created_at', $now->month);
             } elseif ($dateFilter === 'this_year') {
-                $query->whereBetween('p.created_at', [
-                    $now->copy()->startOfYear()->toDateTimeString(),
-                    $now->copy()->endOfYear()->toDateTimeString(),
-                ]);
+                $query->whereYear('p.created_at', $now->year);
             } elseif ($dateFilter === 'range') {
                 if ($startDate !== '' && $endDate !== '') {
-                    $query->whereBetween('p.created_at', [
-                        $startDate.' 00:00:00',
-                        $endDate.' 23:59:59',
-                    ]);
+                    $query->whereDate('p.created_at', '>=', $startDate)
+                        ->whereDate('p.created_at', '<=', $endDate);
                 } else {
                     $query->whereRaw('1 = 0');
                 }
