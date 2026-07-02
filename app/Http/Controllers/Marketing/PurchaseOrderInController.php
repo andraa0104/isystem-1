@@ -272,6 +272,15 @@ class PurchaseOrderInController
             $startDate,
             $endDate
         );
+        $data['applied_filters'] = [
+            'search' => $search,
+            'status' => $statusFilter,
+            'date_filter' => $dateFilter,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'page' => $page,
+            'per_page' => $perPageInput,
+        ];
 
         return response()->json($data)->withHeaders([
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',

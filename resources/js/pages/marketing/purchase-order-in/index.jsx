@@ -295,6 +295,7 @@ export default function PurchaseOrderInIndex({
         });
 
         queryParams.append('is_partial', '1');
+        queryParams.set('_request', `${Date.now()}-${Math.random()}`);
         if ((params.dateFilter ?? tableDateFilter) === 'range') {
             queryParams.set('start_date', params.startDate ?? tableStartDate);
             queryParams.set('end_date', params.endDate ?? tableEndDate);
@@ -321,6 +322,23 @@ export default function PurchaseOrderInIndex({
             const data = await response.json();
 
             if (requestId === tableRequestId.current) {
+                const appliedFilters = data.applied_filters ?? {};
+                const expectedDateFilter =
+                    nextParams.dateFilter ?? tableDateFilter;
+                const expectedStatus = nextParams.status ?? statusFilter;
+
+                if (
+                    appliedFilters.date_filter !== expectedDateFilter ||
+                    appliedFilters.status !== expectedStatus
+                ) {
+                    console.error('PO In filter response mismatch', {
+                        expectedDateFilter,
+                        expectedStatus,
+                        appliedFilters,
+                    });
+                    return;
+                }
+
                 setPurchaseOrderIns(data.purchaseOrderIns || []);
                 setPagination(data.pagination || {});
             }
