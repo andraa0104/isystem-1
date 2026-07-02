@@ -98,7 +98,7 @@ class HandleInertiaRequests extends Middleware
                     $raw = Storage::disk('local')->get($path);
                     $decoded = json_decode($raw, true);
                     if (is_array($decoded)) {
-                        $userPrivileges = $decoded['users'][$kdUser] ?? null;
+                        $userPrivileges = $decoded['databases'][$database]['users'][$kdUser] ?? null;
                         if (is_array($userPrivileges)) {
                             if (isset($userPrivileges['menus'])
                                 && is_array($userPrivileges['menus'])) {

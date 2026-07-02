@@ -37,7 +37,9 @@ class DashboardController
             return null;
         }
 
-        $cards = $decoded['users'][$kdUser]['dashboard_cards'] ?? null;
+        $database = $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database');
+        $cards = $decoded['databases'][$database]['users'][$kdUser]['dashboard_cards'] ?? null;
         return is_array($cards) ? $cards : null;
     }
 

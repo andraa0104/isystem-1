@@ -26,6 +26,15 @@ const formatNumber = (value) => {
     return new Intl.NumberFormat('id-ID').format(number);
 };
 
+const formatPercent = (value) => {
+    if (value === null || value === undefined || value === '') {
+        return '-';
+    }
+
+    const normalized = String(value).replace(/%/g, '').trim();
+    return normalized === '' ? '-' : `${normalized}%`;
+};
+
 export default function PurchaseRequirementPrint({
     purchaseRequirement,
     purchaseRequirementDetails = [],
@@ -48,6 +57,26 @@ export default function PurchaseRequirementPrint({
             margin: 0 !important;
             padding: 0 !important;
             width: 100% !important;
+        }
+    }
+    @media print and (orientation: landscape) {
+        .purchase-requirement-print {
+            width: 100% !important;
+            max-width: none !important;
+        }
+    }
+    @media print and (orientation: portrait) {
+        .purchase-requirement-print {
+            width: 100% !important;
+        }
+        .purchase-requirement-print .code-material-cell {
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            font-size: 10px;
+        }
+        .purchase-requirement-print .material-cell {
+            overflow-wrap: anywhere;
+            word-break: break-word;
         }
     }`;
 
@@ -78,7 +107,7 @@ export default function PurchaseRequirementPrint({
         <div className="min-h-screen bg-white text-black">
             <Head title={`Print PR ${purchaseRequirement?.no_pr ?? ''}`} />
             <style>{pageStyle}</style>
-            <div className="mx-auto w-full max-w-[900px] px-8 py-6 text-[12px] leading-[1.35]">
+            <div className="purchase-requirement-print mx-auto w-full max-w-[900px] px-8 py-6 text-[12px] leading-[1.35]">
                 <div className="text-[18px] font-semibold uppercase">
                     {company.name || '-'}
                 </div>
@@ -130,15 +159,17 @@ export default function PurchaseRequirementPrint({
                 <div className="mt-4">
                     <table className="w-full table-fixed border-collapse border border-black text-[11px]">
                         <colgroup>
-                            <col className="w-[3%]" />
+                            <col className="w-[4%]" />
                             <col className="w-[9%]" />
-                            <col className="w-[20%]" />
-                            <col className="w-[4%]" />
+                            <col className="w-[24%]" />
                             <col className="w-[5%]" />
-                            <col className="w-[4%]" />
-                            <col className="w-[10%]" />
+                            <col className="w-[5%]" />
+                            <col className="w-[5%]" />
                             <col className="w-[10%]" />
                             <col className="w-[12%]" />
+                            <col className="w-[11%]" />
+                            <col className="w-[7%]" />
+                            <col className="w-[8%]" />
                         </colgroup>
                         <thead>
                             <tr className="border-b border-black">
@@ -166,6 +197,12 @@ export default function PurchaseRequirementPrint({
                                 <th className="border-r border-black px-1 py-1 text-center">
                                     Total Price
                                 </th>
+                                <th className="border-r border-black px-1 py-1 text-center">
+                                    Price PO In
+                                </th>
+                                <th className="border-r border-black px-1 py-1 text-center">
+                                    Margin
+                                </th>
                                 <th className="px-1 py-1 text-center">
                                     Remark
                                 </th>
@@ -176,7 +213,7 @@ export default function PurchaseRequirementPrint({
                                 <tr className="border-t border-black">
                                     <td
                                         className="px-2 py-2 text-center"
-                                        colSpan={9}
+                                        colSpan={11}
                                     >
                                         Tidak ada detail PR.
                                     </td>
@@ -190,10 +227,10 @@ export default function PurchaseRequirementPrint({
                                     <td className="border-r border-black px-1 py-1 text-center align-top">
                                         {detail.no ?? index + 1}
                                     </td>
-                                    <td className="border-r border-black px-1 py-1 align-top">
+                                    <td className="code-material-cell border-r border-black px-1 py-1 align-top">
                                         {renderValue(detail.kd_material)}
                                     </td>
-                                    <td className="border-r border-black px-2 py-1 align-top">
+                                    <td className="material-cell border-r border-black px-2 py-1 align-top">
                                         {renderValue(detail.material)}
                                     </td>
                                     <td className="border-r border-black px-1 py-1 text-center align-top">
@@ -210,6 +247,12 @@ export default function PurchaseRequirementPrint({
                                     </td>
                                     <td className="border-r border-black px-1 py-1 text-right align-top">
                                         Rp. {formatNumber(detail.total_price)}
+                                    </td>
+                                    <td className="border-r border-black px-1 py-1 text-right align-top">
+                                        Rp. {formatNumber(detail.price_po)}
+                                    </td>
+                                    <td className="border-r border-black px-1 py-1 text-center align-top">
+                                        {formatPercent(detail.margin)}
                                     </td>
                                     <td className="px-1 py-1 align-top">
                                         {renderValue(detail.renmark)}
@@ -233,6 +276,8 @@ export default function PurchaseRequirementPrint({
                                     <td className="border-r border-black px-1 py-1 text-right">
                                         Rp. {formatNumber(totalPrice)}
                                     </td>
+                                    <td className="border-r border-black px-1 py-1" />
+                                    <td className="border-r border-black px-1 py-1" />
                                     <td className="px-1 py-1" />
                                 </tr>
                             )}
@@ -240,13 +285,19 @@ export default function PurchaseRequirementPrint({
                     </table>
                 </div>
 
-                <div className="mt-6 grid grid-cols-2 text-[12px]">
+                <div className="mt-6 grid grid-cols-3 text-[12px]">
                     <div>Diminta Oleh,</div>
-                    <div className="pl-46">Disetujui Oleh,</div>
+                    <div className="text-center">Disetujui Oleh,</div>
+                    <div className="w-[90px] justify-self-end text-left">
+                        Diketahui Oleh,
+                    </div>
                 </div>
-                <div className="mt-16 grid grid-cols-2 text-[12px]">
+                <div className="mt-16 grid grid-cols-3 text-[12px]">
                     <div>Marketing Office</div>
-                    <div className="pl-46">Head Office</div>
+                    <div className="text-center">Head Office</div>
+                    <div className="w-[90px] justify-self-end text-left">
+                        Direksi
+                    </div>
                 </div>
             </div>
         </div>

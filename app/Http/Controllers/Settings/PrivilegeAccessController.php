@@ -88,7 +88,8 @@ class PrivilegeAccessController extends Controller
         }
 
         $all = $this->loadPrivileges();
-        $userPrivileges = $all['users'][$kdUser] ?? [];
+        $database = $this->activeDatabase($request);
+        $userPrivileges = $all['databases'][$database]['users'][$kdUser] ?? [];
 
         return response()->json([
             'data' => [
@@ -110,7 +111,8 @@ class PrivilegeAccessController extends Controller
         ]);
 
         $all = $this->loadPrivileges();
-        $all['users'][$validated['kd_user']] = [
+        $database = $this->activeDatabase($request);
+        $all['databases'][$database]['users'][$validated['kd_user']] = [
             'menus' => $this->normalizeMenus($validated['menus']),
             'dashboard_cards' => $validated['dashboard_cards'] ?? [],
             'updated_at' => now()->format('Y-m-d H:i:s'),
@@ -127,17 +129,27 @@ class PrivilegeAccessController extends Controller
     {
         $path = 'privileges.json';
         if (!Storage::disk('local')->exists($path)) {
-            return ['users' => []];
+            return ['databases' => []];
         }
 
         $raw = Storage::disk('local')->get($path);
         $decoded = json_decode($raw, true);
 
         if (!is_array($decoded)) {
-            return ['users' => []];
+            return ['databases' => []];
         }
 
-        return $decoded + ['users' => []];
+        return $decoded + ['databases' => []];
+    }
+
+    private function activeDatabase(Request $request): string
+    {
+        $database = $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database');
+
+        return is_string($database) && in_array($database, config('tenants.databases', []), true)
+            ? $database
+            : 'default';
     }
 
     private function savePrivileges(array $data): void

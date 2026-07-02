@@ -78,7 +78,7 @@ class EnsureMenuPrivilege
         }
 
         $action = $this->actionForRoute($request, $routeName);
-        $permission = $this->permissionForUser($user->kd_user ?? null, $menuKey);
+        $permission = $this->permissionForUser($request, $user->kd_user ?? null, $menuKey);
 
         if (($permission[$action] ?? false) === true) {
             return $next($request);
@@ -133,7 +133,7 @@ class EnsureMenuPrivilege
         return 'view';
     }
 
-    private function permissionForUser(?string $kdUser, string $menuKey): array
+    private function permissionForUser(Request $request, ?string $kdUser, string $menuKey): array
     {
         if (! $kdUser || ! Storage::disk('local')->exists('privileges.json')) {
             return $this->emptyPermission();
@@ -144,7 +144,9 @@ class EnsureMenuPrivilege
             return $this->emptyPermission();
         }
 
-        $permission = $decoded['users'][$kdUser]['menus'][$menuKey] ?? null;
+        $database = $request->session()->get('tenant.database')
+            ?? $request->cookie('tenant_database');
+        $permission = $decoded['databases'][$database]['users'][$kdUser]['menus'][$menuKey] ?? null;
         if (! is_array($permission)) {
             return [
                 'view' => (bool) $permission,
