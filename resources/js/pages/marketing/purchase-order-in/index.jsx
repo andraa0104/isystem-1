@@ -1304,9 +1304,15 @@ export default function PurchaseOrderInIndex({
                             <select
                                 className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
                                 value={tableDateFilter}
-                                onChange={(event) =>
-                                    setTableDateFilter(event.target.value)
-                                }
+                                onChange={(event) => {
+                                    const dateFilter = event.target.value;
+                                    setTableDateFilter(dateFilter);
+                                    fetchPoInData({
+                                        dateFilter,
+                                        page: 1,
+                                        isPartial: true,
+                                    });
+                                }}
                             >
                                 <option value="today">Hari Ini</option>
                                 <option value="this_week">Minggu Ini</option>
