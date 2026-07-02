@@ -26,6 +26,18 @@ const formatNumber = (value) => {
     return new Intl.NumberFormat('id-ID').format(number);
 };
 
+const formatStock = (value) => {
+    const number = Number(value);
+    if (!Number.isFinite(number)) {
+        return '-';
+    }
+
+    return new Intl.NumberFormat('id-ID', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    }).format(number);
+};
+
 const formatPercent = (value) => {
     if (value === null || value === undefined || value === '') {
         return '-';
@@ -240,7 +252,7 @@ export default function PurchaseRequirementPrint({
                                         {renderValue(detail.unit)}
                                     </td>
                                     <td className="border-r border-black px-1 py-1 text-center align-top">
-                                        {renderValue(detail.stok)}
+                                        {formatStock(detail.stok)}
                                     </td>
                                     <td className="border-r border-black px-1 py-1 text-right align-top">
                                         Rp {formatNumber(detail.unit_price)}
