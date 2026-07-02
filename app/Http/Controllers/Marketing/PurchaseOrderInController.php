@@ -210,7 +210,8 @@ class PurchaseOrderInController
         $search = trim((string) $request->query('search', ''));
         $perPageInput = $request->query('per_page', 5);
         $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
-        $statusFilter = $request->query('status', 'outstanding');
+        $statusFilter = $request->query('status', 'all');
+        $dateFilter = $request->query('date_filter', 'today');
         $page = max(1, (int) $request->query('page', 1));
 
         return Inertia::render('marketing/purchase-order-in/index', [
@@ -232,6 +233,7 @@ class PurchaseOrderInController
                 'per_page' => $perPage === null ? 'all' : (string) $perPage,
                 'page' => $page,
                 'status' => $statusFilter,
+                'date_filter' => $dateFilter,
             ],
             'pagination' => [
                 'total' => 0,
@@ -247,7 +249,7 @@ class PurchaseOrderInController
         $search = trim((string) $request->query('search', ''));
         $perPageInput = $request->query('per_page', 5);
         $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
-        $statusFilter = $request->query('status', 'outstanding');
+        $statusFilter = $request->query('status', 'all');
         $page = max(1, (int) $request->query('page', 1));
         $isPartial = $request->boolean('is_partial', false);
         $summaryOnly = $request->boolean('summary_only', false);

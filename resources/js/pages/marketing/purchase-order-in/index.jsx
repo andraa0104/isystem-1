@@ -217,7 +217,9 @@ export default function PurchaseOrderInIndex({
     const [search, setSearch] = useState(filters.search ?? '');
     const [perPage, setPerPage] = useState(String(filters.per_page ?? '5'));
     const [statusFilter, setStatusFilter] = useState(filters.status ?? 'all');
-    const [tableDateFilter, setTableDateFilter] = useState('today');
+    const [tableDateFilter, setTableDateFilter] = useState(
+        filters.date_filter ?? 'today',
+    );
     const [tableStartDate, setTableStartDate] = useState('');
     const [tableEndDate, setTableEndDate] = useState('');
     const [realizedPeriod, setRealizedPeriod] = useState('today');
