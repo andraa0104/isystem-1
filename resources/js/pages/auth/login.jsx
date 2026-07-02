@@ -15,6 +15,7 @@ const databaseLabels = {
     dbstg: 'DB STG',
     dbati: 'DB ATI',
     dbarm: 'DB ARM',
+    dbjms: 'DB JMS',
 };
 export default function Login({ status, databases = [], selectedDatabase }) {
     const page = usePage();

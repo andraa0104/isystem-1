@@ -14,12 +14,9 @@ class DeliveryOrderController
         $metric = $request->query('metric');
 
         if ($metric === 'count') {
-            $query = DB::table('tb_do')
-                ->select('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv')
-                ->where('val_inv', 0)
-                ->groupBy('no_do', 'date', 'ref_po', 'nm_cs', 'val_inv');
-
-            return response()->json(['value' => DB::query()->fromSub($query, 'outstanding_do')->count()]);
+            return response()->json([
+                'value' => DB::table('tb_do')->where('val_inv', 0)->count(),
+            ]);
         }
 
         if ($metric === 'total') {

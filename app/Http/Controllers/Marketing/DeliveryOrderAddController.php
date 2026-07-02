@@ -16,7 +16,7 @@ class DeliveryOrderAddController
 
         if ($metric === 'count') {
             return response()->json([
-                'value' => DB::table('tb_dob')->where('status', 0)->distinct('no_dob')->count('no_dob'),
+                'value' => DB::table('tb_dob')->where('status', 0)->count(),
             ]);
         }
 

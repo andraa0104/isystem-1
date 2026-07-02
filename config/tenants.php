@@ -8,6 +8,7 @@ return [
         'dbstg',
         'dbarm',
         'dbati',
+        'dbjms',
     ],
     'labels' => [
         'dbsja' => 'DB SJA',
@@ -15,6 +16,7 @@ return [
         'dbstg' => 'DB STG',
         'dbarm' => 'DB ARM',
         'dbati' => 'DB ATI',
+        'dbjms' => 'DB JMS',
     ],
     'companies' => [
         'dbsja' => [

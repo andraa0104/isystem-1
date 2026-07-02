@@ -15,7 +15,7 @@ class DeliveryOrderCostController
 
         if ($metric === 'count') {
             return response()->json([
-                'value' => DB::table('tb_dobi')->where('status', 0)->distinct('no_alokasi')->count('no_alokasi'),
+                'value' => DB::table('tb_dobi')->where('status', 0)->count(),
             ]);
         }
 
