@@ -316,6 +316,7 @@ export default function PurchaseOrderInIndex({
             const response = await fetch(
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
                 {
+                    cache: 'no-store',
                     headers: { Accept: 'application/json' },
                 },
             );
@@ -343,6 +344,7 @@ export default function PurchaseOrderInIndex({
             const response = await fetch(
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
                 {
+                    cache: 'no-store',
                     headers: { Accept: 'application/json' },
                 },
             );
@@ -381,7 +383,10 @@ export default function PurchaseOrderInIndex({
 
             const response = await fetch(
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
-                { headers: { Accept: 'application/json' } },
+                {
+                    cache: 'no-store',
+                    headers: { Accept: 'application/json' },
+                },
             );
             const data = await response.json();
             setSummary((prev) => ({ ...prev, ...(data.summary || {}) }));
@@ -477,7 +482,10 @@ export default function PurchaseOrderInIndex({
 
             const response = await fetch(
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
-                { headers: { Accept: 'application/json' } },
+                {
+                    cache: 'no-store',
+                    headers: { Accept: 'application/json' },
+                },
             );
             const data = await response.json();
             const rows = data.purchaseOrderIns || [];

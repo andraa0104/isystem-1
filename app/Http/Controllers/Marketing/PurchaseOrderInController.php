@@ -258,39 +258,25 @@ class PurchaseOrderInController
         $startDate = (string) $request->query('start_date', '');
         $endDate = (string) $request->query('end_date', '');
 
-        $cacheKey = $this->poinCacheKey('index-data-v2', [
-            'search' => $search,
-            'per_page' => $perPageInput,
-            'status' => $statusFilter,
-            'page' => $page,
-            'is_partial' => $isPartial,
-            'summary_only' => $summaryOnly,
-            'summary_scope' => $summaryScope,
-            'rows_only' => $rowsOnly,
-            'pagination_only' => $paginationOnly,
-            'date_filter' => $dateFilter,
-            'start_date' => $startDate,
-            'end_date' => $endDate,
-        ], $request);
+        $data = $this->getPurchaseOrderInData(
+            $search,
+            $perPage,
+            $statusFilter,
+            $page,
+            $isPartial,
+            $summaryOnly,
+            $summaryScope,
+            $rowsOnly,
+            $paginationOnly,
+            $dateFilter,
+            $startDate,
+            $endDate
+        );
 
-        $data = Cache::tags(self::POIN_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate) {
-            return $this->getPurchaseOrderInData(
-                $search,
-                $perPage,
-                $statusFilter,
-                $page,
-                $isPartial,
-                $summaryOnly,
-                $summaryScope,
-                $rowsOnly,
-                $paginationOnly,
-                $dateFilter,
-                $startDate,
-                $endDate
-            );
-        });
-
-        return response()->json($data);
+        return response()->json($data)->withHeaders([
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ]);
     }
 
     private function getPurchaseOrderInData(
