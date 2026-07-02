@@ -39,7 +39,9 @@ class DashboardController
 
         $database = $request->session()->get('tenant.database')
             ?? $request->cookie('tenant_database');
-        $cards = $decoded['databases'][$database]['users'][$kdUser]['dashboard_cards'] ?? null;
+        $cards = $decoded['databases'][$database]['users'][$kdUser]['dashboard_cards']
+            ?? $decoded['users'][$kdUser]['dashboard_cards']
+            ?? null;
         return is_array($cards) ? $cards : null;
     }
 

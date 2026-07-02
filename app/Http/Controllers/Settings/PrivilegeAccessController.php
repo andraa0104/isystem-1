@@ -89,7 +89,9 @@ class PrivilegeAccessController extends Controller
 
         $all = $this->loadPrivileges();
         $database = $this->activeDatabase($request);
-        $userPrivileges = $all['databases'][$database]['users'][$kdUser] ?? [];
+        $userPrivileges = $all['databases'][$database]['users'][$kdUser]
+            ?? $all['users'][$kdUser]
+            ?? [];
 
         return response()->json([
             'data' => [

@@ -73,7 +73,7 @@ class EnsureMenuPrivilege
             ?? $user->level_user
             ?? null;
 
-        if (is_string($level) && strtolower($level) === 'admin') {
+        if (is_string($level) && strtolower(trim($level)) === 'admin') {
             return $next($request);
         }
 
@@ -146,7 +146,9 @@ class EnsureMenuPrivilege
 
         $database = $request->session()->get('tenant.database')
             ?? $request->cookie('tenant_database');
-        $permission = $decoded['databases'][$database]['users'][$kdUser]['menus'][$menuKey] ?? null;
+        $permission = $decoded['databases'][$database]['users'][$kdUser]['menus'][$menuKey]
+            ?? $decoded['users'][$kdUser]['menus'][$menuKey]
+            ?? null;
         if (! is_array($permission)) {
             return [
                 'view' => (bool) $permission,
