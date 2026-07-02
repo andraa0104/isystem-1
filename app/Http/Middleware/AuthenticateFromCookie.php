@@ -75,7 +75,8 @@ class AuthenticateFromCookie
         // Jika session Laravel masih aktif tapi heartbeat sudah mati (tab/browser ditutup),
         // paksa logout supaya tidak "terlogin" saat browser dibuka lagi.
         if (Auth::check()) {
-            $currentUsername = $request->user()?->getAuthIdentifier();
+            $currentUsername = $request->user()?->pengguna
+                ?? $request->user()?->getAuthIdentifier();
             if ($isStale($currentUsername, true)) {
                 $activityKey = 'browser_active:' . ($database ?: 'default') . ':' . $currentUsername;
                 $lastSeen = Cache::store('file')->get($activityKey);
@@ -92,7 +93,9 @@ class AuthenticateFromCookie
                 Cookie::queue(Cookie::forget('login_last_online'));
                 Cache::store('file')->forget($activityKey);
 
-                return $guestResponse($request);
+                return $request->is('login')
+                    ? $next($request)
+                    : $guestResponse($request);
             }
             // Sentuh aktivitas supaya navigasi normal tidak memicu logout.
             if ($currentUsername) {
@@ -118,7 +121,9 @@ class AuthenticateFromCookie
             Cookie::queue(Cookie::forget('login_last_online'));
             Cache::store('file')->forget('browser_active:' . ($database ?: 'default') . ':' . $username);
 
-            return $guestResponse($request);
+            return $request->is('login')
+                ? $next($request)
+                : $guestResponse($request);
         }
 
         $user = Pengguna::where('pengguna', $username)->first();
