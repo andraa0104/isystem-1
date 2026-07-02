@@ -77,7 +77,8 @@ class AuthenticateFromCookie
         if (Auth::check()) {
             $currentUsername = $request->user()?->getAuthIdentifier();
             if ($isStale($currentUsername, true)) {
-                $lastSeen = Cache::store('file')->get('browser_active:' . ($database ?: 'default') . ':' . $currentUsername);
+                $activityKey = 'browser_active:' . ($database ?: 'default') . ':' . $currentUsername;
+                $lastSeen = Cache::store('file')->get($activityKey);
                 $this->updateSessionStatus($database, $currentUsername, 'T', $lastSeen);
                 Auth::logout();
                 try {
@@ -89,6 +90,9 @@ class AuthenticateFromCookie
                 Cookie::queue(Cookie::forget('login_user'));
                 Cookie::queue(Cookie::forget('login_user_name'));
                 Cookie::queue(Cookie::forget('login_last_online'));
+                Cache::store('file')->forget($activityKey);
+
+                return $guestResponse($request);
             }
             // Sentuh aktivitas supaya navigasi normal tidak memicu logout.
             if ($currentUsername) {
@@ -109,11 +113,12 @@ class AuthenticateFromCookie
         if ($isStale($username, false)) {
             $lastSeen = Cache::store('file')->get('browser_active:' . ($database ?: 'default') . ':' . $username);
             $this->updateSessionStatus($database, $username, 'T', $lastSeen);
-            $response = $next($request);
             Cookie::queue(Cookie::forget('login_user'));
             Cookie::queue(Cookie::forget('login_user_name'));
             Cookie::queue(Cookie::forget('login_last_online'));
-            return $response;
+            Cache::store('file')->forget('browser_active:' . ($database ?: 'default') . ':' . $username);
+
+            return $guestResponse($request);
         }
 
         $user = Pengguna::where('pengguna', $username)->first();
