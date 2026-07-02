@@ -77,7 +77,7 @@ class AuthenticateFromCookie
         if (Auth::check()) {
             $currentUsername = $request->user()?->pengguna
                 ?? $request->user()?->getAuthIdentifier();
-            if ($isStale($currentUsername, true)) {
+            if ($isStale($currentUsername, false)) {
                 $activityKey = 'browser_active:' . ($database ?: 'default') . ':' . $currentUsername;
                 $lastSeen = Cache::store('file')->get($activityKey);
                 $this->updateSessionStatus($database, $currentUsername, 'T', $lastSeen);
