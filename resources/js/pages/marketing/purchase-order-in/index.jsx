@@ -282,6 +282,9 @@ export default function PurchaseOrderInIndex({
     const [isDeleting, setIsDeleting] = useState(false);
 
     const isFirstRender = useRef(true);
+    const isFirstSearchRender = useRef(true);
+    const rowsRequestId = useRef(0);
+    const paginationRequestId = useRef(0);
 
     const buildTableQueryParams = (params = {}) => {
         const queryParams = new URLSearchParams({
@@ -304,6 +307,7 @@ export default function PurchaseOrderInIndex({
     };
 
     const fetchPoInRows = async (params = {}) => {
+        const requestId = ++rowsRequestId.current;
         setTableLoading(true);
         try {
             const queryParams = buildTableQueryParams(params);
@@ -317,15 +321,20 @@ export default function PurchaseOrderInIndex({
             );
             const data = await response.json();
 
-            setPurchaseOrderIns(data.purchaseOrderIns || []);
+            if (requestId === rowsRequestId.current) {
+                setPurchaseOrderIns(data.purchaseOrderIns || []);
+            }
         } catch (error) {
             console.error('Error fetching PO In rows:', error);
         } finally {
-            setTableLoading(false);
+            if (requestId === rowsRequestId.current) {
+                setTableLoading(false);
+            }
         }
     };
 
     const fetchPoInPagination = async (params = {}) => {
+        const requestId = ++paginationRequestId.current;
         setPaginationLoading(true);
         try {
             const queryParams = buildTableQueryParams(params);
@@ -339,11 +348,15 @@ export default function PurchaseOrderInIndex({
             );
             const data = await response.json();
 
-            setPagination(data.pagination || {});
+            if (requestId === paginationRequestId.current) {
+                setPagination(data.pagination || {});
+            }
         } catch (error) {
             console.error('Error fetching PO In pagination:', error);
         } finally {
-            setPaginationLoading(false);
+            if (requestId === paginationRequestId.current) {
+                setPaginationLoading(false);
+            }
         }
     };
 
@@ -402,10 +415,13 @@ export default function PurchaseOrderInIndex({
     }, [perPage, statusFilter, tableDateFilter, tableStartDate, tableEndDate]);
 
     useEffect(() => {
+        if (isFirstSearchRender.current) {
+            isFirstSearchRender.current = false;
+            return;
+        }
+
         const timer = setTimeout(() => {
-            if (!isFirstRender.current) {
-                fetchPoInData({ search, page: 1, isPartial: true });
-            }
+            fetchPoInData({ search, page: 1, isPartial: true });
         }, 400);
         return () => clearTimeout(timer);
     }, [search]);
