@@ -283,8 +283,7 @@ export default function PurchaseOrderInIndex({
 
     const isFirstRender = useRef(true);
     const isFirstSearchRender = useRef(true);
-    const rowsRequestId = useRef(0);
-    const paginationRequestId = useRef(0);
+    const tableRequestId = useRef(0);
 
     const buildTableQueryParams = (params = {}) => {
         const queryParams = new URLSearchParams({
@@ -306,41 +305,14 @@ export default function PurchaseOrderInIndex({
         return queryParams;
     };
 
-    const fetchPoInRows = async (params = {}) => {
-        const requestId = ++rowsRequestId.current;
+    const fetchPoInData = async (params = {}) => {
+        const requestId = ++tableRequestId.current;
+        const nextParams = { ...params, isPartial: true };
         setTableLoading(true);
-        try {
-            const queryParams = buildTableQueryParams(params);
-            queryParams.append('rows_only', '1');
-
-            const response = await fetch(
-                `/marketing/purchase-order-in/data?${queryParams.toString()}`,
-                {
-                    cache: 'no-store',
-                    headers: { Accept: 'application/json' },
-                },
-            );
-            const data = await response.json();
-
-            if (requestId === rowsRequestId.current) {
-                setPurchaseOrderIns(data.purchaseOrderIns || []);
-            }
-        } catch (error) {
-            console.error('Error fetching PO In rows:', error);
-        } finally {
-            if (requestId === rowsRequestId.current) {
-                setTableLoading(false);
-            }
-        }
-    };
-
-    const fetchPoInPagination = async (params = {}) => {
-        const requestId = ++paginationRequestId.current;
         setPaginationLoading(true);
-        try {
-            const queryParams = buildTableQueryParams(params);
-            queryParams.append('pagination_only', '1');
 
+        try {
+            const queryParams = buildTableQueryParams(nextParams);
             const response = await fetch(
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
                 {
@@ -350,22 +322,18 @@ export default function PurchaseOrderInIndex({
             );
             const data = await response.json();
 
-            if (requestId === paginationRequestId.current) {
+            if (requestId === tableRequestId.current) {
+                setPurchaseOrderIns(data.purchaseOrderIns || []);
                 setPagination(data.pagination || {});
             }
         } catch (error) {
-            console.error('Error fetching PO In pagination:', error);
+            console.error('Error fetching PO In data:', error);
         } finally {
-            if (requestId === paginationRequestId.current) {
+            if (requestId === tableRequestId.current) {
+                setTableLoading(false);
                 setPaginationLoading(false);
             }
         }
-    };
-
-    const fetchPoInData = (params = {}) => {
-        const nextParams = { ...params, isPartial: true };
-        fetchPoInRows(nextParams);
-        fetchPoInPagination(nextParams);
     };
 
     const fetchPoInSummaryScope = async (scope) => {
