@@ -1782,10 +1782,28 @@ class PurchaseRequirementController
             return redirect()->route('marketing.purchase-requirement.index')->with('error', 'Data PR tidak ditemukan.');
         }
 
-        $purchaseRequirementDetails = DB::table('tb_detailpr')
-            ->select('no', 'kd_material', 'material', 'qty', 'unit', 'stok', 'unit_price', 'total_price', 'price_po', 'margin', 'renmark')
-            ->where('no_pr', $noPr)
-            ->orderBy('no')
+        $purchaseRequirementDetails = DB::table('tb_detailpr as d')
+            ->leftJoin('tb_barang as b', 'b.kd_material', '=', 'd.kd_material')
+            ->select(
+                'd.no',
+                'd.kd_material',
+                'd.material',
+                'd.qty',
+                'd.unit',
+                'd.unit_price',
+                'd.total_price',
+                'd.price_po',
+                'd.margin',
+                'd.renmark',
+            )
+            ->selectRaw('(
+                coalesce(cast(b.stok_g1 as decimal(18,4)), 0) +
+                coalesce(cast(b.stok_g2 as decimal(18,4)), 0) +
+                coalesce(cast(b.stok_g3 as decimal(18,4)), 0) +
+                coalesce(cast(b.stok_g4 as decimal(18,4)), 0)
+            ) as stok')
+            ->where('d.no_pr', $noPr)
+            ->orderBy('d.no')
             ->get();
 
         $database = $request->session()->get('tenant.database') ?? $request->cookie('tenant_database');
