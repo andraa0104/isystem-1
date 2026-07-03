@@ -587,21 +587,11 @@ export default function PurchaseOrderInIndex({
         [sisaDoPurchaseOrderIns],
     );
 
-    const realizedItemsByPeriod = useMemo(
-        () =>
-            realizedPurchaseOrderIns.filter((item) =>
-                isInPeriod(item.last_pr_date, realizedPeriod),
-            ),
-        [realizedPurchaseOrderIns, realizedPeriod],
-    );
-
-    const realizedDoItemsByPeriod = useMemo(
-        () =>
-            realizedDoPurchaseOrderIns.filter((item) =>
-                isInPeriod(item.last_do_date, realizedPeriod),
-            ),
-        [realizedDoPurchaseOrderIns, realizedPeriod],
-    );
+    // Data terealisasi sudah difilter backend memakai tanggal transaksi sumber
+    // (PR: last_pr_date, DO: tb_kddo.pos_tgl). Jangan filter ulang di browser
+    // agar isi modal selalu identik dengan angka summary card.
+    const realizedItemsByPeriod = realizedPurchaseOrderIns;
+    const realizedDoItemsByPeriod = realizedDoPurchaseOrderIns;
 
     const dataItemsByPeriod = useMemo(
         () =>

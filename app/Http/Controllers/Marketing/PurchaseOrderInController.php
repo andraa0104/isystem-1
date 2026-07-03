@@ -319,7 +319,7 @@ class PurchaseOrderInController
             $doStats = DB::table('tb_kddo as kdo')
                 ->selectRaw('lower(trim(kdo.ref_po)) as ref_po_key')
                 ->selectRaw('count(*) as do_count')
-                ->selectRaw("max(coalesce(str_to_date(kdo.pos_tgl, '%d.%m.%Y'), str_to_date(kdo.pos_tgl, '%Y-%m-%d'))) as last_do_date")
+                ->selectRaw("max(str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')) as last_do_date")
                 ->whereRaw("trim(coalesce(kdo.ref_po, '')) <> ''")
                 ->groupByRaw('lower(trim(kdo.ref_po))');
 
@@ -416,10 +416,10 @@ class PurchaseOrderInController
                         ->whereRaw('coalesce(do_ds.total_items, 0) > 0')
                         ->whereRaw('coalesce(do_ds.do_unrealized_items, 0) = 0')
                         ->selectRaw('count(distinct lower(trim(kdo.no_do))) as realized_do')
-                        ->selectRaw("count(distinct case when coalesce(str_to_date(kdo.pos_tgl, '%d.%m.%Y'), str_to_date(kdo.pos_tgl, '%Y-%m-%d')) between ? and ? then lower(trim(kdo.no_do)) end) as realized_do_today", [$startToday, $endToday])
-                        ->selectRaw("count(distinct case when coalesce(str_to_date(kdo.pos_tgl, '%d.%m.%Y'), str_to_date(kdo.pos_tgl, '%Y-%m-%d')) between ? and ? then lower(trim(kdo.no_do)) end) as realized_do_week", [$startWeek, $endWeek])
-                        ->selectRaw("count(distinct case when coalesce(str_to_date(kdo.pos_tgl, '%d.%m.%Y'), str_to_date(kdo.pos_tgl, '%Y-%m-%d')) between ? and ? then lower(trim(kdo.no_do)) end) as realized_do_month", [$startMonth, $endMonth])
-                        ->selectRaw("count(distinct case when coalesce(str_to_date(kdo.pos_tgl, '%d.%m.%Y'), str_to_date(kdo.pos_tgl, '%Y-%m-%d')) between ? and ? then lower(trim(kdo.no_do)) end) as realized_do_year", [$startYear, $endYear])
+                        ->selectRaw("count(distinct case when str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ? then lower(trim(kdo.no_do)) end) as realized_do_today", [$startToday, $endToday])
+                        ->selectRaw("count(distinct case when str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ? then lower(trim(kdo.no_do)) end) as realized_do_week", [$startWeek, $endWeek])
+                        ->selectRaw("count(distinct case when str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ? then lower(trim(kdo.no_do)) end) as realized_do_month", [$startMonth, $endMonth])
+                        ->selectRaw("count(distinct case when str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ? then lower(trim(kdo.no_do)) end) as realized_do_year", [$startYear, $endYear])
                         ->first();
 
                     $row = DB::table('tb_poin as p')
@@ -465,7 +465,7 @@ class PurchaseOrderInController
             $needsPrDate = $statusFilter === 'realized_pr';
 
             if ($statusFilter === 'realized_do') {
-                $doDateExpression = "coalesce(str_to_date(kdo.pos_tgl, '%d.%m.%Y'), str_to_date(kdo.pos_tgl, '%Y-%m-%d'))";
+                $doDateExpression = "str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')";
                 $query = DB::table('tb_kddo as kdo')
                     ->join('tb_poin as p', function ($join) {
                         $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(p.no_poin))');
