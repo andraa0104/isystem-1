@@ -1279,17 +1279,37 @@ export default function PurchaseRequirementCreate() {
                                                                             <Label className="text-[10px] font-black tracking-widest text-muted-foreground/70 uppercase">
                                                                                 Quantity
                                                                             </Label>
-                                                                            <div className="flex items-center justify-between gap-4">
-                                                                                <div className="flex flex-col">
-                                                                                    <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-50">
-                                                                                        Order
-                                                                                        In
-                                                                                    </span>
-                                                                                    <span className="font-mono text-base font-bold">
-                                                                                        {
-                                                                                            item.qtyPoIn
-                                                                                        }
-                                                                                    </span>
+                                                                            <div className="flex items-start justify-between gap-4">
+                                                                                <div className="flex min-w-[120px] flex-col gap-3">
+                                                                                    <div className="flex flex-col">
+                                                                                        <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-50">
+                                                                                            Order
+                                                                                            In
+                                                                                        </span>
+                                                                                        <span className="font-mono text-sm font-bold">
+                                                                                            {
+                                                                                                item.qtyPoIn
+                                                                                            }
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    {item.maxQtyPr !==
+                                                                                        undefined && (
+                                                                                        <>
+                                                                                            <div className="flex flex-col">
+                                                                                                <span className="text-[9px] font-bold text-amber-600/70 uppercase">
+                                                                                                    Last
+                                                                                                    Rem.
+                                                                                                    Order
+                                                                                                    In
+                                                                                                </span>
+                                                                                                <span className="font-mono text-sm font-bold text-amber-600">
+                                                                                                    {
+                                                                                                        item.maxQtyPr
+                                                                                                    }
+                                                                                                </span>
+                                                                                            </div>
+                                                                                        </>
+                                                                                    )}
                                                                                 </div>
                                                                                 <div className="h-10 w-[1px] bg-sidebar-border opacity-50" />
                                                                                 <div className="flex flex-1 flex-col items-end">
@@ -1407,7 +1427,7 @@ export default function PurchaseRequirementCreate() {
                                                                                 Harga
                                                                                 (IDR)
                                                                             </Label>
-                                                                            <div className="flex items-center justify-between gap-4">
+                                                                            <div className="flex items-start justify-between gap-4">
                                                                                 <div className="flex flex-col">
                                                                                     <span className="text-[9px] font-bold tracking-tighter text-muted-foreground uppercase opacity-50">
                                                                                         PO

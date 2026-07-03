@@ -982,7 +982,7 @@ export default function PurchaseRequirementEdit({
                                             </div>
                                         </div>
 
-                                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
                                             <div className="grid gap-2">
                                                 <Label>Margin (%)</Label>
                                                 <Input
@@ -1030,6 +1030,16 @@ export default function PurchaseRequirementEdit({
                                                     disabled
                                                 />
                                             </div>
+                                            <div className="grid gap-2">
+                                                <Label>Last Rem. In</Label>
+                                                <Input
+                                                    value={renderValue(
+                                                        source.sisaQtyPoIn,
+                                                    )}
+                                                    readOnly
+                                                />
+                                            </div>
+
                                             <div className="grid gap-2">
                                                 <Label>Satuan</Label>
                                                 <Input
@@ -1081,7 +1091,7 @@ export default function PurchaseRequirementEdit({
                                                     readOnly
                                                 />
                                             </div>
-                                            <div className="grid gap-2 xl:col-span-2">
+                                            <div className="grid gap-2 xl:col-span-3">
                                                 <Label>Remark</Label>
                                                 <Input
                                                     value={source.remark}
