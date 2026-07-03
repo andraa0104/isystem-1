@@ -495,7 +495,11 @@ export default function PurchaseOrderInIndex({
                 per_page: 'all',
                 status: activeModal === 'all_data' ? 'all' : modalStatus,
                 date_filter:
-                    activeModal === 'all_data' ? dataPoInPeriod : 'all',
+                    activeModal === 'all_data'
+                        ? dataPoInPeriod
+                        : activeModal === 'realized'
+                          ? realizedPeriod
+                          : 'all',
                 page: '1',
                 is_partial: '1',
             });
@@ -550,6 +554,7 @@ export default function PurchaseOrderInIndex({
         dataPoInPeriod,
         dataPoInStart,
         dataPoInEnd,
+        realizedPeriod,
         modalStatus,
     ]);
 
@@ -2185,7 +2190,7 @@ export default function PurchaseOrderInIndex({
                                     />
                                     {modalDisplayedItems.map((item, index) => (
                                         <tr
-                                            key={`${item.no_poin}-${index}`}
+                                            key={`${item.no_do || item.no_poin}-${index}`}
                                             className="border-t border-sidebar-border/70"
                                         >
                                             <td className="px-2 py-2 whitespace-nowrap">
@@ -2197,7 +2202,10 @@ export default function PurchaseOrderInIndex({
                                                       1}
                                             </td>
                                             <td className="px-2 py-2 font-semibold whitespace-nowrap">
-                                                {item.kode_poin}
+                                                {activeModal === 'realized' &&
+                                                activeModalTab === 'do'
+                                                    ? item.no_do
+                                                    : item.kode_poin}
                                             </td>
                                             <td className="px-2 py-2 font-semibold whitespace-nowrap">
                                                 {item.no_poin}

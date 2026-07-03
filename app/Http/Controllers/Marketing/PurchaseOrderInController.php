@@ -429,10 +429,10 @@ class PurchaseOrderInController
                         })
                         ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
                         ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_today", [$startToday])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_week", [$startWeek])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_month", [$startMonth])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_year", [$startYear])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
                         ->first();
 
                     $summary = [];
@@ -463,6 +463,65 @@ class PurchaseOrderInController
 
             $needsDoDate = in_array($statusFilter, ['sisa_do', 'realized', 'realized_do'], true);
             $needsPrDate = $statusFilter === 'realized_pr';
+
+            if ($statusFilter === 'realized_do') {
+                $doDateExpression = "coalesce(str_to_date(kdo.pos_tgl, '%d.%m.%Y'), str_to_date(kdo.pos_tgl, '%Y-%m-%d'))";
+                $query = DB::table('tb_kddo as kdo')
+                    ->join('tb_poin as p', function ($join) {
+                        $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(p.no_poin))');
+                    })
+                    ->joinSub($detailStats, 'ds', function ($join) {
+                        $join->on('ds.kode_poin', '=', 'p.kode_poin');
+                    })
+                    ->whereRaw("trim(coalesce(kdo.no_do, '')) <> ''")
+                    ->whereRaw('coalesce(ds.total_items, 0) > 0')
+                    ->whereRaw('coalesce(ds.do_unrealized_items, 0) = 0')
+                    ->selectRaw('min(p.id) as id, p.kode_poin, p.no_poin, p.date_poin, p.created_at, p.delivery_date, p.customer_name, p.grand_total')
+                    ->selectRaw('max(trim(kdo.no_do)) as no_do')
+                    ->selectRaw("max({$doDateExpression}) as last_do_date")
+                    ->groupBy('p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.created_at', 'p.delivery_date', 'p.customer_name', 'p.grand_total', DB::raw('lower(trim(kdo.no_do))'));
+
+                if ($search !== '') {
+                    $like = '%'.strtolower($search).'%';
+                    $query->where(function ($q) use ($like) {
+                        $q->whereRaw('lower(kdo.no_do) like ?', [$like])
+                            ->orWhereRaw('lower(p.kode_poin) like ?', [$like])
+                            ->orWhereRaw('lower(p.no_poin) like ?', [$like])
+                            ->orWhereRaw('lower(p.customer_name) like ?', [$like]);
+                    });
+                }
+
+                if ($dateFilter === 'today') {
+                    $query->whereRaw("{$doDateExpression} between ? and ?", [$startToday, $endToday]);
+                } elseif ($dateFilter === 'this_week') {
+                    $query->whereRaw("{$doDateExpression} between ? and ?", [$startWeek, $endWeek]);
+                } elseif ($dateFilter === 'this_month') {
+                    $query->whereRaw("{$doDateExpression} between ? and ?", [$startMonth, $endMonth]);
+                } elseif ($dateFilter === 'this_year') {
+                    $query->whereRaw("{$doDateExpression} between ? and ?", [$startYear, $endYear]);
+                } elseif ($dateFilter === 'range') {
+                    if ($startDate !== '' && $endDate !== '') {
+                        $query->whereRaw("date({$doDateExpression}) between ? and ?", [$startDate, $endDate]);
+                    } else {
+                        $query->whereRaw('1 = 0');
+                    }
+                }
+
+                $total = DB::query()->fromSub(clone $query, 'realized_do_rows')->count();
+                $rows = $perPage === null
+                    ? (clone $query)->orderByDesc('last_do_date')->orderByDesc('no_do')->get()
+                    : (clone $query)->orderByDesc('last_do_date')->orderByDesc('no_do')->forPage($page, $perPage)->get();
+
+                return [
+                    'purchaseOrderIns' => $rows,
+                    'pagination' => [
+                        'total' => $total,
+                        'page' => $page,
+                        'per_page' => $perPage === null ? 'all' : $perPage,
+                        'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
+                    ],
+                ];
+            }
 
             $query = DB::table('tb_poin as p')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
@@ -518,22 +577,41 @@ class PurchaseOrderInController
                     ->whereNotNull('prs.last_pr_date');
             }
 
-            if ($dateFilter === 'today') {
-                $query->whereDate('p.created_at', $now->toDateString());
-            } elseif ($dateFilter === 'this_week') {
-                $query->whereDate('p.created_at', '>=', $now->copy()->startOfWeek()->toDateString())
-                    ->whereDate('p.created_at', '<=', $now->copy()->endOfWeek()->toDateString());
-            } elseif ($dateFilter === 'this_month') {
-                $query->whereYear('p.created_at', $now->year)
-                    ->whereMonth('p.created_at', $now->month);
-            } elseif ($dateFilter === 'this_year') {
-                $query->whereYear('p.created_at', $now->year);
-            } elseif ($dateFilter === 'range') {
-                if ($startDate !== '' && $endDate !== '') {
-                    $query->whereDate('p.created_at', '>=', $startDate)
-                        ->whereDate('p.created_at', '<=', $endDate);
-                } else {
-                    $query->whereRaw('1 = 0');
+            if ($statusFilter === 'realized_pr') {
+                if ($dateFilter === 'today') {
+                    $query->whereBetween('prs.last_pr_date', [$startToday, $endToday]);
+                } elseif ($dateFilter === 'this_week') {
+                    $query->whereBetween('prs.last_pr_date', [$startWeek, $endWeek]);
+                } elseif ($dateFilter === 'this_month') {
+                    $query->whereBetween('prs.last_pr_date', [$startMonth, $endMonth]);
+                } elseif ($dateFilter === 'this_year') {
+                    $query->whereBetween('prs.last_pr_date', [$startYear, $endYear]);
+                } elseif ($dateFilter === 'range') {
+                    if ($startDate !== '' && $endDate !== '') {
+                        $query->whereDate('prs.last_pr_date', '>=', $startDate)
+                            ->whereDate('prs.last_pr_date', '<=', $endDate);
+                    } else {
+                        $query->whereRaw('1 = 0');
+                    }
+                }
+            } else {
+                if ($dateFilter === 'today') {
+                    $query->whereDate('p.created_at', $now->toDateString());
+                } elseif ($dateFilter === 'this_week') {
+                    $query->whereDate('p.created_at', '>=', $now->copy()->startOfWeek()->toDateString())
+                        ->whereDate('p.created_at', '<=', $now->copy()->endOfWeek()->toDateString());
+                } elseif ($dateFilter === 'this_month') {
+                    $query->whereYear('p.created_at', $now->year)
+                        ->whereMonth('p.created_at', $now->month);
+                } elseif ($dateFilter === 'this_year') {
+                    $query->whereYear('p.created_at', $now->year);
+                } elseif ($dateFilter === 'range') {
+                    if ($startDate !== '' && $endDate !== '') {
+                        $query->whereDate('p.created_at', '>=', $startDate)
+                            ->whereDate('p.created_at', '<=', $endDate);
+                    } else {
+                        $query->whereRaw('1 = 0');
+                    }
                 }
             }
 
