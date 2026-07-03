@@ -57,16 +57,26 @@ class PurchaseOrderInController
 
             $purchaseOrder->details = $detailsByDocument
                 ->get($purchaseOrder->kode_poin, collect())
-                ->map(function ($detail) use ($moneyScale) {
+                ->map(function ($detail) {
                     foreach (['qty', 'price_po_in', 'total_price_po_in'] as $column) {
                         $detail->{$column} = (float) ($detail->{$column} ?? 0);
                     }
 
-                    $detail->total_price_po_in *= $moneyScale;
+                    // Detail dalam satu dokumen pun dapat bercampur antara
+                    // rupiah penuh dan ribuan rupiah (data legacy desktop).
+                    $detailScale = $detail->total_price_po_in > 0
+                        && $detail->total_price_po_in < 100000
+                        ? 1000
+                        : 1;
+                    $detail->total_price_po_in *= $detailScale;
                     if ($detail->qty > 0 && $detail->total_price_po_in > 0) {
                         $detail->price_po_in = $detail->total_price_po_in / $detail->qty;
                     } else {
-                        $detail->price_po_in *= $moneyScale;
+                        $priceScale = $detail->price_po_in > 0
+                            && $detail->price_po_in < 100000
+                            ? 1000
+                            : 1;
+                        $detail->price_po_in *= $priceScale;
                     }
 
                     return $detail;
