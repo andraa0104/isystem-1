@@ -38,9 +38,16 @@ class PurchaseOrderInController
             ->get()
             ->groupBy('kode_poin');
 
-        return response()->view('exports.purchase-order-in', [
-            'purchaseOrders' => $purchaseOrders,
-            'detailsByDocument' => $detailsByDocument,
+        $exportRows = $purchaseOrders->map(function ($purchaseOrder) use ($detailsByDocument) {
+            $purchaseOrder->details = $detailsByDocument
+                ->get($purchaseOrder->kode_poin, collect())
+                ->values();
+
+            return $purchaseOrder;
+        });
+
+        return Inertia::render('marketing/purchase-order-in/export', [
+            'purchaseOrders' => $exportRows,
             'startDate' => $validated['start_date'],
             'endDate' => $validated['end_date'],
         ]);
