@@ -1308,6 +1308,22 @@ export default function PurchaseRequirementCreate() {
                                                                                                     }
                                                                                                 </span>
                                                                                             </div>
+                                                                                            <div className="flex flex-col">
+                                                                                                <span className="text-[9px] font-bold text-blue-600/70 uppercase">
+                                                                                                    Current
+                                                                                                    Rem.
+                                                                                                    Order
+                                                                                                    In
+                                                                                                </span>
+                                                                                                <span className="font-mono text-sm font-bold text-blue-600">
+                                                                                                    {parseNumber(
+                                                                                                        item.qtyPr,
+                                                                                                    ) -
+                                                                                                        parseNumber(
+                                                                                                            item.maxQtyPr,
+                                                                                                        )}
+                                                                                                </span>
+                                                                                            </div>
                                                                                         </>
                                                                                     )}
                                                                                 </div>
