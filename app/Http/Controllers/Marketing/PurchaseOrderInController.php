@@ -39,8 +39,19 @@ class PurchaseOrderInController
             ->groupBy('kode_poin');
 
         $exportRows = $purchaseOrders->map(function ($purchaseOrder) use ($detailsByDocument) {
+            foreach (['ppn_input_percent', 'total_price', 'ppn_amount', 'grand_total'] as $column) {
+                $purchaseOrder->{$column} = (float) ($purchaseOrder->{$column} ?? 0);
+            }
+
             $purchaseOrder->details = $detailsByDocument
                 ->get($purchaseOrder->kode_poin, collect())
+                ->map(function ($detail) {
+                    foreach (['qty', 'price_po_in', 'total_price_po_in'] as $column) {
+                        $detail->{$column} = (float) ($detail->{$column} ?? 0);
+                    }
+
+                    return $detail;
+                })
                 ->values();
 
             return $purchaseOrder;

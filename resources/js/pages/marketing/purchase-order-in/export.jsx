@@ -3,26 +3,31 @@ import { Head } from '@inertiajs/react';
 const text = (value) =>
     value === null || value === undefined || value === '' ? '-' : String(value);
 
-const numberFormatter = new Intl.NumberFormat('id-ID', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-    useGrouping: true,
-});
+const parseDatabaseNumber = (value) => {
+    if (value === null || value === undefined || value === '') return NaN;
+    return typeof value === 'number' ? value : Number(String(value).trim());
+};
 
-const percentFormatter = new Intl.NumberFormat('id-ID', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-    useGrouping: true,
-});
+const formatFixedId = (value, minimumDecimals, maximumDecimals) => {
+    const parsed = parseDatabaseNumber(value);
+    if (!Number.isFinite(parsed)) return '-';
+
+    const fixed = parsed.toFixed(maximumDecimals);
+    let [integer, decimals = ''] = fixed.split('.');
+    const negative = integer.startsWith('-');
+    integer = integer.replace('-', '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    decimals = decimals.replace(/0+$/, '');
+    decimals = decimals.padEnd(minimumDecimals, '0');
+
+    return `${negative ? '-' : ''}${integer}${decimals ? `,${decimals}` : ''}`;
+};
 
 const formatNumber = (value) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? numberFormatter.format(parsed) : '-';
+    return formatFixedId(value, 0, 2);
 };
 
 const formatPercent = (value) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? percentFormatter.format(parsed) : '-';
+    return formatFixedId(value, 2, 2);
 };
 
 const formatDate = (value, includeTime = false) => {
