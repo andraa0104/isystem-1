@@ -43,11 +43,30 @@ class PurchaseOrderInController
                 $purchaseOrder->{$column} = (float) ($purchaseOrder->{$column} ?? 0);
             }
 
+            // Data legacy dari aplikasi desktop tersimpan dalam dua satuan:
+            // sebagian rupiah penuh, sebagian dalam ribuan rupiah. Normalisasi
+            // satu dokumen secara utuh sebelum dikirim ke halaman export.
+            $moneyScale = $purchaseOrder->total_price > 0
+                && $purchaseOrder->total_price < 100000
+                ? 1000
+                : 1;
+
+            foreach (['total_price', 'ppn_amount', 'grand_total'] as $column) {
+                $purchaseOrder->{$column} *= $moneyScale;
+            }
+
             $purchaseOrder->details = $detailsByDocument
                 ->get($purchaseOrder->kode_poin, collect())
-                ->map(function ($detail) {
+                ->map(function ($detail) use ($moneyScale) {
                     foreach (['qty', 'price_po_in', 'total_price_po_in'] as $column) {
                         $detail->{$column} = (float) ($detail->{$column} ?? 0);
+                    }
+
+                    $detail->total_price_po_in *= $moneyScale;
+                    if ($detail->qty > 0 && $detail->total_price_po_in > 0) {
+                        $detail->price_po_in = $detail->total_price_po_in / $detail->qty;
+                    } else {
+                        $detail->price_po_in *= $moneyScale;
                     }
 
                     return $detail;
