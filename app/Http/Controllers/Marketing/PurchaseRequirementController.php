@@ -285,6 +285,7 @@ class PurchaseRequirementController
                     'pr.date',
                     'pr.for_customer',
                     'pr.ref_po',
+                    'pr.jenis_pr',
                     'pr.payment as payment',
                     DB::raw('detail.total_items, detail.untouched_items, detail.realized_items'),
                     DB::raw('case when detail.no_pr is not null and detail.total_items > 0 and detail.untouched_items = detail.total_items then 1 else 0 end as outstanding_count'),
@@ -335,7 +336,7 @@ class PurchaseRequirementController
         }
 
         $purchaseRequirementDetails = DB::table('tb_detailpr')
-            ->select('no_pr', 'no', 'kd_material', 'material', 'qty', 'unit', 'sisa_pr', 'payment', 'renmark')
+            ->select('no_pr', 'no', 'kd_material', 'material', 'qty', 'unit', 'sisa_pr', 'payment', 'renmark', 'ref_po', 'for_customer')
             ->where('no_pr', $noPr)
             ->orderBy('no')
             ->get();
@@ -368,6 +369,7 @@ class PurchaseRequirementController
                 'pr.date',
                 'pr.for_customer',
                 'pr.ref_po',
+                'pr.jenis_pr',
                 'pr.payment as payment',
                 DB::raw('1 as outstanding_count'),
                 DB::raw('0 as realized_count'),
@@ -407,6 +409,7 @@ class PurchaseRequirementController
                 'pr.date',
                 'pr.for_customer',
                 'pr.ref_po',
+                'pr.jenis_pr',
                 'pr.payment as payment',
                 DB::raw('0 as outstanding_count'),
                 DB::raw('0 as realized_count'),
@@ -891,7 +894,7 @@ class PurchaseRequirementController
     public function edit($noPr)
     {
         $purchaseRequirement = DB::table('tb_pr')
-            ->select('no_pr', 'date', 'payment', 'for_customer', 'ref_po')
+            ->select('no_pr', 'date', 'payment', 'for_customer', 'ref_po', 'jenis_pr')
             ->where('no_pr', $noPr)
             ->first();
 
@@ -1014,6 +1017,7 @@ class PurchaseRequirementController
                         'payment' => $request->input('payment'),
                         'for_customer' => $request->input('for_customer'),
                         'ref_po' => $request->input('ref_po'),
+                        'jenis_pr' => $request->input('jenis_pr'),
                     ]);
 
                     $detailIdsToUpdate = [];
@@ -1120,6 +1124,7 @@ class PurchaseRequirementController
                             'renmark' => $item['renmark'] ?: ' ',
                             'qty_po' => 0,
                             'sisa_pr' => $qtyValue,
+                            'jenis_pr' => $request->input('jenis_pr')
                         ];
 
                         if ($poinConsumedQty > 0) {
@@ -1282,6 +1287,7 @@ class PurchaseRequirementController
                         'payment' => $request->input('payment'),
                         'for_customer' => $request->input('for_customer'),
                         'ref_po' => $request->input('ref_po'),
+                        'jenis_pr' => $request->input('jenis_pr'),
                     ]);
 
                 DB::table('tb_detailpr')
@@ -1328,6 +1334,7 @@ class PurchaseRequirementController
                         'renmark' => $item['renmark'] ?: ' ',
                         'qty_po' => 0,
                         'sisa_pr' => $sisaPr,
+                        'jenis_pr' => $request->input('jenis_pr'),
                     ];
 
                     $insertUbah[] = [
@@ -1453,6 +1460,7 @@ class PurchaseRequirementController
                     'margin' => $request->input('margin') ?: '0%',
                     'renmark' => $request->input('renmark') ?: ' ',
                     'sisa_pr' => $newSisaPr,
+                    'jenis_pr' => $request->input('jenis_pr'),
                 ]);
 
             if ($kdMaterial !== '' && $refPo !== '') {
@@ -1674,6 +1682,143 @@ class PurchaseRequirementController
         return back()->with('success', 'Detail PR berhasil dihapus.');
     }
 
+    public function removePo(Request $request, $noPr, $refPo)
+    {
+        $noPr = trim((string) $noPr);
+        $refPoToRemove = strtolower(trim((string) $refPo));
+
+        if ($noPr === '' || $refPoToRemove === '') {
+            return response()->json(['message' => 'No PR atau Ref PO tidak valid.'], 400);
+        }
+
+        $isUsedInPo = DB::table('tb_po')
+            ->whereRaw('lower(trim(ref_pr)) = ?', [strtolower($noPr)])
+            ->exists();
+
+        if ($isUsedInPo) {
+            return response()->json(['message' => 'PR sudah terpakai di PO, tidak dapat diubah.'], 400);
+        }
+
+        $detailsToDelete = DB::table('tb_detailpr')
+            ->where('no_pr', $noPr)
+            ->whereRaw('lower(trim(ref_po)) = ?', [$refPoToRemove])
+            ->get([
+                'no_pr', 'date', 'payment', 'for_customer', 'ref_po', 'no', 'kd_material',
+                'material', 'qty', 'unit', 'stok', 'unit_price', 'total_price', 'price_po',
+                'margin', 'renmark', 'qty_po', 'sisa_pr', 'id',
+            ]);
+            
+        if ($detailsToDelete->isEmpty()) {
+            return response()->json(['message' => 'Data customer tidak ditemukan di PR ini.'], 404);
+        }
+
+        $timestamp = now()->format('m/d/Y h:i:s A');
+        $truncate = function ($value, $length) {
+            $string = is_null($value) ? '' : (string) $value;
+            return Str::limit($string, $length, '');
+        };
+
+        try {
+            DB::transaction(function () use ($noPr, $refPoToRemove, $detailsToDelete, $timestamp, $truncate) {
+                $updatesByPo = [];
+                $payload = [];
+
+                foreach ($detailsToDelete as $row) {
+                    $qtyValue = is_numeric($row->sisa_pr) ? (float) $row->sisa_pr : 0;
+                    $stokValue = is_numeric($row->qty_po) ? (float) $row->qty_po : 0;
+                    $totalReturn = $qtyValue + $stokValue;
+
+                    $kdMaterial = strtolower(trim((string) ($row->kd_material ?? '')));
+                    $refPo = strtolower(trim((string) ($row->ref_po ?? '')));
+
+                    if ($totalReturn > 0 && $kdMaterial !== '' && $refPo !== '') {
+                        $updatesByPo[$refPo][] = [
+                            'kd_material' => $kdMaterial,
+                            'qty' => $totalReturn
+                        ];
+                    }
+
+                    $payload[] = [
+                        'no_pr' => $truncate($row->no_pr, 50),
+                        'date' => $truncate($row->date, 20),
+                        'payment' => $truncate($row->payment, 30),
+                        'for_customer' => $truncate($row->for_customer, 30),
+                        'ref_po' => $truncate($row->ref_po, 30),
+                        'no' => $truncate($row->no, 10),
+                        'kd_material' => $truncate($row->kd_material, 15),
+                        'material' => $truncate($row->material, 100),
+                        'qty' => $truncate($row->qty, 10),
+                        'unit' => $truncate($row->unit, 10),
+                        'stok' => $truncate($row->stok, 20),
+                        'unit_price' => $truncate($row->unit_price, 20),
+                        'total_price' => $truncate($row->total_price, 20),
+                        'price_po' => $truncate($row->price_po, 20),
+                        'margin' => $truncate($row->margin ?: '0%', 20),
+                        'renmark' => $truncate($row->renmark ?: ' ', 30),
+                        'qty_po' => $truncate($row->qty_po, 20),
+                        'sisa_pr' => $truncate($row->sisa_pr, 20),
+                        'id' => $row->id,
+                        'tgl_hapus' => $timestamp,
+                    ];
+                }
+
+                foreach ($updatesByPo as $refPoIter => $matUpdates) {
+                    $kodePoinList = DB::table('tb_poin')
+                        ->whereRaw('lower(trim(no_poin)) = ?', [$refPoIter])
+                        ->pluck('kode_poin')
+                        ->map(fn($k) => strtolower(trim($k)))
+                        ->all();
+
+                    if (empty($kodePoinList)) continue;
+
+                    foreach ($matUpdates as $up) {
+                        DB::table('tb_detailpoin')
+                            ->whereRaw('lower(trim(kd_material)) = ?', [$up['kd_material']])
+                            ->whereIn(DB::raw('lower(trim(kode_poin))'), $kodePoinList)
+                            ->update([
+                                'sisa_qtypr' => DB::raw(sprintf(
+                                    'case when coalesce(cast(qty as decimal(18,4)), 0) > 0 then least(cast(qty as decimal(18,4)), coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F) else coalesce(cast(sisa_qtypr as decimal(18,4)), 0) + %.4F end',
+                                    $up['qty'],
+                                    $up['qty']
+                                )),
+                            ]);
+                    }
+                }
+
+                if (!empty($payload)) {
+                    DB::table('tb_hapus')->insert($payload);
+                }
+
+                DB::table('tb_detailpr')
+                    ->where('no_pr', $noPr)
+                    ->whereRaw('lower(trim(ref_po)) = ?', [$refPoToRemove])
+                    ->delete();
+
+                // Recalculate parent values
+                $remainingDetails = DB::table('tb_detailpr')
+                    ->where('no_pr', $noPr)
+                    ->get(['ref_po', 'for_customer']);
+
+                if ($remainingDetails->isEmpty()) {
+                    DB::table('tb_pr')->where('no_pr', $noPr)->delete();
+                } else {
+                    $uniqueCusts = array_values(array_filter(array_unique($remainingDetails->pluck('for_customer')->toArray())));
+                    $uniqueRefs = array_values(array_filter(array_unique($remainingDetails->pluck('ref_po')->toArray())));
+
+                    DB::table('tb_pr')->where('no_pr', $noPr)->update([
+                        'for_customer' => implode(' / ', $uniqueCusts),
+                        'ref_po' => implode(' / ', $uniqueRefs),
+                    ]);
+                }
+            });
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Gagal menghapus Customer dari PR: ' . $e->getMessage()], 500);
+        }
+
+        Cache::tags(['poin_data'])->flush();
+        return response()->json(['message' => 'Customer terpilih berhasil dihapus dari PR.']);
+    }
+
     public function destroy(Request $request, $noPr)
     {
         $noPr = trim((string) $noPr);
@@ -1805,7 +1950,7 @@ class PurchaseRequirementController
     public function print(Request $request, $noPr)
     {
         $purchaseRequirement = DB::table('tb_pr')
-            ->select('no_pr', 'date', 'for_customer', 'ref_po', 'payment')
+            ->select('no_pr', 'date', 'for_customer', 'ref_po', 'jenis_pr', 'payment')
             ->where('no_pr', $noPr)
             ->first();
 

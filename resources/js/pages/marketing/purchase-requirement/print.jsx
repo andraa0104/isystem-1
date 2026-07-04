@@ -165,6 +165,11 @@ export default function PurchaseRequirementPrint({
                             <td>:</td>
                             <td>{renderValue(purchaseRequirement?.ref_po)}</td>
                         </tr>
+                        <tr>
+                            <td>Jenis PR</td>
+                            <td>:</td>
+                            <td>{renderValue(purchaseRequirement?.jenis_pr)}</td>
+                        </tr>
                     </tbody>
                 </table>
 
@@ -263,7 +268,7 @@ export default function PurchaseRequirementPrint({
                                     <td className="border-r border-black px-1 py-1 text-right align-top">
                                         Rp. {formatNumber(detail.price_po)}
                                     </td>
-                                    <td className="border-r border-black px-1 py-1 text-center align-top">
+                                    <td className="border-r border-black px-1 py-1 text-center align-top break-all">
                                         {formatPercent(detail.margin)}
                                     </td>
                                     <td className="px-1 py-1 align-top">

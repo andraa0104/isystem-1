@@ -318,6 +318,8 @@ Route::put('marketing/purchase-requirement/{noPr}/detail/{detailNo}/clear-sisa-p
     ->name('marketing.purchase-requirement.detail.clear-sisa-pr');
 Route::delete('marketing/purchase-requirement/{noPr}/detail/{detailNo}', [PurchaseRequirementController::class, 'destroyDetail'])
     ->name('marketing.purchase-requirement.detail.destroy');
+Route::delete('marketing/purchase-requirement/{noPr}/remove-po/{refPo}', [PurchaseRequirementController::class, 'removePo'])
+    ->name('marketing.purchase-requirement.remove-po');
 Route::delete('marketing/purchase-requirement/{noPr}', [PurchaseRequirementController::class, 'destroy'])
     ->name('marketing.purchase-requirement.destroy')
     ->where('noPr', '.*');

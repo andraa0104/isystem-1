@@ -221,6 +221,7 @@ export default function PurchaseRequirementIndex({
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
 
     const [selectedDetails, setSelectedDetails] = useState([]);
+    const [activeMaterialTab, setActiveMaterialTab] = useState('All Data');
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState('');
 
@@ -771,11 +772,54 @@ export default function PurchaseRequirementIndex({
         );
     }, [realizedCurrentPage, realizedPageSize, realizedPurchaseRequirements]);
 
+    const materialTabs = useMemo(() => {
+        if (!selectedDetails || selectedDetails.length === 0) return [];
+        const refPos = [...new Set(selectedDetails.map((d) => d.ref_po).filter(Boolean))];
+        if (refPos.length > 1) {
+            return ['All Data', ...refPos];
+        }
+        return [];
+    }, [selectedDetails]);
+
+    const uniqueCustomerPOs = useMemo(() => {
+        if (!selectedDetails || selectedDetails.length === 0) return [];
+        const map = new Map();
+        selectedDetails.forEach((d) => {
+            if (d.ref_po && !map.has(d.ref_po)) {
+                map.set(d.ref_po, d.for_customer);
+            }
+        });
+        return Array.from(map.entries()).map(([ref_po, customer]) => ({ ref_po, customer }));
+    }, [selectedDetails]);
+
+    const processedDetails = useMemo(() => {
+        if (!selectedDetails || selectedDetails.length === 0) return [];
+        if (materialTabs.length > 0) {
+            if (activeMaterialTab === 'All Data') {
+                const map = new Map();
+                selectedDetails.forEach((d) => {
+                    const key = d.kd_material || d.material;
+                    if (!map.has(key)) {
+                        map.set(key, { ...d, ref_po: 'Multiple', for_customer: 'Multiple' });
+                    } else {
+                        const existing = map.get(key);
+                        existing.qty = (parseFloat(existing.qty) || 0) + (parseFloat(d.qty) || 0);
+                        existing.sisa_pr = (parseFloat(existing.sisa_pr) || 0) + (parseFloat(d.sisa_pr) || 0);
+                    }
+                });
+                return Array.from(map.values());
+            } else {
+                return selectedDetails.filter((d) => d.ref_po === activeMaterialTab);
+            }
+        }
+        return selectedDetails;
+    }, [selectedDetails, materialTabs, activeMaterialTab]);
+
     const filteredMaterialDetails = useMemo(() => {
         const term = debouncedMaterialSearchTerm.trim().toLowerCase();
-        if (!term) return selectedDetails;
+        if (!term) return processedDetails;
 
-        return selectedDetails.filter((detail) => {
+        return processedDetails.filter((detail) => {
             const values = [
                 detail.material,
                 detail.Material,
@@ -794,7 +838,7 @@ export default function PurchaseRequirementIndex({
                     .includes(term),
             );
         });
-    }, [debouncedMaterialSearchTerm, selectedDetails]);
+    }, [debouncedMaterialSearchTerm, processedDetails]);
 
     const materialTotalItems = filteredMaterialDetails.length;
     const materialTotalPages = useMemo(() => {
@@ -815,6 +859,7 @@ export default function PurchaseRequirementIndex({
         setSelectedPr(item);
         setIsModalOpen(true);
         setSelectedDetails([]);
+        setActiveMaterialTab('All Data');
         setDetailError('');
         setDetailLoading(true);
         setMaterialSearchTerm('');
@@ -839,6 +884,49 @@ export default function PurchaseRequirementIndex({
             })
             .catch(() => setDetailError('Gagal memuat detail PR.'))
             .finally(() => setDetailLoading(false));
+    };
+
+    const handleRemoveCustomerPo = (refPo) => {
+        if (!selectedPr) return;
+
+        Swal.fire({
+            title: 'Hapus Customer / PO?',
+            text: `Yakin ingin menghapus ${refPo} dari PR ini? Proses ini tidak dapat dibatalkan.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#3b82f6',
+            confirmButtonText: 'Ya, Hapus!',
+            cancelButtonText: 'Batal',
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.fire({
+                    title: 'Memproses...',
+                    text: 'Sedang menghapus data dari PR...',
+                    didOpen: () => Swal.showLoading(),
+                });
+
+                fetch(`/marketing/purchase-requirement/${selectedPr.no_pr}/remove-po/${refPo}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': document.head.querySelector('meta[name="csrf-token"]')?.content,
+                        Accept: 'application/json',
+                    },
+                })
+                    .then((response) => response.json().then((data) => ({ status: response.status, data })))
+                    .then(({ status, data }) => {
+                        if (status >= 400) throw new Error(data.message || 'Gagal menghapus Customer dari PR');
+                        Swal.fire('Terhapus!', 'Customer/PO berhasil dihapus dari PR.', 'success');
+
+                        // Refetch details
+                        handleOpenModal(selectedPr);
+                        router.reload({ only: ['purchaseRequirements', 'purchaseRequirementsOutstanding', 'purchaseRequirementsSisaPo', 'purchaseRequirementsRealized'] });
+                    })
+                    .catch((error) => {
+                        Swal.fire('Gagal!', error.message, 'error');
+                    });
+            }
+        });
     };
 
     const loadOutstanding = (force = false) => {
@@ -1335,6 +1423,9 @@ export default function PurchaseRequirementIndex({
                                 <th className="w-40 px-2 py-3 text-left">
                                     Ref PO
                                 </th>
+                                <th className="px-2 py-3 text-left">
+                                    Jenis PR
+                                </th>
                                 <th className="w-28 px-2 py-3 text-left">
                                     Action
                                 </th>
@@ -1369,6 +1460,9 @@ export default function PurchaseRequirementIndex({
                                         </td>
                                         <td className="px-2 py-3 align-top [overflow-wrap:anywhere] break-words whitespace-normal">
                                             {item.ref_po}
+                                        </td>
+                                        <td className="px-2 py-3 whitespace-nowrap text-sm">
+                                            {item.jenis_pr ?? '-'}
                                         </td>
                                         <td className="w-28 px-2 py-3 align-top whitespace-nowrap">
                                             <div className="flex min-w-max items-center gap-2">
@@ -1499,24 +1593,69 @@ export default function PurchaseRequirementIndex({
                                             {renderValue(selectedPr.date)}
                                         </span>
                                     </div>
-                                    <div className="grid grid-cols-[150px_1fr] gap-2">
-                                        <span className="text-muted-foreground">
-                                            Customer
-                                        </span>
-                                        <span>
-                                            {renderValue(
-                                                selectedPr.for_customer,
-                                            )}
-                                        </span>
-                                    </div>
-                                    <div className="grid grid-cols-[150px_1fr] gap-2">
-                                        <span className="text-muted-foreground">
-                                            Ref PO
-                                        </span>
-                                        <span>
-                                            {renderValue(selectedPr.ref_po)}
-                                        </span>
-                                    </div>
+                                    {uniqueCustomerPOs.length > 1 ? (
+                                        <div className="grid grid-cols-[150px_1fr] gap-2 items-start mt-2">
+                                            <span className="text-muted-foreground mt-2">
+                                                Customer / PO
+                                            </span>
+                                            <div className="grid gap-2 grid-cols-1 md:grid-cols-2">
+                                                {uniqueCustomerPOs.map((po) => (
+                                                    <div
+                                                        key={po.ref_po}
+                                                        className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3"
+                                                    >
+                                                        <div className="min-w-0">
+                                                            <div className="font-medium text-sm truncate">
+                                                                {po.ref_po}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground uppercase truncate">
+                                                                {po.customer}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            className="text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md p-2 transition-colors flex-shrink-0"
+                                                            title="Hapus Customer/PO"
+                                                            onClick={() => handleRemoveCustomerPo(po.ref_po)}
+                                                        >
+                                                            <Trash2 className="size-4" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">
+                                                    Customer
+                                                </span>
+                                                <span>
+                                                    {renderValue(
+                                                        selectedPr.for_customer,
+                                                    )}
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-[150px_1fr] gap-2">
+                                                <span className="text-muted-foreground">
+                                                    Ref PO
+                                                </span>
+                                                <span>
+                                                    {renderValue(selectedPr.ref_po)}
+                                                </span>
+                                            </div>
+                                        </>
+                                    )}
+                                    {selectedPr.jenis_pr && (
+                                        <div className="grid grid-cols-[150px_1fr] gap-2">
+                                            <span className="text-muted-foreground">
+                                                Jenis PR
+                                            </span>
+                                            <span className="font-medium text-primary">
+                                                {selectedPr.jenis_pr}
+                                            </span>
+                                        </div>
+                                    )}
                                     <div className="grid grid-cols-[150px_1fr] gap-2">
                                         <span className="text-muted-foreground">
                                             Payment Term
@@ -1528,18 +1667,18 @@ export default function PurchaseRequirementIndex({
                                                 'payment_term',
                                             ]) !== '-'
                                                 ? getValue(selectedPr, [
-                                                      'payment',
-                                                      'Payment',
-                                                      'payment_term',
-                                                  ])
+                                                    'payment',
+                                                    'Payment',
+                                                    'payment_term',
+                                                ])
                                                 : getValue(
-                                                      selectedDetails?.[0],
-                                                      [
-                                                          'payment',
-                                                          'Payment',
-                                                          'payment_term',
-                                                      ],
-                                                  )}
+                                                    selectedDetails?.[0],
+                                                    [
+                                                        'payment',
+                                                        'Payment',
+                                                        'payment_term',
+                                                    ],
+                                                )}
                                         </span>
                                     </div>
                                 </div>
@@ -1548,6 +1687,26 @@ export default function PurchaseRequirementIndex({
                                     <h3 className="text-base font-semibold">
                                         Data Material
                                     </h3>
+                                    {materialTabs.length > 0 && (
+                                        <div className="flex border-b border-sidebar-border/70 mt-2 mb-2">
+                                            {materialTabs.map((tab) => (
+                                                <button
+                                                    key={tab}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setActiveMaterialTab(tab);
+                                                        setMaterialCurrentPage(1);
+                                                    }}
+                                                    className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px] ${activeMaterialTab === tab
+                                                        ? 'border-primary text-foreground'
+                                                        : 'border-transparent text-muted-foreground hover:text-foreground hover:border-sidebar-border'
+                                                        }`}
+                                                >
+                                                    {tab}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="flex flex-wrap items-center justify-between gap-3">
                                         <label className="text-sm text-muted-foreground">
                                             Tampilkan
@@ -1555,7 +1714,7 @@ export default function PurchaseRequirementIndex({
                                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                                 value={
                                                     materialPageSize ===
-                                                    Infinity
+                                                        Infinity
                                                         ? 'all'
                                                         : materialPageSize
                                                 }
@@ -1623,7 +1782,7 @@ export default function PurchaseRequirementIndex({
                                                     isEmpty={
                                                         !detailLoading &&
                                                         displayedMaterialDetails.length ===
-                                                            0
+                                                        0
                                                     }
                                                     emptyMessage={
                                                         detailError ||
@@ -1638,12 +1797,12 @@ export default function PurchaseRequirementIndex({
                                                         >
                                                             <td className="px-2 py-3">
                                                                 {(materialPageSize ===
-                                                                Infinity
+                                                                    Infinity
                                                                     ? index
                                                                     : (materialCurrentPage -
-                                                                          1) *
-                                                                          materialPageSize +
-                                                                      index) +
+                                                                        1) *
+                                                                    materialPageSize +
+                                                                    index) +
                                                                     1}
                                                             </td>
                                                             <td className="px-2 py-3">
@@ -1712,14 +1871,14 @@ export default function PurchaseRequirementIndex({
                                                     {Math.min(
                                                         (materialCurrentPage -
                                                             1) *
-                                                            materialPageSize +
-                                                            1,
+                                                        materialPageSize +
+                                                        1,
                                                         materialTotalItems,
                                                     )}
                                                     -
                                                     {Math.min(
                                                         materialCurrentPage *
-                                                            materialPageSize,
+                                                        materialPageSize,
                                                         materialTotalItems,
                                                     )}{' '}
                                                     dari {materialTotalItems}{' '}
@@ -1735,7 +1894,7 @@ export default function PurchaseRequirementIndex({
                                                                     Math.max(
                                                                         1,
                                                                         page -
-                                                                            1,
+                                                                        1,
                                                                     ),
                                                             )
                                                         }
@@ -1761,7 +1920,7 @@ export default function PurchaseRequirementIndex({
                                                                     Math.min(
                                                                         materialTotalPages,
                                                                         page +
-                                                                            1,
+                                                                        1,
                                                                     ),
                                                             )
                                                         }
@@ -1862,6 +2021,9 @@ export default function PurchaseRequirementIndex({
                                         <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
                                             Ref PO
                                         </th>
+                                        <th className="px-2 py-2 text-left whitespace-nowrap">
+                                            Jenis PR
+                                        </th>
                                         <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
                                             Action
                                         </th>
@@ -1875,7 +2037,7 @@ export default function PurchaseRequirementIndex({
                                         isEmpty={
                                             !outstandingLoading &&
                                             displayedOutstandingPurchaseRequirements.length ===
-                                                0
+                                            0
                                         }
                                         emptyMessage={
                                             outstandingError ||
@@ -1903,6 +2065,9 @@ export default function PurchaseRequirementIndex({
                                                 </td>
                                                 <td className="w-1 px-2 py-2 whitespace-nowrap">
                                                     {item.ref_po}
+                                                </td>
+                                                <td className="px-2 py-2 whitespace-nowrap text-sm">
+                                                    {item.jenis_pr ?? '-'}
                                                 </td>
                                                 <td className="w-1 px-2 py-2 whitespace-nowrap">
                                                     <div className="flex items-center gap-2">
@@ -1961,14 +2126,14 @@ export default function PurchaseRequirementIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (outstandingCurrentPage - 1) *
-                                                outstandingPageSize +
-                                                1,
+                                            outstandingPageSize +
+                                            1,
                                             outstandingTotalItems,
                                         )}
                                         -
                                         {Math.min(
                                             outstandingCurrentPage *
-                                                outstandingPageSize,
+                                            outstandingPageSize,
                                             outstandingTotalItems,
                                         )}{' '}
                                         dari {outstandingTotalItems} data
@@ -2097,6 +2262,9 @@ export default function PurchaseRequirementIndex({
                                         <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
                                             Ref PO
                                         </th>
+                                        <th className="px-2 py-2 text-left whitespace-nowrap">
+                                            Jenis PR
+                                        </th>
                                         <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
                                             Action
                                         </th>
@@ -2110,7 +2278,7 @@ export default function PurchaseRequirementIndex({
                                         isEmpty={
                                             !sisaPoLoading &&
                                             displayedSisaPoPurchaseRequirements.length ===
-                                                0
+                                            0
                                         }
                                         emptyMessage={
                                             sisaPoError ||
@@ -2138,6 +2306,9 @@ export default function PurchaseRequirementIndex({
                                                 </td>
                                                 <td className="w-1 px-2 py-2 whitespace-nowrap">
                                                     {item.ref_po}
+                                                </td>
+                                                <td className="px-2 py-2 whitespace-nowrap text-sm">
+                                                    {item.jenis_pr ?? '-'}
                                                 </td>
                                                 <td className="w-1 px-2 py-2 whitespace-nowrap">
                                                     <div className="flex items-center gap-2">
@@ -2196,8 +2367,8 @@ export default function PurchaseRequirementIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (sisaPoCurrentPage - 1) *
-                                                sisaPoPageSize +
-                                                1,
+                                            sisaPoPageSize +
+                                            1,
                                             sisaPoTotalItems,
                                         )}
                                         -
@@ -2329,6 +2500,9 @@ export default function PurchaseRequirementIndex({
                                         <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
                                             Ref PO
                                         </th>
+                                        <th className="px-2 py-2 text-left whitespace-nowrap">
+                                            Jenis PR
+                                        </th>
                                         <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
                                             Action
                                         </th>
@@ -2342,7 +2516,7 @@ export default function PurchaseRequirementIndex({
                                         isEmpty={
                                             !realizedLoading &&
                                             displayedRealizedPurchaseRequirements.length ===
-                                                0
+                                            0
                                         }
                                         emptyMessage={
                                             realizedError ||
@@ -2376,6 +2550,9 @@ export default function PurchaseRequirementIndex({
                                                 <td className="w-1 px-2 py-2 whitespace-nowrap">
                                                     {item.ref_po}
                                                 </td>
+                                                <td className="px-2 py-2 whitespace-nowrap text-sm">
+                                                    {item.jenis_pr ?? '-'}
+                                                </td>
                                                 <td className="w-1 px-2 py-2 whitespace-nowrap">
                                                     <button
                                                         type="button"
@@ -2407,14 +2584,14 @@ export default function PurchaseRequirementIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (realizedCurrentPage - 1) *
-                                                realizedPageSize +
-                                                1,
+                                            realizedPageSize +
+                                            1,
                                             realizedTotalItems,
                                         )}
                                         -
                                         {Math.min(
                                             realizedCurrentPage *
-                                                realizedPageSize,
+                                            realizedPageSize,
                                             realizedTotalItems,
                                         )}{' '}
                                         dari {realizedTotalItems} data
