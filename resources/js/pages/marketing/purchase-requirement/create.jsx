@@ -106,11 +106,18 @@ const calculateTotalPrice = (qtyPr, hargaModal) => {
     return (qty * modal).toFixed(2);
 };
 
-const calculateTotalStock = (item) =>
-    parseNumber(item?.stokG1 ?? item?.stok_g1) +
-    parseNumber(item?.stokG2 ?? item?.stok_g2) +
-    parseNumber(item?.stokG3 ?? item?.stok_g3) +
-    parseNumber(item?.stokG4 ?? item?.stok_g4);
+const calculateTotalStock = (item) => {
+    const total = parseNumber(item?.stokG1 ?? item?.stok_g1) +
+        parseNumber(item?.stokG2 ?? item?.stok_g2) +
+        parseNumber(item?.stokG3 ?? item?.stok_g3) +
+        parseNumber(item?.stokG4 ?? item?.stok_g4) +
+        parseNumber(item?.mib) +
+        parseNumber(item?.mibs) +
+        parseNumber(item?.pr_outstanding) +
+        parseNumber(item?.po_outstanding) -
+        parseNumber(item?.do_outstanding);
+    return Math.max(0, total);
+};
 
 export default function PurchaseRequirementCreate() {
     const { tenant } = usePage().props;
@@ -400,6 +407,11 @@ export default function PurchaseRequirementCreate() {
                         stokG2: item.stok_g2 ?? 0,
                         stokG3: item.stok_g3 ?? 0,
                         stokG4: item.stok_g4 ?? 0,
+                        mib: item.mib ?? 0,
+                        mibs: item.mibs ?? 0,
+                        pr_outstanding: item.pr_outstanding ?? 0,
+                        po_outstanding: item.po_outstanding ?? 0,
+                        do_outstanding: item.do_outstanding ?? 0,
                     };
                     const totalStock = calculateTotalStock(stockBreakdown);
                     const remainingQtyPr = parseNumber(item.sisa_qtypr);
@@ -471,7 +483,7 @@ export default function PurchaseRequirementCreate() {
                         qtyPr: Math.max(
                             0,
                             parseNumber(material.sisa_qtypr) -
-                                calculateTotalStock(template),
+                            calculateTotalStock(template),
                         ),
                         satuan: material.satuan ?? '',
                         hargaPoIn: material.harga_po_in ?? 0,
@@ -570,6 +582,11 @@ export default function PurchaseRequirementCreate() {
             stokG2: materialForm.stokG2,
             stokG3: materialForm.stokG3,
             stokG4: materialForm.stokG4,
+            mib: materialForm.mib ?? 0,
+            mibs: materialForm.mibs ?? 0,
+            pr_outstanding: materialForm.pr_outstanding ?? 0,
+            po_outstanding: materialForm.po_outstanding ?? 0,
+            do_outstanding: materialForm.do_outstanding ?? 0,
             stok: calculateTotalStock(materialForm),
             qtyPoIn: 0,
             qtyPr: materialForm.quantity,
@@ -591,6 +608,11 @@ export default function PurchaseRequirementCreate() {
             stokG2: 0,
             stokG3: 0,
             stokG4: 0,
+            mib: 0,
+            mibs: 0,
+            pr_outstanding: 0,
+            po_outstanding: 0,
+            do_outstanding: 0,
             lastStock: 0,
             priceEstimate: '',
             totalPrice: 0,
@@ -648,9 +670,9 @@ export default function PurchaseRequirementCreate() {
             prev.map((item) =>
                 item.id === id
                     ? {
-                          ...item,
-                          remark: value,
-                      }
+                        ...item,
+                        remark: value,
+                    }
                     : item,
             ),
         );
@@ -710,7 +732,7 @@ export default function PurchaseRequirementCreate() {
                 (item.maxQtyPr !== undefined &&
                     (parseNumber(item.qtyPr) > parseNumber(item.maxQtyPr) ||
                         parseNumber(item.qtyPr) + calculateTotalStock(item) <
-                            parseNumber(item.maxQtyPr))),
+                        parseNumber(item.maxQtyPr))),
         );
         if (hasInvalidRow) {
             return 'Harga modal wajib diisi dan Qty PR harus membuat Sisa Qty PR menjadi 0.';
@@ -785,12 +807,12 @@ export default function PurchaseRequirementCreate() {
         try {
             const customers = selectedPoIns.length
                 ? [
-                      ...new Set(
-                          selectedPoIns
-                              .map((po) => po.customer_name)
-                              .filter(Boolean),
-                      ),
-                  ]
+                    ...new Set(
+                        selectedPoIns
+                            .map((po) => po.customer_name)
+                            .filter(Boolean),
+                    ),
+                ]
                 : [formData.forCustomer];
             const responses = await Promise.all(
                 customers.map((customer) =>
@@ -846,20 +868,18 @@ export default function PurchaseRequirementCreate() {
 
                 <div className="flex flex-wrap gap-3 text-sm">
                     <span
-                        className={`rounded-full px-3 py-1 ${
-                            step === 1
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-muted-foreground'
-                        }`}
+                        className={`rounded-full px-3 py-1 ${step === 1
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground'
+                            }`}
                     >
                         1. Data PO Masuk
                     </span>
                     <span
-                        className={`rounded-full px-3 py-1 ${
-                            step === 2
-                                ? 'bg-primary text-primary-foreground'
-                                : 'bg-muted text-muted-foreground'
-                        }`}
+                        className={`rounded-full px-3 py-1 ${step === 2
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground'
+                            }`}
                     >
                         2. Data Material
                     </span>
@@ -1074,7 +1094,7 @@ export default function PurchaseRequirementCreate() {
                                                                         Math.max(
                                                                             0,
                                                                             current -
-                                                                                1,
+                                                                            1,
                                                                         ),
                                                                 )
                                                             }
@@ -1112,16 +1132,16 @@ export default function PurchaseRequirementCreate() {
                                                             disabled={
                                                                 activeMaterialGroupIndex >=
                                                                 materialGroups.length -
-                                                                    1
+                                                                1
                                                             }
                                                             onClick={() =>
                                                                 setActiveMaterialGroupIndex(
                                                                     (current) =>
                                                                         Math.min(
                                                                             materialGroups.length -
-                                                                                1,
+                                                                            1,
                                                                             current +
-                                                                                1,
+                                                                            1,
                                                                         ),
                                                                 )
                                                             }
@@ -1227,6 +1247,23 @@ export default function PurchaseRequirementCreate() {
                                                                                         'G4',
                                                                                         item.stokG4,
                                                                                     ],
+                                                                                    [
+                                                                                        'MIB',
+                                                                                        item.mib ?? 0,
+                                                                                    ],
+                                                                                    [
+                                                                                        'MIBS',
+                                                                                        item.mibs ?? 0,
+                                                                                    ],
+                                                                                    [
+                                                                                        'PR Out',
+                                                                                        item.pr_outstanding ?? 0,
+                                                                                    ],
+                                                                                    [
+                                                                                        'PO Out',
+                                                                                        item.po_outstanding ?? 0,
+                                                                                    ],
+
                                                                                 ].map(
                                                                                     ([
                                                                                         label,
@@ -1249,6 +1286,9 @@ export default function PurchaseRequirementCreate() {
                                                                                         </span>
                                                                                     ),
                                                                                 )}
+                                                                                <span className="flex items-center gap-1.5 rounded-full border border-orange-100 bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700">
+                                                                                    DO Belum Dibuat : {item.do_outstanding ?? 0}
+                                                                                </span>
                                                                                 <span className="flex items-center gap-1.5 rounded-full border border-green-100 bg-green-50 px-2 text-[10px] font-bold text-green-600">
                                                                                     <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
                                                                                     Total
@@ -1294,38 +1334,38 @@ export default function PurchaseRequirementCreate() {
                                                                                     </div>
                                                                                     {item.maxQtyPr !==
                                                                                         undefined && (
-                                                                                        <>
-                                                                                            <div className="flex flex-col">
-                                                                                                <span className="text-[9px] font-bold text-amber-600/70 uppercase">
-                                                                                                    Last
-                                                                                                    Rem.
-                                                                                                    Order
-                                                                                                    In
-                                                                                                </span>
-                                                                                                <span className="font-mono text-sm font-bold text-amber-600">
-                                                                                                    {
-                                                                                                        item.maxQtyPr
-                                                                                                    }
-                                                                                                </span>
-                                                                                            </div>
-                                                                                            <div className="flex flex-col">
-                                                                                                <span className="text-[9px] font-bold text-blue-600/70 uppercase">
-                                                                                                    Current
-                                                                                                    Rem.
-                                                                                                    Order
-                                                                                                    In
-                                                                                                </span>
-                                                                                                <span className="font-mono text-sm font-bold text-blue-600">
-                                                                                                    {parseNumber(
-                                                                                                        item.qtyPr,
-                                                                                                    ) -
-                                                                                                        parseNumber(
-                                                                                                            item.maxQtyPr,
-                                                                                                        )}
-                                                                                                </span>
-                                                                                            </div>
-                                                                                        </>
-                                                                                    )}
+                                                                                            <>
+                                                                                                <div className="flex flex-col">
+                                                                                                    <span className="text-[9px] font-bold text-amber-600/70 uppercase">
+                                                                                                        Last
+                                                                                                        Rem.
+                                                                                                        Order
+                                                                                                        In
+                                                                                                    </span>
+                                                                                                    <span className="font-mono text-sm font-bold text-amber-600">
+                                                                                                        {
+                                                                                                            item.maxQtyPr
+                                                                                                        }
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                                <div className="flex flex-col">
+                                                                                                    <span className="text-[9px] font-bold text-blue-600/70 uppercase">
+                                                                                                        Current
+                                                                                                        Rem.
+                                                                                                        Order
+                                                                                                        In
+                                                                                                    </span>
+                                                                                                    <span className="font-mono text-sm font-bold text-blue-600">
+                                                                                                        {parseNumber(item.qtyPr) === 0 ? 0 : parseNumber(
+                                                                                                            item.qtyPr,
+                                                                                                        ) -
+                                                                                                            parseNumber(
+                                                                                                                item.maxQtyPr,
+                                                                                                            )}
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                            </>
+                                                                                        )}
                                                                                 </div>
                                                                                 <div className="h-10 w-[1px] bg-sidebar-border opacity-50" />
                                                                                 <div className="flex flex-1 flex-col items-end">
@@ -1354,12 +1394,12 @@ export default function PurchaseRequirementCreate() {
                                                                                                         parseNumber(
                                                                                                             item.qtyPr,
                                                                                                         ) +
-                                                                                                            calculateTotalStock(
-                                                                                                                item,
-                                                                                                            ) <
-                                                                                                            parseNumber(
-                                                                                                                item.maxQtyPr,
-                                                                                                            ))
+                                                                                                        calculateTotalStock(
+                                                                                                            item,
+                                                                                                        ) <
+                                                                                                        parseNumber(
+                                                                                                            item.maxQtyPr,
+                                                                                                        ))
                                                                                                     ? 'border-destructive focus-visible:ring-destructive'
                                                                                                     : 'border-primary/20 focus-visible:ring-primary',
                                                                                             )}
@@ -1383,9 +1423,9 @@ export default function PurchaseRequirementCreate() {
                                                                                         parseNumber(
                                                                                             item.qtyPr,
                                                                                         ) >
-                                                                                            parseNumber(
-                                                                                                item.maxQtyPr,
-                                                                                            ) && (
+                                                                                        parseNumber(
+                                                                                            item.maxQtyPr,
+                                                                                        ) && (
                                                                                             <p className="mt-1 text-right text-xs font-medium text-destructive">
                                                                                                 Qty
                                                                                                 PR
@@ -1402,39 +1442,13 @@ export default function PurchaseRequirementCreate() {
                                                                                                 ).
                                                                                             </p>
                                                                                         )}
-                                                                                    {item.maxQtyPr !==
-                                                                                        undefined &&
-                                                                                        parseNumber(
-                                                                                            item.qtyPr,
-                                                                                        ) <=
-                                                                                            parseNumber(
-                                                                                                item.maxQtyPr,
-                                                                                            ) &&
-                                                                                        parseNumber(
-                                                                                            item.qtyPr,
-                                                                                        ) +
-                                                                                            calculateTotalStock(
-                                                                                                item,
-                                                                                            ) <
-                                                                                            parseNumber(
-                                                                                                item.maxQtyPr,
-                                                                                            ) && (
-                                                                                            <p className="mt-1 text-right text-xs font-medium text-destructive">
-                                                                                                PR
-                                                                                                Input
-                                                                                                tidak
-                                                                                                boleh
-                                                                                                dikurangi
-                                                                                                karena
-                                                                                                Sisa
-                                                                                                Qty
-                                                                                                PR
-                                                                                                harus
-                                                                                                menjadi
-                                                                                                0.
-                                                                                            </p>
-                                                                                        )}
+                                                                                    {parseNumber(item.qtyPr) === 0 && !String(item.id).startsWith('manual-') && (
+                                                                                        <p className="mt-1 text-right text-[10px] font-medium text-amber-600 leading-tight">
+                                                                                            PR input tidak boleh 0. Jika stock memenuhi maka Langsung realisasikan dengan cara klik icon trash di material.
+                                                                                        </p>
+                                                                                    )}
                                                                                 </div>
+
                                                                             </div>
                                                                         </div>
 
@@ -1509,38 +1523,38 @@ export default function PurchaseRequirementCreate() {
                                                                         </div>
                                                                         {item.margin !==
                                                                             '' && (
-                                                                            <div className="flex flex-col items-end gap-2">
-                                                                                <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">
-                                                                                    Profit
-                                                                                    Margin
-                                                                                </span>
-                                                                                <Badge
-                                                                                    variant={
-                                                                                        parseNumber(
+                                                                                <div className="flex flex-col items-end gap-2">
+                                                                                    <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">
+                                                                                        Profit
+                                                                                        Margin
+                                                                                    </span>
+                                                                                    <Badge
+                                                                                        variant={
+                                                                                            parseNumber(
+                                                                                                item.margin,
+                                                                                            ) <
+                                                                                                0
+                                                                                                ? 'destructive'
+                                                                                                : 'outline'
+                                                                                        }
+                                                                                        className={cn(
+                                                                                            'h-8 border-none px-3 font-mono text-sm shadow-sm',
+                                                                                            parseNumber(
+                                                                                                item.margin,
+                                                                                            ) >=
+                                                                                                0
+                                                                                                ? 'bg-green-500 text-white'
+                                                                                                : 'bg-destructive text-white',
+                                                                                        )}
+                                                                                    >
+                                                                                        {formatMargin(
                                                                                             item.margin,
-                                                                                        ) <
-                                                                                        0
-                                                                                            ? 'destructive'
-                                                                                            : 'outline'
-                                                                                    }
-                                                                                    className={cn(
-                                                                                        'h-8 border-none px-3 font-mono text-sm shadow-sm',
-                                                                                        parseNumber(
-                                                                                            item.margin,
-                                                                                        ) >=
-                                                                                            0
-                                                                                            ? 'bg-green-500 text-white'
-                                                                                            : 'bg-destructive text-white',
-                                                                                    )}
-                                                                                >
-                                                                                    {formatMargin(
-                                                                                        item.margin,
-                                                                                    )}
+                                                                                        )}
 
-                                                                                    %
-                                                                                </Badge>
-                                                                            </div>
-                                                                        )}
+                                                                                        %
+                                                                                    </Badge>
+                                                                                </div>
+                                                                            )}
                                                                     </div>
                                                                 </div>
 
@@ -1967,7 +1981,7 @@ export default function PurchaseRequirementCreate() {
                                                 {customerLoading
                                                     ? 'Memuat data PO In...'
                                                     : customerError ||
-                                                      'Tidak ada data PO In.'}
+                                                    'Tidak ada data PO In.'}
                                             </td>
                                         </tr>
                                     )}
@@ -2006,12 +2020,12 @@ export default function PurchaseRequirementCreate() {
                                                             refPo: prev.isStok
                                                                 ? stokValue
                                                                 : (item.no_poin ??
-                                                                  ''),
+                                                                    ''),
                                                             forCustomer:
                                                                 prev.isStok
                                                                     ? stokValue
                                                                     : (item.customer_name ??
-                                                                      ''),
+                                                                        ''),
                                                         }));
                                                         setSelectedPoIns([
                                                             {
@@ -2028,7 +2042,7 @@ export default function PurchaseRequirementCreate() {
                                                         );
                                                         loadPoInMaterials(
                                                             item.kode_poin ??
-                                                                '',
+                                                            '',
                                                         );
                                                     }}
                                                 >
@@ -2047,8 +2061,8 @@ export default function PurchaseRequirementCreate() {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (customerCurrentPage - 1) *
-                                            customerPageSize +
-                                            1,
+                                        customerPageSize +
+                                        1,
                                         customerTotal,
                                     )}
                                     -
@@ -2128,16 +2142,16 @@ export default function PurchaseRequirementCreate() {
                                                     (current) =>
                                                         checked
                                                             ? [
-                                                                  ...new Set([
-                                                                      ...current,
-                                                                      po.kode_poin,
-                                                                  ]),
-                                                              ]
+                                                                ...new Set([
+                                                                    ...current,
+                                                                    po.kode_poin,
+                                                                ]),
+                                                            ]
                                                             : current.filter(
-                                                                  (value) =>
-                                                                      value !==
-                                                                      po.kode_poin,
-                                                              ),
+                                                                (value) =>
+                                                                    value !==
+                                                                    po.kode_poin,
+                                                            ),
                                                 )
                                             }
                                         />
@@ -2341,7 +2355,7 @@ export default function PurchaseRequirementCreate() {
                                                                             .data
                                                                             ?.success &&
                                                                         latestPrice >
-                                                                            0
+                                                                        0
                                                                     ) {
                                                                         priceEstimate =
                                                                             latestPrice;
@@ -2355,20 +2369,25 @@ export default function PurchaseRequirementCreate() {
                                                                 setMaterialForm(
                                                                     (prev) => {
                                                                         const stockBreakdown =
-                                                                            {
-                                                                                stokG1:
-                                                                                    m.stok_g1 ??
-                                                                                    0,
-                                                                                stokG2:
-                                                                                    m.stok_g2 ??
-                                                                                    0,
-                                                                                stokG3:
-                                                                                    m.stok_g3 ??
-                                                                                    0,
-                                                                                stokG4:
-                                                                                    m.stok_g4 ??
-                                                                                    0,
-                                                                            };
+                                                                        {
+                                                                            stokG1:
+                                                                                m.stok_g1 ??
+                                                                                0,
+                                                                            stokG2:
+                                                                                m.stok_g2 ??
+                                                                                0,
+                                                                            stokG3:
+                                                                                m.stok_g3 ??
+                                                                                0,
+                                                                            stokG4:
+                                                                                m.stok_g4 ??
+                                                                                0,
+                                                                            mib: m.mib ?? 0,
+                                                                            mibs: m.mibs ?? 0,
+                                                                            pr_outstanding: m.pr_outstanding ?? 0,
+                                                                            po_outstanding: m.po_outstanding ?? 0,
+                                                                            do_outstanding: m.do_outstanding ?? 0,
+                                                                        };
 
                                                                         return {
                                                                             ...prev,
@@ -2415,14 +2434,14 @@ export default function PurchaseRequirementCreate() {
                                             Menampilkan{' '}
                                             {Math.min(
                                                 (materialCurrentPage - 1) *
-                                                    materialPageSize +
-                                                    1,
+                                                materialPageSize +
+                                                1,
                                                 materialTotal,
                                             )}
                                             -
                                             {Math.min(
                                                 materialCurrentPage *
-                                                    materialPageSize,
+                                                materialPageSize,
                                                 materialTotal,
                                             )}{' '}
                                             dari {materialTotal} data
@@ -2455,7 +2474,7 @@ export default function PurchaseRequirementCreate() {
                                                         (p) =>
                                                             Math.min(
                                                                 materialTotalPages ||
-                                                                    p,
+                                                                p,
                                                                 p + 1,
                                                             ),
                                                     )

@@ -645,12 +645,24 @@ class PurchaseRequirementController
 
         $total = (clone $query)->count();
         $materials = (clone $query)->orderBy("{$mainTable}.material")->forPage($page, $perPage)->get();
-        $materials->transform(function ($item) {
+        $metrics = $this->getStockMetrics($materials->pluck('kd_material')->toArray());
+
+        $materials->transform(function ($item) use ($metrics) {
             $item->stok_g1 = (int) ($item->stok_g1 ?? 0);
             $item->stok_g2 = (int) ($item->stok_g2 ?? 0);
             $item->stok_g3 = (int) ($item->stok_g3 ?? 0);
             $item->stok_g4 = (int) ($item->stok_g4 ?? 0);
-            $item->stok = $item->stok_g1 + $item->stok_g2 + $item->stok_g3 + $item->stok_g4;
+            $kd = strtolower(trim((string)$item->kd_material));
+            if (isset($metrics[$kd])) {
+                $item->mib = array_key_exists('mib', $metrics[$kd]) ? $metrics[$kd]['mib'] : 0;
+                $item->mibs = array_key_exists('mibs', $metrics[$kd]) ? $metrics[$kd]['mibs'] : 0;
+                $item->pr_outstanding = array_key_exists('pr_outstanding', $metrics[$kd]) ? $metrics[$kd]['pr_outstanding'] : 0;
+                $item->po_outstanding = array_key_exists('po_outstanding', $metrics[$kd]) ? $metrics[$kd]['po_outstanding'] : 0;
+                $item->do_outstanding = array_key_exists('do_outstanding', $metrics[$kd]) ? $metrics[$kd]['do_outstanding'] : 0;
+            } else {
+                $item->mib = 0; $item->mibs = 0; $item->pr_outstanding = 0; $item->po_outstanding = 0; $item->do_outstanding = 0;
+            }
+            $item->stok = max(0, $item->stok_g1 + $item->stok_g2 + $item->stok_g3 + $item->stok_g4 + $item->mib + $item->mibs + $item->pr_outstanding + $item->po_outstanding - $item->do_outstanding);
             $item->sisa_qtypr = (float) ($item->sisa_qtypr ?? 0);
             $item->qty_po_in = (float) ($item->qty_po_in ?? 0);
             return $item;
@@ -778,28 +790,47 @@ class PurchaseRequirementController
                 $query->orderBy('d.id');
             })
             ->select($selects)
-            ->get()
-            ->map(function ($item) {
-                return [
-                    'id' => $item->id,
-                    'kd_material' => $item->kd_material,
-                    'material' => $item->material,
-                    'sisa_qtypr' => (float) $item->sisa_qtypr,
-                    'qty_po_in' => (float) $item->qty_po_in,
-                    'qty_pr' => (float) $item->sisa_qtypr,
-                    'satuan' => $item->satuan,
-                    'harga_po_in' => (float) $item->harga_po_in,
-                    'harga_modal' => '',
-                    'stok_g1' => (float) $item->stok_g1,
-                    'stok_g2' => (float) $item->stok_g2,
-                    'stok_g3' => (float) $item->stok_g3,
-                    'stok_g4' => (float) $item->stok_g4,
-                    'stok' => (float) $item->stok,
-                    'margin' => '0%',
-                    'remark' => $item->remark,
-                ];
-            })
-            ->values();
+            ->get();
+
+        $metrics = $this->getStockMetrics($items->pluck('kd_material')->toArray());
+
+        $items = $items->map(function ($item) use ($metrics) {
+            $kd = strtolower(trim((string)$item->kd_material));
+            if (isset($metrics[$kd])) {
+                $item->mib = array_key_exists('mib', $metrics[$kd]) ? $metrics[$kd]['mib'] : 0;
+                $item->mibs = array_key_exists('mibs', $metrics[$kd]) ? $metrics[$kd]['mibs'] : 0;
+                $item->pr_outstanding = array_key_exists('pr_outstanding', $metrics[$kd]) ? $metrics[$kd]['pr_outstanding'] : 0;
+                $item->po_outstanding = array_key_exists('po_outstanding', $metrics[$kd]) ? $metrics[$kd]['po_outstanding'] : 0;
+                $item->do_outstanding = array_key_exists('do_outstanding', $metrics[$kd]) ? $metrics[$kd]['do_outstanding'] : 0;
+            } else {
+                $item->mib = 0; $item->mibs = 0; $item->pr_outstanding = 0; $item->po_outstanding = 0; $item->do_outstanding = 0;
+            }
+
+            return [
+                'id' => $item->id,
+                'kd_material' => $item->kd_material,
+                'material' => $item->material,
+                'sisa_qtypr' => (float) $item->sisa_qtypr,
+                'qty_po_in' => (float) $item->qty_po_in,
+                'qty_pr' => (float) $item->sisa_qtypr,
+                'satuan' => $item->satuan,
+                'harga_po_in' => (float) $item->harga_po_in,
+                'harga_modal' => '',
+                'stok_g1' => (float) $item->stok_g1,
+                'stok_g2' => (float) $item->stok_g2,
+                'stok_g3' => (float) $item->stok_g3,
+                'stok_g4' => (float) $item->stok_g4,
+                'mib' => (float) $item->mib,
+                'mibs' => (float) $item->mibs,
+                'pr_outstanding' => (float) $item->pr_outstanding,
+                'po_outstanding' => (float) $item->po_outstanding,
+                'do_outstanding' => (float) $item->do_outstanding,
+                'stok' => max(0, (float) $item->stok + (float) $item->mib + (float) $item->mibs + (float) $item->pr_outstanding + (float) $item->po_outstanding - (float) $item->do_outstanding),
+                'margin' => '0%',
+                'remark' => $item->remark,
+            ];
+        })
+        ->values();
 
         $selectedMaterialKeys = $items
             ->filter(fn ($item) => (float) ($item['sisa_qtypr'] ?? 0) > 0)
@@ -1828,5 +1859,77 @@ class PurchaseRequirementController
             'purchaseRequirementDetails' => $purchaseRequirementDetails,
             'company' => $company,
         ]);
+    }
+
+    private function getStockMetrics(array $kdMaterials = [])
+    {
+        if (empty($kdMaterials)) {
+            return [];
+        }
+
+        $metrics = [];
+        foreach ($kdMaterials as $kd) {
+            $metrics[strtolower(trim((string)$kd))] = [
+                'mib' => 0.0, 
+                'mibs' => 0.0, 
+                'pr_outstanding' => 0.0, 
+                'po_outstanding' => 0.0, 
+                'do_outstanding' => 0.0
+            ];
+        }
+
+        $kdList = array_map(function($k) { return strtolower(trim((string)$k)); }, $kdMaterials);
+
+        // Fetch MIB
+        $mibData = \Illuminate\Support\Facades\DB::table('tb_mi')
+            ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'), $kdList)
+            ->selectRaw('lower(trim(kd_mat)) as kd_mat, sum(coalesce(cast(mib as decimal(18,4)), 0)) as mib_val')
+            ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'))
+            ->get();
+        foreach ($mibData as $row) {
+            $metrics[$row->kd_mat]['mib'] = (float) $row->mib_val;
+        }
+
+        // Fetch MIBS
+        $mibsData = \Illuminate\Support\Facades\DB::table('tb_mib')
+            ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'), $kdList)
+            ->selectRaw('lower(trim(kd_mat)) as kd_mat, sum(coalesce(cast(qty as decimal(18,4)), 0) - coalesce(cast(transfer as decimal(18,4)), 0)) as mibs_val')
+            ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'))
+            ->get();
+        foreach ($mibsData as $row) {
+            $metrics[$row->kd_mat]['mibs'] = (float) $row->mibs_val;
+        }
+
+        // Fetch PR Outstanding
+        $prData = \Illuminate\Support\Facades\DB::table('tb_detailpr')
+            ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_material))'), $kdList)
+            ->selectRaw('lower(trim(kd_material)) as kd_mat, coalesce(sum(sisa_pr), 0) as pr_val')
+            ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_material))'))
+            ->get();
+        foreach ($prData as $row) {
+            $metrics[$row->kd_mat]['pr_outstanding'] = (float) $row->pr_val;
+        }
+
+        // Fetch PO Outstanding
+        $poData = \Illuminate\Support\Facades\DB::table('tb_detailpo')
+            ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'), $kdList)
+            ->selectRaw('lower(trim(kd_mat)) as kd_mat, sum(coalesce(cast(qty as decimal(18,4)), 0) - coalesce(cast(gr_mat as decimal(18,4)), 0)) as po_val')
+            ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'))
+            ->get();
+        foreach ($poData as $row) {
+            $metrics[$row->kd_mat]['po_outstanding'] = (float) $row->po_val;
+        }
+
+        // Fetch DO Outstanding
+        $doData = \Illuminate\Support\Facades\DB::table('tb_detailpoin as dpoin')
+            ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(dpoin.kd_material))'), $kdList)
+            ->selectRaw('lower(trim(dpoin.kd_material)) as kd_mat, sum(coalesce(cast(sisa_qtydo as decimal(18,4)), 0)) as do_val')
+            ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(dpoin.kd_material))'))
+            ->get();
+        foreach ($doData as $row) {
+            $metrics[$row->kd_mat]['do_outstanding'] = (float) $row->do_val;
+        }
+
+        return $metrics;
     }
 }
