@@ -1256,11 +1256,11 @@ export default function PurchaseRequirementCreate() {
                                                                                         item.mibs ?? 0,
                                                                                     ],
                                                                                     [
-                                                                                        'PR Out',
+                                                                                        'Qty PR Outstanding',
                                                                                         item.pr_outstanding ?? 0,
                                                                                     ],
                                                                                     [
-                                                                                        'PO Out',
+                                                                                        'Qty PO Outstanding',
                                                                                         item.po_outstanding ?? 0,
                                                                                     ],
 
@@ -1275,14 +1275,8 @@ export default function PurchaseRequirementCreate() {
                                                                                             }
                                                                                             className="rounded-full border border-blue-100 bg-blue-50 px-2 text-[10px] font-bold text-blue-600"
                                                                                         >
-                                                                                            Stok{' '}
-                                                                                            {
-                                                                                                label
-                                                                                            }
-
-                                                                                            :{' '}
-                                                                                            {value ??
-                                                                                                0}
+                                                                                            {label.includes('Qty') ? '' : 'Stok '}
+                                                                                            {label}: {value ?? 0}
                                                                                         </span>
                                                                                     ),
                                                                                 )}
