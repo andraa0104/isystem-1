@@ -15,11 +15,11 @@ const formatFixedId = (value, minimumDecimals, maximumDecimals) => {
     const fixed = parsed.toFixed(maximumDecimals);
     let [integer, decimals = ''] = fixed.split('.');
     const negative = integer.startsWith('-');
-    integer = integer.replace('-', '').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    integer = integer.replace('-', '');
     decimals = decimals.replace(/0+$/, '');
     decimals = decimals.padEnd(minimumDecimals, '0');
 
-    return `${negative ? '-' : ''}${integer}${decimals ? `,${decimals}` : ''}`;
+    return `${negative ? '-' : ''}${integer}${decimals ? `.${decimals}` : ''}`;
 };
 
 const formatNumber = (value) => {
