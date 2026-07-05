@@ -1085,7 +1085,9 @@ class PurchaseRequirementController
                         $hasStockParts = collect($stockParts)->contains(fn ($value) => $value !== null && $value !== '');
                         $stockTotal = null;
 
-                        if ($hasStockParts) {
+                        if (array_key_exists('stok', $item) && $item['stok'] !== null && $item['stok'] !== '') {
+                            $stockTotal = is_numeric($item['stok']) ? (float) $item['stok'] : null;
+                        } elseif ($hasStockParts) {
                             $stockTotal = collect($stockParts)->sum(fn ($value) => is_numeric($value) ? (float) $value : 0);
                         } elseif (!empty($item['kd_material'])) {
                             $stockRow = DB::table('tb_barang')
@@ -1099,10 +1101,6 @@ class PurchaseRequirementController
                                     (is_numeric($stockRow->stok_g3 ?? null) ? (float) $stockRow->stok_g3 : 0) +
                                     (is_numeric($stockRow->stok_g4 ?? null) ? (float) $stockRow->stok_g4 : 0);
                             }
-                        }
-
-                        if ($stockTotal === null) {
-                            $stockTotal = is_numeric($item['stok'] ?? null) ? (float) $item['stok'] : null;
                         }
 
                         $insertData[] = [
