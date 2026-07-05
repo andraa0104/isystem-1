@@ -571,7 +571,6 @@ class PurchaseOrderInController
             }
 
             $query = DB::table('tb_poin as p')
-                ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                 ->select(
                     'p.id',
                     'p.kode_poin',
@@ -582,6 +581,15 @@ class PurchaseOrderInController
                     'p.customer_name',
                     'p.grand_total'
                 );
+
+            $requiresDs = in_array($statusFilter, [
+                'outstanding', 'outstanding_do', 'outstanding_pr',
+                'sisa_pr', 'sisa_do', 'realized', 'realized_do', 'realized_pr'
+            ], true);
+
+            if ($requiresDs) {
+                $query->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin');
+            }
 
             if ($needsDoDate) {
                 $query->leftJoinSub($doStats, 'dos', function ($join) {
@@ -693,71 +701,74 @@ class PurchaseOrderInController
                 }
             }
 
-            $statusData = DB::table('tb_poin as p')
-                ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-                ->leftJoinSub($doStats, 'dos', function ($join) {
-                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
-                })
-                ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
-                ->selectRaw("count(*) as total")
-                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding")
-                ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as belum_pr")
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null then 1 end) as realized")
-                ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_pr")
-                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
-                ->selectRaw("count(case when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 1 end) as sisa_pr")
-                ->selectRaw("count(case when coalesce(dos.do_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as sisa_do")
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and coalesce(dos.do_count, 0) > 0 then 1 end) as realized_do")
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_today", [$startToday])
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_week", [$startWeek])
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_month", [$startMonth])
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_year", [$startYear])
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_today", [$startToday, $endToday])
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_week", [$startWeek, $endWeek])
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_month", [$startMonth, $endMonth])
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_year", [$startYear, $endYear])
-                ->first();
+            $cacheKey = $this->poinCacheKey('main_summary');
+            $summary = \Illuminate\Support\Facades\Cache::tags(self::POIN_CACHE_TAGS)->remember($cacheKey, now()->addMinutes(60), function () use ($detailStats, $doStats, $prStats, $startToday, $startWeek, $startMonth, $startYear, $endToday, $endWeek, $endMonth, $endYear) {
+                $statusData = DB::table('tb_poin as p')
+                    ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
+                    ->leftJoinSub($doStats, 'dos', function ($join) {
+                        $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
+                    })
+                    ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
+                    ->selectRaw("count(*) as total")
+                    ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding")
+                    ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as belum_pr")
+                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null then 1 end) as realized")
+                    ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_pr")
+                    ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
+                    ->selectRaw("count(case when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 1 end) as sisa_pr")
+                    ->selectRaw("count(case when coalesce(dos.do_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as sisa_do")
+                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
+                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and coalesce(dos.do_count, 0) > 0 then 1 end) as realized_do")
+                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_today", [$startToday])
+                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_week", [$startWeek])
+                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_month", [$startMonth])
+                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null and prs.last_pr_date >= ? then 1 end) as realized_pr_year", [$startYear])
+                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_today", [$startToday, $endToday])
+                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_week", [$startWeek, $endWeek])
+                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_month", [$startMonth, $endMonth])
+                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_year", [$startYear, $endYear])
+                    ->first();
 
-            $periodCounts = DB::table('tb_poin')
-                ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
-                ->selectRaw("count(case when created_at >= ? then 1 end) as week", [$startWeek])
-                ->selectRaw("count(case when created_at >= ? then 1 end) as month", [$startMonth])
-                ->selectRaw("count(case when created_at >= ? then 1 end) as year", [$startYear])
-                ->first();
+                $periodCounts = DB::table('tb_poin')
+                    ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
+                    ->selectRaw("count(case when created_at >= ? then 1 end) as week", [$startWeek])
+                    ->selectRaw("count(case when created_at >= ? then 1 end) as month", [$startMonth])
+                    ->selectRaw("count(case when created_at >= ? then 1 end) as year", [$startYear])
+                    ->first();
 
-            $summary = [
-                'total'      => (int) $statusData->total,
-                'outstanding' => (int) $statusData->outstanding,
-                'belum_pr'   => (int) $statusData->belum_pr,
-                'realized'   => (int) $statusData->realized,
-                'outstanding_pr' => (int) ($statusData->outstanding_pr ?? 0),
-                'outstanding_do' => (int) ($statusData->outstanding_do ?? 0),
-                'sisa_pr' => (int) ($statusData->sisa_pr ?? 0),
-                'sisa_do' => (int) ($statusData->sisa_do ?? 0),
-                'realized_pr' => (int) ($statusData->realized_pr ?? 0),
-                'realized_do' => (int) ($statusData->realized_do ?? 0),
-                'realized_pr_counts' => [
-                    'today' => (int) ($statusData->realized_pr_today ?? 0),
-                    'week' => (int) ($statusData->realized_pr_week ?? 0),
-                    'month' => (int) ($statusData->realized_pr_month ?? 0),
-                    'year' => (int) ($statusData->realized_pr_year ?? 0),
-                    'all' => (int) ($statusData->realized_pr ?? 0),
-                ],
-                'realized_do_counts' => [
-                    'today' => (int) ($statusData->realized_do_today ?? 0),
-                    'week' => (int) ($statusData->realized_do_week ?? 0),
-                    'month' => (int) ($statusData->realized_do_month ?? 0),
-                    'year' => (int) ($statusData->realized_do_year ?? 0),
-                    'all' => (int) ($statusData->realized_do ?? 0),
-                ],
-                'data_counts' => [
-                    'today' => (int) $periodCounts->today,
-                    'week'  => (int) $periodCounts->week,
-                    'month' => (int) $periodCounts->month,
-                    'year'  => (int) $periodCounts->year,
-                ]
-            ];
+                return [
+                    'total'      => (int) $statusData->total,
+                    'outstanding' => (int) $statusData->outstanding,
+                    'belum_pr'   => (int) $statusData->belum_pr,
+                    'realized'   => (int) $statusData->realized,
+                    'outstanding_pr' => (int) ($statusData->outstanding_pr ?? 0),
+                    'outstanding_do' => (int) ($statusData->outstanding_do ?? 0),
+                    'sisa_pr' => (int) ($statusData->sisa_pr ?? 0),
+                    'sisa_do' => (int) ($statusData->sisa_do ?? 0),
+                    'realized_pr' => (int) ($statusData->realized_pr ?? 0),
+                    'realized_do' => (int) ($statusData->realized_do ?? 0),
+                    'realized_pr_counts' => [
+                        'today' => (int) ($statusData->realized_pr_today ?? 0),
+                        'week' => (int) ($statusData->realized_pr_week ?? 0),
+                        'month' => (int) ($statusData->realized_pr_month ?? 0),
+                        'year' => (int) ($statusData->realized_pr_year ?? 0),
+                        'all' => (int) ($statusData->realized_pr ?? 0),
+                    ],
+                    'realized_do_counts' => [
+                        'today' => (int) ($statusData->realized_do_today ?? 0),
+                        'week' => (int) ($statusData->realized_do_week ?? 0),
+                        'month' => (int) ($statusData->realized_do_month ?? 0),
+                        'year' => (int) ($statusData->realized_do_year ?? 0),
+                        'all' => (int) ($statusData->realized_do ?? 0),
+                    ],
+                    'data_counts' => [
+                        'today' => (int) $periodCounts->today,
+                        'week'  => (int) $periodCounts->week,
+                        'month' => (int) $periodCounts->month,
+                        'year'  => (int) $periodCounts->year,
+                    ]
+                ];
+            });
 
             $base = DB::table('tb_poin as p')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
