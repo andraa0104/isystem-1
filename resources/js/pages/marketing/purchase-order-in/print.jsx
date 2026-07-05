@@ -21,7 +21,10 @@ const formatDate = (value) => {
 const formatNumber = (value) => {
     const number = Number(value);
     if (Number.isNaN(number)) return '-';
-    return new Intl.NumberFormat('id-ID').format(number);
+    return new Intl.NumberFormat('en-US', {
+        useGrouping: false,
+        maximumFractionDigits: 10,
+    }).format(number);
 };
 
 const formatTerbilang = (value) => {
@@ -258,9 +261,7 @@ export default function PurchaseOrderInPrint({
                             {purchaseOrderDetails.map((item, index) => (
                                 <tr key={item.id ?? index}>
                                     <td className="border-t border-r border-black px-2 py-2">
-                                        {renderValue(
-                                            index + 1,
-                                        )}
+                                        {renderValue(index + 1)}
                                     </td>
                                     <td className="border-t border-r border-black px-2 py-2">
                                         {renderValue(item?.kd_material)}
