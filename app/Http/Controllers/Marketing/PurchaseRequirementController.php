@@ -932,7 +932,6 @@ class PurchaseRequirementController
                 DB::raw('coalesce(cast(b.stok_g2 as decimal(18,4)), 0) as stok_g2'),
                 DB::raw('coalesce(cast(b.stok_g3 as decimal(18,4)), 0) as stok_g3'),
                 DB::raw('coalesce(cast(b.stok_g4 as decimal(18,4)), 0) as stok_g4'),
-                DB::raw('0 as stok'),
                 DB::raw('coalesce(dp.sisa_qtypr, 0) as sisa_qty_po'),
                 DB::raw('coalesce(cast(dp.qty as decimal(18,4)), 0) as qty_po_in')
             )
@@ -944,7 +943,6 @@ class PurchaseRequirementController
             $item->stok_g2 = (int) ($item->stok_g2 ?? 0);
             $item->stok_g3 = (int) ($item->stok_g3 ?? 0);
             $item->stok_g4 = (int) ($item->stok_g4 ?? 0);
-            $item->stok = $item->stok_g1 + $item->stok_g2 + $item->stok_g3 + $item->stok_g4;
             return $item;
         });
 
