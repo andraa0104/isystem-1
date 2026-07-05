@@ -1964,18 +1964,13 @@ class PurchaseRequirementController
                 'd.material',
                 'd.qty',
                 'd.unit',
+                'd.stok',
                 'd.unit_price',
                 'd.total_price',
                 'd.price_po',
                 'd.margin',
-                'd.renmark',
+                'd.renmark'
             )
-            ->selectRaw('(
-                coalesce(cast(b.stok_g1 as decimal(18,4)), 0) +
-                coalesce(cast(b.stok_g2 as decimal(18,4)), 0) +
-                coalesce(cast(b.stok_g3 as decimal(18,4)), 0) +
-                coalesce(cast(b.stok_g4 as decimal(18,4)), 0)
-            ) as stok')
             ->where('d.no_pr', $noPr)
             ->orderBy('d.no')
             ->get();
