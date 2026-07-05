@@ -1116,7 +1116,7 @@ class PurchaseRequirementController
                             'material' => $item['material'] ?? null,
                             'qty' => $item['qty'] ?? null,
                             'unit' => $item['unit'] ?? null,
-                            'stok' => $stockTotal,
+                            'stok' => $stockTotal !== null ? max(0, $stockTotal) : null,
                             'unit_price' => $item['unit_price'] ?? null,
                             'total_price' => $item['total_price'] ?? null,
                             'price_po' => $item['price_po'] ?? null,
@@ -1308,7 +1308,7 @@ class PurchaseRequirementController
                         ->all() : [];
                     $noValue = $item['no'] ?? ($index + 1);
                     $qtyRaw = (float)($item['qty'] ?? 0);
-                    $stok = (float)($item['stok'] ?? 0);
+                    $stok = max(0, (float)($item['stok'] ?? 0));
                     $oldDetail = $oldDetailsByNo->get((string) $noValue);
                     $initialRealizedQty = $oldDetail
                         ? max(0, (float) $oldDetail->qty - (float) $oldDetail->sisa_pr)
@@ -1433,7 +1433,7 @@ class PurchaseRequirementController
                 ->whereRaw('lower(trim(dp.kd_material)) = ?', [$kdMaterial])
                 ->selectRaw('coalesce(cast(dp.sisa_qtypr as decimal(18,4)), 0) as sisa_qtypr')
                 ->value('sisa_qtypr') ?? 0);
-            $stock = is_numeric($request->input('stok')) ? (float) $request->input('stok') : (float) ($existingDetail->stok ?? 0);
+            $stock = max(0, is_numeric($request->input('stok')) ? (float) $request->input('stok') : (float) ($existingDetail->stok ?? 0));
             $qtyValidationMessage = $this->prQtyValidationMessage($oldQty, $qtyPoUsed, $newQty, $stock, $qtyPoIn, $sisaQtyPoIn);
             if ($qtyValidationMessage) {
                 return back()->with('error', $qtyValidationMessage);
@@ -1453,7 +1453,7 @@ class PurchaseRequirementController
                     'material' => $request->input('material'),
                     'qty' => $request->input('qty'),
                     'unit' => $request->input('unit'),
-                    'stok' => $request->input('stok'),
+                    'stok' => $stock,
                     'unit_price' => $request->input('unit_price'),
                     'total_price' => $request->input('total_price'),
                     'price_po' => $request->input('price_po'),
