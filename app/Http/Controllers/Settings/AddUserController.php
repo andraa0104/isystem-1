@@ -139,4 +139,39 @@ class AddUserController extends Controller
             ->route('settings.add-user')
             ->with('success', 'User berhasil ditambahkan.');
     }
+
+    /**
+     * Update an existing user in tb_pengguna.
+     */
+    public function update(Request $request, $kd_user): RedirectResponse
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'username' => ['required', 'string', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'password' => ['nullable', 'string', 'max:255'],
+            'level' => [
+                'required',
+                'string',
+                'in:Admin,User-Marketing,User-Pembelian,User-Penjualan,User-Keuangan',
+            ],
+        ]);
+
+        $updateData = [
+            'nm_user' => $validated['name'],
+            'pengguna' => $validated['username'],
+            'no_hp' => $validated['phone'] ?? null,
+            'tingkat' => $validated['level'],
+        ];
+
+        if (!empty($validated['password'])) {
+            $updateData['pass'] = $validated['password'];
+        }
+
+        DB::table('tb_pengguna')->where('kd_user', $kd_user)->update($updateData);
+
+        return redirect()
+            ->route('settings.add-user')
+            ->with('success', 'User berhasil diperbarui.');
+    }
 }

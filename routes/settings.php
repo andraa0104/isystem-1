@@ -35,6 +35,8 @@ Route::middleware('auth')->group(function () {
             ->name('settings.add-user.data');
         Route::post('settings/add-user', [AddUserController::class, 'store'])
             ->name('settings.add-user.store');
+        Route::put('settings/add-user/{kd_user}', [AddUserController::class, 'update'])
+            ->name('settings.add-user.update');
 
         Route::get('settings/privilege-access', [PrivilegeAccessController::class, 'edit'])
             ->name('settings.privilege-access');

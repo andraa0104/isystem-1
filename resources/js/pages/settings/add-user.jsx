@@ -22,8 +22,17 @@ const breadcrumbs = [
 ];
 
 export default function AddUser() {
-    const addUserForm = { action: '/settings/add-user', method: 'post' };
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState('add');
+    const [editData, setEditData] = useState(null);
+
+    const addUserForm = {
+        action:
+            modalMode === 'add'
+                ? '/settings/add-user'
+                : `/settings/add-user/${editData?.kd_user}`,
+        method: modalMode === 'add' ? 'post' : 'put',
+    };
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState('');
@@ -46,7 +55,7 @@ export default function AddUser() {
         const params = new URLSearchParams();
         params.set(
             'per_page',
-            pageSize === Infinity ? 'all' : String(pageSize)
+            pageSize === Infinity ? 'all' : String(pageSize),
         );
         params.set('page', String(currentPage));
         if (debouncedSearch) {
@@ -101,16 +110,14 @@ export default function AddUser() {
                                 <select
                                     className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                     value={
-                                        pageSize === Infinity
-                                            ? 'all'
-                                            : pageSize
+                                        pageSize === Infinity ? 'all' : pageSize
                                     }
                                     onChange={(event) => {
                                         const value = event.target.value;
                                         setPageSize(
                                             value === 'all'
                                                 ? Infinity
-                                                : Number(value)
+                                                : Number(value),
                                         );
                                         setCurrentPage(1);
                                     }}
@@ -136,7 +143,13 @@ export default function AddUser() {
                                 />
                             </label>
                         </div>
-                        <Button onClick={() => setIsModalOpen(true)}>
+                        <Button
+                            onClick={() => {
+                                setModalMode('add');
+                                setEditData(null);
+                                setIsModalOpen(true);
+                            }}
+                        >
                             Add New User
                         </Button>
                     </div>
@@ -169,6 +182,9 @@ export default function AddUser() {
                                     <th className="px-4 py-3 text-left">
                                         Last Online
                                     </th>
+                                    <th className="px-4 py-3 text-center">
+                                        Aksi
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -192,49 +208,65 @@ export default function AddUser() {
                                         </td>
                                     </tr>
                                 )}
-                                {!loading && !loadError && users.length === 0 && (
-                                    <tr>
-                                        <td
-                                            className="px-4 py-6 text-center text-muted-foreground"
-                                            colSpan={8}
-                                        >
-                                            Data user belum tersedia.
-                                        </td>
-                                    </tr>
-                                )}
+                                {!loading &&
+                                    !loadError &&
+                                    users.length === 0 && (
+                                        <tr>
+                                            <td
+                                                className="px-4 py-6 text-center text-muted-foreground"
+                                                colSpan={8}
+                                            >
+                                                Data user belum tersedia.
+                                            </td>
+                                        </tr>
+                                    )}
                                 {!loading &&
                                     !loadError &&
                                     users.map((user, index) => (
-                                    <tr
-                                        key={`${user.kd_user}-${index}`}
-                                        className="border-t border-sidebar-border/70"
-                                    >
-                                        <td className="px-4 py-3">
-                                            {user.kd_user ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {user.nm_user ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {user.no_hp ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {user.pengguna ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {user.pass ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {user.tingkat ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {user.Sesi ?? '-'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {user.LastOnline ?? '-'}
-                                        </td>
-                                    </tr>
-                                ))}
+                                        <tr
+                                            key={`${user.kd_user}-${index}`}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {user.kd_user ?? '-'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {user.nm_user ?? '-'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {user.no_hp ?? '-'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {user.pengguna ?? '-'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {user.pass ?? '-'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {user.tingkat ?? '-'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {user.Sesi ?? '-'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {user.LastOnline ?? '-'}
+                                            </td>
+                                            <td className="px-4 py-3 text-center">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-blue-600 hover:text-blue-800"
+                                                    onClick={() => {
+                                                        setModalMode('edit');
+                                                        setEditData(user);
+                                                        setIsModalOpen(true);
+                                                    }}
+                                                >
+                                                    Edit
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
                             </tbody>
                         </table>
                     </div>
@@ -250,7 +282,7 @@ export default function AddUser() {
                                     size="sm"
                                     onClick={() =>
                                         setCurrentPage((page) =>
-                                            Math.max(1, page - 1)
+                                            Math.max(1, page - 1),
                                         )
                                     }
                                     disabled={currentPage === 1}
@@ -262,7 +294,7 @@ export default function AddUser() {
                                     size="sm"
                                     onClick={() =>
                                         setCurrentPage((page) =>
-                                            Math.min(totalPages, page + 1)
+                                            Math.min(totalPages, page + 1),
                                         )
                                     }
                                     disabled={currentPage === totalPages}
@@ -282,15 +314,22 @@ export default function AddUser() {
                 >
                     <DialogContent>
                         <DialogHeader>
-                            <DialogTitle>Add New User</DialogTitle>
+                            <DialogTitle>
+                                {modalMode === 'add'
+                                    ? 'Add New User'
+                                    : `Edit User (${editData?.kd_user})`}
+                            </DialogTitle>
                         </DialogHeader>
                         <Form
+                            key={modalMode + (editData?.kd_user || '')}
                             {...addUserForm}
                             options={{
                                 preserveScroll: true,
                                 onSuccess: () => {
                                     setIsModalOpen(false);
-                                    setCurrentPage(1);
+                                    if (modalMode === 'add') {
+                                        setCurrentPage(1);
+                                    }
                                     fetchUsers();
                                 },
                             }}
@@ -306,6 +345,11 @@ export default function AddUser() {
                                             name="name"
                                             placeholder="Full name"
                                             autoComplete="name"
+                                            defaultValue={
+                                                modalMode === 'edit'
+                                                    ? editData?.nm_user
+                                                    : ''
+                                            }
                                         />
                                         <InputError message={errors.name} />
                                     </div>
@@ -319,6 +363,11 @@ export default function AddUser() {
                                             name="username"
                                             placeholder="Username"
                                             autoComplete="username"
+                                            defaultValue={
+                                                modalMode === 'edit'
+                                                    ? editData?.pengguna
+                                                    : ''
+                                            }
                                         />
                                         <InputError message={errors.username} />
                                     </div>
@@ -330,13 +379,24 @@ export default function AddUser() {
                                             name="phone"
                                             placeholder="Nomor HP"
                                             autoComplete="tel"
+                                            defaultValue={
+                                                modalMode === 'edit'
+                                                    ? editData?.no_hp
+                                                    : ''
+                                            }
                                         />
                                         <InputError message={errors.phone} />
                                     </div>
 
                                     <div className="space-y-2">
                                         <Label htmlFor="password">
-                                            Password
+                                            Password{' '}
+                                            {modalMode === 'edit' && (
+                                                <span className="text-xs font-normal text-muted-foreground">
+                                                    (Isi jika ingin mengubah
+                                                    password)
+                                                </span>
+                                            )}
                                         </Label>
                                         <Input
                                             id="password"
@@ -349,12 +409,18 @@ export default function AddUser() {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="level">Level User</Label>
+                                        <Label htmlFor="level">
+                                            Level User
+                                        </Label>
                                         <select
                                             id="level"
                                             name="level"
                                             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                                            defaultValue="User-Marketing"
+                                            defaultValue={
+                                                modalMode === 'edit'
+                                                    ? editData?.tingkat
+                                                    : 'User-Marketing'
+                                            }
                                         >
                                             <option value="Admin">Admin</option>
                                             <option value="User-Marketing">
