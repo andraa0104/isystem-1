@@ -1064,16 +1064,6 @@ class PurchaseRequirementController
                                 (string) ($item['kd_material'] ?? '')
                             ));
                         }
-                        if (
-                            is_numeric($detailIdForValidation) &&
-                            $detailPoinLookup->has((int) $detailIdForValidation) &&
-                            $poinConsumedQty < (float) $detailPoinLookup->get((int) $detailIdForValidation)->sisa_qtypr
-                        ) {
-                            throw new \RuntimeException(sprintf(
-                                'PR Input material %s tidak boleh dikurangi karena Sisa Qty PR harus menjadi 0.',
-                                (string) ($item['kd_material'] ?? '')
-                            ));
-                        }
                         $stockParts = [
                             $item['stok_g1'] ?? null,
                             $item['stok_g2'] ?? null,

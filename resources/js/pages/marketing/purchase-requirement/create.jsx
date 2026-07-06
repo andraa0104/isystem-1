@@ -740,15 +740,25 @@ export default function PurchaseRequirementCreate() {
                       )
                     : 0;
 
+            if (formData.jenisPr) {
+                return (
+                    parseNumber(item.hargaModal) <= 0 ||
+                    parseNumber(item.qtyPr) <= 0
+                );
+            }
+
             return (
                 parseNumber(item.hargaModal) <= 0 ||
-                parseNumber(item.qtyPr) < 0 ||
+                parseNumber(item.qtyPr) <= 0 ||
                 (item.maxQtyPr !== undefined &&
-                    parseNumber(item.qtyPr) !== requiredQtyPr)
+                    parseNumber(item.qtyPr) > requiredQtyPr)
             );
         });
         if (hasInvalidRow) {
-            return 'Harga modal wajib diisi dan Qty PR harus membuat Sisa Qty PR menjadi 0.';
+            if (formData.jenisPr) {
+                return 'Harga modal wajib diisi dan Qty PR tidak boleh 0.';
+            }
+            return 'Harga modal wajib diisi, Qty PR tidak boleh 0, dan tidak boleh melebihi batas maksimal (Qty Sisa PR).';
         }
 
         return '';
@@ -1352,6 +1362,7 @@ export default function PurchaseRequirementCreate() {
                                                                                             {
                                                                                                 label
                                                                                             }
+
                                                                                             :{' '}
                                                                                             {value ??
                                                                                                 0}
@@ -1473,26 +1484,29 @@ export default function PurchaseRequirementCreate() {
                                                                                             type="number"
                                                                                             min="0"
                                                                                             max={
-                                                                                                calculateTotalStock(
-                                                                                                    item,
-                                                                                                ) <
-                                                                                                0
-                                                                                                    ? Math.min(
-                                                                                                          parseNumber(
-                                                                                                              item.maxQtyPr,
-                                                                                                          ),
-                                                                                                          Math.abs(
-                                                                                                              calculateTotalStock(
-                                                                                                                  item,
-                                                                                                              ),
-                                                                                                          ),
-                                                                                                      )
-                                                                                                    : 0
+                                                                                                formData.jenisPr
+                                                                                                    ? undefined
+                                                                                                    : calculateTotalStock(
+                                                                                                            item,
+                                                                                                        ) <
+                                                                                                        0
+                                                                                                      ? Math.min(
+                                                                                                            parseNumber(
+                                                                                                                item.maxQtyPr,
+                                                                                                            ),
+                                                                                                            Math.abs(
+                                                                                                                calculateTotalStock(
+                                                                                                                    item,
+                                                                                                                ),
+                                                                                                            ),
+                                                                                                        )
+                                                                                                      : 0
                                                                                             }
                                                                                             className={cn(
                                                                                                 'h-10 w-full bg-background text-right text-lg font-black shadow-xs ring-offset-0 focus-visible:ring-2',
-                                                                                                item.maxQtyPr !==
-                                                                                                    undefined &&
+                                                                                                !formData.jenisPr &&
+                                                                                                    item.maxQtyPr !==
+                                                                                                        undefined &&
                                                                                                     (parseNumber(
                                                                                                         item.qtyPr,
                                                                                                     ) >
@@ -1513,6 +1527,13 @@ export default function PurchaseRequirementCreate() {
                                                                                                         : 0)
                                                                                                         ? 'border-destructive focus-visible:ring-destructive'
                                                                                                         : 'border-primary/20 focus-visible:ring-primary'),
+                                                                                                formData.jenisPr &&
+                                                                                                    parseNumber(
+                                                                                                        item.qtyPr,
+                                                                                                    ) <=
+                                                                                                        0
+                                                                                                    ? 'border-destructive focus-visible:ring-destructive'
+                                                                                                    : 'border-primary/20 focus-visible:ring-primary',
                                                                                             )}
                                                                                             value={
                                                                                                 item.qtyPr
@@ -1529,8 +1550,9 @@ export default function PurchaseRequirementCreate() {
                                                                                             }
                                                                                         />
                                                                                     </div>
-                                                                                    {item.maxQtyPr !==
-                                                                                        undefined &&
+                                                                                    {!formData.jenisPr &&
+                                                                                        item.maxQtyPr !==
+                                                                                            undefined &&
                                                                                         parseNumber(
                                                                                             item.qtyPr,
                                                                                         ) >
@@ -1582,33 +1604,22 @@ export default function PurchaseRequirementCreate() {
                                                                                     {parseNumber(
                                                                                         item.qtyPr,
                                                                                     ) ===
-                                                                                        0 &&
-                                                                                        !String(
-                                                                                            item.id,
-                                                                                        ).startsWith(
-                                                                                            'manual-',
-                                                                                        ) && (
-                                                                                            <p className="mt-1 text-right text-[10px] leading-tight font-medium text-amber-600">
-                                                                                                PR
-                                                                                                input
-                                                                                                tidak
-                                                                                                boleh
-                                                                                                0.
-                                                                                                Jika
-                                                                                                stock
-                                                                                                memenuhi
-                                                                                                maka
-                                                                                                Langsung
-                                                                                                realisasikan
-                                                                                                dengan
-                                                                                                cara
-                                                                                                klik
-                                                                                                icon
-                                                                                                trash
-                                                                                                di
-                                                                                                material.
-                                                                                            </p>
-                                                                                        )}
+                                                                                        0 && (
+                                                                                        <p className="mt-1 text-right text-[10px] leading-tight font-medium text-amber-600">
+                                                                                            PR
+                                                                                            input
+                                                                                            tidak
+                                                                                            boleh
+                                                                                            0.
+                                                                                            {!formData.jenisPr &&
+                                                                                                !String(
+                                                                                                    item.id,
+                                                                                                ).startsWith(
+                                                                                                    'manual-',
+                                                                                                ) &&
+                                                                                                ' Jika stock memenuhi maka Langsung realisasikan dengan cara klik icon trash di material.'}
+                                                                                        </p>
+                                                                                    )}
                                                                                 </div>
                                                                             </div>
                                                                         </div>
