@@ -21,8 +21,8 @@ const formatDate = (value) => {
 const formatNumber = (value) => {
     const number = Number(value);
     if (Number.isNaN(number)) return '-';
-    return new Intl.NumberFormat('en-US', {
-        useGrouping: false,
+    return new Intl.NumberFormat('id-ID', {
+        useGrouping: true,
         maximumFractionDigits: 10,
     }).format(number);
 };
