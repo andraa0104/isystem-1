@@ -1378,19 +1378,19 @@ export default function PurchaseOrderInIndex({
                         <table className="w-full min-w-[720px] table-auto text-sm">
                             <thead className="bg-muted/40 text-muted-foreground">
                                 <tr>
-                                    <th className="w-12 px-2 py-2 text-left">
+                                    <th className="w-px px-1 py-2 text-left whitespace-nowrap">
                                         No
                                     </th>
-                                    <th className="w-44 px-2 py-2 text-left">
+                                    <th className="w-px px-1 py-2 text-left whitespace-nowrap">
                                         No Document
                                     </th>
-                                    <th className="w-40 px-2 py-2 text-left">
+                                    <th className="w-px px-1 py-2 text-left whitespace-nowrap">
                                         Ref PO
                                     </th>
-                                    <th className="w-28 px-2 py-2 text-left">
+                                    <th className="w-px px-1 py-2 text-left whitespace-nowrap">
                                         Date Input
                                     </th>
-                                    <th className="px-2 py-2 text-left">
+                                    <th className="px-1 py-2 text-left">
                                         Customer
                                     </th>
                                     <th className="w-36 px-2 py-2 text-right">
@@ -1420,7 +1420,7 @@ export default function PurchaseOrderInIndex({
                                             key={item.id ?? item.no_poin}
                                             className="border-t border-sidebar-border/70"
                                         >
-                                            <td className="px-2 py-2 whitespace-nowrap">
+                                            <td className="w-px px-1 py-2 whitespace-nowrap">
                                                 {pagination.per_page === 'all'
                                                     ? index + 1
                                                     : (Number(
@@ -1434,19 +1434,19 @@ export default function PurchaseOrderInIndex({
                                                       index +
                                                       1}
                                             </td>
-                                            <td className="px-2 py-2 font-semibold whitespace-nowrap">
+                                            <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
                                                 {item.kode_poin}
                                             </td>
-                                            <td className="px-2 py-2 font-semibold whitespace-nowrap">
+                                            <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
                                                 {item.no_poin}
                                             </td>
-                                            <td className="px-2 py-2 whitespace-nowrap">
+                                            <td className="w-px px-1 py-2 whitespace-nowrap">
                                                 {formatDateDisplay(
                                                     item.created_at ||
                                                         item.date_poin,
                                                 )}
                                             </td>
-                                            <td className="px-2 py-2">
+                                            <td className="px-1 py-2">
                                                 {item.customer_name}
                                             </td>
                                             <td className="px-2 py-2 text-right whitespace-nowrap">
@@ -1780,52 +1780,52 @@ export default function PurchaseOrderInIndex({
                                                 <tr>
                                                     <th
                                                         rowSpan={2}
-                                                        className="w-12 px-2 py-2 text-left align-middle"
+                                                        className="w-px px-1 py-2 text-left align-middle whitespace-nowrap"
                                                     >
                                                         No
                                                     </th>
                                                     <th
                                                         rowSpan={2}
-                                                        className="px-2 py-2 text-left align-middle"
+                                                        className="px-1 py-2 text-left align-middle"
                                                     >
                                                         Material
                                                     </th>
                                                     <th
                                                         rowSpan={2}
-                                                        className="w-28 px-2 py-2 text-right align-middle"
+                                                        className="w-px px-1 py-2 text-right align-middle whitespace-nowrap"
                                                     >
                                                         Qty
                                                     </th>
                                                     <th
                                                         rowSpan={2}
-                                                        className="w-32 px-2 py-2 text-right align-middle"
+                                                        className="w-px px-1 py-2 text-right align-middle whitespace-nowrap"
                                                     >
                                                         Price PO In
                                                     </th>
                                                     <th
                                                         rowSpan={2}
-                                                        className="w-36 px-2 py-2 text-right align-middle"
+                                                        className="w-px px-1 py-2 text-right align-middle whitespace-nowrap"
                                                     >
                                                         Total Price
                                                     </th>
                                                     <th
                                                         colSpan={2}
-                                                        className="px-2 py-2 text-center"
+                                                        className="px-1 py-2 text-center"
                                                     >
                                                         Sisa
                                                     </th>
                                                     <th
                                                         rowSpan={2}
-                                                        className="w-44 px-2 py-2 text-left align-middle"
+                                                        className="px-1 py-2 text-left align-middle"
                                                     >
                                                         Remark
                                                     </th>
                                                 </tr>
                                                 <tr>
-                                                    <th className="w-24 px-2 py-2 text-right">
+                                                    <th className="w-px px-1 py-2 text-right whitespace-nowrap">
                                                         PR
                                                     </th>
-                                                    <th className="w-24 px-2 py-2 text-right">
+                                                    <th className="w-px px-1 py-2 text-right whitespace-nowrap">
                                                         DO
                                                     </th>
                                                 </tr>
@@ -1855,7 +1855,7 @@ export default function PurchaseOrderInIndex({
                                                                 }
                                                                 className="border-t border-sidebar-border/70"
                                                             >
-                                                                <td className="px-2 py-2 whitespace-nowrap">
+                                                                <td className="w-px px-1 py-2 whitespace-nowrap">
                                                                     {detailPagination.per_page ===
                                                                     'all'
                                                                         ? index +
@@ -1872,34 +1872,34 @@ export default function PurchaseOrderInIndex({
                                                                           index +
                                                                           1}
                                                                 </td>
-                                                                <td className="px-2 py-2">
+                                                                <td className="px-1 py-2">
                                                                     {row.material ??
                                                                         '-'}
                                                                 </td>
-                                                                <td className="px-2 py-2 text-right whitespace-nowrap">
+                                                                <td className="w-px px-1 py-2 text-right whitespace-nowrap">
                                                                     {`${row.qty ?? 0} ${row.satuan ?? ''}`}
                                                                 </td>
-                                                                <td className="px-2 py-2 text-right whitespace-nowrap">
+                                                                <td className="w-px px-1 py-2 text-right whitespace-nowrap">
                                                                     {formatRupiah(
                                                                         row.price_po_in ??
                                                                             0,
                                                                     )}
                                                                 </td>
-                                                                <td className="px-2 py-2 text-right whitespace-nowrap">
+                                                                <td className="w-px px-1 py-2 text-right whitespace-nowrap">
                                                                     {formatRupiah(
                                                                         row.total_price_po_in ??
                                                                             0,
                                                                     )}
                                                                 </td>
-                                                                <td className="px-2 py-2 text-right whitespace-nowrap">
+                                                                <td className="w-px px-1 py-2 text-right whitespace-nowrap">
                                                                     {row.sisa_qtypr ??
                                                                         0}
                                                                 </td>
-                                                                <td className="px-2 py-2 text-right whitespace-nowrap">
+                                                                <td className="w-px px-1 py-2 text-right whitespace-nowrap">
                                                                     {row.sisa_qtydo ??
                                                                         0}
                                                                 </td>
-                                                                <td className="px-2 py-2">
+                                                                <td className="px-1 py-2">
                                                                     {row.remark ||
                                                                         '-'}
                                                                 </td>

@@ -292,8 +292,10 @@ export default function PurchaseRequirementIndex({
         );
 
         return (
-            <div className="flex min-w-0 flex-nowrap items-center gap-2">
-                <span className="truncate">{value}</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <span className="min-w-0 [overflow-wrap:anywhere] whitespace-normal">
+                    {value}
+                </span>
                 {hasOverdue && (
                     <button
                         type="button"
@@ -1408,19 +1410,19 @@ export default function PurchaseRequirementIndex({
                 </div>
 
                 <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                    <table className="w-full table-fixed text-sm">
+                    <table className="w-full table-auto text-sm">
                         <thead className="bg-muted/50 text-muted-foreground">
                             <tr>
-                                <th className="w-40 px-2 py-3 text-left">
+                                <th className="w-px px-1 py-3 text-left whitespace-nowrap">
                                     No PR
                                 </th>
-                                <th className="w-28 px-2 py-3 text-left">
+                                <th className="w-px px-1 py-3 text-left whitespace-nowrap">
                                     Date
                                 </th>
-                                <th className="px-2 py-3 text-left">
+                                <th className="w-[40%] min-w-72 px-1 py-3 text-left">
                                     Customer
                                 </th>
-                                <th className="w-40 px-2 py-3 text-left">
+                                <th className="px-2 py-3 text-left">
                                     Ref PO
                                 </th>
                                 <th className="px-2 py-3 text-left">
@@ -1447,13 +1449,13 @@ export default function PurchaseRequirementIndex({
                                         key={item.no_pr}
                                         className="border-t border-sidebar-border/70"
                                     >
-                                        <td className="px-2 py-3 whitespace-nowrap">
+                                        <td className="w-px px-1 py-3 whitespace-nowrap">
                                             {item.no_pr}
                                         </td>
-                                        <td className="px-2 py-3 whitespace-nowrap">
+                                        <td className="w-px px-1 py-3 whitespace-nowrap">
                                             {item.date}
                                         </td>
-                                        <td className="px-2 py-3">
+                                        <td className="w-[40%] min-w-72 px-1 py-3 align-top [overflow-wrap:anywhere] whitespace-normal">
                                             {renderCustomerWithOverdueMarker(
                                                 item.for_customer,
                                             )}
@@ -1461,7 +1463,7 @@ export default function PurchaseRequirementIndex({
                                         <td className="px-2 py-3 align-top [overflow-wrap:anywhere] break-words whitespace-normal">
                                             {item.ref_po}
                                         </td>
-                                        <td className="px-2 py-3 whitespace-nowrap text-sm">
+                                        <td className="px-2 py-3 align-top [overflow-wrap:anywhere] whitespace-normal text-sm">
                                             {item.jenis_pr ?? '-'}
                                         </td>
                                         <td className="w-28 px-2 py-3 align-top whitespace-nowrap">
