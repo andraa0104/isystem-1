@@ -2039,7 +2039,7 @@ class PurchaseRequirementController
         // Fetch PO Outstanding
         $poData = \Illuminate\Support\Facades\DB::table('tb_detailpo')
             ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'), $kdList)
-            ->selectRaw('lower(trim(kd_mat)) as kd_mat, sum(coalesce(cast(qty as decimal(18,4)), 0) - coalesce(cast(end_gr as decimal(18,4)), 0)) as po_val')
+            ->selectRaw('lower(trim(kd_mat)) as kd_mat, sum(coalesce(cast(gr_mat as decimal(18,4)), 0)) as po_val')
             ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'))
             ->get();
         foreach ($poData as $row) {
