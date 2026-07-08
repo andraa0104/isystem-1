@@ -46,10 +46,10 @@ class PurchaseRequirementController
             if (Schema::hasTable('tb_detailpo')) {
                 $latestPoDetail = DB::table('tb_detailpo')
                     ->whereRaw('lower(trim(kd_mat)) = ?', [Str::lower($kdMat)])
-                    ->whereRaw('coalesce(cast(price as decimal(18,4)), 0) > 0')
-                    ->orderByDesc('id_po')
+                    ->orderByRaw("str_to_date(nullif(trim(tgl), ''), '%d.%m.%Y') desc")
                     ->orderByDesc('no_po')
-                    ->first();
+                    ->orderByDesc('id')
+                    ->first(['price']);
             }
 
             $latestInventory = null;
@@ -63,7 +63,7 @@ class PurchaseRequirementController
             return response()->json([
                 'success' => true,
                 'harga' => $latestPoDetail
-                    ? $latestPoDetail->price
+                    ? ($latestPoDetail->price ?? 0)
                     : ($latestInventory ? $latestInventory->harga : 0),
             ]);
 
@@ -941,11 +941,26 @@ class PurchaseRequirementController
             ->selectRaw('greatest(coalesce(cast(d.qty as decimal(18,4)), 0) - coalesce(cast(d.sisa_pr as decimal(18,4)), 0), 0) as qty_po')
             ->get();
 
-        $purchaseRequirementDetails->transform(function ($item) {
+        $metrics = $this->getStockMetrics($purchaseRequirementDetails->pluck('kd_material')->toArray());
+
+        $purchaseRequirementDetails->transform(function ($item) use ($metrics) {
             $item->stok_g1 = (int) ($item->stok_g1 ?? 0);
             $item->stok_g2 = (int) ($item->stok_g2 ?? 0);
             $item->stok_g3 = (int) ($item->stok_g3 ?? 0);
             $item->stok_g4 = (int) ($item->stok_g4 ?? 0);
+            $kd = strtolower(trim((string) $item->kd_material));
+            $stockMetrics = $metrics[$kd] ?? [];
+            $item->mis = (float) ($stockMetrics['mis'] ?? 0);
+            $item->mib = (float) ($stockMetrics['mib'] ?? 0);
+            $item->mibs = (float) ($stockMetrics['mibs'] ?? 0);
+            $item->pr_outstanding = (float) ($stockMetrics['pr_outstanding'] ?? 0);
+            $item->po_outstanding = (float) ($stockMetrics['po_outstanding'] ?? 0);
+            $item->do_outstanding = (float) ($stockMetrics['do_outstanding'] ?? 0);
+            $item->stok = max(0,
+                $item->stok_g1 + $item->stok_g2 + $item->stok_g3 + $item->stok_g4
+                + $item->mis + $item->mib + $item->mibs
+                + $item->pr_outstanding + $item->po_outstanding - $item->do_outstanding
+            );
             return $item;
         });
 

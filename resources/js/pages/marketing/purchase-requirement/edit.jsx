@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -7,7 +8,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -82,6 +82,32 @@ const calculateTotalPrice = (qty, priceEstimate) => {
     return total ? Math.round(total).toString() : '';
 };
 
+const calculateTotalStock = (item) =>
+    parseNumber(item?.stokG1 ?? item?.stok_g1) +
+    parseNumber(item?.stokG2 ?? item?.stok_g2) +
+    parseNumber(item?.stokG3 ?? item?.stok_g3) +
+    parseNumber(item?.stokG4 ?? item?.stok_g4) +
+    parseNumber(item?.mis) +
+    parseNumber(item?.mib) +
+    parseNumber(item?.mibs) +
+    parseNumber(item?.pr_outstanding) +
+    parseNumber(item?.po_outstanding) -
+    parseNumber(item?.do_outstanding);
+
+const calculateCurrentRemainingOrderIn = (item) => {
+    const qtyDelta =
+        parseNumber(item?.qtyDetail) - parseNumber(item?.originalQtyDetail);
+
+    return Math.max(0, parseNumber(item?.sisaQtyPoIn) - qtyDelta);
+};
+
+const calculateMaxPrInput = (item) => {
+    const totalStock = calculateTotalStock(item);
+    return totalStock < 0
+        ? Math.min(parseNumber(item?.sisaQtyPoIn), Math.abs(totalStock))
+        : 0;
+};
+
 const formatNumber = (value) =>
     new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(
         parseNumber(value),
@@ -107,7 +133,10 @@ export default function PurchaseRequirementEdit({
 
     const detailDateSource = purchaseRequirementDetails?.[0]?.date;
 
-    const dbPrefix = (tenant?.database ?? '').toLowerCase().replace(/^db/, '').toUpperCase();
+    const dbPrefix = (tenant?.database ?? '')
+        .toLowerCase()
+        .replace(/^db/, '')
+        .toUpperCase();
     const forValue = dbPrefix ? `FOR ${dbPrefix}` : 'FOR';
 
     const [formData, setFormData] = useState({
@@ -140,6 +169,12 @@ export default function PurchaseRequirementEdit({
             stokG2: Math.round(parseNumber(item.stok_g2)),
             stokG3: Math.round(parseNumber(item.stok_g3)),
             stokG4: Math.round(parseNumber(item.stok_g4)),
+            mis: parseNumber(item.mis),
+            mib: parseNumber(item.mib),
+            mibs: parseNumber(item.mibs),
+            pr_outstanding: parseNumber(item.pr_outstanding),
+            po_outstanding: parseNumber(item.po_outstanding),
+            do_outstanding: parseNumber(item.do_outstanding),
             qty: item.sisa_pr ?? item.qty ?? '', // Sisa PR
             qtyDetail: item.qty ?? 0, // tb_detailpr.qty
             originalQtyDetail: parseNumber(item.qty),
@@ -167,7 +202,10 @@ export default function PurchaseRequirementEdit({
                 map.set(d.refPo, d.forCustomer);
             }
         });
-        return Array.from(map.entries()).map(([ref_po, customer]) => ({ ref_po, customer }));
+        return Array.from(map.entries()).map(([ref_po, customer]) => ({
+            ref_po,
+            customer,
+        }));
     }, [materialItems]);
 
     const handleRemoveCustomerPo = (refPo) => {
@@ -191,17 +229,35 @@ export default function PurchaseRequirementEdit({
                     didOpen: () => Swal.showLoading(),
                 });
 
-                fetch(`/marketing/purchase-requirement/${noPr}/remove-po/${refPo}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'X-CSRF-TOKEN': document.head.querySelector('meta[name="csrf-token"]')?.content,
-                        Accept: 'application/json',
+                fetch(
+                    `/marketing/purchase-requirement/${noPr}/remove-po/${refPo}`,
+                    {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': document.head.querySelector(
+                                'meta[name="csrf-token"]',
+                            )?.content,
+                            Accept: 'application/json',
+                        },
                     },
-                })
-                    .then((response) => response.json().then((data) => ({ status: response.status, data })))
+                )
+                    .then((response) =>
+                        response.json().then((data) => ({
+                            status: response.status,
+                            data,
+                        })),
+                    )
                     .then(({ status, data }) => {
-                        if (status >= 400) throw new Error(data.message || 'Gagal menghapus Customer dari PR');
-                        Swal.fire('Terhapus!', 'Customer/PO berhasil dihapus dari PR.', 'success');
+                        if (status >= 400)
+                            throw new Error(
+                                data.message ||
+                                    'Gagal menghapus Customer dari PR',
+                            );
+                        Swal.fire(
+                            'Terhapus!',
+                            'Customer/PO berhasil dihapus dari PR.',
+                            'success',
+                        );
 
                         // Reload the edit page to fetch the remaining records cleanly from backend state
                         window.location.reload();
@@ -222,6 +278,7 @@ export default function PurchaseRequirementEdit({
     const [materialTotal, setMaterialTotal] = useState(0);
     const [materialLoading, setMaterialLoading] = useState(false);
     const [materialError, setMaterialError] = useState(null);
+    const [activePoTab, setActivePoTab] = useState('');
 
     const materialTotalPages =
         materialPageSize === Infinity
@@ -237,7 +294,10 @@ export default function PurchaseRequirementEdit({
                 per_page:
                     materialPageSize === Infinity ? 'all' : materialPageSize,
                 page: materialCurrentPage,
-                ref_po: formData.refPo,
+                ref_po:
+                    activePoTab && activePoTab !== 'Tanpa PO In'
+                        ? activePoTab
+                        : formData.refPo,
                 no_pr: purchaseRequirement?.no_pr ?? '',
             });
             const response = await fetch(
@@ -252,7 +312,14 @@ export default function PurchaseRequirementEdit({
         } finally {
             setMaterialLoading(false);
         }
-    }, [materialSearchTerm, materialPageSize, materialCurrentPage]);
+    }, [
+        activePoTab,
+        formData.refPo,
+        materialCurrentPage,
+        materialPageSize,
+        materialSearchTerm,
+        purchaseRequirement?.no_pr,
+    ]);
 
     useEffect(() => {
         if (isMaterialModalOpen) {
@@ -264,8 +331,6 @@ export default function PurchaseRequirementEdit({
     const [listSearch, setListSearch] = useState('');
     const [listPageSize, setListPageSize] = useState(5);
     const [listCurrentPage, setListCurrentPage] = useState(1);
-    const [activePoTab, setActivePoTab] = useState('');
-
     const poTabs = useMemo(() => {
         const groups = new Map();
         materialItems.forEach((item) => {
@@ -310,9 +375,9 @@ export default function PurchaseRequirementEdit({
         listPageSize === Infinity
             ? filteredItems
             : filteredItems.slice(
-                (listCurrentPage - 1) * listPageSize,
-                listCurrentPage * listPageSize,
-            );
+                  (listCurrentPage - 1) * listPageSize,
+                  listCurrentPage * listPageSize,
+              );
 
     // Reset page when search changes
     useEffect(() => {
@@ -329,6 +394,16 @@ export default function PurchaseRequirementEdit({
             kodeMaterial: item.kodeMaterial ?? '',
             namaMaterial: item.namaMaterial ?? '',
             stok: item.stok ?? '',
+            stokG1: item.stokG1 ?? 0,
+            stokG2: item.stokG2 ?? 0,
+            stokG3: item.stokG3 ?? 0,
+            stokG4: item.stokG4 ?? 0,
+            mis: item.mis ?? 0,
+            mib: item.mib ?? 0,
+            mibs: item.mibs ?? 0,
+            pr_outstanding: item.pr_outstanding ?? 0,
+            po_outstanding: item.po_outstanding ?? 0,
+            do_outstanding: item.do_outstanding ?? 0,
             qtyDetail: item.qtyDetail ?? 0, // tb_detailpr.qty (derived)
             originalQtyDetail: item.originalQtyDetail ?? item.qtyDetail ?? 0, // fixed reference
             qty: item.qty ?? '', // sisa_pr (editable)
@@ -351,24 +426,21 @@ export default function PurchaseRequirementEdit({
 
     const getQtyValidationMessage = (source) => {
         if (!source) return '';
-        if (source.detailNo === null) return '';
 
         const nextQty = parseNumber(source.qtyDetail);
-        const originalQty = parseNumber(
-            source.originalQtyDetail ?? source.qtyDetail,
-        );
-        const maxQtyByPoIn = originalQty + parseNumber(source.sisaQtyPoIn);
         const qtyPo = parseNumber(source.qtyPo);
-        const stok = parseNumber(source.stok);
-        const qtyPoIn = parseNumber(source.qtyPoIn);
-        const minimumQtyByStock = Math.max(0, stok - qtyPoIn);
+        const maxQty = qtyPo + calculateMaxPrInput(source);
 
-        if (nextQty < minimumQtyByStock) {
-            return `Qty tidak boleh kurang dari Total Stok - Qty PO In. Minimal qty adalah ${formatNumber(minimumQtyByStock)}.`;
+        if (formData.jenisPr) {
+            return nextQty > 0 ? '' : 'Qty PR harus lebih dari 0.';
         }
 
         if (nextQty < qtyPo) {
             return `Qty hanya boleh dikurangi sampai Sisa PR = 0. Minimal qty adalah ${formatNumber(qtyPo)}.`;
+        }
+
+        if (nextQty > maxQty) {
+            return `Qty PR tidak boleh melebihi kebutuhan stok. Maksimal qty adalah ${formatNumber(maxQty)}.`;
         }
 
         return '';
@@ -384,21 +456,14 @@ export default function PurchaseRequirementEdit({
             if (!prev) return prev;
             const next = { ...prev, [field]: value };
 
-            // --- LOGIKA SINKRONISASI MANUAl: HARGA PO IN MENGIKUTI HARGA MODAL ---
-            if (field === 'priceEstimate') {
-                next.priceInPo = value; // Pastikan isi Harga PO In selalu sama persis dengan Harga Modal
-            }
-            // --------------------------------------------------------------------
-
             // When Qty changes → auto-recalc Sisa PR = max(0, qty - stok)
             if (field === 'qtyDetail') {
                 const requestedQty = parseFloat(value) || 0;
-                const originalQty = parseFloat(next.originalQtyDetail) || 0;
-                const sisaQtyPoIn = parseFloat(next.sisaQtyPoIn) || 0;
-                const maxQty = originalQty + sisaQtyPoIn;
-                const qty =
-                    maxQty > 0 ? Math.min(requestedQty, maxQty) : requestedQty;
                 const qtyPo = parseFloat(next.qtyPo) || 0;
+                const maxQty = qtyPo + calculateMaxPrInput(next);
+                const qty = formData.jenisPr
+                    ? requestedQty
+                    : Math.min(requestedQty, maxQty);
                 next.qtyDetail = String(qty);
                 next.qty = String(Math.max(0, qty - qtyPo));
             }
@@ -517,15 +582,15 @@ export default function PurchaseRequirementEdit({
                             prev.map((it) =>
                                 it.id === item.id
                                     ? {
-                                        ...it,
-                                        qtyDetail: Math.max(
-                                            0,
-                                            parseNumber(it.qtyDetail) -
-                                            parseNumber(it.qty),
-                                        ),
-                                        qty: 0,
-                                        originalSisaPr: 0,
-                                    }
+                                          ...it,
+                                          qtyDetail: Math.max(
+                                              0,
+                                              parseNumber(it.qtyDetail) -
+                                                  parseNumber(it.qty),
+                                          ),
+                                          qty: 0,
+                                          originalSisaPr: 0,
+                                      }
                                     : it,
                             ),
                         );
@@ -533,15 +598,15 @@ export default function PurchaseRequirementEdit({
                             setEditingDraft((prev) =>
                                 prev
                                     ? {
-                                        ...prev,
-                                        qtyDetail: Math.max(
-                                            0,
-                                            parseNumber(prev.qtyDetail) -
-                                            parseNumber(prev.qty),
-                                        ),
-                                        qty: 0,
-                                        originalSisaPr: 0,
-                                    }
+                                          ...prev,
+                                          qtyDetail: Math.max(
+                                              0,
+                                              parseNumber(prev.qtyDetail) -
+                                                  parseNumber(prev.qty),
+                                          ),
+                                          qty: 0,
+                                          originalSisaPr: 0,
+                                      }
                                     : prev,
                             );
                         }
@@ -618,21 +683,21 @@ export default function PurchaseRequirementEdit({
                         prev.map((it) =>
                             it.id === item.id
                                 ? {
-                                    ...it,
-                                    kodeMaterial: payload.kd_material,
-                                    namaMaterial: payload.material,
-                                    stok: payload.stok,
-                                    qtyDetail: payload.qty, // raw qty stored in tb_detailpr.qty
-                                    qty: editingDraft.qty, // sisa_pr (computed frontend)
-                                    originalQtyDetail: payload.qty,
-                                    originalSisaPr: editingDraft.qty,
-                                    satuan: payload.unit,
-                                    priceEstimate: payload.unit_price,
-                                    totalPrice: payload.total_price,
-                                    priceInPo: payload.price_po,
-                                    margin: payload.margin,
-                                    remark: payload.renmark,
-                                }
+                                      ...it,
+                                      kodeMaterial: payload.kd_material,
+                                      namaMaterial: payload.material,
+                                      stok: payload.stok,
+                                      qtyDetail: payload.qty, // raw qty stored in tb_detailpr.qty
+                                      qty: editingDraft.qty, // sisa_pr (computed frontend)
+                                      originalQtyDetail: payload.qty,
+                                      originalSisaPr: editingDraft.qty,
+                                      satuan: payload.unit,
+                                      priceEstimate: payload.unit_price,
+                                      totalPrice: payload.total_price,
+                                      priceInPo: payload.price_po,
+                                      margin: payload.margin,
+                                      remark: payload.renmark,
+                                  }
                                 : it,
                         ),
                     );
@@ -734,9 +799,12 @@ export default function PurchaseRequirementEdit({
                             <CardTitle>Data PO Masuk</CardTitle>
                         </CardHeader>
                         <CardContent className="grid gap-4 md:grid-cols-2">
-                            {(!formData.refPo || formData.refPo === forValue) && (
+                            {(!formData.refPo ||
+                                formData.refPo === forValue) && (
                                 <div className="mb-2 rounded-xl border border-primary/10 bg-primary/5 p-4 md:col-span-2">
-                                    <Label className="mb-3 block text-sm font-bold text-gray-700">Pilih Jenis PR:</Label>
+                                    <Label className="mb-3 block text-sm font-bold text-gray-700">
+                                        Pilih Jenis PR:
+                                    </Label>
                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                                         {[
                                             {
@@ -752,18 +820,32 @@ export default function PurchaseRequirementEdit({
                                                 desc: 'Permintaan pembelian untuk kebutuhan operasional atau barang habis pakai.',
                                             },
                                         ].map((jenisObj) => (
-                                            <div key={jenisObj.label} className="flex items-start space-x-3">
+                                            <div
+                                                key={jenisObj.label}
+                                                className="flex items-start space-x-3"
+                                            >
                                                 <Checkbox
                                                     id={`jenis-${jenisObj.label}`}
-                                                    className="h-5 w-5 mt-0.5"
-                                                    checked={formData.jenisPr === jenisObj.label}
-                                                    onCheckedChange={(checked) => {
-                                                        const newJenis = checked ? jenisObj.label : '';
+                                                    className="mt-0.5 h-5 w-5"
+                                                    checked={
+                                                        formData.jenisPr ===
+                                                        jenisObj.label
+                                                    }
+                                                    onCheckedChange={(
+                                                        checked,
+                                                    ) => {
+                                                        const newJenis = checked
+                                                            ? jenisObj.label
+                                                            : '';
                                                         setFormData((prev) => ({
                                                             ...prev,
                                                             jenisPr: newJenis,
-                                                            refPo: checked ? forValue : '',
-                                                            forCustomer: checked ? forValue : '',
+                                                            refPo: checked
+                                                                ? forValue
+                                                                : '',
+                                                            forCustomer: checked
+                                                                ? forValue
+                                                                : '',
                                                         }));
                                                     }}
                                                 />
@@ -808,7 +890,7 @@ export default function PurchaseRequirementEdit({
                                                 className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3"
                                             >
                                                 <div>
-                                                    <div className="font-medium text-sm">
+                                                    <div className="text-sm font-medium">
                                                         {po.ref_po}
                                                     </div>
                                                     <div className="text-xs text-muted-foreground uppercase">
@@ -817,9 +899,13 @@ export default function PurchaseRequirementEdit({
                                                 </div>
                                                 <button
                                                     type="button"
-                                                    className="text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md p-2 transition-colors"
+                                                    className="rounded-md p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600"
                                                     title="Hapus Customer/PO"
-                                                    onClick={() => handleRemoveCustomerPo(po.ref_po)}
+                                                    onClick={() =>
+                                                        handleRemoveCustomerPo(
+                                                            po.ref_po,
+                                                        )
+                                                    }
                                                 >
                                                     <Trash2 className="size-4" />
                                                 </button>
@@ -854,7 +940,8 @@ export default function PurchaseRequirementEdit({
                                             onChange={(event) =>
                                                 setFormData((prev) => ({
                                                     ...prev,
-                                                    forCustomer: event.target.value,
+                                                    forCustomer:
+                                                        event.target.value,
                                                 }))
                                             }
                                         />
@@ -914,10 +1001,11 @@ export default function PurchaseRequirementEdit({
                                             <button
                                                 key={tab.refPo}
                                                 type="button"
-                                                className={`border-b-2 px-4 py-3 text-left text-sm transition-colors ${activePoTab === tab.refPo
-                                                    ? 'border-primary font-semibold text-primary'
-                                                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                                                    }`}
+                                                className={`border-b-2 px-4 py-3 text-left text-sm transition-colors ${
+                                                    activePoTab === tab.refPo
+                                                        ? 'border-primary font-semibold text-primary'
+                                                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                                                }`}
                                                 onClick={() => {
                                                     closeEditCard();
                                                     setActivePoTab(tab.refPo);
@@ -993,9 +1081,9 @@ export default function PurchaseRequirementEdit({
                                         : item;
                                 const computedMargin = isEditing
                                     ? calculateMargin(
-                                        source.priceInPo,
-                                        source.priceEstimate,
-                                    )
+                                          source.priceInPo,
+                                          source.priceEstimate,
+                                      )
                                     : source.margin;
 
                                 return (
@@ -1036,22 +1124,56 @@ export default function PurchaseRequirementEdit({
                                                         ['G2', item.stokG2],
                                                         ['G3', item.stokG3],
                                                         ['G4', item.stokG4],
+                                                        ['MIS', item.mis ?? 0],
+                                                        ['MIB', item.mib ?? 0],
+                                                        [
+                                                            'MIBS',
+                                                            item.mibs ?? 0,
+                                                        ],
+                                                        [
+                                                            'Qty PR Outstanding',
+                                                            item.pr_outstanding ??
+                                                                0,
+                                                        ],
+                                                        [
+                                                            'Qty PO Outstanding',
+                                                            item.po_outstanding ??
+                                                                0,
+                                                        ],
                                                     ].map(([label, value]) => (
                                                         <span
                                                             key={label}
                                                             className="rounded-full border border-blue-100 bg-blue-50 px-2 text-[10px] font-bold text-blue-600"
                                                         >
-                                                            Stok {label}:{' '}
+                                                            {label.includes(
+                                                                'Qty',
+                                                            )
+                                                                ? ''
+                                                                : 'Stok '}
+                                                            {label}:{' '}
                                                             {formatInteger(
                                                                 value,
                                                             )}
                                                         </span>
                                                     ))}
+                                                    <span className="flex items-center gap-1.5 rounded-full border border-orange-100 bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700">
+                                                        DO Belum Dibuat:{' '}
+                                                        {formatInteger(
+                                                            item.do_outstanding ??
+                                                                0,
+                                                        )}
+                                                    </span>
                                                     <span className="flex items-center gap-1.5 rounded-full border border-green-100 bg-green-50 px-2 text-[10px] font-bold text-green-600">
                                                         <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-                                                        Total Stok:{' '}
+                                                        {calculateTotalStock(
+                                                            item,
+                                                        ) < 0
+                                                            ? 'Kredit DO:'
+                                                            : 'Total Stok:'}{' '}
                                                         {formatInteger(
-                                                            item.stok,
+                                                            calculateTotalStock(
+                                                                item,
+                                                            ),
                                                         )}
                                                     </span>
                                                 </div>
@@ -1071,31 +1193,31 @@ export default function PurchaseRequirementEdit({
                                                 {shouldShowClearSisaPrButton(
                                                     item,
                                                 ) && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            title="Update Sisa PR menjadi 0"
-                                                            disabled={
-                                                                item.detailNo &&
-                                                                clearingSisaPrId ===
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        title="Update Sisa PR menjadi 0"
+                                                        disabled={
+                                                            item.detailNo &&
+                                                            clearingSisaPrId ===
                                                                 item.detailNo
-                                                            }
-                                                            onClick={() =>
-                                                                handleClearSisaPr(
-                                                                    item,
-                                                                )
-                                                            }
-                                                        >
-                                                            {item.detailNo &&
-                                                                clearingSisaPrId ===
-                                                                item.detailNo ? (
-                                                                <Spinner className="h-4 w-4" />
-                                                            ) : (
-                                                                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                                            )}
-                                                        </Button>
-                                                    )}
+                                                        }
+                                                        onClick={() =>
+                                                            handleClearSisaPr(
+                                                                item,
+                                                            )
+                                                        }
+                                                    >
+                                                        {item.detailNo &&
+                                                        clearingSisaPrId ===
+                                                            item.detailNo ? (
+                                                            <Spinner className="h-4 w-4" />
+                                                        ) : (
+                                                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                                        )}
+                                                    </Button>
+                                                )}
                                                 {item.qtyPo <= 0 && (
                                                     <Button
                                                         type="button"
@@ -1105,7 +1227,7 @@ export default function PurchaseRequirementEdit({
                                                         disabled={
                                                             item.detailNo &&
                                                             deletingMaterialId ===
-                                                            item.detailNo
+                                                                item.detailNo
                                                         }
                                                         onClick={() =>
                                                             handleDeleteMaterial(
@@ -1114,7 +1236,7 @@ export default function PurchaseRequirementEdit({
                                                         }
                                                     >
                                                         {item.detailNo &&
-                                                            deletingMaterialId ===
+                                                        deletingMaterialId ===
                                                             item.detailNo ? (
                                                             <Spinner className="h-4 w-4" />
                                                         ) : (
@@ -1125,7 +1247,7 @@ export default function PurchaseRequirementEdit({
                                             </div>
                                         </div>
 
-                                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+                                        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
                                             <div className="grid gap-2">
                                                 <Label>Margin (%)</Label>
                                                 <Input
@@ -1149,6 +1271,16 @@ export default function PurchaseRequirementEdit({
                                                 <Input
                                                     type="number"
                                                     min="0"
+                                                    max={
+                                                        formData.jenisPr
+                                                            ? undefined
+                                                            : parseNumber(
+                                                                  source.qtyPo,
+                                                              ) +
+                                                              calculateMaxPrInput(
+                                                                  source,
+                                                              )
+                                                    }
                                                     value={
                                                         (isEditing
                                                             ? source.qtyDetail
@@ -1178,6 +1310,18 @@ export default function PurchaseRequirementEdit({
                                                 <Input
                                                     value={renderValue(
                                                         source.sisaQtyPoIn,
+                                                    )}
+                                                    readOnly
+                                                />
+                                            </div>
+
+                                            <div className="grid gap-2">
+                                                <Label>Current Rem. In</Label>
+                                                <Input
+                                                    value={formatNumber(
+                                                        calculateCurrentRemainingOrderIn(
+                                                            source,
+                                                        ),
                                                     )}
                                                     readOnly
                                                 />
@@ -1263,7 +1407,7 @@ export default function PurchaseRequirementEdit({
                                                     disabled={
                                                         item.detailNo &&
                                                         savingMaterialId ===
-                                                        item.detailNo
+                                                            item.detailNo
                                                     }
                                                     onClick={() =>
                                                         handleSaveCard(item)
@@ -1271,7 +1415,7 @@ export default function PurchaseRequirementEdit({
                                                 >
                                                     {item.detailNo &&
                                                         savingMaterialId ===
-                                                        item.detailNo && (
+                                                            item.detailNo && (
                                                             <Spinner className="mr-2" />
                                                         )}
                                                     Simpan
@@ -1290,8 +1434,8 @@ export default function PurchaseRequirementEdit({
                                             Menampilkan{' '}
                                             {Math.min(
                                                 (listCurrentPage - 1) *
-                                                listPageSize +
-                                                1,
+                                                    listPageSize +
+                                                    1,
                                                 filteredItems.length,
                                             )}
                                             {' – '}
@@ -1560,115 +1704,172 @@ export default function PurchaseRequirementEdit({
 
                                                                 // Struktur item baru yang dimasukkan ke daftar materialItems
                                                                 const newItem =
-                                                                {
-                                                                    id: `manual-${Date.now()}`,
-                                                                    detailNo:
-                                                                        null, // null menandakan barang baru yang ditambahkan saat edit
-                                                                    kodeMaterial:
-                                                                        m.kd_material ??
-                                                                        '',
-                                                                    namaMaterial:
-                                                                        m.material ??
-                                                                        '',
-                                                                    stok:
-                                                                        Math.round(
+                                                                    {
+                                                                        id: `manual-${Date.now()}`,
+                                                                        detailNo:
+                                                                            null, // null menandakan barang baru yang ditambahkan saat edit
+                                                                        kodeMaterial:
+                                                                            m.kd_material ??
+                                                                            '',
+                                                                        namaMaterial:
+                                                                            m.material ??
+                                                                            '',
+                                                                        stok:
+                                                                            Math.round(
+                                                                                Number(
+                                                                                    m.stok,
+                                                                                ),
+                                                                            ) ||
+                                                                            0,
+                                                                        stokG1:
+                                                                            Math.round(
+                                                                                Number(
+                                                                                    m.stok_g1,
+                                                                                ),
+                                                                            ) ||
+                                                                            0,
+                                                                        stokG2:
+                                                                            Math.round(
+                                                                                Number(
+                                                                                    m.stok_g2,
+                                                                                ),
+                                                                            ) ||
+                                                                            0,
+                                                                        stokG3:
+                                                                            Math.round(
+                                                                                Number(
+                                                                                    m.stok_g3,
+                                                                                ),
+                                                                            ) ||
+                                                                            0,
+                                                                        stokG4:
+                                                                            Math.round(
+                                                                                Number(
+                                                                                    m.stok_g4,
+                                                                                ),
+                                                                            ) ||
+                                                                            0,
+                                                                        mis:
                                                                             Number(
-                                                                                m.stok,
-                                                                            ),
-                                                                        ) ||
-                                                                        0,
-                                                                    stokG1:
-                                                                        Math.round(
+                                                                                m.mis,
+                                                                            ) ||
+                                                                            0,
+                                                                        mib:
                                                                             Number(
-                                                                                m.stok_g1,
-                                                                            ),
-                                                                        ) ||
-                                                                        0,
-                                                                    stokG2:
-                                                                        Math.round(
+                                                                                m.mib,
+                                                                            ) ||
+                                                                            0,
+                                                                        mibs:
                                                                             Number(
-                                                                                m.stok_g2,
-                                                                            ),
-                                                                        ) ||
-                                                                        0,
-                                                                    stokG3:
-                                                                        Math.round(
+                                                                                m.mibs,
+                                                                            ) ||
+                                                                            0,
+                                                                        pr_outstanding:
                                                                             Number(
-                                                                                m.stok_g3,
-                                                                            ),
-                                                                        ) ||
-                                                                        0,
-                                                                    stokG4:
-                                                                        Math.round(
+                                                                                m.pr_outstanding,
+                                                                            ) ||
+                                                                            0,
+                                                                        po_outstanding:
                                                                             Number(
-                                                                                m.stok_g4,
-                                                                            ),
-                                                                        ) ||
-                                                                        0,
-                                                                    qty: (Number(
-                                                                        m.sisa_qtypr,
-                                                                    ) > 0
-                                                                        ? Number(
+                                                                                m.po_outstanding,
+                                                                            ) ||
+                                                                            0,
+                                                                        do_outstanding:
+                                                                            Number(
+                                                                                m.do_outstanding,
+                                                                            ) ||
+                                                                            0,
+                                                                        qty: (Number(
                                                                             m.sisa_qtypr,
-                                                                        )
-                                                                        : 1
-                                                                    ).toString(),
-                                                                    qtyDetail:
-                                                                        Number(
-                                                                            m.sisa_qtypr,
-                                                                        ) >
-                                                                            0
+                                                                        ) > 0
                                                                             ? Number(
-                                                                                m.sisa_qtypr,
-                                                                            )
-                                                                            : 1,
-                                                                    originalQtyDetail: 0,
-                                                                    originalSisaPr:
-                                                                        Number(
-                                                                            m.sisa_qtypr,
-                                                                        ) >
-                                                                            0
-                                                                            ? Number(
-                                                                                m.sisa_qtypr,
-                                                                            )
-                                                                            : 1,
-                                                                    satuan:
-                                                                        m.unit ??
-                                                                        '',
-
-                                                                    // --- SINKRONISASI AUTOFILL & BALANCE ---
-                                                                    priceEstimate:
-                                                                        hargaModalTerakhir, // Mengisi field Harga Modal
-                                                                    priceInPo:
-                                                                        hargaModalTerakhir, // Mengisi field Harga PO In agar langsung balance
-                                                                    // ---------------------------------------
-
-                                                                    totalPrice:
-                                                                        Math.round(
-                                                                            (Number(
+                                                                                  m.sisa_qtypr,
+                                                                              )
+                                                                            : 1
+                                                                        ).toString(),
+                                                                        qtyDetail:
+                                                                            Number(
                                                                                 m.sisa_qtypr,
                                                                             ) >
-                                                                                0
+                                                                            0
                                                                                 ? Number(
+                                                                                      m.sisa_qtypr,
+                                                                                  )
+                                                                                : 1,
+                                                                        originalQtyDetail: 0,
+                                                                        originalSisaPr:
+                                                                            Number(
+                                                                                m.sisa_qtypr,
+                                                                            ) >
+                                                                            0
+                                                                                ? Number(
+                                                                                      m.sisa_qtypr,
+                                                                                  )
+                                                                                : 1,
+                                                                        satuan:
+                                                                            m.unit ??
+                                                                            '',
+
+                                                                        // --- SINKRONISASI AUTOFILL & BALANCE ---
+                                                                        priceEstimate:
+                                                                            hargaModalTerakhir, // Mengisi field Harga Modal
+                                                                        priceInPo:
+                                                                            Number(
+                                                                                m.harga,
+                                                                            ) ||
+                                                                            0,
+                                                                        // ---------------------------------------
+
+                                                                        totalPrice:
+                                                                            Math.round(
+                                                                                (Number(
                                                                                     m.sisa_qtypr,
-                                                                                )
-                                                                                : 1) *
+                                                                                ) >
+                                                                                0
+                                                                                    ? Number(
+                                                                                          m.sisa_qtypr,
+                                                                                      )
+                                                                                    : 1) *
+                                                                                    hargaModalTerakhir,
+                                                                            ).toString(),
+                                                                        margin: calculateMargin(
+                                                                            m.harga,
                                                                             hargaModalTerakhir,
-                                                                        ).toString(),
-                                                                    margin: '0.00',
-                                                                    remark: '',
-                                                                    qtyPo: 0,
-                                                                    qtyPoIn:
-                                                                        Number(
-                                                                            m.qty_po_in,
-                                                                        ) ||
-                                                                        0,
-                                                                    sisaQtyPoIn:
-                                                                        Number(
-                                                                            m.sisa_qtypr,
-                                                                        ) ||
-                                                                        0,
-                                                                };
+                                                                        ),
+                                                                        remark: '',
+                                                                        qtyPo: 0,
+                                                                        qtyPoIn:
+                                                                            Number(
+                                                                                m.qty_po_in,
+                                                                            ) ||
+                                                                            0,
+                                                                        sisaQtyPoIn:
+                                                                            Number(
+                                                                                m.sisa_qtypr,
+                                                                            ) ||
+                                                                            0,
+                                                                        refPo:
+                                                                            activePoTab &&
+                                                                            activePoTab !==
+                                                                                'Tanpa PO In'
+                                                                                ? activePoTab
+                                                                                : formData.refPo,
+                                                                        forCustomer:
+                                                                            poTabs.find(
+                                                                                (
+                                                                                    tab,
+                                                                                ) =>
+                                                                                    tab.refPo ===
+                                                                                    activePoTab,
+                                                                            )
+                                                                                ?.customer ||
+                                                                            formData.forCustomer,
+                                                                    };
+
+                                                                newItem.stok =
+                                                                    calculateTotalStock(
+                                                                        newItem,
+                                                                    );
 
                                                                 // Dorong ke list material paling akhir
                                                                 setMaterialItems(
@@ -1701,14 +1902,14 @@ export default function PurchaseRequirementEdit({
                                             Menampilkan{' '}
                                             {Math.min(
                                                 (materialCurrentPage - 1) *
-                                                materialPageSize +
-                                                1,
+                                                    materialPageSize +
+                                                    1,
                                                 materialTotal,
                                             )}
                                             -
                                             {Math.min(
                                                 materialCurrentPage *
-                                                materialPageSize,
+                                                    materialPageSize,
                                                 materialTotal,
                                             )}{' '}
                                             dari {materialTotal} data
@@ -1741,7 +1942,7 @@ export default function PurchaseRequirementEdit({
                                                         (p) =>
                                                             Math.min(
                                                                 materialTotalPages ||
-                                                                p,
+                                                                    p,
                                                                 p + 1,
                                                             ),
                                                     )
