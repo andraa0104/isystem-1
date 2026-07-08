@@ -657,15 +657,16 @@ class PurchaseRequirementController
             $item->stok_g4 = (int) ($item->stok_g4 ?? 0);
             $kd = strtolower(trim((string)$item->kd_material));
             if (isset($metrics[$kd])) {
+                $item->mis = array_key_exists('mis', $metrics[$kd]) ? $metrics[$kd]['mis'] : 0;
                 $item->mib = array_key_exists('mib', $metrics[$kd]) ? $metrics[$kd]['mib'] : 0;
                 $item->mibs = array_key_exists('mibs', $metrics[$kd]) ? $metrics[$kd]['mibs'] : 0;
                 $item->pr_outstanding = array_key_exists('pr_outstanding', $metrics[$kd]) ? $metrics[$kd]['pr_outstanding'] : 0;
                 $item->po_outstanding = array_key_exists('po_outstanding', $metrics[$kd]) ? $metrics[$kd]['po_outstanding'] : 0;
                 $item->do_outstanding = array_key_exists('do_outstanding', $metrics[$kd]) ? $metrics[$kd]['do_outstanding'] : 0;
             } else {
-                $item->mib = 0; $item->mibs = 0; $item->pr_outstanding = 0; $item->po_outstanding = 0; $item->do_outstanding = 0;
+                $item->mis = 0; $item->mib = 0; $item->mibs = 0; $item->pr_outstanding = 0; $item->po_outstanding = 0; $item->do_outstanding = 0;
             }
-            $item->stok = max(0, $item->stok_g1 + $item->stok_g2 + $item->stok_g3 + $item->stok_g4 + $item->mib + $item->mibs + $item->pr_outstanding + $item->po_outstanding - $item->do_outstanding);
+            $item->stok = max(0, $item->stok_g1 + $item->stok_g2 + $item->stok_g3 + $item->stok_g4 + $item->mis + $item->mib + $item->mibs + $item->pr_outstanding + $item->po_outstanding - $item->do_outstanding);
             $item->sisa_qtypr = (float) ($item->sisa_qtypr ?? 0);
             $item->qty_po_in = (float) ($item->qty_po_in ?? 0);
             return $item;
@@ -800,13 +801,14 @@ class PurchaseRequirementController
         $items = $items->map(function ($item) use ($metrics) {
             $kd = strtolower(trim((string)$item->kd_material));
             if (isset($metrics[$kd])) {
+                $item->mis = array_key_exists('mis', $metrics[$kd]) ? $metrics[$kd]['mis'] : 0;
                 $item->mib = array_key_exists('mib', $metrics[$kd]) ? $metrics[$kd]['mib'] : 0;
                 $item->mibs = array_key_exists('mibs', $metrics[$kd]) ? $metrics[$kd]['mibs'] : 0;
                 $item->pr_outstanding = array_key_exists('pr_outstanding', $metrics[$kd]) ? $metrics[$kd]['pr_outstanding'] : 0;
                 $item->po_outstanding = array_key_exists('po_outstanding', $metrics[$kd]) ? $metrics[$kd]['po_outstanding'] : 0;
                 $item->do_outstanding = array_key_exists('do_outstanding', $metrics[$kd]) ? $metrics[$kd]['do_outstanding'] : 0;
             } else {
-                $item->mib = 0; $item->mibs = 0; $item->pr_outstanding = 0; $item->po_outstanding = 0; $item->do_outstanding = 0;
+                $item->mis = 0; $item->mib = 0; $item->mibs = 0; $item->pr_outstanding = 0; $item->po_outstanding = 0; $item->do_outstanding = 0;
             }
 
             return [
@@ -823,12 +825,13 @@ class PurchaseRequirementController
                 'stok_g2' => (float) $item->stok_g2,
                 'stok_g3' => (float) $item->stok_g3,
                 'stok_g4' => (float) $item->stok_g4,
+                'mis' => (float) $item->mis,
                 'mib' => (float) $item->mib,
                 'mibs' => (float) $item->mibs,
                 'pr_outstanding' => (float) $item->pr_outstanding,
                 'po_outstanding' => (float) $item->po_outstanding,
                 'do_outstanding' => (float) $item->do_outstanding,
-                'stok' => max(0, (float) $item->stok + (float) $item->mib + (float) $item->mibs + (float) $item->pr_outstanding + (float) $item->po_outstanding - (float) $item->do_outstanding),
+                'stok' => max(0, (float) $item->stok + (float) $item->mis + (float) $item->mib + (float) $item->mibs + (float) $item->pr_outstanding + (float) $item->po_outstanding - (float) $item->do_outstanding),
                 'margin' => '0%',
                 'remark' => $item->remark,
             ];
@@ -1997,6 +2000,7 @@ class PurchaseRequirementController
         foreach ($kdMaterials as $kd) {
             $metrics[strtolower(trim((string)$kd))] = [
                 'mib' => 0.0, 
+                'mis' => 0.0,
                 'mibs' => 0.0, 
                 'pr_outstanding' => 0.0, 
                 'po_outstanding' => 0.0, 
@@ -2009,11 +2013,12 @@ class PurchaseRequirementController
         // Fetch MIB
         $mibData = \Illuminate\Support\Facades\DB::table('tb_mi')
             ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'), $kdList)
-            ->selectRaw('lower(trim(kd_mat)) as kd_mat, sum(coalesce(cast(mib as decimal(18,4)), 0)) as mib_val')
+            ->selectRaw('lower(trim(kd_mat)) as kd_mat, sum(coalesce(cast(mib as decimal(18,4)), 0)) as mib_val, sum(coalesce(cast(mis as decimal(18,4)), 0)) as mis_val')
             ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'))
             ->get();
         foreach ($mibData as $row) {
             $metrics[$row->kd_mat]['mib'] = (float) $row->mib_val;
+            $metrics[$row->kd_mat]['mis'] = (float) $row->mis_val;
         }
 
         // Fetch MIBS

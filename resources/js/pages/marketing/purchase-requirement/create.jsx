@@ -112,6 +112,7 @@ const calculateTotalStock = (item) => {
         parseNumber(item?.stokG2 ?? item?.stok_g2) +
         parseNumber(item?.stokG3 ?? item?.stok_g3) +
         parseNumber(item?.stokG4 ?? item?.stok_g4) +
+        parseNumber(item?.mis) +
         parseNumber(item?.mib) +
         parseNumber(item?.mibs) +
         parseNumber(item?.pr_outstanding) +
@@ -181,6 +182,7 @@ export default function PurchaseRequirementCreate() {
         stokG2: 0,
         stokG3: 0,
         stokG4: 0,
+        mis: 0,
         lastStock: 0,
         priceEstimate: '',
         totalPrice: 0,
@@ -408,6 +410,7 @@ export default function PurchaseRequirementCreate() {
                         stokG2: item.stok_g2 ?? 0,
                         stokG3: item.stok_g3 ?? 0,
                         stokG4: item.stok_g4 ?? 0,
+                        mis: item.mis ?? 0,
                         mib: item.mib ?? 0,
                         mibs: item.mibs ?? 0,
                         pr_outstanding: item.pr_outstanding ?? 0,
@@ -588,6 +591,7 @@ export default function PurchaseRequirementCreate() {
             stokG2: materialForm.stokG2,
             stokG3: materialForm.stokG3,
             stokG4: materialForm.stokG4,
+            mis: materialForm.mis ?? 0,
             mib: materialForm.mib ?? 0,
             mibs: materialForm.mibs ?? 0,
             pr_outstanding: materialForm.pr_outstanding ?? 0,
@@ -614,6 +618,7 @@ export default function PurchaseRequirementCreate() {
             stokG2: 0,
             stokG3: 0,
             stokG4: 0,
+            mis: 0,
             mib: 0,
             mibs: 0,
             pr_outstanding: 0,
@@ -1322,6 +1327,11 @@ export default function PurchaseRequirementCreate() {
                                                                                     [
                                                                                         'G4',
                                                                                         item.stokG4,
+                                                                                    ],
+                                                                                    [
+                                                                                        'MIS',
+                                                                                        item.mis ??
+                                                                                            0,
                                                                                     ],
                                                                                     [
                                                                                         'MIB',
@@ -2557,6 +2567,9 @@ export default function PurchaseRequirementCreate() {
                                                                                     0,
                                                                                 stokG4:
                                                                                     m.stok_g4 ??
+                                                                                    0,
+                                                                                mis:
+                                                                                    m.mis ??
                                                                                     0,
                                                                                 mib:
                                                                                     m.mib ??
