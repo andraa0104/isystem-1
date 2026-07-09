@@ -391,6 +391,7 @@ export default function PurchaseRequirementEdit({
             item.priceEstimate ?? 0,
         );
         setEditingDraft({
+            detailNo: item.detailNo ?? null,
             kodeMaterial: item.kodeMaterial ?? '',
             namaMaterial: item.namaMaterial ?? '',
             stok: item.stok ?? '',
@@ -430,8 +431,10 @@ export default function PurchaseRequirementEdit({
         const nextQty = parseNumber(source.qtyDetail);
         const qtyPo = parseNumber(source.qtyPo);
         const maxQty = qtyPo + calculateMaxPrInput(source);
+        const isNewDetail =
+            source.detailNo === null || source.detailNo === undefined;
 
-        if (formData.jenisPr) {
+        if (formData.jenisPr || isNewDetail) {
             return nextQty > 0 ? '' : 'Qty PR harus lebih dari 0.';
         }
 
