@@ -101,12 +101,8 @@ const calculateCurrentRemainingOrderIn = (item) => {
     return Math.max(0, parseNumber(item?.sisaQtyPoIn) - qtyDelta);
 };
 
-const calculateMaxPrInput = (item) => {
-    const totalStock = calculateTotalStock(item);
-    return totalStock < 0
-        ? Math.min(parseNumber(item?.sisaQtyPoIn), Math.abs(totalStock))
-        : 0;
-};
+const calculateMaxQtyDetail = (item) =>
+    parseNumber(item?.originalQtyDetail) + parseNumber(item?.sisaQtyPoIn);
 
 const formatNumber = (value) =>
     new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(
@@ -430,7 +426,7 @@ export default function PurchaseRequirementEdit({
 
         const nextQty = parseNumber(source.qtyDetail);
         const qtyPo = parseNumber(source.qtyPo);
-        const maxQty = qtyPo + calculateMaxPrInput(source);
+        const maxQty = calculateMaxQtyDetail(source);
         const isNewDetail =
             source.detailNo === null || source.detailNo === undefined;
 
@@ -443,7 +439,7 @@ export default function PurchaseRequirementEdit({
         }
 
         if (nextQty > maxQty) {
-            return `Qty PR tidak boleh melebihi kebutuhan stok. Maksimal qty adalah ${formatNumber(maxQty)}.`;
+            return `Qty PR tidak boleh melebihi qty awal + sisa qty PO In. Maksimal qty adalah ${formatNumber(maxQty)}.`;
         }
 
         return '';
@@ -463,10 +459,13 @@ export default function PurchaseRequirementEdit({
             if (field === 'qtyDetail') {
                 const requestedQty = parseFloat(value) || 0;
                 const qtyPo = parseFloat(next.qtyPo) || 0;
-                const maxQty = qtyPo + calculateMaxPrInput(next);
-                const qty = formData.jenisPr
-                    ? requestedQty
-                    : Math.min(requestedQty, maxQty);
+                const isNewDetail =
+                    next.detailNo === null || next.detailNo === undefined;
+                const maxQty = calculateMaxQtyDetail(next);
+                const qty =
+                    formData.jenisPr || isNewDetail
+                        ? requestedQty
+                        : Math.min(requestedQty, maxQty);
                 next.qtyDetail = String(qty);
                 next.qty = String(Math.max(0, qty - qtyPo));
             }
@@ -1275,12 +1274,13 @@ export default function PurchaseRequirementEdit({
                                                     type="number"
                                                     min="0"
                                                     max={
-                                                        formData.jenisPr
+                                                        formData.jenisPr ||
+                                                        source.detailNo ===
+                                                            null ||
+                                                        source.detailNo ===
+                                                            undefined
                                                             ? undefined
-                                                            : parseNumber(
-                                                                  source.qtyPo,
-                                                              ) +
-                                                              calculateMaxPrInput(
+                                                            : calculateMaxQtyDetail(
                                                                   source,
                                                               )
                                                     }
