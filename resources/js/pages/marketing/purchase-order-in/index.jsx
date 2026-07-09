@@ -2226,31 +2226,35 @@ export default function PurchaseOrderInIndex({
                                                     'outstanding' ||
                                                 activeModal === 'sisa' ? (
                                                     <div className="flex items-center gap-2">
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                if (
-                                                                    !canUpdate
-                                                                ) {
-                                                                    toastError(
-                                                                        'Akses edit tidak diizinkan untuk menu ini.',
-                                                                    );
-                                                                    return;
-                                                                }
+                                                        {!Number(
+                                                            item.has_do ?? 0,
+                                                        ) && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    if (
+                                                                        !canUpdate
+                                                                    ) {
+                                                                        toastError(
+                                                                            'Akses edit tidak diizinkan untuk menu ini.',
+                                                                        );
+                                                                        return;
+                                                                    }
 
-                                                                setActiveModal(
-                                                                    null,
-                                                                );
-                                                                router.visit(
-                                                                    `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
-                                                                );
-                                                            }}
-                                                            title="Edit"
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                        </Button>
+                                                                    setActiveModal(
+                                                                        null,
+                                                                    );
+                                                                    router.visit(
+                                                                        `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
+                                                                    );
+                                                                }}
+                                                                title="Edit"
+                                                            >
+                                                                <Pencil className="size-4" />
+                                                            </Button>
+                                                        )}
                                                         {activeModal ===
                                                             'outstanding' && (
                                                             <Button

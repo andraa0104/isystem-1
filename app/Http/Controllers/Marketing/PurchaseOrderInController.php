@@ -252,6 +252,70 @@ class PurchaseOrderInController
         return (int) $value;
     }
 
+    private function replaceRefPoValue(?string $value, string $oldRefPo, string $newRefPo): string
+    {
+        $text = trim((string) ($value ?? ''));
+        if ($text === '') {
+            return $text;
+        }
+
+        $oldKey = strtolower(trim($oldRefPo));
+        $parts = array_map('trim', explode(',', $text));
+        $changed = false;
+
+        $parts = array_map(function ($part) use ($oldKey, $newRefPo, &$changed) {
+            if (strtolower(trim($part)) === $oldKey) {
+                $changed = true;
+                return $newRefPo;
+            }
+
+            return $part;
+        }, $parts);
+
+        return $changed ? implode(', ', $parts) : $text;
+    }
+
+    private function syncPurchaseRequirementRefPo(string $oldRefPo, string $newRefPo): void
+    {
+        $oldRefPo = trim($oldRefPo);
+        $newRefPo = trim($newRefPo);
+
+        if ($oldRefPo === '' || $newRefPo === '' || strcasecmp($oldRefPo, $newRefPo) === 0) {
+            return;
+        }
+
+        $refPoMatches = function ($query) use ($oldRefPo) {
+            $query->whereRaw('lower(trim(ref_po)) = lower(trim(?))', [$oldRefPo])
+                ->orWhereRaw("find_in_set(lower(trim(?)), replace(lower(coalesce(ref_po, '')), ' ', '')) > 0", [$oldRefPo]);
+        };
+
+        DB::table('tb_pr')
+            ->where($refPoMatches)
+            ->orderBy('no_pr')
+            ->get(['no_pr', 'ref_po'])
+            ->each(function ($row) use ($oldRefPo, $newRefPo) {
+                DB::table('tb_pr')
+                    ->where('no_pr', $row->no_pr)
+                    ->update([
+                        'ref_po' => $this->replaceRefPoValue($row->ref_po, $oldRefPo, $newRefPo),
+                    ]);
+            });
+
+        DB::table('tb_detailpr')
+            ->where($refPoMatches)
+            ->orderBy('no_pr')
+            ->orderBy('no')
+            ->get(['no_pr', 'no', 'ref_po'])
+            ->each(function ($row) use ($oldRefPo, $newRefPo) {
+                DB::table('tb_detailpr')
+                    ->where('no_pr', $row->no_pr)
+                    ->where('no', $row->no)
+                    ->update([
+                        'ref_po' => $this->replaceRefPoValue($row->ref_po, $oldRefPo, $newRefPo),
+                    ]);
+            });
+    }
+
     public function index(Request $request)
     {
         $search = trim((string) $request->query('search', ''));
@@ -526,6 +590,7 @@ class PurchaseOrderInController
                     ->selectRaw('min(p.id) as id, p.kode_poin, p.no_poin, p.date_poin, p.created_at, p.delivery_date, p.customer_name, p.grand_total')
                     ->selectRaw('max(trim(kdo.no_do)) as no_do')
                     ->selectRaw("max({$doDateExpression}) as last_do_date")
+                    ->selectRaw('1 as has_do')
                     ->groupBy('p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.created_at', 'p.delivery_date', 'p.customer_name', 'p.grand_total', DB::raw('lower(trim(kdo.no_do))'));
 
                 if ($search !== '') {
@@ -591,10 +656,12 @@ class PurchaseOrderInController
                 $query->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin');
             }
 
+            $query->leftJoinSub($doStats, 'dos', function ($join) {
+                $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
+            })->selectRaw('case when coalesce(dos.do_count, 0) > 0 then 1 else 0 end as has_do');
+
             if ($needsDoDate) {
-                $query->leftJoinSub($doStats, 'dos', function ($join) {
-                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
-                })->selectRaw('dos.last_do_date as last_do_date');
+                $query->selectRaw('dos.last_do_date as last_do_date');
             }
 
             if ($needsPrDate) {
@@ -1353,6 +1420,29 @@ class PurchaseOrderInController
 
         try {
             DB::transaction(function () use ($validated, $kodePoin) {
+                $header = DB::table('tb_poin')
+                    ->where('kode_poin', $kodePoin)
+                    ->lockForUpdate()
+                    ->first(['kode_poin', 'no_poin']);
+
+                if (!$header) {
+                    throw new \RuntimeException('Data PO In tidak ditemukan.');
+                }
+
+                $oldNoPoin = trim((string) ($header->no_poin ?? ''));
+                $newNoPoin = trim((string) $validated['no_poin']);
+
+                $duplicateExists = DB::table('tb_poin')
+                    ->whereRaw('lower(trim(no_poin)) = lower(trim(?))', [$newNoPoin])
+                    ->where('kode_poin', '<>', $kodePoin)
+                    ->exists();
+
+                if ($duplicateExists) {
+                    throw ValidationException::withMessages([
+                        'no_poin' => "No PO In {$newNoPoin} sudah ada di database.",
+                    ]);
+                }
+
                 $nowGmt8 = now('Asia/Singapore');
                 $datePoin = $this->parseDateOrNull($validated['date'] ?? null);
                 $deliveryDate = $this->parseDateOrNull($validated['delivery_date'] ?? null);
@@ -1374,7 +1464,7 @@ class PurchaseOrderInController
                 DB::table('tb_poin')
                     ->where('kode_poin', $kodePoin)
                     ->update([
-                        'no_poin' => trim((string) $validated['no_poin']),
+                        'no_poin' => $newNoPoin,
                         'date_poin' => $datePoin,
                         'delivery_date' => $deliveryDate,
                         'customer_name' => trim((string) $validated['customer_name']),
@@ -1389,6 +1479,8 @@ class PurchaseOrderInController
                         'grand_total' => $grandTotal,
                         'updated_at' => $nowGmt8,
                     ]);
+
+                $this->syncPurchaseRequirementRefPo($oldNoPoin, $newNoPoin);
             });
 
             // [FLUSH] Kosongkan cache saat PO In di-update
@@ -1401,6 +1493,8 @@ class PurchaseOrderInController
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil diperbarui.');
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             return back()->with('error', 'Gagal memperbarui data: ' . $e->getMessage());
         }
