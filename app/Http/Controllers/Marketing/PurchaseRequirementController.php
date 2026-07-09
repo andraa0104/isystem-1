@@ -21,7 +21,33 @@ class PurchaseRequirementController
             return ' ';
         }
 
-        return mb_substr($renmark, 0, 30);
+        return mb_substr($renmark, 0, $this->legacyRenmarkMaxLength());
+    }
+
+    private function legacyRenmarkMaxLength(): int
+    {
+        static $maxLength = null;
+
+        if ($maxLength !== null) {
+            return $maxLength;
+        }
+
+        try {
+            $database = DB::selectOne('select database() as db')->db ?? null;
+            $length = $database
+                ? DB::table('information_schema.columns')
+                    ->where('table_schema', $database)
+                    ->where('table_name', 'tb_ubah')
+                    ->where('column_name', 'renmark')
+                    ->value('character_maximum_length')
+                : null;
+
+            $maxLength = max(1, min(255, (int) ($length ?: 30)));
+        } catch (\Throwable $e) {
+            $maxLength = 30;
+        }
+
+        return $maxLength;
     }
 
     private function prQtyValidationMessage(float $originalQty, float $qtyPoUsed, float $newQty, float $stock = 0, float $qtyPoIn = 0, float $sisaQtyPoIn = 0): ?string
@@ -1329,6 +1355,19 @@ class PurchaseRequirementController
                         ? max(0, (float) $oldDetail->qty - (float) $oldDetail->sisa_pr)
                         : 0;
                     $sisaPr = max(0, $qtyRaw - $initialRealizedQty);
+                    $detailChanged = ! $oldDetail
+                        || trim((string) ($oldDetail->ref_po ?? '')) !== trim((string) $itemRefPo)
+                        || trim((string) ($oldDetail->for_customer ?? '')) !== trim((string) ($item['for_customer'] ?? $request->input('for_customer')))
+                        || trim((string) ($oldDetail->kd_material ?? '')) !== trim((string) ($item['kd_material'] ?? ''))
+                        || trim((string) ($oldDetail->material ?? '')) !== trim((string) ($item['material'] ?? ''))
+                        || (float) ($oldDetail->qty ?? 0) !== $qtyRaw
+                        || trim((string) ($oldDetail->unit ?? '')) !== trim((string) ($item['unit'] ?? ''))
+                        || (float) ($oldDetail->stok ?? 0) !== $stok
+                        || (float) ($oldDetail->unit_price ?? 0) !== (float) ($item['unit_price'] ?? 0)
+                        || (float) ($oldDetail->total_price ?? 0) !== (float) ($item['total_price'] ?? 0)
+                        || (float) ($oldDetail->price_po ?? 0) !== (float) ($item['price_po'] ?? 0)
+                        || trim((string) ($oldDetail->margin ?? '')) !== trim((string) ($item['margin'] ?? '0%'))
+                        || trim((string) ($oldDetail->renmark ?? '')) !== trim((string) ($item['renmark'] ?? ''));
 
                     $insertDetails[] = [
                         'date' => $dateFormatted,
@@ -1346,34 +1385,36 @@ class PurchaseRequirementController
                         'total_price' => $item['total_price'] ?? null,
                         'price_po' => $item['price_po'] ?? null,
                         'margin' => $item['margin'] ?: '0%',
-                        'renmark' => $this->legacyRenmarkValue($item['renmark'] ?? null),
+                        'renmark' => $item['renmark'] ?: ' ',
                         'qty_po' => 0,
                         'sisa_pr' => $sisaPr,
                         'jenis_pr' => $request->input('jenis_pr'),
                     ];
 
-                    $insertUbah[] = [
-                        'no_pr' => $noPr,
-                        'date' => $dateFormatted,
-                        'payment' => $request->input('payment'),
-                        'ref_po' => $itemRefPo,
-                        'no' => $noValue,
-                        'id' => $noValue,
-                        'for_customer' => $item['for_customer'] ?? $request->input('for_customer'),
-                        'kd_material' => $item['kd_material'] ?? null,
-                        'material' => $item['material'] ?? null,
-                        'qty' => $qtyRaw,
-                        'qty_po' => $qtyRaw,
-                        'sisa_pr' => $sisaPr,
-                        'unit' => $item['unit'] ?? null,
-                        'stok' => $stok,
-                        'unit_price' => $item['unit_price'] ?? null,
-                        'total_price' => $item['total_price'] ?? null,
-                        'price_po' => $item['price_po'] ?? null,
-                        'margin' => $item['margin'] ?: '0%',
-                        'renmark' => $item['renmark'] ?: ' ',
-                        'tgl_ubah' => $timestamp,
-                    ];
+                    if ($detailChanged) {
+                        $insertUbah[] = [
+                            'no_pr' => $noPr,
+                            'date' => $dateFormatted,
+                            'payment' => $request->input('payment'),
+                            'ref_po' => $itemRefPo,
+                            'no' => $noValue,
+                            'id' => $noValue,
+                            'for_customer' => $item['for_customer'] ?? $request->input('for_customer'),
+                            'kd_material' => $item['kd_material'] ?? null,
+                            'material' => $item['material'] ?? null,
+                            'qty' => $qtyRaw,
+                            'qty_po' => $qtyRaw,
+                            'sisa_pr' => $sisaPr,
+                            'unit' => $item['unit'] ?? null,
+                            'stok' => $stok,
+                            'unit_price' => $item['unit_price'] ?? null,
+                            'total_price' => $item['total_price'] ?? null,
+                            'price_po' => $item['price_po'] ?? null,
+                            'margin' => $item['margin'] ?: '0%',
+                            'renmark' => $this->legacyRenmarkValue($item['renmark'] ?? null),
+                            'tgl_ubah' => $timestamp,
+                        ];
+                    }
 
                     if (!empty($kodePoinList) && ($item['kd_material'] ?? null)) {
                         DB::table('tb_detailpoin')
