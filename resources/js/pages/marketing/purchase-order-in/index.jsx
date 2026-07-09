@@ -1800,7 +1800,7 @@ export default function PurchaseOrderInIndex({
                                                         rowSpan={2}
                                                         className="w-px px-1 py-2 text-right align-middle whitespace-nowrap"
                                                     >
-                                                        Price PO In
+                                                        Price
                                                     </th>
                                                     <th
                                                         rowSpan={2}
