@@ -13,6 +13,17 @@ use Carbon\Carbon;
 
 class PurchaseRequirementController
 {
+    private function legacyRenmarkValue($value): string
+    {
+        $renmark = trim((string) ($value ?? ''));
+
+        if ($renmark === '') {
+            return ' ';
+        }
+
+        return mb_substr($renmark, 0, 30);
+    }
+
     private function prQtyValidationMessage(float $originalQty, float $qtyPoUsed, float $newQty, float $stock = 0, float $qtyPoIn = 0, float $sisaQtyPoIn = 0): ?string
     {
         $maxQtyByPoIn = $originalQty + $sisaQtyPoIn;
@@ -1335,7 +1346,7 @@ class PurchaseRequirementController
                         'total_price' => $item['total_price'] ?? null,
                         'price_po' => $item['price_po'] ?? null,
                         'margin' => $item['margin'] ?: '0%',
-                        'renmark' => $item['renmark'] ?: ' ',
+                        'renmark' => $this->legacyRenmarkValue($item['renmark'] ?? null),
                         'qty_po' => 0,
                         'sisa_pr' => $sisaPr,
                         'jenis_pr' => $request->input('jenis_pr'),
@@ -1506,7 +1517,7 @@ class PurchaseRequirementController
                 'total_price' => $request->input('total_price'),
                 'price_po' => $request->input('price_po'),
                 'margin' => $request->input('margin') ?: '0%',
-                'renmark' => $request->input('renmark') ?: ' ',
+                'renmark' => $this->legacyRenmarkValue($request->input('renmark')),
                 'tgl_ubah' => $timestamp,
             ]);
 
@@ -1614,7 +1625,7 @@ class PurchaseRequirementController
                     'total_price' => $detail->total_price,
                     'price_po' => $detail->price_po,
                     'margin' => $detail->margin ?: '0%',
-                    'renmark' => $detail->renmark ?: ' ',
+                    'renmark' => $this->legacyRenmarkValue($detail->renmark),
                     'tgl_ubah' => $timestamp,
                 ]);
             });
