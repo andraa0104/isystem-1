@@ -1478,13 +1478,6 @@ export default function PurchaseRequirementIndex({
                                                 >
                                                     <Eye className="size-4" />
                                                 </button>
-                                                <Link
-                                                    href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/edit`}
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    title="Edit"
-                                                >
-                                                    <Pencil className="size-4" />
-                                                </Link>
                                                 <a
                                                     href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/print`}
                                                     className="text-muted-foreground transition hover:text-foreground"
