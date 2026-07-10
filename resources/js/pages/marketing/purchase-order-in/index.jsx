@@ -1467,7 +1467,6 @@ export default function PurchaseOrderInIndex({
                                                     >
                                                         <Eye className="size-4" />
                                                     </Button>
-                                                    {/* Edit icon removed from main table per user request */}
                                                     <a
                                                         href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
                                                         target="_blank"
