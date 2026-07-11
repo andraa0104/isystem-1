@@ -907,6 +907,12 @@ class PurchaseOrderInController
             ->orderBy('d.id')
             ->get();
 
+        file_put_contents(storage_path('po_debug.json'), json_encode([
+            'kode_poin' => $kodePoin,
+            'connection_db' => DB::connection()->getDatabaseName(),
+            'items' => $purchaseOrderInItems
+        ], JSON_PRETTY_PRINT));
+
         return Inertia::render('marketing/purchase-order-in/edit', [
             'purchaseOrderIn' => $purchaseOrderIn,
             'purchaseOrderInItems' => $purchaseOrderInItems,
