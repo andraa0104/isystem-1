@@ -226,7 +226,7 @@ export default function PurchaseOrderInEdit({
         return items.some((item) => {
             const sQtyDo = toNumber(item.sisaQtyDo ?? 0);
             const qtyVal = toNumber(item.qty ?? 0);
-            return sQtyDo !== 0 && sQtyDo !== qtyVal;
+            return sQtyDo !== qtyVal;
         });
     }, [items]);
 
