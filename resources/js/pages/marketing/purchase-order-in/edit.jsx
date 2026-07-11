@@ -225,8 +225,8 @@ export default function PurchaseOrderInEdit({
     const exhibitsPartialDo = useMemo(() => {
         return items.some((item) => {
             const sQtyDo = toNumber(item.sisaQtyDo ?? 0);
-            const oQty = toNumber(item.originalQty ?? item.qty ?? 0);
-            return sQtyDo !== 0 && sQtyDo !== oQty;
+            const qtyVal = toNumber(item.qty ?? 0);
+            return sQtyDo !== 0 && sQtyDo !== qtyVal;
         });
     }, [items]);
 
@@ -1483,17 +1483,19 @@ export default function PurchaseOrderInEdit({
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleEditItem(item)
-                                                        }
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Button>
+                                                    {(!exhibitsPartialDo || (toNumber(item.sisaQtyDo ?? 0) !== 0 && toNumber(item.sisaQtyDo ?? 0) !== toNumber(item.qty ?? 0))) && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                handleEditItem(item)
+                                                            }
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Button>
+                                                    )}
                                                     {!item.hasPr && !exhibitsPartialDo && (
                                                         <Button
                                                             type="button"
