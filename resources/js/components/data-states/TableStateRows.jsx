@@ -3,9 +3,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/data-states/ErrorState';
 import { TableCell, TableRow } from '@/components/ui/table';
 
+const getSafeLength = (val, defaultValue = 5) => {
+    const num = Number(val);
+    return isNaN(num) || !isFinite(num) || num < 0 ? defaultValue : num;
+};
+
 const SkeletonCells = ({ columns }) => {
     const widths = ['w-3/5', 'w-4/5', 'w-2/5', 'w-1/2'];
-    return Array.from({ length: columns }).map((_, index) => (
+    const numCols = getSafeLength(columns, 5);
+    return Array.from({ length: numCols }).map((_, index) => (
         <div key={index} className="py-1">
             <Skeleton className={`h-4 ${widths[index % widths.length]}`} />
         </div>
@@ -47,11 +53,14 @@ export function ShadcnTableStateRows({
     emptyActionHref,
     onEmptyAction,
 }) {
+    const safeColumns = getSafeLength(columns, 5);
+    const safeSkeletonRows = getSafeLength(skeletonRows, 5);
+
     if (loading) {
-        return Array.from({ length: skeletonRows }).map((_, rowIndex) => (
+        return Array.from({ length: safeSkeletonRows }).map((_, rowIndex) => (
             <TableRow key={`sk-${rowIndex}`}>
-                <TableCell colSpan={columns} className="py-3">
-                    <SkeletonCells columns={Math.min(columns, 6)} />
+                <TableCell colSpan={safeColumns} className="py-3">
+                    <SkeletonCells columns={Math.min(safeColumns, 6)} />
                 </TableCell>
             </TableRow>
         ));
@@ -60,7 +69,7 @@ export function ShadcnTableStateRows({
     if (error) {
         return (
             <TableRow>
-                <TableCell colSpan={columns} className="py-3">
+                <TableCell colSpan={safeColumns} className="py-3">
                     <ErrorState error={error} onRetry={onRetry} />
                 </TableCell>
             </TableRow>
@@ -70,7 +79,7 @@ export function ShadcnTableStateRows({
     if (isEmpty) {
         return (
             <TableRow>
-                <TableCell colSpan={columns} className="py-6">
+                <TableCell colSpan={safeColumns} className="py-6">
                     <EmptyRowContent
                         title={emptyTitle}
                         description={emptyDescription}
@@ -99,11 +108,14 @@ export function PlainTableStateRows({
     emptyActionHref,
     onEmptyAction,
 }) {
+    const safeColumns = getSafeLength(columns, 5);
+    const safeSkeletonRows = getSafeLength(skeletonRows, 5);
+
     if (loading) {
-        return Array.from({ length: skeletonRows }).map((_, rowIndex) => (
+        return Array.from({ length: safeSkeletonRows }).map((_, rowIndex) => (
             <tr key={`sk-${rowIndex}`} className="border-t border-sidebar-border/70">
-                <td colSpan={columns} className="px-4 py-3">
-                    <SkeletonCells columns={Math.min(columns, 6)} />
+                <td colSpan={safeColumns} className="px-4 py-3">
+                    <SkeletonCells columns={Math.min(safeColumns, 6)} />
                 </td>
             </tr>
         ));
@@ -112,7 +124,7 @@ export function PlainTableStateRows({
     if (error) {
         return (
             <tr className="border-t border-sidebar-border/70">
-                <td colSpan={columns} className="px-4 py-3">
+                <td colSpan={safeColumns} className="px-4 py-3">
                     <ErrorState error={error} onRetry={onRetry} />
                 </td>
             </tr>
@@ -122,7 +134,7 @@ export function PlainTableStateRows({
     if (isEmpty) {
         return (
             <tr className="border-t border-sidebar-border/70">
-                <td colSpan={columns} className="px-4 py-6">
+                <td colSpan={safeColumns} className="px-4 py-6">
                     <EmptyRowContent
                         title={emptyTitle}
                         description={emptyDescription}
