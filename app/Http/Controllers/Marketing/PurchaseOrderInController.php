@@ -1429,6 +1429,30 @@ class PurchaseOrderInController
                     throw new \RuntimeException('Data PO In tidak ditemukan.');
                 }
 
+                $hasPartialDo = $this->hasPartialDo($kodePoin);
+                if ($hasPartialDo) {
+                    $current = DB::table('tb_poin')
+                        ->where('kode_poin', $kodePoin)
+                        ->first();
+                    if ($current) {
+                        $hasChanged = 
+                            trim((string)$validated['no_poin']) !== trim((string)($current->no_poin ?? '')) ||
+                            $this->parseDateOrNull($validated['date'] ?? null) !== $current->date_poin ||
+                            $this->parseDateOrNull($validated['delivery_date'] ?? null) !== $current->delivery_date ||
+                            trim((string)$validated['customer_name']) !== trim((string)($current->customer_name ?? '')) ||
+                            trim((string)($validated['payment_term'] ?? '')) !== trim((string)($current->payment_term ?? '')) ||
+                            trim((string)$validated['franco_loco']) !== trim((string)($current->franco_loco ?? '')) ||
+                            trim((string)($validated['note'] ?? '')) !== trim((string)($current->note_doc ?? '')) ||
+                            (float)($validated['ppn_percent'] ?? 0) !== (float)($current->ppn_input_percent ?? 0);
+
+                        if ($hasChanged) {
+                            throw ValidationException::withMessages([
+                                'no_poin' => 'Header PO tidak boleh diubah karena sudah ada DO terkirim (status partial).',
+                            ]);
+                        }
+                    }
+                }
+
                 $oldNoPoin = trim((string) ($header->no_poin ?? ''));
                 $newNoPoin = trim((string) $validated['no_poin']);
 
@@ -1558,6 +1582,12 @@ class PurchaseOrderInController
                 ], 404);
             }
 
+            if ($this->hasPartialDo($kodePoin)) {
+                return response()->json([
+                    'message' => 'Material tidak dapat ditambahkan karena PO In ini memiliki pengiriman partial.',
+                ], 422);
+            }
+
             $validated = $request->validate([
                 'kd_material' => ['nullable', 'numeric'],
                 'material' => ['required', 'string', 'max:255'],
@@ -1654,25 +1684,61 @@ class PurchaseOrderInController
             $originalQty = (float) ($detail->qty ?? 0);
             $sisaQtyPrBefore = (float) ($detail->sisa_qtypr ?? 0);
             $usedQtyPr = max(0, $originalQty - $sisaQtyPrBefore);
-
-            if ($sisaQtyPrBefore == 0.0 && $qty <= $originalQty) {
-                return response()->json([
-                    'message' => 'Sisa Qty PR sudah 0. Qty harus lebih dari qty awal.',
-                ], 422);
-            }
-
-            if ($sisaQtyPrBefore != 0.0 && $qty < $usedQtyPr) {
-                return response()->json([
-                    'message' => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr.',
-                ], 422);
-            }
-
             $sisaQtyDoBefore = (float) ($detail->sisa_qtydo ?? $originalQty);
-            $usedQtyDo = max(0, $originalQty - $sisaQtyDoBefore);
-            if ($qty < $usedQtyDo) {
-                return response()->json([
-                    'message' => 'Qty tidak boleh kurang dari qty yang sudah ada penerimaan material (MI).',
-                ], 422);
+
+            $hasPartialDo = $this->hasPartialDo($kodePoin);
+            if ($hasPartialDo) {
+                $isPartialDoItem = ($sisaQtyDoBefore != 0.0) && ($sisaQtyDoBefore != $originalQty);
+                if (!$isPartialDoItem) {
+                    return response()->json([
+                        'message' => 'Material ini tidak dapat diubah karena PO In ini memiliki pengiriman partial.',
+                    ], 422);
+                }
+
+                $deliveredQty = $originalQty - $sisaQtyDoBefore;
+                if ($qty < $deliveredQty) {
+                    return response()->json([
+                        'message' => 'Qty tidak boleh kurang dari jumlah yang sudah terkirim (' . number_format($deliveredQty, 0, ',', '.') . ').',
+                    ], 422);
+                }
+
+                if ($qty < $usedQtyPr) {
+                    return response()->json([
+                        'message' => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr (' . number_format($usedQtyPr, 0, ',', '.') . ').',
+                    ], 422);
+                }
+
+                $hasOtherChanges = 
+                    (string)$this->normalizeMaterialCode($validated['kd_material'] ?? null) !== (string)$detail->kd_material ||
+                    trim((string) $validated['material']) !== trim((string)$detail->material) ||
+                    trim((string) ($validated['satuan'] ?? '')) !== trim((string)($detail->satuan ?? '')) ||
+                    (float)($validated['price_po_in'] ?? 0) !== (float)($detail->price_po_in ?? 0) ||
+                    trim((string) ($validated['remark'] ?? '')) !== trim((string)($detail->remark ?? ''));
+
+                if ($hasOtherChanges) {
+                    return response()->json([
+                        'message' => 'Hanya Qty yang boleh diubah untuk menutup sisa DO.',
+                    ], 422);
+                }
+            } else {
+                if ($sisaQtyPrBefore == 0.0 && $qty <= $originalQty) {
+                    return response()->json([
+                        'message' => 'Sisa Qty PR sudah 0. Qty harus lebih dari qty awal.',
+                    ], 422);
+                }
+
+                if ($sisaQtyPrBefore != 0.0 && $qty < $usedQtyPr) {
+                    return response()->json([
+                        'message' => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr.',
+                    ], 422);
+                }
+
+                $usedQtyDo = max(0, $originalQty - $sisaQtyDoBefore);
+                if ($qty < $usedQtyDo) {
+                    return response()->json([
+                        'message' => 'Qty tidak boleh kurang dari qty yang sudah ada penerimaan material (MI).',
+                    ], 422);
+                }
             }
 
             $price = (float) ($validated['price_po_in'] ?? 0);
@@ -1683,6 +1749,7 @@ class PurchaseOrderInController
 
             $kdMaterial = $this->normalizeMaterialCode($validated['kd_material'] ?? null);
             $sisaQtyPr = max(0, $sisaQtyPrBefore + ($qty - $originalQty));
+            $sisaQtyDo = max(0.0, $sisaQtyDoBefore + ($qty - $originalQty));
 
             DB::table('tb_detailpoin')
                 ->where('kode_poin', $kodePoin)
@@ -1692,7 +1759,7 @@ class PurchaseOrderInController
                     'material' => trim((string) $validated['material']),
                     'qty' => $qty,
                     'sisa_qtypr' => $sisaQtyPr,
-                    'sisa_qtydo' => $qty,
+                    'sisa_qtydo' => $sisaQtyDo,
                     'satuan' => trim((string) ($validated['satuan'] ?? '')),
                     'price_po_in' => $price,
                     'total_price_po_in' => $total,
@@ -1726,6 +1793,12 @@ class PurchaseOrderInController
                 return response()->json([
                     'message' => 'Data PO In tidak ditemukan.',
                 ], 404);
+            }
+
+            if ($this->hasPartialDo($kodePoin)) {
+                return response()->json([
+                    'message' => 'Material tidak dapat dihapus karena PO In ini memiliki pengiriman partial.',
+                ], 422);
             }
 
             $detail = DB::table('tb_detailpoin')
@@ -1803,5 +1876,14 @@ class PurchaseOrderInController
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function hasPartialDo($kodePoin)
+    {
+        return DB::table('tb_detailpoin')
+            ->where('kode_poin', $kodePoin)
+            ->whereRaw('coalesce(sisa_qtydo, 0) <> 0')
+            ->whereRaw('coalesce(sisa_qtydo, 0) <> coalesce(qty, 0)')
+            ->exists();
     }
 }

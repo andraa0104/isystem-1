@@ -1115,7 +1115,7 @@ class DashboardController
         }
 
         if ($hasAnyPhysicalTable) {
-            $result['physical'] = $hmis + $hmib + $hmibs + $hmi + $hdo + $hdob + $hdot;
+            $result['physical'] = $hmis + $hmib + $hmi + $hdo + $hdob + $hdot;
         }
 
         // 3. HITUNG LAST UPDATE KHUSUS STOK FISIK
@@ -1128,17 +1128,6 @@ class DashboardController
                 ->value('last_update');
             if ($lastUpdateMi) {
                 $physicalDates[] = $this->normalizeDate($lastUpdateMi);
-            }
-        }
-
-        if (Schema::hasTable('tb_kdmib') && Schema::hasTable('tb_mib')) {
-            $postingTglSql = $this->normalizedDateSql('tb_kdmib.posting_tgl');
-            $lastUpdateMib = DB::table('tb_kdmib')
-                ->join('tb_mib', 'tb_kdmib.no_doc', '=', 'tb_mib.no_doc')
-                ->selectRaw("MAX($postingTglSql) as last_update")
-                ->value('last_update');
-            if ($lastUpdateMib) {
-                $physicalDates[] = $this->normalizeDate($lastUpdateMib);
             }
         }
 

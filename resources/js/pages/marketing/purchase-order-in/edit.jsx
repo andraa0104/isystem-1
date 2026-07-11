@@ -186,7 +186,7 @@ export default function PurchaseOrderInEdit({
             purchaseOrderIn?.payment_term ?? defaults.payment_term ?? '30 Hari',
         ppnPercent:
             purchaseOrderIn?.ppn_input_percent !== undefined &&
-            purchaseOrderIn?.ppn_input_percent !== null
+                purchaseOrderIn?.ppn_input_percent !== null
                 ? String(purchaseOrderIn.ppn_input_percent)
                 : '',
         francoLoco: purchaseOrderIn?.franco_loco ?? '',
@@ -205,23 +205,30 @@ export default function PurchaseOrderInEdit({
     const [items, setItems] = useState(
         Array.isArray(purchaseOrderInItems)
             ? purchaseOrderInItems.map((item, index) => ({
-                  id: `db-${item.id ?? index}`,
-                  dbId: item.id ?? null,
-                  kodeMaterial: item.kd_material ?? '',
-                  material: item.material ?? '',
-                  qty: String(item.qty ?? ''),
-                  unit: item.satuan ?? '',
-                  unitPrice: String(toNumber(item.price_po_in ?? 0)),
-                  totalPricePoIn: String(toNumber(item.total_price_po_in ?? 0)),
-                  note: item.remark ?? '',
-                  hasPr: !!(item.has_pr && toNumber(item.has_pr) > 0),
-                  originalQty: toNumber(item.qty ?? 0),
-                  sisaQtyPr: toNumber(item.sisa_qtypr ?? 0),
-                  sisaQtyDo: toNumber(item.sisa_qtydo ?? 0),
-              }))
+                id: `db-${item.id ?? index}`,
+                dbId: item.id ?? null,
+                kodeMaterial: item.kd_material ?? '',
+                material: item.material ?? '',
+                qty: String(item.qty ?? ''),
+                unit: item.satuan ?? '',
+                unitPrice: String(toNumber(item.price_po_in ?? 0)),
+                totalPricePoIn: String(toNumber(item.total_price_po_in ?? 0)),
+                note: item.remark ?? '',
+                hasPr: !!(item.has_pr && toNumber(item.has_pr) > 0),
+                originalQty: toNumber(item.qty ?? 0),
+                sisaQtyPr: toNumber(item.sisa_qtypr ?? 0),
+                sisaQtyDo: toNumber(item.sisa_qtydo ?? 0),
+            }))
             : [],
     );
     const [editingItemId, setEditingItemId] = useState(null);
+    const exhibitsPartialDo = useMemo(() => {
+        return items.some((item) => {
+            const sQtyDo = toNumber(item.sisaQtyDo ?? 0);
+            const oQty = toNumber(item.originalQty ?? item.qty ?? 0);
+            return sQtyDo !== 0 && sQtyDo !== oQty;
+        });
+    }, [items]);
 
     const resetItemForm = () => {
         setItemForm({
@@ -241,8 +248,22 @@ export default function PurchaseOrderInEdit({
         }
 
         const originalQty = toNumber(item.originalQty ?? item.qty ?? 0);
+        const sisaQtyDo = toNumber(item.sisaQtyDo ?? 0);
+        const deliveredQty = originalQty - sisaQtyDo;
+        const isPartialDoItem = sisaQtyDo !== 0 && sisaQtyDo !== originalQty;
+
         const sisaQtyPr = toNumber(item.sisaQtyPr ?? 0);
         const usedQtyPr = Math.max(0, originalQty - sisaQtyPr);
+
+        if (isPartialDoItem) {
+            if (nextQty < deliveredQty) {
+                return `Qty tidak boleh kurang dari jumlah yang sudah terkirim (${formatInteger(deliveredQty)}).`;
+            }
+            if (nextQty < usedQtyPr) {
+                return `Qty tidak boleh kurang dari qty yang sudah ada pada PR (${formatInteger(usedQtyPr)}).`;
+            }
+            return '';
+        }
 
         if (sisaQtyPr === 0 && nextQty <= originalQty) {
             return `Sisa Qty PR sudah 0. Qty harus lebih dari qty awal (${formatInteger(originalQty)}).`;
@@ -313,8 +334,8 @@ export default function PurchaseOrderInEdit({
                             : null;
                         throw new Error(
                             firstError ||
-                                data?.message ||
-                                'Gagal menyimpan perubahan material.',
+                            data?.message ||
+                            'Gagal menyimpan perubahan material.',
                         );
                     }
 
@@ -322,32 +343,37 @@ export default function PurchaseOrderInEdit({
                         prev.map((item) =>
                             item.id === editingItemId
                                 ? (() => {
-                                      const originalQty = toNumber(
-                                          item.originalQty ?? item.qty ?? 0,
-                                      );
-                                      const usedQtyPr = Math.max(
-                                          0,
-                                          originalQty -
-                                              toNumber(item.sisaQtyPr ?? 0),
-                                      );
+                                    const originalQty = toNumber(
+                                        item.originalQty ?? item.qty ?? 0,
+                                    );
+                                    const sisaQtyDoBefore = toNumber(item.sisaQtyDo ?? 0);
+                                    const usedQtyPr = Math.max(
+                                        0,
+                                        originalQty -
+                                        toNumber(item.sisaQtyPr ?? 0),
+                                    );
+                                    const newQty = toNumber(itemForm.qty);
 
-                                      return {
-                                          ...item,
-                                          ...itemForm,
-                                          originalQty: toNumber(itemForm.qty),
-                                          sisaQtyPr: Math.max(
-                                              0,
-                                              toNumber(itemForm.qty) -
-                                                  usedQtyPr,
-                                          ),
-                                      };
-                                  })()
+                                    return {
+                                        ...item,
+                                        ...itemForm,
+                                        originalQty: newQty,
+                                        sisaQtyDo: Math.max(
+                                            0,
+                                            sisaQtyDoBefore + (newQty - originalQty),
+                                        ),
+                                        sisaQtyPr: Math.max(
+                                            0,
+                                            newQty - usedQtyPr,
+                                        ),
+                                    };
+                                })()
                                 : item,
                         ),
                     );
                     toastSuccess(
                         data?.message ||
-                            'Perubahan material berhasil disimpan.',
+                        'Perubahan material berhasil disimpan.',
                     );
                 } catch (error) {
                     toastError(
@@ -368,25 +394,31 @@ export default function PurchaseOrderInEdit({
                     prev.map((item) =>
                         item.id === editingItemId
                             ? (() => {
-                                  const originalQty = toNumber(
-                                      item.originalQty ?? item.qty ?? 0,
-                                  );
-                                  const usedQtyPr = Math.max(
-                                      0,
-                                      originalQty -
-                                          toNumber(item.sisaQtyPr ?? 0),
-                                  );
+                                const originalQty = toNumber(
+                                    item.originalQty ?? item.qty ?? 0,
+                                );
+                                const sisaQtyDoBefore = toNumber(item.sisaQtyDo ?? 0);
+                                const usedQtyPr = Math.max(
+                                    0,
+                                    originalQty -
+                                    toNumber(item.sisaQtyPr ?? 0),
+                                );
+                                const newQty = toNumber(itemForm.qty);
 
-                                  return {
-                                      ...item,
-                                      ...itemForm,
-                                      originalQty: toNumber(itemForm.qty),
-                                      sisaQtyPr: Math.max(
-                                          0,
-                                          toNumber(itemForm.qty) - usedQtyPr,
-                                      ),
-                                  };
-                              })()
+                                return {
+                                    ...item,
+                                    ...itemForm,
+                                    originalQty: newQty,
+                                    sisaQtyDo: Math.max(
+                                        0,
+                                        sisaQtyDoBefore + (newQty - originalQty),
+                                    ),
+                                    sisaQtyPr: Math.max(
+                                        0,
+                                        newQty - usedQtyPr,
+                                    ),
+                                };
+                            })()
                             : item,
                     ),
                 );
@@ -428,8 +460,8 @@ export default function PurchaseOrderInEdit({
                         : null;
                     throw new Error(
                         firstError ||
-                            data?.message ||
-                            'Gagal menambahkan material.',
+                        data?.message ||
+                        'Gagal menambahkan material.',
                     );
                 }
 
@@ -594,8 +626,8 @@ export default function PurchaseOrderInEdit({
                         : null;
                     throw new Error(
                         firstError ||
-                            data?.message ||
-                            'Gagal menghapus material.',
+                        data?.message ||
+                        'Gagal menghapus material.',
                     );
                 }
 
@@ -832,6 +864,7 @@ export default function PurchaseOrderInEdit({
                                     <Label htmlFor="no_poin">No PO Customer/Ref PO</Label>
                                     <Input
                                         id="no_poin"
+                                        disabled={exhibitsPartialDo}
                                         className={
                                             validationErrors.noPoin
                                                 ? 'border-red-500 focus-visible:ring-red-500'
@@ -862,6 +895,7 @@ export default function PurchaseOrderInEdit({
                                     <div className="relative flex gap-2">
                                         <Input
                                             id="tanggal"
+                                            disabled={exhibitsPartialDo}
                                             className={
                                                 validationErrors.date
                                                     ? 'border-red-500 focus-visible:ring-red-500'
@@ -894,6 +928,7 @@ export default function PurchaseOrderInEdit({
                                             type="button"
                                             variant="outline"
                                             className="shrink-0 px-3"
+                                            disabled={exhibitsPartialDo}
                                             onClick={() => {
                                                 if (
                                                     datePickerRef.current
@@ -940,6 +975,7 @@ export default function PurchaseOrderInEdit({
                                     <div className="relative flex gap-2">
                                         <Input
                                             id="delivery_date"
+                                            disabled={exhibitsPartialDo}
                                             className={
                                                 validationErrors.deliveryDate
                                                     ? 'border-red-500 focus-visible:ring-red-500'
@@ -973,6 +1009,7 @@ export default function PurchaseOrderInEdit({
                                             type="button"
                                             variant="outline"
                                             className="shrink-0 px-3"
+                                            disabled={exhibitsPartialDo}
                                             onClick={() => {
                                                 if (
                                                     deliveryDatePickerRef
@@ -1031,6 +1068,7 @@ export default function PurchaseOrderInEdit({
                                         <Button
                                             type="button"
                                             variant="outline"
+                                            disabled={exhibitsPartialDo}
                                             onClick={() => {
                                                 setIsCustomerModalOpen(true);
                                                 setCustomerSearchTerm('');
@@ -1053,6 +1091,7 @@ export default function PurchaseOrderInEdit({
                                     </Label>
                                     <Input
                                         id="payment_term"
+                                        disabled={exhibitsPartialDo}
                                         value={form.paymentTerm}
                                         onChange={(event) =>
                                             setForm((prev) => ({
@@ -1066,6 +1105,7 @@ export default function PurchaseOrderInEdit({
                                     <Label htmlFor="ppn_percent">PPN (%)</Label>
                                     <Input
                                         id="ppn_percent"
+                                        disabled={exhibitsPartialDo}
                                         className={
                                             validationErrors.ppnPercent
                                                 ? 'border-red-500 focus-visible:ring-red-500'
@@ -1100,6 +1140,7 @@ export default function PurchaseOrderInEdit({
                                     </Label>
                                     <Input
                                         id="franco_loco"
+                                        disabled={exhibitsPartialDo}
                                         className={
                                             validationErrors.francoLoco
                                                 ? 'border-red-500 focus-visible:ring-red-500'
@@ -1129,6 +1170,7 @@ export default function PurchaseOrderInEdit({
                                     </Label>
                                     <textarea
                                         id="doc_note"
+                                        disabled={exhibitsPartialDo}
                                         rows={3}
                                         className="rounded-md border border-sidebar-border/70 bg-background px-3 py-2 text-sm"
                                         value={form.note}
@@ -1227,6 +1269,7 @@ export default function PurchaseOrderInEdit({
                                 </Label>
                                 <Input
                                     id="kode_material"
+                                    disabled={exhibitsPartialDo}
                                     value={itemForm.kodeMaterial}
                                     onChange={(event) =>
                                         setItemForm((prev) => ({
@@ -1241,6 +1284,7 @@ export default function PurchaseOrderInEdit({
                                 <div className="flex gap-2">
                                     <Input
                                         id="material"
+                                        disabled={exhibitsPartialDo}
                                         value={itemForm.material}
                                         onChange={(event) =>
                                             setItemForm((prev) => ({
@@ -1252,6 +1296,7 @@ export default function PurchaseOrderInEdit({
                                     <Button
                                         type="button"
                                         variant="outline"
+                                        disabled={exhibitsPartialDo}
                                         onClick={() => {
                                             setIsMaterialModalOpen(true);
                                         }}
@@ -1265,6 +1310,7 @@ export default function PurchaseOrderInEdit({
                                 <Input
                                     id="qty"
                                     type="number"
+                                    disabled={exhibitsPartialDo && !editingItemId}
                                     value={itemForm.qty}
                                     onChange={(event) =>
                                         setItemForm((prev) => ({
@@ -1278,6 +1324,7 @@ export default function PurchaseOrderInEdit({
                                 <Label htmlFor="unit">Satuan</Label>
                                 <Input
                                     id="unit"
+                                    disabled={exhibitsPartialDo}
                                     value={itemForm.unit}
                                     onChange={(event) =>
                                         setItemForm((prev) => ({
@@ -1291,6 +1338,7 @@ export default function PurchaseOrderInEdit({
                                 <Label htmlFor="price">Price PO In</Label>
                                 <Input
                                     id="price"
+                                    disabled={exhibitsPartialDo}
                                     value={formatRupiahInput(
                                         itemForm.unitPrice,
                                     )}
@@ -1320,6 +1368,7 @@ export default function PurchaseOrderInEdit({
                                 <Label htmlFor="item_note">Remark</Label>
                                 <Input
                                     id="item_note"
+                                    disabled={exhibitsPartialDo}
                                     value={itemForm.note}
                                     onChange={(event) =>
                                         setItemForm((prev) => ({
@@ -1334,13 +1383,13 @@ export default function PurchaseOrderInEdit({
                             <Button
                                 type="button"
                                 onClick={handleAddItem}
-                                disabled={isSavingItem}
+                                disabled={isSavingItem || (exhibitsPartialDo && !editingItemId)}
                             >
                                 {isSavingItem
                                     ? 'Menyimpan...'
                                     : editingItemId
-                                      ? 'Simpan Perubahan'
-                                      : 'Tambah Item'}
+                                        ? 'Simpan Perubahan'
+                                        : 'Tambah Item'}
                             </Button>
                             {editingItemId && (
                                 <Button
@@ -1424,9 +1473,9 @@ export default function PurchaseOrderInEdit({
                                             <td className="px-4 py-3">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                        toNumber(
-                                                            item.unitPrice,
-                                                        ),
+                                                    toNumber(
+                                                        item.unitPrice,
+                                                    ),
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -1434,18 +1483,20 @@ export default function PurchaseOrderInEdit({
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleEditItem(item)
-                                                        }
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Button>
-                                                    {!item.hasPr && (
+                                                    {(!exhibitsPartialDo || (toNumber(item.sisaQtyDo ?? 0) !== 0 && toNumber(item.sisaQtyDo ?? 0) !== toNumber(item.originalQty ?? item.qty ?? 0))) && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                handleEditItem(item)
+                                                            }
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Button>
+                                                    )}
+                                                    {!item.hasPr && !exhibitsPartialDo && (
                                                         <Button
                                                             type="button"
                                                             variant="outline"
@@ -1600,7 +1651,7 @@ export default function PurchaseOrderInEdit({
                                             {materialLoading
                                                 ? 'Memuat data material...'
                                                 : materialError ||
-                                                  'Tidak ada data material.'}
+                                                'Tidak ada data material.'}
                                         </td>
                                     </tr>
                                 )}
@@ -1657,8 +1708,8 @@ export default function PurchaseOrderInEdit({
                                     Menampilkan{' '}
                                     {Math.min(
                                         (materialCurrentPage - 1) *
-                                            materialPageSize +
-                                            1,
+                                        materialPageSize +
+                                        1,
                                         materialTotalItems,
                                     )}
                                     -
@@ -1797,7 +1848,7 @@ export default function PurchaseOrderInEdit({
                                             {customerLoading
                                                 ? 'Memuat data customer...'
                                                 : customerError ||
-                                                  'Tidak ada data customer.'}
+                                                'Tidak ada data customer.'}
                                         </td>
                                     </tr>
                                 )}
@@ -1853,8 +1904,8 @@ export default function PurchaseOrderInEdit({
                                 Menampilkan{' '}
                                 {Math.min(
                                     (customerCurrentPage - 1) *
-                                        customerPageSize +
-                                        1,
+                                    customerPageSize +
+                                    1,
                                     customerTotal,
                                 )}
                                 -
@@ -1895,7 +1946,7 @@ export default function PurchaseOrderInEdit({
                                     disabled={
                                         customerTotalPages
                                             ? customerCurrentPage >=
-                                              customerTotalPages
+                                            customerTotalPages
                                             : true
                                     }
                                 >

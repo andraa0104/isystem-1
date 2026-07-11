@@ -148,9 +148,11 @@ class ReviewTagihanController
     {
         $today = Carbon::today()->toDateString();
         $dueDateExpr = $this->dueDateExpr();
+        $ageExpr = "datediff(?, {$dueDateExpr})";
 
         $customers = $this->baseInvoiceQuery()
             ->whereRaw("{$dueDateExpr} < ?", [$today])
+            ->whereRaw("{$ageExpr} > 90", [$today])
             ->select('nm_cs')
             ->distinct()
             ->orderBy('nm_cs')

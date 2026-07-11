@@ -45,6 +45,14 @@ const normalizeCustomerName = (value) =>
         .trim()
         .toLowerCase();
 
+const splitMultiValue = (value) =>
+    Array.isArray(value)
+        ? value
+        : String(value ?? '')
+            .split(/\s*(?:,|\/)\s*/)
+            .map((item) => item.trim())
+            .filter(Boolean);
+
 const getValue = (source, keys) => {
     for (const key of keys) {
         const value = source?.[key];
@@ -302,11 +310,53 @@ export default function PurchaseRequirementIndex({
                         className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-red-700 uppercase transition hover:border-red-300 hover:bg-red-100"
                         onClick={() => handleOpenOverdueDialog(customer)}
                         disabled={overdueDialogLoading}
-                        title="Lihat tunggakan tagihan"
+                        title="Lihat tunggakan tagihan > 90 hari"
                     >
-                        Overdue
+                        &gt; 90 hari
                     </button>
                 )}
+            </div>
+        );
+    };
+
+    const renderCustomersWithOverdueMarkers = (customers) => {
+        const list = splitMultiValue(customers);
+
+        if (list.length === 0) {
+            return renderCustomerWithOverdueMarker(customers);
+        }
+
+        return (
+            <div className="flex min-w-0 flex-col gap-1">
+                {list.map((customer, index) => (
+                    <div
+                        key={`${customer}-${index}`}
+                        className="min-w-0"
+                    >
+                        {renderCustomerWithOverdueMarker(customer)}
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
+    const renderSeparatedValues = (values) => {
+        const list = splitMultiValue(values);
+
+        if (list.length === 0) {
+            return renderValue(values);
+        }
+
+        return (
+            <div className="flex min-w-0 flex-col gap-1">
+                {list.map((value, index) => (
+                    <div
+                        key={`${value}-${index}`}
+                        className="min-w-0 [overflow-wrap:anywhere] whitespace-normal"
+                    >
+                        {value}
+                    </div>
+                ))}
             </div>
         );
     };
@@ -1456,12 +1506,12 @@ export default function PurchaseRequirementIndex({
                                             {item.date}
                                         </td>
                                         <td className="w-[40%] min-w-72 px-1 py-3 align-top [overflow-wrap:anywhere] whitespace-normal">
-                                            {renderCustomerWithOverdueMarker(
+                                            {renderCustomersWithOverdueMarkers(
                                                 item.for_customer,
                                             )}
                                         </td>
                                         <td className="px-2 py-3 align-top [overflow-wrap:anywhere] break-words whitespace-normal">
-                                            {item.ref_po}
+                                            {renderSeparatedValues(item.ref_po)}
                                         </td>
                                         <td className="px-2 py-3 align-top [overflow-wrap:anywhere] whitespace-normal text-sm">
                                             {item.jenis_pr ?? '-'}
@@ -1603,8 +1653,10 @@ export default function PurchaseRequirementIndex({
                                                             <div className="font-medium text-sm truncate">
                                                                 {po.ref_po}
                                                             </div>
-                                                            <div className="text-xs text-muted-foreground uppercase truncate">
-                                                                {po.customer}
+                                                            <div className="text-xs text-muted-foreground uppercase">
+                                                                {renderCustomerWithOverdueMarker(
+                                                                    po.customer,
+                                                                )}
                                                             </div>
                                                         </div>
                                                         <button
@@ -1625,18 +1677,20 @@ export default function PurchaseRequirementIndex({
                                                 <span className="text-muted-foreground">
                                                     Customer
                                                 </span>
-                                                <span>
-                                                    {renderValue(
+                                                <div>
+                                                    {renderCustomersWithOverdueMarkers(
                                                         selectedPr.for_customer,
                                                     )}
-                                                </span>
+                                                </div>
                                             </div>
                                             <div className="grid grid-cols-[150px_1fr] gap-2">
                                                 <span className="text-muted-foreground">
                                                     Ref PO
                                                 </span>
                                                 <span>
-                                                    {renderValue(selectedPr.ref_po)}
+                                                    {renderSeparatedValues(
+                                                        selectedPr.ref_po,
+                                                    )}
                                                 </span>
                                             </div>
                                         </>
@@ -2053,13 +2107,15 @@ export default function PurchaseRequirementIndex({
                                                 </td>
                                                 <td className="w-full min-w-0 px-2 py-2 whitespace-nowrap">
                                                     <div className="min-w-0">
-                                                        {renderCustomerWithOverdueMarker(
+                                                        {renderCustomersWithOverdueMarkers(
                                                             item.for_customer,
                                                         )}
                                                     </div>
                                                 </td>
                                                 <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                    {item.ref_po}
+                                                    {renderSeparatedValues(
+                                                        item.ref_po,
+                                                    )}
                                                 </td>
                                                 <td className="px-2 py-2 whitespace-nowrap text-sm">
                                                     {item.jenis_pr ?? '-'}
@@ -2294,13 +2350,15 @@ export default function PurchaseRequirementIndex({
                                                 </td>
                                                 <td className="w-full min-w-0 px-2 py-2 whitespace-nowrap">
                                                     <div className="min-w-0">
-                                                        {renderCustomerWithOverdueMarker(
+                                                        {renderCustomersWithOverdueMarkers(
                                                             item.for_customer,
                                                         )}
                                                     </div>
                                                 </td>
                                                 <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                    {item.ref_po}
+                                                    {renderSeparatedValues(
+                                                        item.ref_po,
+                                                    )}
                                                 </td>
                                                 <td className="px-2 py-2 whitespace-nowrap text-sm">
                                                     {item.jenis_pr ?? '-'}
@@ -2535,7 +2593,7 @@ export default function PurchaseRequirementIndex({
                                                 </td>
                                                 <td className="w-full min-w-0 px-2 py-2 whitespace-nowrap">
                                                     <div className="min-w-0">
-                                                        {renderCustomerWithOverdueMarker(
+                                                        {renderCustomersWithOverdueMarkers(
                                                             getValue(item, [
                                                                 'for_customer',
                                                             ]),
@@ -2543,7 +2601,9 @@ export default function PurchaseRequirementIndex({
                                                     </div>
                                                 </td>
                                                 <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                    {item.ref_po}
+                                                    {renderSeparatedValues(
+                                                        item.ref_po,
+                                                    )}
                                                 </td>
                                                 <td className="px-2 py-2 whitespace-nowrap text-sm">
                                                     {item.jenis_pr ?? '-'}
