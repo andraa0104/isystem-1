@@ -535,15 +535,11 @@ class PurchaseOrderInController
 
                     $row = DB::table('tb_poin as p')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-                        ->leftJoinSub($doStats, 'dos', function ($join) {
-                            $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
-                        })
-                        ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 then 1 end) as realized_pr")
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and p.created_at between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and p.created_at between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and p.created_at between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
+                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and p.created_at between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
                         ->first();
 
                     $summary = [];
@@ -665,8 +661,7 @@ class PurchaseOrderInController
             }
 
             if ($needsPrDate) {
-                $query->leftJoinSub($poAgg, 'po', 'po.ref_pr', '=', 'p.no_poin')
-                    ->selectRaw('po.latest_po_date as last_pr_date');
+                $query->selectRaw('p.created_at as last_pr_date');
             }
 
             if ($search !== '') {
@@ -695,23 +690,22 @@ class PurchaseOrderInController
                     ->whereRaw('coalesce(dos.do_count, 0) > 0');
             } elseif ($statusFilter === 'realized_pr') {
                 $query->whereRaw('coalesce(ds.unrealized_items, 0) = 0')
-                    ->whereRaw('coalesce(ds.started_items, 0) > 0')
-                    ->whereNotNull('po.latest_po_date');
+                    ->whereRaw('coalesce(ds.started_items, 0) > 0');
             }
 
             if ($statusFilter === 'realized_pr') {
                 if ($dateFilter === 'today') {
-                    $query->whereBetween('po.latest_po_date', [$startToday, $endToday]);
+                    $query->whereBetween('p.created_at', [$startToday, $endToday]);
                 } elseif ($dateFilter === 'this_week') {
-                    $query->whereBetween('po.latest_po_date', [$startWeek, $endWeek]);
+                    $query->whereBetween('p.created_at', [$startWeek, $endWeek]);
                 } elseif ($dateFilter === 'this_month') {
-                    $query->whereBetween('po.latest_po_date', [$startMonth, $endMonth]);
+                    $query->whereBetween('p.created_at', [$startMonth, $endMonth]);
                 } elseif ($dateFilter === 'this_year') {
-                    $query->whereBetween('po.latest_po_date', [$startYear, $endYear]);
+                    $query->whereBetween('p.created_at', [$startYear, $endYear]);
                 } elseif ($dateFilter === 'range') {
                     if ($startDate !== '' && $endDate !== '') {
-                        $query->whereDate('po.latest_po_date', '>=', $startDate)
-                            ->whereDate('po.latest_po_date', '<=', $endDate);
+                        $query->whereDate('p.created_at', '>=', $startDate)
+                            ->whereDate('p.created_at', '<=', $endDate);
                     } else {
                         $query->whereRaw('1 = 0');
                     }
@@ -775,7 +769,6 @@ class PurchaseOrderInController
                     ->leftJoinSub($doStats, 'dos', function ($join) {
                         $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
                     })
-                    ->leftJoinSub($poAgg, 'po', 'po.ref_pr', '=', 'p.no_poin')
                     ->selectRaw("count(*) as total")
                     ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding")
                     ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as belum_pr")
@@ -784,12 +777,12 @@ class PurchaseOrderInController
                     ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
                     ->selectRaw("count(case when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 1 end) as sisa_pr")
                     ->selectRaw("count(case when coalesce(dos.do_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as sisa_do")
-                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and po.latest_po_date is not null then 1 end) as realized_pr")
+                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 then 1 end) as realized_pr")
                     ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and coalesce(dos.do_count, 0) > 0 then 1 end) as realized_do")
-                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and po.latest_po_date between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
-                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and po.latest_po_date between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
-                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and po.latest_po_date between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
-                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and po.latest_po_date between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
+                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and p.created_at between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
+                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and p.created_at between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
+                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and p.created_at between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
+                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and p.created_at between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
                     ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_today", [$startToday, $endToday])
                     ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_week", [$startWeek, $endWeek])
                     ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_month", [$startMonth, $endMonth])
