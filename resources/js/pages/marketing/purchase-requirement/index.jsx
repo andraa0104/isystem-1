@@ -26,7 +26,6 @@ import {
     Pencil,
     Printer,
     ShieldCheck,
-    Trash2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
@@ -1659,14 +1658,6 @@ export default function PurchaseRequirementIndex({
                                                                 )}
                                                             </div>
                                                         </div>
-                                                        <button
-                                                            type="button"
-                                                            className="text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md p-2 transition-colors flex-shrink-0"
-                                                            title="Hapus Customer/PO"
-                                                            onClick={() => handleRemoveCustomerPo(po.ref_po)}
-                                                        >
-                                                            <Trash2 className="size-4" />
-                                                        </button>
                                                     </div>
                                                 ))}
                                             </div>

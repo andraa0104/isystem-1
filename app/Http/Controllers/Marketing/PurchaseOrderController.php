@@ -1057,6 +1057,94 @@ class PurchaseOrderController
                     throw new \RuntimeException('Detail PO tidak ditemukan.');
                 }
 
+                $isClearRealization = $request->boolean('clear_realization');
+                if ($isClearRealization) {
+                    $newQty = max(
+                        0,
+                        $parseNumber($detailRow->qty ?? 0) - $parseNumber($detailRow->gr_mat ?? 0),
+                    );
+                    $returnedQty = $parseNumber($detailRow->gr_mat ?? 0);
+                    $newTotalPrice = $parseNumber($request->input('total_price', 0));
+
+                    DB::table('tb_detailpo')
+                        ->where('no_po', $noPo)
+                        ->where('id', $detailId)
+                        ->update([
+                            'qty' => $newQty,
+                            'qty_po' => $newQty,
+                            'gr_mat' => 0,
+                            'gr_price' => 0,
+                            'sisa_pr' => $newQty,
+                            'price' => $request->input('price', 0),
+                            'total_price' => $newTotalPrice,
+                        ]);
+
+                    $sources = collect($request->input('clear_realization_sources', []))
+                        ->filter(fn ($item) => is_array($item))
+                        ->values();
+
+                    if ($sources->isNotEmpty() && $returnedQty > 0) {
+                        $allocatedQty = $sources->sum(fn ($source) => $parseNumber($source['returned_qty'] ?? 0));
+                        if (abs($allocatedQty - $returnedQty) > 0.000001) {
+                            throw new \RuntimeException('Total qty pengembalian harus sama dengan qty realisasi yang dikembalikan.');
+                        }
+
+                        foreach ($sources as $source) {
+                            $sourceCustomer = trim((string) ($source['for_customer'] ?? ''));
+                            $sourceRefPo = trim((string) ($source['ref_po'] ?? ''));
+                            $sourceKdMaterial = trim((string) ($source['kd_material'] ?? ''));
+                            $returned = $parseNumber($source['returned_qty'] ?? 0);
+                            if ($returned <= 0) {
+                                continue;
+                            }
+
+                            $detailPrRow = DB::table('tb_detailpr')
+                                ->whereRaw('lower(trim(no_pr)) = ?', [strtolower(trim((string) $detailRow->ref_pr))])
+                                ->whereRaw('lower(trim(kd_material)) = ?', [strtolower($sourceKdMaterial)])
+                                ->whereRaw('lower(trim(coalesce(for_customer, \"\"))) = ?', [strtolower($sourceCustomer)])
+                                ->whereRaw('lower(trim(coalesce(ref_po, \"\"))) = ?', [strtolower($sourceRefPo)])
+                                ->lockForUpdate()
+                                ->first();
+
+                            if (!$detailPrRow) {
+                                throw new \RuntimeException("Detail PR tidak ditemukan untuk no_pr={$detailRow->ref_pr}, kd_material={$sourceKdMaterial}, customer={$sourceCustomer}, ref_po={$sourceRefPo}");
+                            }
+
+                            DB::table('tb_detailpr')
+                                ->where('id', $detailPrRow->id)
+                                ->update([
+                                    'sisa_pr' => $parseNumber($detailPrRow->sisa_pr ?? 0) + $returned,
+                                    'qty_po' => max(0, $parseNumber($detailPrRow->qty_po ?? 0) - $returned),
+                                ]);
+                        }
+                    }
+
+                    $totalPpn = (float) DB::table('tb_detailpo')
+                        ->where('no_po', $noPo)
+                        ->selectRaw('coalesce(sum(total_price - (qty * price)), 0) as total_ppn')
+                        ->value('total_ppn');
+
+                    $totalBeforePpn = (float) DB::table('tb_detailpo')
+                        ->where('no_po', $noPo)
+                        ->selectRaw('coalesce(sum(qty * price), 0) as total_before_ppn')
+                        ->value('total_before_ppn');
+
+                    $grandTotal = (float) DB::table('tb_detailpo')
+                        ->where('no_po', $noPo)
+                        ->selectRaw('coalesce(sum(total_price), 0) as grand_total')
+                        ->value('grand_total');
+
+                    DB::table('tb_po')
+                        ->where('no_po', $noPo)
+                        ->update([
+                            's_total' => $totalBeforePpn,
+                            'h_ppn' => $totalPpn,
+                            'g_total' => $grandTotal,
+                        ]);
+
+                    return;
+                }
+
                 $oldQty = $parseNumber($detailRow->qty ?? 0);
                 $newQty = $parseNumber($request->input('qty', 0));
                 $qtyDelta = $newQty - $oldQty;

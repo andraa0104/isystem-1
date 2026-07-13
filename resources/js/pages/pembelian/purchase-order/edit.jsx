@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { CheckCircle2, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -80,6 +80,11 @@ export default function PurchaseOrderEdit({
         useState(false);
     const [pendingSubmitPayload, setPendingSubmitPayload] = useState(null);
     const [pendingQtyAllocations, setPendingQtyAllocations] = useState({});
+    const [isClearRealizationModalOpen, setIsClearRealizationModalOpen] =
+        useState(false);
+    const [pendingClearRealization, setPendingClearRealization] =
+        useState(null);
+    const [pendingClearAllocations, setPendingClearAllocations] = useState({});
 
     const [prSearchTerm, setPrSearchTerm] = useState('');
     const [prPageSize, setPrPageSize] = useState(10);
@@ -168,6 +173,56 @@ export default function PurchaseOrderEdit({
             String(formData.refPr ?? '').trim(),
             String(item.kodeMaterial ?? '').trim(),
         ].join('||');
+
+    const buildPrSourcePayload = (item, allocationState = {}) => {
+        const groupKey = item.prGroupKey ?? getMaterialPrGroupKey(item);
+        const group = prSourceGroups.get(groupKey);
+        const sourceLines = group?.sourceLines ?? [];
+        const returnedQty = parseNumber(item.gr_mat ?? 0);
+
+        const totalAvailable = sourceLines.reduce(
+            (sum, source) => sum + parseNumber(source.available_qty),
+            0,
+        );
+        const defaultShares = sourceLines.map((source) => {
+            const availableQty = parseNumber(source.available_qty);
+            return totalAvailable > 0
+                ? Math.round((availableQty / totalAvailable) * returnedQty)
+                : 0;
+        });
+        const adjustedDefaults = defaultShares.map((value, index) =>
+            index === defaultShares.length - 1
+                ? Math.max(
+                      0,
+                      returnedQty -
+                          defaultShares
+                              .slice(0, -1)
+                              .reduce((sum, entry) => sum + entry, 0),
+                  )
+                : value,
+        );
+
+        return sourceLines.map((source, index) => {
+            const sourceKey = `${groupKey}||${source.source_key}`;
+            const rawValue = allocationState[sourceKey];
+            const baseValue =
+                rawValue !== undefined
+                    ? parseNumber(rawValue)
+                    : adjustedDefaults[index];
+
+            return {
+                no_pr: source.no_pr,
+                kd_material: source.kd_material,
+                for_customer: source.for_customer,
+                ref_po: source.ref_po,
+                available_qty: parseNumber(source.available_qty),
+                returned_qty: Math.min(
+                    parseNumber(source.available_qty),
+                    Math.abs(baseValue),
+                ),
+            };
+        });
+    };
 
     const filteredPr = useMemo(() => {
         const term = prSearchTerm.trim().toLowerCase();
@@ -485,6 +540,77 @@ export default function PurchaseOrderEdit({
 
         setPendingPrMaterial(draftItem);
         handleEditMaterial(draftItem);
+    };
+
+    const handleClearRealization = (item) => {
+        const grMat = parseNumber(item.grMat ?? 0);
+        const qty = parseNumber(item.qty ?? 0);
+        if (grMat <= 0 || grMat >= qty) {
+            return;
+        }
+
+        const groupKey = item.prGroupKey ?? getMaterialPrGroupKey(item);
+        const group = prSourceGroups.get(groupKey);
+        const sources = group?.sourceLines ?? [];
+        const requiresModal = sources.length > 1;
+
+        const payload = {
+            ...buildSubmitPayload(materialItems),
+            detail_id: item.id,
+            clear_realization: true,
+            qty: qty - grMat,
+            gr_mat: 0,
+            gr_price: 0,
+            total_price: parseNumber(item.price) * Math.max(0, qty - grMat),
+            clear_realization_sources: buildPrSourcePayload(item, {}),
+        };
+
+        if (requiresModal) {
+            setPendingClearRealization({ item, payload });
+            setIsClearRealizationModalOpen(true);
+            return;
+        }
+
+        router.put(
+            `/pembelian/purchase-order/${encodeURIComponent(
+                purchaseOrder.no_po,
+            )}/detail/${item.id}`,
+            payload,
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onStart: () => setSavingMaterialId(item.id),
+                onSuccess: () => {
+                    setSavingMaterialId(null);
+                    setMaterialItems((prev) =>
+                        prev.map((row) =>
+                            row.id === item.id
+                                ? {
+                                      ...row,
+                                      qty: Math.max(
+                                          0,
+                                          parseNumber(row.qty) -
+                                              parseNumber(row.grMat),
+                                      ),
+                                      grMat: 0,
+                                      grPrice: 0,
+                                      totalPrice: Math.max(
+                                          0,
+                                          parseNumber(row.price) *
+                                              Math.max(
+                                                  0,
+                                                  parseNumber(row.qty) -
+                                                      parseNumber(row.grMat),
+                                              ),
+                                      ),
+                                  }
+                                : row,
+                        ),
+                    );
+                },
+                onError: () => setSavingMaterialId(null),
+            },
+        );
     };
 
     const handleCancelEditMaterial = () => {
@@ -851,6 +977,8 @@ export default function PurchaseOrderEdit({
                 qty: detail.qty ?? '',
                 maxQty: qty + sisaPr,
                 sisaPr,
+                grMat: parseNumber(detail.gr_mat ?? 0),
+                grPrice: parseNumber(detail.gr_price ?? 0),
                 originalQty: detail.qty ?? '',
                 prGroupKey: [
                     String(detail.ref_pr ?? purchaseOrder.ref_pr ?? '').trim(),
@@ -985,9 +1113,78 @@ export default function PurchaseOrderEdit({
         );
     };
 
+    const handleConfirmClearRealization = () => {
+        if (!pendingClearRealization?.item || !pendingClearRealization?.payload) {
+            return;
+        }
+
+        const item = pendingClearRealization.item;
+        const allocationSources = buildPrSourcePayload(
+            item,
+            pendingClearAllocations,
+        );
+
+        const payload = {
+            ...pendingClearRealization.payload,
+            clear_realization_sources: allocationSources,
+        };
+
+        setIsClearRealizationModalOpen(false);
+        router.put(
+            `/pembelian/purchase-order/${encodeURIComponent(
+                purchaseOrder?.no_po ?? '',
+            )}/detail/${item.id}`,
+            payload,
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onStart: () => setSavingMaterialId(item.id),
+                onSuccess: () => {
+                    setSavingMaterialId(null);
+                    setPendingClearRealization(null);
+                    setPendingClearAllocations({});
+                    setMaterialItems((prev) =>
+                        prev.map((row) =>
+                            row.id === item.id
+                                ? {
+                                      ...row,
+                                      qty: Math.max(
+                                          0,
+                                          parseNumber(row.qty) -
+                                              parseNumber(row.grMat),
+                                      ),
+                                      grMat: 0,
+                                      grPrice: 0,
+                                      totalPrice: Math.max(
+                                          0,
+                                          parseNumber(row.price) *
+                                              Math.max(
+                                                  0,
+                                                  parseNumber(row.qty) -
+                                                      parseNumber(row.grMat),
+                                              ),
+                                    ),
+                                  }
+                                : row,
+                        ),
+                    );
+                },
+                onError: () => setSavingMaterialId(null),
+            },
+        );
+    };
+
     const updateQtyAllocation = (groupKey, sourceKey, value) => {
         const allocationKey = `${groupKey}||${sourceKey}`;
         setPendingQtyAllocations((prev) => ({
+            ...prev,
+            [allocationKey]: value,
+        }));
+    };
+
+    const updateClearAllocation = (groupKey, sourceKey, value) => {
+        const allocationKey = `${groupKey}||${sourceKey}`;
+        setPendingClearAllocations((prev) => ({
             ...prev,
             [allocationKey]: value,
         }));
@@ -1528,6 +1725,26 @@ export default function PurchaseOrderEdit({
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-1">
+                                                        {parseNumber(
+                                                            item.grMat,
+                                                        ) > 0 &&
+                                                            parseNumber(
+                                                                item.qty,
+                                                            ) !==
+                                                                parseNumber(
+                                                                    item.grMat,
+                                                                ) && (
+                                                                <ActionIconButton
+                                                                    label="Realisasi"
+                                                                    onClick={() =>
+                                                                        handleClearRealization(
+                                                                            item,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                                                </ActionIconButton>
+                                                            )}
                                                         <ActionIconButton
                                                             label="Edit"
                                                             onClick={() =>
@@ -2027,6 +2244,122 @@ export default function PurchaseOrderEdit({
                                     type="button"
                                     onClick={handleConfirmQtyAllocation}
                                     disabled={!pendingSubmitPayload}
+                                >
+                                    Lanjut Simpan
+                                </Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={isClearRealizationModalOpen}
+                    onOpenChange={(open) => {
+                        setIsClearRealizationModalOpen(open);
+                        if (!open) {
+                            setPendingClearRealization(null);
+                            setPendingClearAllocations({});
+                        }
+                    }}
+                >
+                    <DialogContent className="max-w-4xl">
+                        <DialogHeader>
+                            <DialogTitle>Pengembalian Realisasi PR</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                                Qty realisasi akan dikembalikan ke customer/ref
+                                PO yang dipilih.
+                            </p>
+                            <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+                                {pendingClearRealization?.item && (
+                                    <div className="rounded-xl border border-sidebar-border/70 p-4">
+                                        <div className="mb-3">
+                                            <p className="font-semibold">
+                                                {pendingClearRealization.item.material}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {pendingClearRealization.item.kodeMaterial}{' '}
+                                                • Qty PO{' '}
+                                                {renderValue(
+                                                    pendingClearRealization.item.qty,
+                                                )}{' '}
+                                                • GR Qty{' '}
+                                                {renderValue(
+                                                    pendingClearRealization.item.grMat,
+                                                )}
+                                            </p>
+                                        </div>
+                                        <div className="grid gap-3">
+                                            {buildPrSourcePayload(
+                                                pendingClearRealization.item,
+                                                pendingClearAllocations,
+                                            ).map((source) => {
+                                                const sourceKey = `${source.no_pr}||${source.kd_material}||${source.for_customer}||${source.ref_po}`;
+                                                return (
+                                                    <div
+                                                        key={sourceKey}
+                                                        className="grid gap-2 rounded-lg bg-muted/30 p-3 md:grid-cols-[minmax(0,1fr)_180px]"
+                                                    >
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-medium">
+                                                                {source.for_customer ||
+                                                                    '-'}
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                Ref PO:{' '}
+                                                                {source.ref_po || '-'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="grid gap-1">
+                                                            <Label className="text-xs">
+                                                                Qty dikembalikan
+                                                            </Label>
+                                                            <Input
+                                                                type="number"
+                                                                min="0"
+                                                                max={String(
+                                                                    source.available_qty,
+                                                                )}
+                                                                value={
+                                                                    pendingClearAllocations[
+                                                                        `${pendingClearRealization.item.prGroupKey}||${source.for_customer ?? ''}||${source.ref_po ?? ''}`
+                                                                    ] ??
+                                                                    source.returned_qty ??
+                                                                    0
+                                                                }
+                                                                onChange={(event) =>
+                                                                    updateClearAllocation(
+                                                                        pendingClearRealization.item.prGroupKey,
+                                                                        `${source.for_customer ?? ''}||${source.ref_po ?? ''}`,
+                                                                        event.target.value,
+                                                                    )
+                                                                }
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                        setIsClearRealizationModalOpen(false);
+                                        setPendingClearRealization(null);
+                                        setPendingClearAllocations({});
+                                    }}
+                                >
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={handleConfirmClearRealization}
+                                    disabled={!pendingClearRealization}
                                 >
                                     Lanjut Simpan
                                 </Button>
