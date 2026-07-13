@@ -451,9 +451,13 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             if (materialSearchTerm.trim()) {
                 params.set('search', materialSearchTerm.trim());
             }
+            params.set('_ts', String(Date.now()));
             const response = await fetch(
                 `/marketing/purchase-order-in/materials?${params.toString()}`,
-                { headers: { Accept: 'application/json' } },
+                {
+                    cache: 'no-store',
+                    headers: { Accept: 'application/json' },
+                },
             );
             if (!response.ok) {
                 throw new Error('Request failed');
@@ -483,9 +487,13 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             if (customerSearchTerm.trim()) {
                 params.set('search', customerSearchTerm.trim());
             }
+            params.set('_ts', String(Date.now()));
             const response = await fetch(
                 `/marketing/purchase-order-in/customers?${params.toString()}`,
-                { headers: { Accept: 'application/json' } },
+                {
+                    cache: 'no-store',
+                    headers: { Accept: 'application/json' },
+                },
             );
             if (!response.ok) {
                 throw new Error('Request failed');
@@ -535,6 +543,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 '/marketing/purchase-order-in/customers',
                 {
                     method: 'POST',
+                    cache: 'no-store',
                     headers: {
                         Accept: 'application/json',
                         'Content-Type': 'application/json',
@@ -602,6 +611,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 '/marketing/purchase-order-in/predict',
                 {
                     method: 'POST',
+                    cache: 'no-store',
                     headers: {
                         Accept: 'application/json',
                         'Content-Type': 'application/json',
@@ -647,6 +657,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 '/marketing/purchase-order-in/materials',
                 {
                     method: 'POST',
+                    cache: 'no-store',
                     headers: {
                         Accept: 'application/json',
                         'Content-Type': 'application/json',

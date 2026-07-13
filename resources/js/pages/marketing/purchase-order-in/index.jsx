@@ -698,10 +698,12 @@ export default function PurchaseOrderInIndex({
             if (String(nextSearch ?? '').trim()) {
                 params.set('search', String(nextSearch).trim());
             }
+            params.set('_ts', String(Date.now()));
 
             const response = await fetch(
                 `/marketing/purchase-order-in/${encodeURIComponent(kodePoin)}/show?${params.toString()}`,
                 {
+                    cache: 'no-store',
                     headers: { Accept: 'application/json' },
                 },
             );

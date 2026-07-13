@@ -309,6 +309,7 @@ export default function PurchaseOrderInEdit({
                         `/marketing/purchase-order-in/${encodeURIComponent(purchaseOrderIn?.kode_poin ?? '')}/detail/${encodeURIComponent(editingItem.dbId)}`,
                         {
                             method: 'PUT',
+                            cache: 'no-store',
                             headers: {
                                 'Content-Type': 'application/json',
                                 Accept: 'application/json',
@@ -441,6 +442,7 @@ export default function PurchaseOrderInEdit({
                     `/marketing/purchase-order-in/${encodeURIComponent(purchaseOrderIn?.kode_poin ?? '')}/detail`,
                     {
                         method: 'POST',
+                        cache: 'no-store',
                         headers: {
                             'Content-Type': 'application/json',
                             Accept: 'application/json',
@@ -618,6 +620,7 @@ export default function PurchaseOrderInEdit({
                     `/marketing/purchase-order-in/${encodeURIComponent(purchaseOrderIn?.kode_poin ?? '')}/detail/${encodeURIComponent(selectedItem.dbId)}`,
                     {
                         method: 'DELETE',
+                        cache: 'no-store',
                         headers: {
                             Accept: 'application/json',
                             ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
@@ -731,9 +734,13 @@ export default function PurchaseOrderInEdit({
             if (materialSearchTerm.trim()) {
                 params.set('search', materialSearchTerm.trim());
             }
+            params.set('_ts', String(Date.now()));
             const response = await fetch(
                 `/marketing/purchase-order-in/materials?${params.toString()}`,
-                { headers: { Accept: 'application/json' } },
+                {
+                    cache: 'no-store',
+                    headers: { Accept: 'application/json' },
+                },
             );
             if (!response.ok) {
                 throw new Error('Request failed');
@@ -763,9 +770,13 @@ export default function PurchaseOrderInEdit({
             if (customerSearchTerm.trim()) {
                 params.set('search', customerSearchTerm.trim());
             }
+            params.set('_ts', String(Date.now()));
             const response = await fetch(
                 `/marketing/purchase-order-in/customers?${params.toString()}`,
-                { headers: { Accept: 'application/json' } },
+                {
+                    cache: 'no-store',
+                    headers: { Accept: 'application/json' },
+                },
             );
             if (!response.ok) {
                 throw new Error('Request failed');

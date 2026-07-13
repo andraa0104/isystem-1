@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Marketing;
 use Illuminate\Http\Request;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -13,11 +12,6 @@ use Throwable;
 
 class PurchaseOrderInController
 {
-    private const POIN_CACHE_TAGS = ['poin_data'];
-    private const MATERIAL_CACHE_TAGS = ['material_data'];
-    private const CUSTOMER_CACHE_TAGS = ['customer_data'];
-    private const LOOKUP_CACHE_TTL = 30;
-
     public function export(Request $request)
     {
         $validated = $request->validate([
@@ -156,18 +150,6 @@ class PurchaseOrderInController
         return in_array($fallback, $allowed, true) ? $fallback : $database;
     }
 
-    private function tenantCachePrefix(?Request $request = null): string
-    {
-        $database = $this->activeTenantDatabase($request);
-
-        return preg_replace('/[^A-Za-z0-9_.:-]/', '_', strtolower($database)) ?: 'default';
-    }
-
-    private function poinCacheKey(string $scope, array $parts = [], ?Request $request = null): string
-    {
-        return 'poin:' . $this->tenantCachePrefix($request) . ':' . $scope . ':' . md5(json_encode($parts));
-    }
-
     private function parseDateOrNull(?string $value): ?string
     {
         $text = trim((string) ($value ?? ''));
@@ -250,6 +232,51 @@ class PurchaseOrderInController
         }
 
         return (int) $value;
+    }
+
+    private function resolveCustomerForPoin(array $validated): object
+    {
+        $customerCode = trim((string) ($validated['kd_customer'] ?? ''));
+        $customerName = trim((string) ($validated['customer_name'] ?? ''));
+
+        if ($customerCode !== '') {
+            $customerByCode = DB::table('tb_cs')
+                ->whereRaw('lower(trim(kd_cs)) = lower(trim(?))', [$customerCode])
+                ->first(['kd_cs', 'nm_cs']);
+
+            if (
+                $customerByCode &&
+                $customerName !== '' &&
+                strtolower(trim((string) $customerByCode->nm_cs)) === strtolower($customerName)
+            ) {
+                return $customerByCode;
+            }
+        }
+
+        if ($customerName !== '') {
+            $customerByName = DB::table('tb_cs')
+                ->whereRaw('lower(trim(nm_cs)) = lower(trim(?))', [$customerName])
+                ->orderByDesc('kd_cs')
+                ->first(['kd_cs', 'nm_cs']);
+
+            if ($customerByName) {
+                return $customerByName;
+            }
+        }
+
+        if ($customerCode !== '') {
+            $customerByCode = DB::table('tb_cs')
+                ->whereRaw('lower(trim(kd_cs)) = lower(trim(?))', [$customerCode])
+                ->first(['kd_cs', 'nm_cs']);
+
+            if ($customerByCode) {
+                return $customerByCode;
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'customer_name' => "Customer {$customerName} tidak ditemukan di master customer.",
+        ]);
     }
 
     private function replaceRefPoValue(?string $value, string $oldRefPo, string $newRefPo): string
@@ -765,74 +792,71 @@ class PurchaseOrderInController
                 }
             }
 
-            $cacheKey = $this->poinCacheKey('main_summary');
-            $summary = \Illuminate\Support\Facades\Cache::tags(self::POIN_CACHE_TAGS)->remember($cacheKey, now()->addMinutes(60), function () use ($detailStats, $doStats, $prStats, $startToday, $startWeek, $startMonth, $startYear, $endToday, $endWeek, $endMonth, $endYear) {
-                $statusData = DB::table('tb_poin as p')
-                    ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-                    ->leftJoinSub($doStats, 'dos', function ($join) {
-                        $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
-                    })
-                    ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
-                    ->selectRaw("count(*) as total")
-                    ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding")
-                    ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as belum_pr")
-                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null then 1 end) as realized")
-                    ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_pr")
-                    ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
-                    ->selectRaw("count(case when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 1 end) as sisa_pr")
-                    ->selectRaw("count(case when coalesce(dos.do_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as sisa_do")
-                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
-                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and coalesce(dos.do_count, 0) > 0 then 1 end) as realized_do")
-                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
-                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
-                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
-                    ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
-                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_today", [$startToday, $endToday])
-                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_week", [$startWeek, $endWeek])
-                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_month", [$startMonth, $endMonth])
-                    ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_year", [$startYear, $endYear])
-                    ->first();
+            $statusData = DB::table('tb_poin as p')
+                ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
+                ->leftJoinSub($doStats, 'dos', function ($join) {
+                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
+                })
+                ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
+                ->selectRaw("count(*) as total")
+                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding")
+                ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as belum_pr")
+                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null then 1 end) as realized")
+                ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_pr")
+                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
+                ->selectRaw("count(case when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 1 end) as sisa_pr")
+                ->selectRaw("count(case when coalesce(dos.do_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as sisa_do")
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
+                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and coalesce(dos.do_count, 0) > 0 then 1 end) as realized_do")
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
+                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
+                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_today", [$startToday, $endToday])
+                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_week", [$startWeek, $endWeek])
+                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_month", [$startMonth, $endMonth])
+                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_year", [$startYear, $endYear])
+                ->first();
 
-                $periodCounts = DB::table('tb_poin')
-                    ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
-                    ->selectRaw("count(case when created_at >= ? then 1 end) as week", [$startWeek])
-                    ->selectRaw("count(case when created_at >= ? then 1 end) as month", [$startMonth])
-                    ->selectRaw("count(case when created_at >= ? then 1 end) as year", [$startYear])
-                    ->first();
+            $periodCounts = DB::table('tb_poin')
+                ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
+                ->selectRaw("count(case when created_at >= ? then 1 end) as week", [$startWeek])
+                ->selectRaw("count(case when created_at >= ? then 1 end) as month", [$startMonth])
+                ->selectRaw("count(case when created_at >= ? then 1 end) as year", [$startYear])
+                ->first();
 
-                return [
-                    'total'      => (int) $statusData->total,
-                    'outstanding' => (int) $statusData->outstanding,
-                    'belum_pr'   => (int) $statusData->belum_pr,
-                    'realized'   => (int) $statusData->realized,
-                    'outstanding_pr' => (int) ($statusData->outstanding_pr ?? 0),
-                    'outstanding_do' => (int) ($statusData->outstanding_do ?? 0),
-                    'sisa_pr' => (int) ($statusData->sisa_pr ?? 0),
-                    'sisa_do' => (int) ($statusData->sisa_do ?? 0),
-                    'realized_pr' => (int) ($statusData->realized_pr ?? 0),
-                    'realized_do' => (int) ($statusData->realized_do ?? 0),
-                    'realized_pr_counts' => [
-                        'today' => (int) ($statusData->realized_pr_today ?? 0),
-                        'week' => (int) ($statusData->realized_pr_week ?? 0),
-                        'month' => (int) ($statusData->realized_pr_month ?? 0),
-                        'year' => (int) ($statusData->realized_pr_year ?? 0),
-                        'all' => (int) ($statusData->realized_pr ?? 0),
-                    ],
-                    'realized_do_counts' => [
-                        'today' => (int) ($statusData->realized_do_today ?? 0),
-                        'week' => (int) ($statusData->realized_do_week ?? 0),
-                        'month' => (int) ($statusData->realized_do_month ?? 0),
-                        'year' => (int) ($statusData->realized_do_year ?? 0),
-                        'all' => (int) ($statusData->realized_do ?? 0),
-                    ],
-                    'data_counts' => [
-                        'today' => (int) $periodCounts->today,
-                        'week'  => (int) $periodCounts->week,
-                        'month' => (int) $periodCounts->month,
-                        'year'  => (int) $periodCounts->year,
-                    ]
-                ];
-            });
+            $summary = [
+                'total'      => (int) $statusData->total,
+                'outstanding' => (int) $statusData->outstanding,
+                'belum_pr'   => (int) $statusData->belum_pr,
+                'realized'   => (int) $statusData->realized,
+                'outstanding_pr' => (int) ($statusData->outstanding_pr ?? 0),
+                'outstanding_do' => (int) ($statusData->outstanding_do ?? 0),
+                'sisa_pr' => (int) ($statusData->sisa_pr ?? 0),
+                'sisa_do' => (int) ($statusData->sisa_do ?? 0),
+                'realized_pr' => (int) ($statusData->realized_pr ?? 0),
+                'realized_do' => (int) ($statusData->realized_do ?? 0),
+                'realized_pr_counts' => [
+                    'today' => (int) ($statusData->realized_pr_today ?? 0),
+                    'week' => (int) ($statusData->realized_pr_week ?? 0),
+                    'month' => (int) ($statusData->realized_pr_month ?? 0),
+                    'year' => (int) ($statusData->realized_pr_year ?? 0),
+                    'all' => (int) ($statusData->realized_pr ?? 0),
+                ],
+                'realized_do_counts' => [
+                    'today' => (int) ($statusData->realized_do_today ?? 0),
+                    'week' => (int) ($statusData->realized_do_week ?? 0),
+                    'month' => (int) ($statusData->realized_do_month ?? 0),
+                    'year' => (int) ($statusData->realized_do_year ?? 0),
+                    'all' => (int) ($statusData->realized_do ?? 0),
+                ],
+                'data_counts' => [
+                    'today' => (int) $periodCounts->today,
+                    'week'  => (int) $periodCounts->week,
+                    'month' => (int) $periodCounts->month,
+                    'year'  => (int) $periodCounts->year,
+                ]
+            ];
 
             $base = DB::table('tb_poin as p')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
@@ -1014,63 +1038,56 @@ class PurchaseOrderInController
         $search = trim((string) $request->query('search', ''));
         $page = max(1, (int) $request->query('page', 1));
 
-        // Menggunakan tag 'material_data' yang sama persis seperti di MaterialController
-        $cacheKey = $this->poinCacheKey('materials', [$search, $perPageInput, $page], $request);
+        $codeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
+        $nameColumn = $this->firstExistingColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
+        $unitColumn = $this->firstExistingColumn('tb_barang', ['unit', 'satuan'], 'unit');
+        $stockTotal = $this->barangStockTotalExpression();
 
-        $data = Cache::tags(self::MATERIAL_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPageInput, $page) {
-            $codeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
-            $nameColumn = $this->firstExistingColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
-            $unitColumn = $this->firstExistingColumn('tb_barang', ['unit', 'satuan'], 'unit');
-            $stockTotal = $this->barangStockTotalExpression();
+        $query = DB::table('tb_barang')->selectRaw("
+            {$codeColumn} as kd_material,
+            {$nameColumn} as material,
+            {$unitColumn} as unit,
+            cast(coalesce(cast(stok_g1 as decimal(65,4)), 0) as signed) as stok_g1,
+            cast(coalesce(cast(stok_g2 as decimal(65,4)), 0) as signed) as stok_g2,
+            cast(coalesce(cast(stok_g3 as decimal(65,4)), 0) as signed) as stok_g3,
+            cast(coalesce(cast(stok_g4 as decimal(65,4)), 0) as signed) as stok_g4,
+            cast({$stockTotal} as signed) as stok
+        ");
 
-            $query = DB::table('tb_barang')->selectRaw("
-                {$codeColumn} as kd_material,
-                {$nameColumn} as material,
-                {$unitColumn} as unit,
-                cast(coalesce(cast(stok_g1 as decimal(65,4)), 0) as signed) as stok_g1,
-                cast(coalesce(cast(stok_g2 as decimal(65,4)), 0) as signed) as stok_g2,
-                cast(coalesce(cast(stok_g3 as decimal(65,4)), 0) as signed) as stok_g3,
-                cast(coalesce(cast(stok_g4 as decimal(65,4)), 0) as signed) as stok_g4,
-                cast({$stockTotal} as signed) as stok
-            ");
+        if ($search !== '') {
+            $query->where(function ($q) use ($search, $codeColumn, $nameColumn) {
+                $like = '%'.strtolower($search).'%';
+                $q->whereRaw("lower({$codeColumn}) like ?", [$like])
+                    ->orWhereRaw("lower({$nameColumn}) like ?", [$like]);
+            });
+        }
 
-            if ($search !== '') {
-                $query->where(function ($q) use ($search, $codeColumn, $nameColumn) {
-                    $like = '%'.strtolower($search).'%';
-                    $q->whereRaw("lower({$codeColumn}) like ?", [$like])
-                        ->orWhereRaw("lower({$nameColumn}) like ?", [$like]);
-                });
-            }
+        if ($perPageInput === null) {
+            $materials = (clone $query)->orderBy($nameColumn)->get();
+            return response()->json(['materials' => $materials, 'total' => $materials->count()]);
+        }
 
-            if ($perPageInput === null) {
-                $materials = (clone $query)->orderBy($nameColumn)->get();
-                return ['materials' => $materials, 'total' => $materials->count()];
-            }
+        $perPage = $perPageInput === 'all'
+            ? null
+            : (is_numeric($perPageInput) ? (int) $perPageInput : 10);
+        if ($perPage !== null && $perPage < 1) {
+            $perPage = 10;
+        }
 
-            $perPage = $perPageInput === 'all'
-                ? null
-                : (is_numeric($perPageInput) ? (int) $perPageInput : 10);
-            if ($perPage !== null && $perPage < 1) {
-                $perPage = 10;
-            }
+        if ($perPage === null) {
+            $materials = (clone $query)->orderBy($nameColumn)->get();
+            return response()->json(['materials' => $materials, 'total' => $materials->count()]);
+        }
 
-            if ($perPage === null) {
-                $materials = (clone $query)->orderBy($nameColumn)->get();
-                return ['materials' => $materials, 'total' => $materials->count()];
-            }
+        $total = (clone $query)->count();
+        $materials = (clone $query)->orderBy($nameColumn)->forPage($page, $perPage)->get();
 
-            $total = (clone $query)->count();
-            $materials = (clone $query)->orderBy($nameColumn)->forPage($page, $perPage)->get();
-
-            return [
-                'materials' => $materials,
-                'total' => $total,
-                'page' => $page,
-                'per_page' => $perPage,
-            ];
-        });
-
-        return response()->json($data);
+        return response()->json([
+            'materials' => $materials,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
+        ]);
     }
 
     public function storeMaterial(Request $request)
@@ -1122,9 +1139,6 @@ class PurchaseOrderInController
 
             DB::table('tb_barang')->insert($insertData);
 
-            // [FLUSH] Sinkronisasi otomatis menghapus memori 'material_data'
-            Cache::tags(self::MATERIAL_CACHE_TAGS)->flush();
-
         } catch (Throwable $exception) {
             return response()->json(['message' => $exception->getMessage()], 500);
         }
@@ -1152,41 +1166,36 @@ class PurchaseOrderInController
         $search = trim((string) $request->query('search', ''));
         $page = max(1, (int) $request->query('page', 1));
 
-        $cacheKey = $this->poinCacheKey('customers', [$search, $perPageInput, $page], $request);
+        $perPage = $perPageInput === 'all'
+            ? null
+            : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
+        if ($perPage !== null && $perPage < 1) {
+            $perPage = 5;
+        }
 
-        $data = Cache::tags(self::CUSTOMER_CACHE_TAGS)->remember($cacheKey, self::LOOKUP_CACHE_TTL, function () use ($search, $perPageInput, $page) {
-            $perPage = $perPageInput === 'all'
-                ? null
-                : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
-            if ($perPage !== null && $perPage < 1) {
-                $perPage = 5;
-            }
+        $query = DB::table('tb_cs')->select('kd_cs', 'nm_cs', 'kota_cs');
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $like = '%'.strtolower($search).'%';
+                $q->whereRaw('lower(kd_cs) like ?', [$like])
+                    ->orWhereRaw('lower(nm_cs) like ?', [$like])
+                    ->orWhereRaw('lower(kota_cs) like ?', [$like]);
+            });
+        }
 
-            $query = DB::table('tb_cs')->select('kd_cs', 'nm_cs', 'kota_cs');
-            if ($search !== '') {
-                $query->where(function ($q) use ($search) {
-                    $like = '%'.strtolower($search).'%';
-                    $q->whereRaw('lower(kd_cs) like ?', [$like])
-                        ->orWhereRaw('lower(nm_cs) like ?', [$like])
-                        ->orWhereRaw('lower(kota_cs) like ?', [$like]);
-                });
-            }
-
-            if ($perPage === null) {
-                $data = (clone $query)->orderBy('nm_cs')->get();
-                return ['customers' => $data, 'total' => $data->count()];
-            }
-
+        if ($perPage === null) {
+            $customers = (clone $query)->orderBy('nm_cs')->get();
+            $data = ['customers' => $customers, 'total' => $customers->count()];
+        } else {
             $total = (clone $query)->count();
-            $data = (clone $query)->orderBy('nm_cs')->forPage($page, $perPage)->get();
-
-            return [
-                'customers' => $data,
+            $customers = (clone $query)->orderBy('nm_cs')->forPage($page, $perPage)->get();
+            $data = [
+                'customers' => $customers,
                 'total' => $total,
                 'page' => $page,
                 'per_page' => $perPage,
             ];
-        });
+        }
 
         return response()->json($data);
     }
@@ -1215,9 +1224,6 @@ class PurchaseOrderInController
 
         try {
             DB::table('tb_cs')->insert($validated);
-            
-            // [FLUSH] Bersihkan cache jika ada customer baru
-            Cache::tags(self::CUSTOMER_CACHE_TAGS)->flush();
 
         } catch (Throwable $exception) {
             return response()->json(['message' => $exception->getMessage()], 500);
@@ -1306,6 +1312,7 @@ class PurchaseOrderInController
                     : $totalPrice;
                 $ppnValue = round($totalPrice * ($ppnPercentUsed / 100), 2);
                 $grandTotal = round($totalPrice + $ppnValue, 2);
+                $resolvedCustomer = $this->resolveCustomerForPoin($validated);
 
                 $headerId = (int) (DB::table('tb_poin')->max('id') ?? 0) + 1;
                 DB::table('tb_poin')->insert([
@@ -1314,8 +1321,8 @@ class PurchaseOrderInController
                     'no_poin' => $noPoin,
                     'date_poin' => $datePoin,
                     'delivery_date' => $deliveryDate,
-                    'kode_customer' => trim((string) ($validated['kd_customer'] ?? '')),
-                    'customer_name' => trim((string) $validated['customer_name']),
+                    'kode_customer' => trim((string) $resolvedCustomer->kd_cs),
+                    'customer_name' => trim((string) $resolvedCustomer->nm_cs),
                     'payment_term' => trim((string) ($validated['payment_term'] ?? '')),
                     'franco_loco' => trim((string) $validated['franco_loco']),
                     'note_doc' => trim((string) ($validated['note'] ?? '')),
@@ -1368,9 +1375,6 @@ class PurchaseOrderInController
                 }
             });
 
-            // [FLUSH] Kosongkan cache agar tampilan tabel di depan (index) otomatis terbarui
-            Cache::tags(self::POIN_CACHE_TAGS)->flush();
-
             if ($request->header('X-Inertia')) {
                 return redirect()
                     ->route('marketing.purchase-order-in.index')
@@ -1404,6 +1408,7 @@ class PurchaseOrderInController
             'no_poin' => ['required', 'string', 'max:100'],
             'date' => ['nullable', 'string', 'max:20'],
             'delivery_date' => ['nullable', 'string', 'max:20'],
+            'kd_customer' => ['nullable', 'string', 'max:100'],
             'customer_name' => ['required', 'string', 'max:255'],
             'payment_term' => ['nullable', 'string', 'max:100'],
             'ppn_percent' => ['required', 'numeric', 'min:0'],
@@ -1467,6 +1472,7 @@ class PurchaseOrderInController
                 $nowGmt8 = now('Asia/Singapore');
                 $datePoin = $this->parseDateOrNull($validated['date'] ?? null);
                 $deliveryDate = $this->parseDateOrNull($validated['delivery_date'] ?? null);
+                $resolvedCustomer = $this->resolveCustomerForPoin($validated);
                 $ppnPercentInput = (float) ($validated['ppn_percent'] ?? 0);
                 $ppnPercentInputValue = $ppnPercentInput <= 0 ? 0.0 : $ppnPercentInput;
                 $ppnPercentUsed = $ppnPercentInputValue <= 0 ? 0.0 : min(11.0, $ppnPercentInputValue);
@@ -1488,7 +1494,8 @@ class PurchaseOrderInController
                         'no_poin' => $newNoPoin,
                         'date_poin' => $datePoin,
                         'delivery_date' => $deliveryDate,
-                        'customer_name' => trim((string) $validated['customer_name']),
+                        'kode_customer' => trim((string) $resolvedCustomer->kd_cs),
+                        'customer_name' => trim((string) $resolvedCustomer->nm_cs),
                         'payment_term' => trim((string) ($validated['payment_term'] ?? '')),
                         'franco_loco' => trim((string) $validated['franco_loco']),
                         'note_doc' => trim((string) ($validated['note'] ?? '')),
@@ -1503,9 +1510,6 @@ class PurchaseOrderInController
 
                 $this->syncPurchaseRequirementRefPo($oldNoPoin, $newNoPoin);
             });
-
-            // [FLUSH] Kosongkan cache saat PO In di-update
-            Cache::tags(self::POIN_CACHE_TAGS)->flush();
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'Data PO IN berhasil diperbarui.');
@@ -1546,9 +1550,6 @@ class PurchaseOrderInController
                     ->where('kode_poin', $kodePoin)
                     ->delete();
             });
-
-            // [FLUSH] Bersihkan cache jika dihapus
-            Cache::tags(self::POIN_CACHE_TAGS)->flush();
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'PO In berhasil dihapus.');
@@ -1624,7 +1625,6 @@ class PurchaseOrderInController
             ]);
 
             $this->recalculateHeaderTotals($kodePoin);
-            Cache::tags(self::POIN_CACHE_TAGS)->flush();
 
             return response()->json([
                 'message' => 'Material berhasil ditambahkan.',
@@ -1765,8 +1765,6 @@ class PurchaseOrderInController
                 ]);
 
             $this->recalculateHeaderTotals($kodePoin);
-            // [FLUSH] Bersihkan cache
-            Cache::tags(self::POIN_CACHE_TAGS)->flush();
 
             return response()->json([
                 'message' => 'Material berhasil diperbarui.',
@@ -1862,8 +1860,6 @@ class PurchaseOrderInController
             }
 
             $this->recalculateHeaderTotals($kodePoin);
-            // [FLUSH] Bersihkan cache
-            Cache::tags(self::POIN_CACHE_TAGS)->flush();
 
             return response()->json([
                 'message' => 'Material berhasil dihapus.',
