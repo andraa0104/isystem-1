@@ -1,5 +1,6 @@
 import { NavFooter } from '@/components/nav-footer';
 import { NavUser } from '@/components/nav-user';
+import { Button } from '@/components/ui/button';
 import {
     Collapsible,
     CollapsibleContent,
@@ -35,7 +36,12 @@ import {
     menuSections,
 } from '@/data/menu-sections';
 import { Link, usePage } from '@inertiajs/react';
-import { ChevronRight, LayoutDashboard, Signal } from 'lucide-react';
+import {
+    ChevronRight,
+    LayoutDashboard,
+    PanelLeftClose,
+    Signal,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import AppLogo from './app-logo';
 const expandedTextWrapClass =
@@ -43,7 +49,7 @@ const expandedTextWrapClass =
 const dropdownItemWrapClass =
     'h-auto items-start whitespace-normal [&_span]:whitespace-normal [&_span]:break-words';
 export function AppSidebar() {
-    const { state } = useSidebar();
+    const { state, isMobile, setOpen, setOpenMobile } = useSidebar();
     const isCollapsed = state === 'collapsed';
     const { auth } = usePage().props;
     const menuAccess = auth?.user?.menu_access ?? null;
@@ -150,19 +156,46 @@ export function AppSidebar() {
 
     const menuTextWrapClass = isCollapsed ? '' : expandedTextWrapClass;
     const subMenuTextWrapClass = isCollapsed ? '' : expandedTextWrapClass;
+    const handleCollapseSidebar = () => {
+        if (isMobile) {
+            setOpenMobile(false);
+            return;
+        }
+
+        setOpen(false);
+    };
 
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
-                <SidebarMenu>
-                    <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" asChild>
-                            <Link href={mainMenuItems[0]?.href ?? '/dashboard'}>
-                                <AppLogo collapsed={isCollapsed} />
-                            </Link>
-                        </SidebarMenuButton>
-                    </SidebarMenuItem>
-                </SidebarMenu>
+                <div className="flex items-center gap-2">
+                    <SidebarMenu className="min-w-0 flex-1">
+                        <SidebarMenuItem>
+                            <SidebarMenuButton size="lg" asChild>
+                                <Link
+                                    href={
+                                        mainMenuItems[0]?.href ?? '/dashboard'
+                                    }
+                                >
+                                    <AppLogo collapsed={isCollapsed} />
+                                </Link>
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                    {!isCollapsed && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 lg:hidden"
+                            onClick={handleCollapseSidebar}
+                            title="Sembunyikan sidebar"
+                            aria-label="Sembunyikan sidebar"
+                        >
+                            <PanelLeftClose className="size-5" />
+                        </Button>
+                    )}
+                </div>
             </SidebarHeader>
 
             <SidebarContent>

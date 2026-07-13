@@ -186,7 +186,7 @@ export default function PurchaseOrderInEdit({
             purchaseOrderIn?.payment_term ?? defaults.payment_term ?? '30 Hari',
         ppnPercent:
             purchaseOrderIn?.ppn_input_percent !== undefined &&
-                purchaseOrderIn?.ppn_input_percent !== null
+            purchaseOrderIn?.ppn_input_percent !== null
                 ? String(purchaseOrderIn.ppn_input_percent)
                 : '',
         francoLoco: purchaseOrderIn?.franco_loco ?? '',
@@ -205,20 +205,20 @@ export default function PurchaseOrderInEdit({
     const [items, setItems] = useState(
         Array.isArray(purchaseOrderInItems)
             ? purchaseOrderInItems.map((item, index) => ({
-                id: `db-${item.id ?? index}`,
-                dbId: item.id ?? null,
-                kodeMaterial: item.kd_material ?? '',
-                material: item.material ?? '',
-                qty: String(item.qty ?? ''),
-                unit: item.satuan ?? '',
-                unitPrice: String(toNumber(item.price_po_in ?? 0)),
-                totalPricePoIn: String(toNumber(item.total_price_po_in ?? 0)),
-                note: item.remark ?? '',
-                hasPr: !!(item.has_pr && toNumber(item.has_pr) > 0),
-                originalQty: toNumber(item.qty ?? 0),
-                sisaQtyPr: toNumber(item.sisa_qtypr ?? 0),
-                sisaQtyDo: toNumber(item.sisa_qtydo ?? 0),
-            }))
+                  id: `db-${item.id ?? index}`,
+                  dbId: item.id ?? null,
+                  kodeMaterial: item.kd_material ?? '',
+                  material: item.material ?? '',
+                  qty: String(item.qty ?? ''),
+                  unit: item.satuan ?? '',
+                  unitPrice: String(toNumber(item.price_po_in ?? 0)),
+                  totalPricePoIn: String(toNumber(item.total_price_po_in ?? 0)),
+                  note: item.remark ?? '',
+                  hasPr: !!(item.has_pr && toNumber(item.has_pr) > 0),
+                  originalQty: toNumber(item.qty ?? 0),
+                  sisaQtyPr: toNumber(item.sisa_qtypr ?? 0),
+                  sisaQtyDo: toNumber(item.sisa_qtydo ?? 0),
+              }))
             : [],
     );
     const [editingItemId, setEditingItemId] = useState(null);
@@ -334,8 +334,8 @@ export default function PurchaseOrderInEdit({
                             : null;
                         throw new Error(
                             firstError ||
-                            data?.message ||
-                            'Gagal menyimpan perubahan material.',
+                                data?.message ||
+                                'Gagal menyimpan perubahan material.',
                         );
                     }
 
@@ -343,37 +343,40 @@ export default function PurchaseOrderInEdit({
                         prev.map((item) =>
                             item.id === editingItemId
                                 ? (() => {
-                                    const originalQty = toNumber(
-                                        item.originalQty ?? item.qty ?? 0,
-                                    );
-                                    const sisaQtyDoBefore = toNumber(item.sisaQtyDo ?? 0);
-                                    const usedQtyPr = Math.max(
-                                        0,
-                                        originalQty -
-                                        toNumber(item.sisaQtyPr ?? 0),
-                                    );
-                                    const newQty = toNumber(itemForm.qty);
+                                      const originalQty = toNumber(
+                                          item.originalQty ?? item.qty ?? 0,
+                                      );
+                                      const sisaQtyDoBefore = toNumber(
+                                          item.sisaQtyDo ?? 0,
+                                      );
+                                      const usedQtyPr = Math.max(
+                                          0,
+                                          originalQty -
+                                              toNumber(item.sisaQtyPr ?? 0),
+                                      );
+                                      const newQty = toNumber(itemForm.qty);
 
-                                    return {
-                                        ...item,
-                                        ...itemForm,
-                                        originalQty: newQty,
-                                        sisaQtyDo: Math.max(
-                                            0,
-                                            sisaQtyDoBefore + (newQty - originalQty),
-                                        ),
-                                        sisaQtyPr: Math.max(
-                                            0,
-                                            newQty - usedQtyPr,
-                                        ),
-                                    };
-                                })()
+                                      return {
+                                          ...item,
+                                          ...itemForm,
+                                          originalQty: newQty,
+                                          sisaQtyDo: Math.max(
+                                              0,
+                                              sisaQtyDoBefore +
+                                                  (newQty - originalQty),
+                                          ),
+                                          sisaQtyPr: Math.max(
+                                              0,
+                                              newQty - usedQtyPr,
+                                          ),
+                                      };
+                                  })()
                                 : item,
                         ),
                     );
                     toastSuccess(
                         data?.message ||
-                        'Perubahan material berhasil disimpan.',
+                            'Perubahan material berhasil disimpan.',
                     );
                 } catch (error) {
                     toastError(
@@ -394,31 +397,34 @@ export default function PurchaseOrderInEdit({
                     prev.map((item) =>
                         item.id === editingItemId
                             ? (() => {
-                                const originalQty = toNumber(
-                                    item.originalQty ?? item.qty ?? 0,
-                                );
-                                const sisaQtyDoBefore = toNumber(item.sisaQtyDo ?? 0);
-                                const usedQtyPr = Math.max(
-                                    0,
-                                    originalQty -
-                                    toNumber(item.sisaQtyPr ?? 0),
-                                );
-                                const newQty = toNumber(itemForm.qty);
+                                  const originalQty = toNumber(
+                                      item.originalQty ?? item.qty ?? 0,
+                                  );
+                                  const sisaQtyDoBefore = toNumber(
+                                      item.sisaQtyDo ?? 0,
+                                  );
+                                  const usedQtyPr = Math.max(
+                                      0,
+                                      originalQty -
+                                          toNumber(item.sisaQtyPr ?? 0),
+                                  );
+                                  const newQty = toNumber(itemForm.qty);
 
-                                return {
-                                    ...item,
-                                    ...itemForm,
-                                    originalQty: newQty,
-                                    sisaQtyDo: Math.max(
-                                        0,
-                                        sisaQtyDoBefore + (newQty - originalQty),
-                                    ),
-                                    sisaQtyPr: Math.max(
-                                        0,
-                                        newQty - usedQtyPr,
-                                    ),
-                                };
-                            })()
+                                  return {
+                                      ...item,
+                                      ...itemForm,
+                                      originalQty: newQty,
+                                      sisaQtyDo: Math.max(
+                                          0,
+                                          sisaQtyDoBefore +
+                                              (newQty - originalQty),
+                                      ),
+                                      sisaQtyPr: Math.max(
+                                          0,
+                                          newQty - usedQtyPr,
+                                      ),
+                                  };
+                              })()
                             : item,
                     ),
                 );
@@ -460,8 +466,8 @@ export default function PurchaseOrderInEdit({
                         : null;
                     throw new Error(
                         firstError ||
-                        data?.message ||
-                        'Gagal menambahkan material.',
+                            data?.message ||
+                            'Gagal menambahkan material.',
                     );
                 }
 
@@ -626,8 +632,8 @@ export default function PurchaseOrderInEdit({
                         : null;
                     throw new Error(
                         firstError ||
-                        data?.message ||
-                        'Gagal menghapus material.',
+                            data?.message ||
+                            'Gagal menghapus material.',
                     );
                 }
 
@@ -839,29 +845,31 @@ export default function PurchaseOrderInEdit({
     return (
         <>
             <Head title="Edit PO In" />
-            <div className="flex h-full flex-1 flex-col gap-5 p-4">
+            <div className="flex h-full min-w-0 flex-1 flex-col gap-4 p-3 sm:gap-5 sm:p-4">
                 {/* Header section with explicit hex background for maximum compatibility */}
                 <section
-                    className="rounded-2xl border border-slate-700 bg-[#0f172a] p-5 text-white shadow-lg"
+                    className="rounded-xl border border-slate-700 bg-[#0f172a] p-4 text-white shadow-lg sm:rounded-2xl sm:p-5"
                     style={{ backgroundColor: '#0f172a' }}
                 >
-                    <h1 className="mt-1 text-2xl font-bold text-white">
+                    <h1 className="mt-1 text-xl font-bold text-white sm:text-2xl">
                         Edit Purchase Order In
                     </h1>
                 </section>
 
-                <div className="grid gap-5">
-                    <section className="grid gap-5 xl:grid-cols-[4fr_1.3fr]">
-                        <article className="rounded-2xl border border-sidebar-border/70 bg-background p-4 shadow-sm">
+                <div className="grid min-w-0 gap-5">
+                    <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,4fr)_minmax(280px,1.3fr)]">
+                        <article className="min-w-0 rounded-xl border border-sidebar-border/70 bg-background p-3 shadow-sm sm:rounded-2xl sm:p-4">
                             <div className="mb-4 flex items-center gap-2">
                                 <Landmark className="size-4 text-muted-foreground" />
                                 <h2 className="text-base font-semibold">
                                     Informasi Header
                                 </h2>
                             </div>
-                            <div className="grid gap-4 md:grid-cols-3">
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="no_poin">No PO Customer/Ref PO</Label>
+                                    <Label htmlFor="no_poin">
+                                        No PO Customer/Ref PO
+                                    </Label>
                                     <Input
                                         id="no_poin"
                                         disabled={exhibitsPartialDo}
@@ -1049,11 +1057,11 @@ export default function PurchaseOrderInEdit({
                                         </p>
                                     )}
                                 </div>
-                                <div className="grid gap-2 md:col-span-2">
+                                <div className="grid gap-2 sm:col-span-2">
                                     <Label htmlFor="customer_name">
                                         Nama Customer
                                     </Label>
-                                    <div className="flex gap-2">
+                                    <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
                                         <Input
                                             id="customer_name"
                                             className={
@@ -1068,6 +1076,7 @@ export default function PurchaseOrderInEdit({
                                         <Button
                                             type="button"
                                             variant="outline"
+                                            className="w-full md:w-auto"
                                             disabled={exhibitsPartialDo}
                                             onClick={() => {
                                                 setIsCustomerModalOpen(true);
@@ -1076,7 +1085,9 @@ export default function PurchaseOrderInEdit({
                                                 setCustomerCurrentPage(1);
                                             }}
                                         >
-                                            Cari Customer
+                                            <span className="whitespace-nowrap">
+                                                Cari Customer
+                                            </span>
                                         </Button>
                                     </div>
                                     {validationErrors.customerName && (
@@ -1134,7 +1145,7 @@ export default function PurchaseOrderInEdit({
                                         </p>
                                     )}
                                 </div>
-                                <div className="grid gap-2 md:col-span-1">
+                                <div className="grid gap-2">
                                     <Label htmlFor="franco_loco">
                                         Franco/Loco
                                     </Label>
@@ -1164,7 +1175,7 @@ export default function PurchaseOrderInEdit({
                                         </p>
                                     )}
                                 </div>
-                                <div className="grid gap-2 md:col-span-3">
+                                <div className="grid gap-2 sm:col-span-2 lg:col-span-3">
                                     <Label htmlFor="doc_note">
                                         Catatan Dokumen
                                     </Label>
@@ -1186,8 +1197,8 @@ export default function PurchaseOrderInEdit({
                             </div>
                         </article>
 
-                        <aside className="grid content-start gap-3 self-start">
-                            <article className="rounded-2xl border border-sidebar-border/70 bg-background p-4 shadow-sm">
+                        <aside className="grid min-w-0 content-start gap-3 self-start">
+                            <article className="rounded-xl border border-sidebar-border/70 bg-background p-3 shadow-sm sm:rounded-2xl sm:p-4">
                                 <div className="mb-4 flex items-center gap-2">
                                     <ReceiptText className="size-4 text-muted-foreground" />
                                     <h2 className="text-base font-semibold">
@@ -1195,44 +1206,44 @@ export default function PurchaseOrderInEdit({
                                     </h2>
                                 </div>
                                 <div className="space-y-3 text-sm">
-                                    <div className="flex items-center justify-between border-t border-sidebar-border/70 pt-3">
+                                    <div className="flex items-start justify-between gap-3 border-t border-sidebar-border/70 pt-3">
                                         <span className="text-muted-foreground">
                                             Total Price
                                         </span>
-                                        <span className="font-semibold">
+                                        <span className="text-right font-semibold break-words">
                                             {formatRupiah(totalPrice)}
                                         </span>
                                     </div>
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-start justify-between gap-3">
                                         <span className="text-muted-foreground">
                                             DPP
                                         </span>
-                                        <span className="font-semibold">
+                                        <span className="text-right font-semibold break-words">
                                             {formatRupiah(dpp)}
                                         </span>
                                     </div>
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-start justify-between gap-3">
                                         <span className="text-muted-foreground">
                                             PPN ({form.ppnPercent || '0'}%)
                                         </span>
-                                        <span className="font-semibold">
+                                        <span className="text-right font-semibold break-words">
                                             {formatRupiah(ppn)}
                                         </span>
                                     </div>
-                                    <div className="flex items-center justify-between border-t border-sidebar-border/70 pt-3">
+                                    <div className="flex items-start justify-between gap-3 border-t border-sidebar-border/70 pt-3">
                                         <span className="text-muted-foreground">
                                             Grand Total
                                         </span>
-                                        <span className="text-lg font-semibold">
+                                        <span className="text-right text-base font-semibold break-words sm:text-lg">
                                             {formatRupiah(grandTotal)}
                                         </span>
                                     </div>
                                 </div>
                             </article>
 
-                            <div className="flex flex-wrap gap-2">
+                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                                 <Button
-                                    className="flex-1"
+                                    className="w-full"
                                     type="button"
                                     onClick={handleSavePoIn}
                                     disabled={isSubmitting}
@@ -1245,7 +1256,7 @@ export default function PurchaseOrderInEdit({
                                 <Button
                                     variant="outline"
                                     asChild
-                                    className="flex-1"
+                                    className="w-full"
                                 >
                                     <Link href="/marketing/purchase-order-in">
                                         Batal
@@ -1255,15 +1266,15 @@ export default function PurchaseOrderInEdit({
                         </aside>
                     </section>
 
-                    <article className="rounded-2xl border border-sidebar-border/70 bg-background p-4 shadow-sm">
+                    <article className="min-w-0 rounded-xl border border-sidebar-border/70 bg-background p-3 shadow-sm sm:rounded-2xl sm:p-4">
                         <div className="mb-4 flex items-center gap-2">
                             <PackageSearch className="size-4 text-muted-foreground" />
                             <h2 className="text-base font-semibold">
                                 Item Material
                             </h2>
                         </div>
-                        <div className="grid gap-4 md:grid-cols-8">
-                            <div className="grid gap-2 md:col-span-1">
+                        <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-8">
+                            <div className="grid gap-2 lg:col-span-2 xl:col-span-1">
                                 <Label htmlFor="kode_material">
                                     Kode Material
                                 </Label>
@@ -1279,9 +1290,9 @@ export default function PurchaseOrderInEdit({
                                     }
                                 />
                             </div>
-                            <div className="grid gap-2 md:col-span-7">
+                            <div className="grid gap-2 sm:col-span-2 lg:col-span-6 xl:col-span-7">
                                 <Label htmlFor="material">Material</Label>
-                                <div className="flex gap-2">
+                                <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
                                     <Input
                                         id="material"
                                         disabled={exhibitsPartialDo}
@@ -1296,21 +1307,26 @@ export default function PurchaseOrderInEdit({
                                     <Button
                                         type="button"
                                         variant="outline"
+                                        className="w-full md:w-auto"
                                         disabled={exhibitsPartialDo}
                                         onClick={() => {
                                             setIsMaterialModalOpen(true);
                                         }}
                                     >
-                                        Cari Material
+                                        <span className="whitespace-nowrap">
+                                            Cari Material
+                                        </span>
                                     </Button>
                                 </div>
                             </div>
-                            <div className="grid gap-2 md:col-span-1">
+                            <div className="grid gap-2 lg:col-span-1">
                                 <Label htmlFor="qty">Qty</Label>
                                 <Input
                                     id="qty"
                                     type="number"
-                                    disabled={exhibitsPartialDo && !editingItemId}
+                                    disabled={
+                                        exhibitsPartialDo && !editingItemId
+                                    }
                                     value={itemForm.qty}
                                     onChange={(event) =>
                                         setItemForm((prev) => ({
@@ -1320,7 +1336,7 @@ export default function PurchaseOrderInEdit({
                                     }
                                 />
                             </div>
-                            <div className="grid gap-2 md:col-span-1">
+                            <div className="grid gap-2 lg:col-span-1">
                                 <Label htmlFor="unit">Satuan</Label>
                                 <Input
                                     id="unit"
@@ -1334,7 +1350,7 @@ export default function PurchaseOrderInEdit({
                                     }
                                 />
                             </div>
-                            <div className="grid gap-2 md:col-span-3">
+                            <div className="grid gap-2 sm:col-span-2 lg:col-span-3">
                                 <Label htmlFor="price">Price PO In</Label>
                                 <Input
                                     id="price"
@@ -1354,7 +1370,7 @@ export default function PurchaseOrderInEdit({
                                     }
                                 />
                             </div>
-                            <div className="grid gap-2 md:col-span-3">
+                            <div className="grid gap-2 sm:col-span-2 lg:col-span-3">
                                 <Label htmlFor="total_price_po_in">
                                     Total Price PO In
                                 </Label>
@@ -1364,7 +1380,7 @@ export default function PurchaseOrderInEdit({
                                     readOnly
                                 />
                             </div>
-                            <div className="grid gap-2 md:col-span-8">
+                            <div className="grid gap-2 sm:col-span-2 lg:col-span-8">
                                 <Label htmlFor="item_note">Remark</Label>
                                 <Input
                                     id="item_note"
@@ -1379,23 +1395,27 @@ export default function PurchaseOrderInEdit({
                                 />
                             </div>
                         </div>
-                        <div className="mt-4">
+                        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                             <Button
                                 type="button"
+                                className="w-full sm:w-auto"
                                 onClick={handleAddItem}
-                                disabled={isSavingItem || (exhibitsPartialDo && !editingItemId)}
+                                disabled={
+                                    isSavingItem ||
+                                    (exhibitsPartialDo && !editingItemId)
+                                }
                             >
                                 {isSavingItem
                                     ? 'Menyimpan...'
                                     : editingItemId
-                                        ? 'Simpan Perubahan'
-                                        : 'Tambah Item'}
+                                      ? 'Simpan Perubahan'
+                                      : 'Tambah Item'}
                             </Button>
                             {editingItemId && (
                                 <Button
                                     type="button"
                                     variant="outline"
-                                    className="ml-2"
+                                    className="w-full sm:w-auto"
                                     onClick={handleCancelEditItem}
                                 >
                                     Batal Edit
@@ -1403,8 +1423,107 @@ export default function PurchaseOrderInEdit({
                             )}
                         </div>
 
-                        <div className="mt-4 overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full text-sm">
+                        <div className="mt-4 grid gap-3 md:hidden">
+                            {items.length === 0 && (
+                                <div className="rounded-xl border border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
+                                    Belum ada item material.
+                                </div>
+                            )}
+                            {items.map((item, index) => (
+                                <div
+                                    key={item.id}
+                                    className="rounded-xl border border-sidebar-border/70 p-3 text-sm"
+                                >
+                                    <div className="mb-3 flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="text-xs text-muted-foreground">
+                                                #{index + 1} -{' '}
+                                                {item.kodeMaterial || '-'}
+                                            </p>
+                                            <p className="mt-1 font-semibold break-words">
+                                                {item.material}
+                                            </p>
+                                        </div>
+                                        <div className="flex shrink-0 items-center gap-2">
+                                            {(!exhibitsPartialDo ||
+                                                toNumber(
+                                                    item.sisaQtyDo ?? 0,
+                                                ) !== 0) && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        handleEditItem(item)
+                                                    }
+                                                    title="Edit"
+                                                >
+                                                    <Pencil className="size-4" />
+                                                </Button>
+                                            )}
+                                            {!item.hasPr &&
+                                                !exhibitsPartialDo && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            handleDeleteItem(
+                                                                item.id,
+                                                            )
+                                                        }
+                                                        title="Hapus"
+                                                    >
+                                                        <Trash2 className="size-4" />
+                                                    </Button>
+                                                )}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">
+                                                Qty
+                                            </p>
+                                            <p className="font-medium">
+                                                {item.qty} {item.unit}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">
+                                                Price
+                                            </p>
+                                            <p className="font-medium">
+                                                {formatRupiah(item.unitPrice)}
+                                            </p>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <p className="text-xs text-muted-foreground">
+                                                Total
+                                            </p>
+                                            <p className="font-semibold">
+                                                {formatRupiah(
+                                                    toNumber(item.qty) *
+                                                        toNumber(
+                                                            item.unitPrice,
+                                                        ),
+                                                )}
+                                            </p>
+                                        </div>
+                                        <div className="col-span-2">
+                                            <p className="text-xs text-muted-foreground">
+                                                Remark
+                                            </p>
+                                            <p className="break-words">
+                                                {item.note || '-'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="mt-4 hidden overflow-x-auto rounded-xl border border-sidebar-border/70 md:block">
+                            <table className="w-full min-w-[900px] text-sm">
                                 <thead className="bg-muted/40 text-muted-foreground">
                                     <tr>
                                         <th className="px-4 py-3 text-left">
@@ -1473,9 +1592,9 @@ export default function PurchaseOrderInEdit({
                                             <td className="px-4 py-3">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                    toNumber(
-                                                        item.unitPrice,
-                                                    ),
+                                                        toNumber(
+                                                            item.unitPrice,
+                                                        ),
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -1483,34 +1602,40 @@ export default function PurchaseOrderInEdit({
                                             </td>
                                             <td className="px-4 py-3">
                                                 <div className="flex items-center gap-2">
-                                                    {(!exhibitsPartialDo || toNumber(item.sisaQtyDo ?? 0) !== 0) && (
+                                                    {(!exhibitsPartialDo ||
+                                                        toNumber(
+                                                            item.sisaQtyDo ?? 0,
+                                                        ) !== 0) && (
                                                         <Button
                                                             type="button"
                                                             variant="outline"
                                                             size="sm"
                                                             onClick={() =>
-                                                                handleEditItem(item)
+                                                                handleEditItem(
+                                                                    item,
+                                                                )
                                                             }
                                                             title="Edit"
                                                         >
                                                             <Pencil className="size-4" />
                                                         </Button>
                                                     )}
-                                                    {!item.hasPr && !exhibitsPartialDo && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() =>
-                                                                handleDeleteItem(
-                                                                    item.id,
-                                                                )
-                                                            }
-                                                            title="Hapus"
-                                                        >
-                                                            <Trash2 className="size-4" />
-                                                        </Button>
-                                                    )}
+                                                    {!item.hasPr &&
+                                                        !exhibitsPartialDo && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    handleDeleteItem(
+                                                                        item.id,
+                                                                    )
+                                                                }
+                                                                title="Hapus"
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </Button>
+                                                        )}
                                                 </div>
                                             </td>
                                         </tr>
@@ -1540,16 +1665,16 @@ export default function PurchaseOrderInEdit({
                     }
                 }}
             >
-                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none p-3 sm:p-6">
                     <DialogHeader>
                         <DialogTitle>Pilih Material</DialogTitle>
                     </DialogHeader>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                        <label>
+                    <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:justify-between">
+                        <label className="flex items-center gap-2">
                             Tampilkan
                             <select
-                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                className="rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                 value={
                                     materialPageSize === Infinity
                                         ? 'all'
@@ -1573,11 +1698,11 @@ export default function PurchaseOrderInEdit({
                                 <option value="all">Semua</option>
                             </select>
                         </label>
-                        <label>
-                            Cari
+                        <label className="grid gap-1 sm:ml-auto sm:w-full sm:max-w-sm sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+                            <span>Cari</span>
                             <input
                                 type="search"
-                                className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                className="w-full rounded-md border border-sidebar-border/70 bg-background px-3 py-2 text-sm sm:py-1"
                                 placeholder="Cari kode/nama material..."
                                 value={materialSearchTerm}
                                 onChange={(event) => {
@@ -1589,7 +1714,7 @@ export default function PurchaseOrderInEdit({
                     </div>
 
                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                        <table className="w-full table-auto text-sm">
+                        <table className="w-full min-w-[760px] table-auto text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
                                     <th
@@ -1651,7 +1776,7 @@ export default function PurchaseOrderInEdit({
                                             {materialLoading
                                                 ? 'Memuat data material...'
                                                 : materialError ||
-                                                'Tidak ada data material.'}
+                                                  'Tidak ada data material.'}
                                         </td>
                                     </tr>
                                 )}
@@ -1703,13 +1828,13 @@ export default function PurchaseOrderInEdit({
 
                     {materialPageSize !== Infinity &&
                         materialTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                                 <span>
                                     Menampilkan{' '}
                                     {Math.min(
                                         (materialCurrentPage - 1) *
-                                        materialPageSize +
-                                        1,
+                                            materialPageSize +
+                                            1,
                                         materialTotalItems,
                                     )}
                                     -
@@ -1719,7 +1844,7 @@ export default function PurchaseOrderInEdit({
                                     )}{' '}
                                     dari {materialTotalItems} data
                                 </span>
-                                <div className="flex items-center gap-2">
+                                <div className="grid grid-cols-2 items-center gap-2 sm:flex">
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -1732,7 +1857,7 @@ export default function PurchaseOrderInEdit({
                                     >
                                         Sebelumnya
                                     </Button>
-                                    <span className="text-sm text-muted-foreground">
+                                    <span className="col-span-2 text-center text-sm text-muted-foreground sm:col-span-1">
                                         Halaman {materialCurrentPage} dari{' '}
                                         {materialTotalPages}
                                     </span>
@@ -1773,16 +1898,16 @@ export default function PurchaseOrderInEdit({
                     }
                 }}
             >
-                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
+                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none p-3 sm:p-6">
                     <DialogHeader>
                         <DialogTitle>Pilih Customer</DialogTitle>
                     </DialogHeader>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                        <label>
+                    <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:justify-between">
+                        <label className="flex items-center gap-2">
                             Tampilkan
                             <select
-                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                className="rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                 value={
                                     customerPageSize === Infinity
                                         ? 'all'
@@ -1805,11 +1930,11 @@ export default function PurchaseOrderInEdit({
                                 <option value="all">Semua</option>
                             </select>
                         </label>
-                        <label>
-                            Cari
+                        <label className="grid gap-1 sm:ml-auto sm:w-full sm:max-w-sm sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+                            <span>Cari</span>
                             <input
                                 type="search"
-                                className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                className="w-full rounded-md border border-sidebar-border/70 bg-background px-3 py-2 text-sm sm:py-1"
                                 placeholder="Cari kode/nama/kota..."
                                 value={customerSearchTerm}
                                 onChange={(event) => {
@@ -1821,7 +1946,7 @@ export default function PurchaseOrderInEdit({
                     </div>
 
                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                        <table className="w-full table-auto text-sm">
+                        <table className="w-full min-w-[620px] table-auto text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
                                     <th className="w-28 px-2 py-2 text-left">
@@ -1848,7 +1973,7 @@ export default function PurchaseOrderInEdit({
                                             {customerLoading
                                                 ? 'Memuat data customer...'
                                                 : customerError ||
-                                                'Tidak ada data customer.'}
+                                                  'Tidak ada data customer.'}
                                         </td>
                                     </tr>
                                 )}
@@ -1899,13 +2024,13 @@ export default function PurchaseOrderInEdit({
                     </div>
 
                     {customerPageSize !== Infinity && customerTotal > 0 && (
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                        <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                             <span>
                                 Menampilkan{' '}
                                 {Math.min(
                                     (customerCurrentPage - 1) *
-                                    customerPageSize +
-                                    1,
+                                        customerPageSize +
+                                        1,
                                     customerTotal,
                                 )}
                                 -
@@ -1915,7 +2040,7 @@ export default function PurchaseOrderInEdit({
                                 )}{' '}
                                 dari {customerTotal} data
                             </span>
-                            <div className="flex items-center gap-2">
+                            <div className="grid grid-cols-2 items-center gap-2 sm:flex">
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -1928,7 +2053,7 @@ export default function PurchaseOrderInEdit({
                                 >
                                     Sebelumnya
                                 </Button>
-                                <span className="text-sm text-muted-foreground">
+                                <span className="col-span-2 text-center text-sm text-muted-foreground sm:col-span-1">
                                     Halaman {customerCurrentPage} dari{' '}
                                     {customerTotalPages}
                                 </span>
@@ -1946,7 +2071,7 @@ export default function PurchaseOrderInEdit({
                                     disabled={
                                         customerTotalPages
                                             ? customerCurrentPage >=
-                                            customerTotalPages
+                                              customerTotalPages
                                             : true
                                     }
                                 >
