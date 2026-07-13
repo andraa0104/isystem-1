@@ -563,11 +563,11 @@ class PurchaseOrderInController
                     $row = DB::table('tb_poin as p')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                         ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
-                        ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
+                        ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
+                        ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
+                        ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
+                        ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
+                        ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
                         ->first();
 
                     $summary = [];
@@ -718,8 +718,8 @@ class PurchaseOrderInController
                 $query->whereRaw('coalesce(ds.do_unrealized_items, 0) = 0')
                     ->whereRaw('coalesce(dos.do_count, 0) > 0');
             } elseif ($statusFilter === 'realized_pr') {
-                $query->whereRaw('coalesce(ds.unrealized_items, 0) = 0')
-                    ->whereRaw('coalesce(ds.started_items, 0) > 0')
+                $query->whereRaw('coalesce(ds.total_items, 0) > 0')
+                    ->whereRaw('coalesce(ds.unrealized_items, 0) = 0')
                     ->whereNotNull('prs.last_pr_date');
             }
 
@@ -806,12 +806,12 @@ class PurchaseOrderInController
                 ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
                 ->selectRaw("count(case when coalesce(ds.started_items, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0 then 1 end) as sisa_pr")
                 ->selectRaw("count(case when coalesce(dos.do_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as sisa_do")
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
+                ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and coalesce(dos.do_count, 0) > 0 then 1 end) as realized_do")
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
-                ->selectRaw("count(case when coalesce(ds.unrealized_items, 0) = 0 and coalesce(ds.started_items, 0) > 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
+                ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
+                ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
+                ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
+                ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_today", [$startToday, $endToday])
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_week", [$startWeek, $endWeek])
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_month", [$startMonth, $endMonth])
