@@ -1650,7 +1650,7 @@ export default function PurchaseRequirementIndex({
                                                         className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3"
                                                     >
                                                         <div className="min-w-0">
-                                                            <div className="font-medium text-sm truncate">
+                                                            <div className="break-words font-medium text-sm whitespace-normal">
                                                                 {po.ref_po}
                                                             </div>
                                                             <div className="text-xs text-muted-foreground uppercase">
@@ -1679,8 +1679,8 @@ export default function PurchaseRequirementIndex({
                                                 <span className="text-muted-foreground">
                                                     Ref PO
                                                 </span>
-                                                <span>
-                                                    {renderSeparatedValues(
+                                                <span className="break-words whitespace-normal [overflow-wrap:anywhere]">
+                                                    {renderValue(
                                                         selectedPr.ref_po,
                                                     )}
                                                 </span>
