@@ -1337,6 +1337,7 @@ class PurchaseOrderInController
                 ]);
 
                 $detailId = (int) (DB::table('tb_detailpoin')->max('id') ?? 0) + 1;
+                $detailHasNoPoinColumn = Schema::hasColumn('tb_detailpoin', 'no_poin');
                 $detailData = [];
                 foreach (($validated['materials'] ?? []) as $index => $item) {
                     $qty = (float) ($item['qty'] ?? 0);
@@ -1347,7 +1348,7 @@ class PurchaseOrderInController
 
                     $kdMaterial = $this->normalizeMaterialCode($item['kd_material'] ?? null);
 
-                    $detailData[] = [
+                    $detailRow = [
                         'id' => $detailId + $index,
                         'id_poin' => $headerId,
                         'kode_poin' => $kodePoin,
@@ -1363,6 +1364,12 @@ class PurchaseOrderInController
                         'created_at' => $nowGmt8,
                         'updated_at' => $nowGmt8,
                     ];
+
+                    if ($detailHasNoPoinColumn) {
+                        $detailRow['no_poin'] = $noPoin;
+                    }
+
+                    $detailData[] = $detailRow;
                 }
 
                 if (!empty($detailData)) {
@@ -1508,6 +1515,15 @@ class PurchaseOrderInController
                         'updated_at' => $nowGmt8,
                     ]);
 
+                if (Schema::hasColumn('tb_detailpoin', 'no_poin')) {
+                    DB::table('tb_detailpoin')
+                        ->where('kode_poin', $kodePoin)
+                        ->update([
+                            'no_poin' => $newNoPoin,
+                            'updated_at' => $nowGmt8,
+                        ]);
+                }
+
                 $this->syncPurchaseRequirementRefPo($oldNoPoin, $newNoPoin);
             });
 
@@ -1572,7 +1588,7 @@ class PurchaseOrderInController
         try {
             $header = DB::table('tb_poin')
                 ->where('kode_poin', $kodePoin)
-                ->first(['id']);
+                ->first(['id', 'no_poin']);
 
             if (!$header) {
                 return response()->json([
@@ -1607,7 +1623,7 @@ class PurchaseOrderInController
             $sisaQtyPr = $qty;
             $detailId = ((int) (DB::table('tb_detailpoin')->max('id') ?? 0)) + 1;
 
-            DB::table('tb_detailpoin')->insert([
+            $insertData = [
                 'id' => $detailId,
                 'id_poin' => $header->id,
                 'kode_poin' => $kodePoin,
@@ -1622,7 +1638,13 @@ class PurchaseOrderInController
                 'remark' => trim((string) ($validated['remark'] ?? '')),
                 'created_at' => $nowGmt8,
                 'updated_at' => $nowGmt8,
-            ]);
+            ];
+
+            if (Schema::hasColumn('tb_detailpoin', 'no_poin')) {
+                $insertData['no_poin'] = trim((string) ($header->no_poin ?? ''));
+            }
+
+            DB::table('tb_detailpoin')->insert($insertData);
 
             $this->recalculateHeaderTotals($kodePoin);
 
