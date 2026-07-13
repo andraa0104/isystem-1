@@ -53,6 +53,56 @@ const getPrCustomers = (item) =>
         ? item.customers
         : [item];
 
+const getPrCustomerKey = (customer = {}) =>
+    `${String(customer.for_customer ?? '').trim()}||${String(customer.ref_po ?? '').trim()}`;
+
+const groupSelectedPrMaterials = (items = []) => {
+    const grouped = new Map();
+
+    items.forEach((item) => {
+        const key = [
+            String(item.no_pr ?? '').trim(),
+            String(item.kd_material ?? '').trim(),
+            String(item.material ?? '').trim(),
+            String(item.unit ?? '').trim(),
+            String(item.renmark ?? '').trim(),
+        ].join('||');
+        const qty = parseNumber(item.qty);
+        const sisaQty = parseNumber(item.sisa_pr ?? item.Sisa_pr);
+        const customerKey = getPrCustomerKey(item);
+
+        if (!grouped.has(key)) {
+            grouped.set(key, {
+                id: key,
+                no_pr: item.no_pr ?? '',
+                kd_material: item.kd_material ?? '',
+                material: item.material ?? '',
+                unit: item.unit ?? '',
+                renmark: item.renmark ?? '',
+                qty: 0,
+                sisa_pr: 0,
+                sourceLines: [],
+            });
+        }
+
+        const entry = grouped.get(key);
+        entry.qty += qty;
+        entry.sisa_pr += sisaQty;
+        entry.sourceLines.push({
+            no_pr: item.no_pr ?? '',
+            kd_material: item.kd_material ?? '',
+            for_customer: item.for_customer ?? '',
+            ref_po: item.ref_po ?? '',
+            qty: qty,
+            sisa_pr: sisaQty,
+            available_qty: sisaQty,
+            source_key: customerKey,
+        });
+    });
+
+    return Array.from(grouped.values());
+};
+
 const formatRupiah = (value) => {
     const number = Number(value);
     if (Number.isNaN(number)) {
@@ -87,6 +137,9 @@ export default function PurchaseOrderCreate({
     const [prDetailError, setPrDetailError] = useState(null);
     const [vendorLoading, setVendorLoading] = useState(false);
     const [vendorError, setVendorError] = useState(null);
+    const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+    const [pendingSubmitPayload, setPendingSubmitPayload] = useState(null);
+    const [returnAllocations, setReturnAllocations] = useState({});
 
     const [prSearchTerm, setPrSearchTerm] = useState('');
     const [prPageSize, setPrPageSize] = useState(5);
@@ -126,6 +179,8 @@ export default function PurchaseOrderCreate({
         remark: '',
         forCustomer: '',
         refPo: '',
+        prGroupKey: '',
+        prSources: [],
     });
 
     const [includePpn, setIncludePpn] = useState(false);
@@ -215,6 +270,11 @@ export default function PurchaseOrderCreate({
                 parseNumber(detail.sisa_pr ?? detail.Sisa_pr) > 0,
         );
     }, [formData.refPr, prDetailList]);
+
+    const groupedPrMaterials = useMemo(
+        () => groupSelectedPrMaterials(selectedPrMaterials),
+        [selectedPrMaterials],
+    );
 
     const basePriceValue = parseNumber(materialForm.basePrice);
     const qtyValue = parseNumber(materialForm.qty);
@@ -434,6 +494,9 @@ export default function PurchaseOrderCreate({
 
     const handleMaterialSelect = (item) => {
         const sisaQty = item.sisa_pr ?? item.Sisa_pr;
+        const sourceLines = Array.isArray(item.sourceLines)
+            ? item.sourceLines
+            : [];
         setMaterialForm((prev) => ({
             ...prev,
             kodeMaterial: item.kd_material ?? '',
@@ -448,8 +511,16 @@ export default function PurchaseOrderCreate({
                     : String(Math.trunc(parseNumber(sisaQty))),
             satuan: item.unit ?? '',
             remark: item.renmark ?? item.remark ?? '',
-            forCustomer: item.for_customer ?? '',
-            refPo: item.ref_po ?? '',
+            forCustomer: sourceLines
+                .map((line) => line.for_customer)
+                .filter(Boolean)
+                .join(', '),
+            refPo: sourceLines
+                .map((line) => line.ref_po)
+                .filter(Boolean)
+                .join(', '),
+            prGroupKey: item.id ?? '',
+            prSources: sourceLines,
         }));
     };
 
@@ -470,6 +541,9 @@ export default function PurchaseOrderCreate({
             remark: materialForm.remark,
             forCustomer: materialForm.forCustomer,
             refPo: materialForm.refPo,
+            prGroupKey: materialForm.prGroupKey,
+            prSources: materialForm.prSources,
+            prTotalQty: parseNumber(materialForm.sisaQty),
         };
 
         // Buat array baru berisi data lama + data yang baru ditambahkan
@@ -486,6 +560,8 @@ export default function PurchaseOrderCreate({
             remark: '',
             forCustomer: '',
             refPo: '',
+            prGroupKey: '',
+            prSources: [],
         });
         setIncludePpn(false);
 
@@ -555,55 +631,166 @@ export default function PurchaseOrderCreate({
     );
     const grandTotalSum = totalPriceSum + totalPpnSum;
 
+    const buildReturnPayload = () => {
+        const allocations = [];
+
+        materialItems.forEach((item) => {
+            const totalAvailable = parseNumber(item.prTotalQty ?? 0);
+            const poQty = parseNumber(item.qty);
+            const shortage = Math.max(0, totalAvailable - poQty);
+
+            if (shortage <= 0) {
+                return;
+            }
+
+            const sourceLines = Array.isArray(item.prSources)
+                ? item.prSources
+                : [];
+            const defaultReturns = sourceLines.map((line) => {
+                const availableQty = Math.max(
+                    0,
+                    parseNumber(line.available_qty ?? line.sisa_pr ?? line.qty),
+                );
+                return shortage > 0 && totalAvailable > 0
+                    ? (availableQty / totalAvailable) * shortage
+                    : 0;
+            });
+            const roundedDefaults = defaultReturns.map((value, index) =>
+                index === defaultReturns.length - 1
+                    ? Math.max(
+                          0,
+                          shortage -
+                              defaultReturns
+                                  .slice(0, -1)
+                                  .reduce(
+                                      (sum, entry) => sum + Math.round(entry),
+                                      0,
+                                  ),
+                      )
+                    : Math.round(value),
+            );
+            const rawAllocations = sourceLines.map((line, index) => {
+                const key = `${item.prGroupKey ?? ''}||${getPrCustomerKey(line)}`;
+                const value = returnAllocations[key];
+                const availableQty = Math.max(
+                    0,
+                    parseNumber(line.available_qty ?? line.sisa_pr ?? line.qty),
+                );
+                const returnedQty =
+                    value !== undefined
+                        ? parseNumber(value)
+                        : (roundedDefaults[index] ?? 0);
+                return {
+                    no_pr: line.no_pr ?? item.refPr ?? formData.refPr,
+                    kd_material: line.kd_material ?? item.kodeMaterial,
+                    for_customer: line.for_customer ?? '',
+                    ref_po: line.ref_po ?? '',
+                    available_qty: availableQty,
+                    returned_qty: Math.min(availableQty, returnedQty),
+                };
+            });
+
+            const allocatedReturn = rawAllocations.reduce(
+                (sum, row) => sum + parseNumber(row.returned_qty),
+                0,
+            );
+
+            allocations.push({
+                pr_group_key: item.prGroupKey,
+                kd_material: item.kodeMaterial,
+                material: item.material,
+                total_available: totalAvailable,
+                po_qty: poQty,
+                shortage: Math.max(0, shortage),
+                returned_total: allocatedReturn,
+                sources: rawAllocations,
+            });
+        });
+
+        return allocations;
+    };
+
+    const postPurchaseOrder = (payload) => {
+        router.post('/pembelian/purchase-order', payload, {
+            onStart: () => setIsSubmitting(true),
+            onError: () => setIsSubmitting(false),
+            onSuccess: (page) => {
+                if (page?.props?.flash?.error) {
+                    setIsSubmitting(false);
+                }
+            },
+        });
+    };
+
     const handleSubmit = () => {
         if (materialItems.length === 0) {
             return;
         }
 
-        router.post(
-            '/pembelian/purchase-order',
-            {
-                date: formData.date,
-                ref_pr: formData.refPr,
-                ref_quota: formData.refQuota,
-                for_cus: formData.forCustomer,
-                ref_poin: formData.refPoMasuk,
-                ppn: formData.ppn,
-                nm_vdr: formData.namaVendor,
-                kd_vdr: formData.kodeVendor,
-                payment_terms: formData.paymentTerms,
-                del_time: formData.deliveryTime,
-                franco_loco: formData.francoLoco,
-                ket1: withRequiredSpace(formData.note1),
-                ket2: withRequiredSpace(formData.note2),
-                ket3: withRequiredSpace(formData.note3),
-                ket4: withRequiredSpace(formData.note4),
-                s_total: totalPriceSum,
-                h_ppn: totalPpnSum,
-                g_total: grandTotalSum,
-                materials: materialItems.map((item, index) => ({
-                    no: index + 1,
-                    kd_mat: item.kodeMaterial,
-                    material: item.material,
-                    qty: item.qty,
-                    unit: item.satuan,
-                    price: item.price,
-                    total_price: item.totalPrice,
-                    ppn: item.ppn,
-                    for_customer: item.forCustomer,
-                    ref_poin: item.refPo,
-                })),
-            },
-            {
-                onStart: () => setIsSubmitting(true),
-                onError: () => setIsSubmitting(false),
-                onSuccess: (page) => {
-                    if (page?.props?.flash?.error) {
-                        setIsSubmitting(false);
-                    }
-                },
-            },
+        const returnPayload = buildReturnPayload();
+        const needsReturnModal = returnPayload.some(
+            (item) => item.shortage > 0,
         );
+        const payload = {
+            date: formData.date,
+            ref_pr: formData.refPr,
+            ref_quota: formData.refQuota,
+            for_cus: formData.forCustomer,
+            ref_poin: formData.refPoMasuk,
+            ppn: formData.ppn,
+            nm_vdr: formData.namaVendor,
+            kd_vdr: formData.kodeVendor,
+            payment_terms: formData.paymentTerms,
+            del_time: formData.deliveryTime,
+            franco_loco: formData.francoLoco,
+            ket1: withRequiredSpace(formData.note1),
+            ket2: withRequiredSpace(formData.note2),
+            ket3: withRequiredSpace(formData.note3),
+            ket4: withRequiredSpace(formData.note4),
+            s_total: totalPriceSum,
+            h_ppn: totalPpnSum,
+            g_total: grandTotalSum,
+            materials: materialItems.map((item, index) => ({
+                no: index + 1,
+                kd_mat: item.kodeMaterial,
+                material: item.material,
+                qty: item.qty,
+                unit: item.satuan,
+                price: item.price,
+                total_price: item.totalPrice,
+                ppn: item.ppn,
+                for_customer: item.forCustomer,
+                ref_poin: item.refPo,
+                pr_group_key: item.prGroupKey,
+                pr_total_qty: item.prTotalQty,
+            })),
+            pr_returns: returnPayload,
+        };
+
+        if (needsReturnModal) {
+            setPendingSubmitPayload(payload);
+            setIsReturnModalOpen(true);
+            return;
+        }
+
+        postPurchaseOrder(payload);
+    };
+
+    const handleConfirmReturnSubmit = () => {
+        if (!pendingSubmitPayload) {
+            return;
+        }
+
+        setIsReturnModalOpen(false);
+        postPurchaseOrder(pendingSubmitPayload);
+    };
+
+    const updateReturnAllocation = (groupKey, sourceKey, value) => {
+        const key = `${groupKey}||${sourceKey}`;
+        setReturnAllocations((prev) => ({
+            ...prev,
+            [key]: value,
+        }));
     };
 
     useEffect(() => {
@@ -921,10 +1108,10 @@ export default function PurchaseOrderCreate({
                                             columns={6}
                                             loading={
                                                 prDetailLoading &&
-                                                selectedPrMaterials.length === 0
+                                                groupedPrMaterials.length === 0
                                             }
                                             error={
-                                                selectedPrMaterials.length === 0
+                                                groupedPrMaterials.length === 0
                                                     ? prDetailError
                                                     : null
                                             }
@@ -940,14 +1127,14 @@ export default function PurchaseOrderCreate({
                                             isEmpty={
                                                 !prDetailLoading &&
                                                 !prDetailError &&
-                                                selectedPrMaterials.length === 0
+                                                groupedPrMaterials.length === 0
                                             }
                                             emptyTitle="Belum ada material PR."
                                         />
-                                        {selectedPrMaterials.map(
+                                        {groupedPrMaterials.map(
                                             (item, index) => (
                                                 <tr
-                                                    key={`${item.no_pr}-${index}`}
+                                                    key={`${item.id}-${index}`}
                                                     className="cursor-pointer border-t border-sidebar-border/70"
                                                     onClick={() =>
                                                         handleMaterialSelect(
@@ -972,8 +1159,7 @@ export default function PurchaseOrderCreate({
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {formatInteger(
-                                                            item.sisa_pr ??
-                                                                item.Sisa_pr,
+                                                            item.sisa_pr,
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3">
@@ -1803,6 +1989,143 @@ export default function PurchaseOrderCreate({
                                     </div>
                                 </div>
                             )}
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={isReturnModalOpen}
+                    onOpenChange={(open) => {
+                        setIsReturnModalOpen(open);
+                        if (!open) {
+                            setPendingSubmitPayload(null);
+                            setReturnAllocations({});
+                        }
+                    }}
+                >
+                    <DialogContent className="max-w-4xl">
+                        <DialogHeader>
+                            <DialogTitle>Sisa Qty PR</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                                Qty PO lebih kecil dari total qty PR. Tentukan
+                                qty yang dikembalikan ke customer/ref PO
+                                masing-masing.
+                            </p>
+                            <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
+                                {(pendingSubmitPayload?.pr_returns ?? []).map(
+                                    (group) => (
+                                        <div
+                                            key={group.pr_group_key}
+                                            className="rounded-xl border border-sidebar-border/70 p-4"
+                                        >
+                                            <div className="mb-3">
+                                                <p className="font-semibold">
+                                                    {group.material}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {group.kd_material} • Total
+                                                    PR{' '}
+                                                    {formatInteger(
+                                                        group.total_available,
+                                                    )}{' '}
+                                                    • PO{' '}
+                                                    {formatInteger(
+                                                        group.po_qty,
+                                                    )}{' '}
+                                                    • Sisa{' '}
+                                                    {formatInteger(
+                                                        group.shortage,
+                                                    )}
+                                                </p>
+                                            </div>
+                                            <div className="grid gap-3">
+                                                {group.sources.map((source) => {
+                                                    const sourceKey =
+                                                        getPrCustomerKey(
+                                                            source,
+                                                        );
+                                                    const allocationKey = `${group.pr_group_key}||${sourceKey}`;
+                                                    return (
+                                                        <div
+                                                            key={allocationKey}
+                                                            className="grid gap-2 rounded-lg bg-muted/30 p-3 md:grid-cols-[minmax(0,1fr)_180px]"
+                                                        >
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-medium">
+                                                                    {source.for_customer ||
+                                                                        '-'}
+                                                                </p>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    Ref PO:{' '}
+                                                                    {source.ref_po ||
+                                                                        '-'}{' '}
+                                                                    • Available:{' '}
+                                                                    {formatInteger(
+                                                                        source.available_qty,
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                            <div className="grid gap-1">
+                                                                <Label className="text-xs">
+                                                                    Qty
+                                                                    dikembalikan
+                                                                </Label>
+                                                                <Input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max={String(
+                                                                        source.available_qty,
+                                                                    )}
+                                                                    value={
+                                                                        returnAllocations[
+                                                                            allocationKey
+                                                                        ] ??
+                                                                        source.returned_qty ??
+                                                                        0
+                                                                    }
+                                                                    onChange={(
+                                                                        event,
+                                                                    ) =>
+                                                                        updateReturnAllocation(
+                                                                            group.pr_group_key,
+                                                                            sourceKey,
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    ),
+                                )}
+                            </div>
+                            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => {
+                                        setIsReturnModalOpen(false);
+                                        setPendingSubmitPayload(null);
+                                        setReturnAllocations({});
+                                    }}
+                                >
+                                    Batal
+                                </Button>
+                                <Button
+                                    type="button"
+                                    onClick={handleConfirmReturnSubmit}
+                                    disabled={!pendingSubmitPayload}
+                                >
+                                    Lanjut Simpan
+                                </Button>
+                            </div>
+                        </div>
                     </DialogContent>
                 </Dialog>
             </div>

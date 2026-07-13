@@ -349,6 +349,13 @@ class PurchaseOrderController
             $materials = [];
         }
 
+        $prAllocations = collect($request->input('pr_allocations', []))
+            ->filter(fn ($item) => is_array($item) && !empty($item['pr_group_key']))
+            ->keyBy('pr_group_key');
+        $prReturns = collect($request->input('pr_returns', []))
+            ->filter(fn ($item) => is_array($item) && !empty($item['pr_group_key']))
+            ->keyBy('pr_group_key');
+
         $ppnRaw = $request->input('ppn');
         $ppnValue = $ppnRaw === null || $ppnRaw === '' ? '' : $ppnRaw.'%';
         $dateInput = $request->input('date');
@@ -374,6 +381,7 @@ class PurchaseOrderController
                 DB::transaction(function () use (
                     $request,
                     $materials,
+                    $prReturns,
                     $prefix,
                     $ppnValue,
                     $sTotal,
@@ -433,7 +441,6 @@ class PurchaseOrderController
                     };
 
                     $detailPoPayload = [];
-                    $detailPrUpdates = [];
 
                     foreach ($materials as $index => $item) {
                         $maxId += 1;
@@ -447,6 +454,10 @@ class PurchaseOrderController
                                 strtolower(trim((string) $detail->for_customer)) === strtolower($itemCustomer)
                                 && strtolower(trim((string) $detail->ref_po)) === strtolower($itemRefPoin)
                             );
+
+                        if ($matchingPrDetails->isEmpty()) {
+                            $matchingPrDetails = $detailPrs->get($kdMat, collect());
+                        }
 
                         if ($matchingPrDetails->isEmpty()) {
                             throw new \RuntimeException("Detail PR tidak ditemukan untuk no_pr={$noPrHeader}, kd_material={$kdMat}");
@@ -503,18 +514,61 @@ class PurchaseOrderController
                     if (!empty($detailPoPayload)) {
                         DB::table('tb_detailpo')->insert($detailPoPayload);
                     }
-                    $redistributionScopes = collect($materials)->unique(fn ($item) => implode('|', [
-                        $item['kd_mat'] ?? '',
-                        $item['for_customer'] ?? '',
-                        $item['ref_poin'] ?? '',
-                    ]));
-                    foreach ($redistributionScopes as $scope) {
-                        $this->redistributePurchaseOrderQtyToPr(
-                            $noPrHeader,
-                            (string) ($scope['kd_mat'] ?? ''),
-                            (string) ($scope['for_customer'] ?? ''),
-                            (string) ($scope['ref_poin'] ?? ''),
-                        );
+                    if ($prReturns->isNotEmpty()) {
+                        foreach ($materials as $item) {
+                            $groupKey = (string) ($item['pr_group_key'] ?? '');
+                            $returnGroup = $prReturns->get($groupKey);
+                            if (!$returnGroup) {
+                                continue;
+                            }
+
+                            foreach (($returnGroup['sources'] ?? []) as $source) {
+                                $noPr = trim((string) ($source['no_pr'] ?? $noPrHeader));
+                                $kdMaterial = trim((string) ($source['kd_material'] ?? ($item['kd_mat'] ?? '')));
+                                $customer = trim((string) ($source['for_customer'] ?? ''));
+                                $refPo = trim((string) ($source['ref_po'] ?? ''));
+                                $availableQty = (float) ($source['available_qty'] ?? 0);
+                                $returnedQty = min($availableQty, (float) ($source['returned_qty'] ?? 0));
+                                $allocatedQty = max(0, $availableQty - $returnedQty);
+
+                                $detailRows = DB::table('tb_detailpr')
+                                    ->whereRaw('lower(trim(no_pr)) = ?', [strtolower($noPr)])
+                                    ->whereRaw('lower(trim(kd_material)) = ?', [strtolower($kdMaterial)])
+                                    ->whereRaw('lower(trim(for_customer)) = ?', [strtolower($customer)])
+                                    ->whereRaw('lower(trim(ref_po)) = ?', [strtolower($refPo)])
+                                    ->lockForUpdate()
+                                    ->get();
+
+                                foreach ($detailRows as $detailRow) {
+                                    $currentQty = (float) str_replace(',', '', (string) ($detailRow->qty ?? 0));
+                                    $currentQtyPo = (float) str_replace(',', '', (string) ($detailRow->qty_po ?? 0));
+                                    $currentSisa = (float) str_replace(',', '', (string) ($detailRow->sisa_pr ?? 0));
+                                    $newQtyPo = max(0, $currentQtyPo + $allocatedQty);
+                                    $newSisa = max(0, $currentSisa - $allocatedQty);
+
+                                    DB::table('tb_detailpr')
+                                        ->where('id', $detailRow->id)
+                                        ->update([
+                                            'qty_po' => $newQtyPo,
+                                            'sisa_pr' => $newSisa,
+                                        ]);
+                                }
+                            }
+                        }
+                    } else {
+                        $redistributionScopes = collect($materials)->unique(fn ($item) => implode('|', [
+                            $item['kd_mat'] ?? '',
+                            $item['for_customer'] ?? '',
+                            $item['ref_poin'] ?? '',
+                        ]));
+                        foreach ($redistributionScopes as $scope) {
+                            $this->redistributePurchaseOrderQtyToPr(
+                                $noPrHeader,
+                                (string) ($scope['kd_mat'] ?? ''),
+                                (string) ($scope['for_customer'] ?? ''),
+                                (string) ($scope['ref_poin'] ?? ''),
+                            );
+                        }
                     }
                 });
                 break;
@@ -563,6 +617,10 @@ class PurchaseOrderController
             $materials = [];
         }
 
+        $prAllocations = collect($request->input('pr_allocations', []))
+            ->filter(fn ($item) => is_array($item) && !empty($item['pr_group_key']))
+            ->keyBy('pr_group_key');
+
         $ppnRaw = $request->input('ppn');
         $ppnValue = $ppnRaw === null || $ppnRaw === '' ? '' : $ppnRaw.'%';
 
@@ -582,6 +640,7 @@ class PurchaseOrderController
             DB::transaction(function () use (
                 $request,
                 $materials,
+                $prAllocations,
                 $noPo,
                 $ppnValue,
                 $sTotal,
@@ -626,8 +685,7 @@ class PurchaseOrderController
                     ->where('no_pr', $noPrHeader)
                     ->whereIn('kd_material', $kdMatsForPr)
                     ->lockForUpdate()
-                    ->get()
-                    ->keyBy('kd_material');
+                    ->get();
 
                 $nowStamp = now()->format('m/d/Y h:i:s A');
                 $parseNumber = static function ($value): float {
@@ -649,15 +707,19 @@ class PurchaseOrderController
 
                     $existingDetail = $kdMat ? $detailsByKdMat->get($kdMat) : $detailsById->get($id);
                     if (!$existingDetail) {
-                        $detailPr = $detailPrs->get($kdMat);
-                        if (!$detailPr) {
+                        $matchingDetailPrs = $detailPrs
+                            ->where('kd_material', $kdMat)
+                            ->values();
+                        $detailPr = $matchingDetailPrs->first();
+                        if (!$detailPr || $matchingDetailPrs->isEmpty()) {
                             throw new \RuntimeException("Detail PR tidak ditemukan untuk no_pr={$noPrHeader}, kd_material={$kdMat}");
                         }
 
                         $qtyValue = $item['qty'] ?? 0;
                         $newQty = $parseNumber($qtyValue);
-                        $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
-                        $currentQtyPo = $parseNumber($detailPr->qty_po ?? 0);
+                        $currentSisa = $matchingDetailPrs->sum(
+                            fn ($row) => $parseNumber($row->sisa_pr ?? $row->Sisa_pr ?? 0),
+                        );
 
                         if ($newQty > $currentSisa) {
                             throw new \RuntimeException("Qty material {$kdMat} tidak boleh melebihi sisa qty PR ({$currentSisa}).");
@@ -707,12 +769,48 @@ class PurchaseOrderController
                             'sisa_pr' => max(0, $currentSisa - $newQty),
                         ]);
 
-                        $detailPrUpdates[] = [
-                            'no_pr' => $noPrHeader,
-                            'kd_material' => $kdMat,
-                            'sisa_pr' => max(0, $currentSisa - $newQty),
-                            'qty_po' => $currentQtyPo + $newQty,
-                        ];
+                        $allocationKey = trim((string) $noPrHeader) . '||' . trim((string) $kdMat);
+                        $allocationGroup = $prAllocations->get($allocationKey);
+
+                        if ($allocationGroup && !empty($allocationGroup['sources']) && is_array($allocationGroup['sources'])) {
+                            $allocatedChange = collect($allocationGroup['sources'])
+                                ->sum(fn ($source) => $parseNumber($source['qty_change'] ?? 0));
+
+                            if (abs($allocatedChange - $newQty) > 0.000001) {
+                                throw new \RuntimeException("Total alokasi qty material {$kdMat} harus sama dengan qty PO ({$newQty}).");
+                            }
+
+                            foreach ($allocationGroup['sources'] as $source) {
+                                $sourceCustomer = trim((string) ($source['for_customer'] ?? ''));
+                                $sourceRefPo = trim((string) ($source['ref_po'] ?? ''));
+                                $qtyChange = $parseNumber($source['qty_change'] ?? 0);
+
+                                if ($qtyChange <= 0) {
+                                    continue;
+                                }
+
+                                $detailRow = $matchingDetailPrs->first(function ($row) use ($sourceCustomer, $sourceRefPo) {
+                                    return strtolower(trim((string) ($row->for_customer ?? ''))) === strtolower($sourceCustomer)
+                                        && strtolower(trim((string) ($row->ref_po ?? ''))) === strtolower($sourceRefPo);
+                                });
+
+                                if (!$detailRow) {
+                                    throw new \RuntimeException("Detail PR tidak ditemukan untuk no_pr={$noPrHeader}, kd_material={$kdMat}, customer={$sourceCustomer}, ref_po={$sourceRefPo}");
+                                }
+
+                                $rowSisa = $parseNumber($detailRow->sisa_pr ?? $detailRow->Sisa_pr ?? 0);
+                                if ($qtyChange > $rowSisa) {
+                                    throw new \RuntimeException("Qty material {$kdMat} tidak boleh melebihi sisa qty PR ({$rowSisa}).");
+                                }
+
+                                DB::table('tb_detailpr')
+                                    ->where('id', $detailRow->id)
+                                    ->update([
+                                        'sisa_pr' => max(0, $rowSisa - $qtyChange),
+                                        'qty_po' => max(0, $parseNumber($detailRow->qty_po ?? 0) + $qtyChange),
+                                    ]);
+                            }
+                        }
 
                         continue;
                     }
@@ -758,7 +856,67 @@ class PurchaseOrderController
 
                     $noPr = $noPrHeader ?: ($existingDetail->ref_pr ?? null);
                     if ($noPr && $resolvedKdMat && abs($qtyDelta) > 0.000001) {
-                        $detailPr = $detailPrs->get($resolvedKdMat);
+                        $allocationKey = trim((string) $noPr) . '||' . trim((string) $resolvedKdMat);
+                        $allocationGroup = $prAllocations->get($allocationKey);
+                        $handledPrAllocation = false;
+
+                        if ($allocationGroup && !empty($allocationGroup['sources']) && is_array($allocationGroup['sources'])) {
+                            $allocatedChange = collect($allocationGroup['sources'])
+                                ->sum(fn ($source) => $parseNumber($source['qty_change'] ?? 0));
+
+                            if (abs($allocatedChange - $qtyDelta) > 0.000001) {
+                                throw new \RuntimeException("Total alokasi qty material {$resolvedKdMat} harus sama dengan perubahan qty PO ({$qtyDelta}).");
+                            }
+
+                            $detailPrRows = DB::table('tb_detailpr')
+                                ->where('no_pr', $noPr)
+                                ->where('kd_material', $resolvedKdMat)
+                                ->lockForUpdate()
+                                ->get();
+
+                            foreach ($allocationGroup['sources'] as $source) {
+                                $sourceCustomer = trim((string) ($source['for_customer'] ?? ''));
+                                $sourceRefPo = trim((string) ($source['ref_po'] ?? ''));
+                                $qtyChange = $parseNumber($source['qty_change'] ?? 0);
+
+                                if (abs($qtyChange) < 0.000001) {
+                                    continue;
+                                }
+
+                                $detailRow = $detailPrRows->first(function ($row) use ($sourceCustomer, $sourceRefPo) {
+                                    return strtolower(trim((string) ($row->for_customer ?? ''))) === strtolower($sourceCustomer)
+                                        && strtolower(trim((string) ($row->ref_po ?? ''))) === strtolower($sourceRefPo);
+                                });
+
+                                if (!$detailRow) {
+                                    throw new \RuntimeException("Detail PR tidak ditemukan untuk no_pr={$noPr}, kd_material={$resolvedKdMat}, customer={$sourceCustomer}, ref_po={$sourceRefPo}");
+                                }
+
+                                $currentSisa = $parseNumber($detailRow->sisa_pr ?? $detailRow->Sisa_pr ?? 0);
+                                $currentQtyPo = $parseNumber($detailRow->qty_po ?? 0);
+                                $newSisa = max(0, $currentSisa - $qtyChange);
+                                $newQtyPo = max(0, $currentQtyPo + $qtyChange);
+
+                                if ($qtyChange > 0 && $qtyChange > $currentSisa) {
+                                    throw new \RuntimeException("Qty material {$resolvedKdMat} tidak boleh melebihi sisa qty PR ({$currentSisa}).");
+                                }
+
+                                DB::table('tb_detailpr')
+                                    ->where('no_pr', $noPr)
+                                    ->where('kd_material', $resolvedKdMat)
+                                    ->whereRaw("lower(trim(coalesce(for_customer, ''))) = ?", [strtolower($sourceCustomer)])
+                                    ->whereRaw("lower(trim(coalesce(ref_po, ''))) = ?", [strtolower($sourceRefPo)])
+                                    ->update([
+                                        'sisa_pr' => $newSisa,
+                                        'qty_po' => $newQtyPo,
+                                    ]);
+                            }
+                            $handledPrAllocation = true;
+                        }
+
+                        $detailPr = $handledPrAllocation
+                            ? null
+                            : $detailPrs->firstWhere('kd_material', $resolvedKdMat);
 
                         if ($detailPr) {
                             $currentSisa = $parseNumber($detailPr->sisa_pr ?? $detailPr->Sisa_pr ?? 0);
@@ -835,6 +993,11 @@ class PurchaseOrderController
                         ]);
                 }
                 foreach ($kdMatsForPr as $kdMatForPr) {
+                    $allocationKey = trim((string) $noPrHeader) . '||' . trim((string) $kdMatForPr);
+                    if ($prAllocations->has($allocationKey)) {
+                        continue;
+                    }
+
                     $this->redistributePurchaseOrderQtyToPr(
                         $noPrHeader,
                         $kdMatForPr,
@@ -1867,10 +2030,33 @@ class PurchaseOrderController
                 ->where('po.no_po', $noPo)
                 ->first();
 
-            $purchaseOrderDetails = DB::table('tb_detailpo')
-                ->where('no_po', $noPo)
-                ->orderBy('no')
-                ->get();
+                $purchaseOrderDetails = DB::table('tb_detailpo')
+                    ->where('no_po', $noPo)
+                    ->orderBy('no')
+                    ->get([
+                        'no_po',
+                        'no',
+                        'material',
+                        'qty',
+                        'sisa_pr',
+                        'gr_mat',
+                        'unit',
+                        'price',
+                        'total_price',
+                        'del_time',
+                        'payment_terms',
+                        'franco_loco',
+                        'ket1',
+                        'ket2',
+                        'ket3',
+                        'ket4',
+                        'kd_mat',
+                        'kd_vdr',
+                        'ref_pr',
+                        'ref_poin',
+                        'for_cus',
+                        'ppn',
+                    ]);
 
             return [
                 'purchaseOrder' => $purchaseOrder,
