@@ -1,3 +1,4 @@
+import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -5,7 +6,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import InputError from '@/components/input-error';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -66,6 +66,23 @@ const fillOrSpace = (value) => {
     return text === '' ? ' ' : text;
 };
 
+const showToast = (message, variant = 'error') => {
+    if (!message) {
+        return;
+    }
+
+    window.dispatchEvent(
+        new CustomEvent('app:toast', {
+            detail: { message, variant },
+        }),
+    );
+};
+
+const getFirstErrorMessage = (errors, fallback) => {
+    const first = Object.values(errors ?? {})[0];
+    return (Array.isArray(first) ? first[0] : first) || fallback;
+};
+
 const todayDate = () => {
     const now = new Date();
     return now.toISOString().slice(0, 10);
@@ -78,8 +95,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [customerList, setCustomerList] = useState(customers);
     const [materialList, setMaterialList] = useState(materials);
-    const [customerTotalItems, setCustomerTotalItems] = useState(customers.length);
-    const [materialTotalItems, setMaterialTotalItems] = useState(materials.length);
+    const [customerTotalItems, setCustomerTotalItems] = useState(
+        customers.length,
+    );
+    const [materialTotalItems, setMaterialTotalItems] = useState(
+        materials.length,
+    );
     const [customerLoading, setCustomerLoading] = useState(false);
     const [materialLoading, setMaterialLoading] = useState(false);
     const [customerError, setCustomerError] = useState('');
@@ -218,7 +239,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             page: customerPage,
             pageSize: customerPageSize,
         });
-    }, [customerModalOpen, debouncedCustomerSearch, customerPage, customerPageSize]);
+    }, [
+        customerModalOpen,
+        debouncedCustomerSearch,
+        customerPage,
+        customerPageSize,
+    ]);
 
     useEffect(() => {
         if (!materialModalOpen) return;
@@ -228,7 +254,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             page: materialPage,
             pageSize: materialPageSize,
         });
-    }, [materialModalOpen, debouncedMaterialSearch, materialPage, materialPageSize]);
+    }, [
+        materialModalOpen,
+        debouncedMaterialSearch,
+        materialPage,
+        materialPageSize,
+    ]);
 
     const handleSelectCustomer = async (item) => {
         const customerName = renderValue(item.nm_cs);
@@ -304,7 +335,11 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }
     };
 
-    const loadCustomers = async ({ search = '', page = 1, pageSize = 5 } = {}) => {
+    const loadCustomers = async ({
+        search = '',
+        page = 1,
+        pageSize = 5,
+    } = {}) => {
         const requestSeq = customerRequestSeq.current + 1;
         customerRequestSeq.current = requestSeq;
         setCustomerLoading(true);
@@ -315,9 +350,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                 page: String(page),
                 pageSize: pageSize === Infinity ? 'all' : String(pageSize),
             });
-            const response = await fetch(`/marketing/quotation/customers?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const response = await fetch(
+                `/marketing/quotation/customers?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!response.ok) {
                 throw new Error('Request failed');
             }
@@ -339,7 +377,11 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }
     };
 
-    const loadMaterials = async ({ search = '', page = 1, pageSize = 5 } = {}) => {
+    const loadMaterials = async ({
+        search = '',
+        page = 1,
+        pageSize = 5,
+    } = {}) => {
         const requestSeq = materialRequestSeq.current + 1;
         materialRequestSeq.current = requestSeq;
         setMaterialLoading(true);
@@ -350,9 +392,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                 page: String(page),
                 pageSize: pageSize === Infinity ? 'all' : String(pageSize),
             });
-            const response = await fetch(`/marketing/quotation/materials?${params.toString()}`, {
-                headers: { Accept: 'application/json' },
-            });
+            const response = await fetch(
+                `/marketing/quotation/materials?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
             if (!response.ok) {
                 throw new Error('Request failed');
             }
@@ -461,7 +506,31 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             },
             {
                 onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
+                onSuccess: (page) => {
+                    if (page?.props?.flash?.error) {
+                        showToast(page.props.flash.error, 'error');
+                        setIsSubmitting(false);
+                        return;
+                    }
+
+                    showToast(
+                        page?.props?.flash?.success ||
+                            'Quotation berhasil disimpan.',
+                        'success',
+                    );
+                    setIsSubmitting(false);
+                },
+                onError: (errors) => {
+                    showToast(
+                        getFirstErrorMessage(
+                            errors,
+                            'Gagal menyimpan quotation.',
+                        ),
+                        'error',
+                    );
+                    setIsSubmitting(false);
+                },
+                onCancel: () => setIsSubmitting(false),
             },
         );
     };
@@ -1290,18 +1359,53 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                         <table className="w-full table-auto text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
-                                    <th className="w-32 px-2 py-2 text-left" rowSpan={2}>Kode Material</th>
-                                    <th className="px-2 py-2 text-left" rowSpan={2}>Nama Material</th>
-                                    <th className="px-2 py-2 text-center" colSpan={5}>Stok</th>
-                                    <th className="w-20 px-2 py-2 text-left" rowSpan={2}>Satuan</th>
-                                    <th className="w-20 px-2 py-2 text-left" rowSpan={2}>Action</th>
+                                    <th
+                                        className="w-32 px-2 py-2 text-left"
+                                        rowSpan={2}
+                                    >
+                                        Kode Material
+                                    </th>
+                                    <th
+                                        className="px-2 py-2 text-left"
+                                        rowSpan={2}
+                                    >
+                                        Nama Material
+                                    </th>
+                                    <th
+                                        className="px-2 py-2 text-center"
+                                        colSpan={5}
+                                    >
+                                        Stok
+                                    </th>
+                                    <th
+                                        className="w-20 px-2 py-2 text-left"
+                                        rowSpan={2}
+                                    >
+                                        Satuan
+                                    </th>
+                                    <th
+                                        className="w-20 px-2 py-2 text-left"
+                                        rowSpan={2}
+                                    >
+                                        Action
+                                    </th>
                                 </tr>
                                 <tr>
-                                    <th className="w-16 px-2 py-2 text-right">G1</th>
-                                    <th className="w-16 px-2 py-2 text-right">G2</th>
-                                    <th className="w-16 px-2 py-2 text-right">G3</th>
-                                    <th className="w-16 px-2 py-2 text-right">G4</th>
-                                    <th className="w-20 px-2 py-2 text-right">Total</th>
+                                    <th className="w-16 px-2 py-2 text-right">
+                                        G1
+                                    </th>
+                                    <th className="w-16 px-2 py-2 text-right">
+                                        G2
+                                    </th>
+                                    <th className="w-16 px-2 py-2 text-right">
+                                        G3
+                                    </th>
+                                    <th className="w-16 px-2 py-2 text-right">
+                                        G4
+                                    </th>
+                                    <th className="w-20 px-2 py-2 text-right">
+                                        Total
+                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1320,20 +1424,39 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 )}
                                 {displayedMaterials.map((item, index) => (
                                     <tr
-                                        key={item.kd_material ?? `${item.material}-${index}`}
+                                        key={
+                                            item.kd_material ??
+                                            `${item.material}-${index}`
+                                        }
                                         className="border-t border-sidebar-border/70"
                                         onDoubleClick={() =>
                                             handleSelectMaterial(item)
                                         }
                                     >
-                                        <td className="whitespace-nowrap px-2 py-2">{item.kd_material ?? '-'}</td>
-                                        <td className="px-2 py-2">{item.material ?? '-'}</td>
-                                        <td className="whitespace-nowrap px-2 py-2 text-right">{formatInteger(item.stok_g1)}</td>
-                                        <td className="whitespace-nowrap px-2 py-2 text-right">{formatInteger(item.stok_g2)}</td>
-                                        <td className="whitespace-nowrap px-2 py-2 text-right">{formatInteger(item.stok_g3)}</td>
-                                        <td className="whitespace-nowrap px-2 py-2 text-right">{formatInteger(item.stok_g4)}</td>
-                                        <td className="whitespace-nowrap px-2 py-2 text-right">{formatInteger(item.stok)}</td>
-                                        <td className="whitespace-nowrap px-2 py-2">{item.unit ?? '-'}</td>
+                                        <td className="px-2 py-2 whitespace-nowrap">
+                                            {item.kd_material ?? '-'}
+                                        </td>
+                                        <td className="px-2 py-2">
+                                            {item.material ?? '-'}
+                                        </td>
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
+                                            {formatInteger(item.stok_g1)}
+                                        </td>
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
+                                            {formatInteger(item.stok_g2)}
+                                        </td>
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
+                                            {formatInteger(item.stok_g3)}
+                                        </td>
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
+                                            {formatInteger(item.stok_g4)}
+                                        </td>
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
+                                            {formatInteger(item.stok)}
+                                        </td>
+                                        <td className="px-2 py-2 whitespace-nowrap">
+                                            {item.unit ?? '-'}
+                                        </td>
                                         <td className="px-2 py-2">
                                             <Button
                                                 type="button"
