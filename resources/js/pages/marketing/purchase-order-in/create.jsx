@@ -325,7 +325,6 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 'X-Skip-Loading-Overlay': '1',
             },
             onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
 onError: (errors) => {
                 setIsSubmitting(false);
                 if (errors?.no_poin) {

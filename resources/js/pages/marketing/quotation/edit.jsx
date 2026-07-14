@@ -650,7 +650,6 @@ export default function QuotationEdit({
             },
             {
                 onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
 onSuccess: (page) => {
                     if (page?.props?.flash?.error) {
                         showToast(page.props.flash.error, 'error');
