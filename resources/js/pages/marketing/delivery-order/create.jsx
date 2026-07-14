@@ -259,7 +259,8 @@ export default function DeliveryOrderCreate() {
     const submitDeliveryOrder = () => {
         router.post('/marketing/delivery-order', buildSubmitPayload(), {
             onStart: () => setIsSubmitting(true),
-            onError: () => setIsSubmitting(false),
+                onFinish: () => setIsSubmitting(false),
+onError: () => setIsSubmitting(false),
             onSuccess: (page) => {
                 if (page?.props?.flash?.error) {
                     setIsSubmitting(false);

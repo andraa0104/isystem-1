@@ -340,7 +340,7 @@ export default function DeliveryOrderAddCreate() {
             {
                 onStart: () => setIsSubmitting(true),
                 onFinish: () => setIsSubmitting(false),
-            },
+},
         );
     };
 

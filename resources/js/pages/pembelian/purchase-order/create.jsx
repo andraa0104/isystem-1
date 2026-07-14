@@ -713,7 +713,8 @@ export default function PurchaseOrderCreate({
     const postPurchaseOrder = (payload) => {
         router.post('/pembelian/purchase-order', payload, {
             onStart: () => setIsSubmitting(true),
-            onError: () => setIsSubmitting(false),
+                onFinish: () => setIsSubmitting(false),
+onError: () => setIsSubmitting(false),
             onSuccess: (page) => {
                 if (page?.props?.flash?.error) {
                     setIsSubmitting(false);

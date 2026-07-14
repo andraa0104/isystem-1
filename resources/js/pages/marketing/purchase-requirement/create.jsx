@@ -818,7 +818,8 @@ export default function PurchaseRequirementCreate() {
     const submitPurchaseRequirement = () => {
         router.post('/marketing/purchase-requirement', buildSubmitPayload(), {
             onStart: () => setIsSubmitting(true),
-            onError: () => setIsSubmitting(false),
+                onFinish: () => setIsSubmitting(false),
+onError: () => setIsSubmitting(false),
             onSuccess: (page) => {
                 if (page?.props?.flash?.error) {
                     setIsSubmitting(false);

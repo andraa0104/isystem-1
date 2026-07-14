@@ -1202,7 +1202,7 @@ const handleSubmit = () => {
         },
         {
             onStart: () => setIsSubmitting(true),
-            onFinish: () => setIsSubmitting(false),
-        },
+                onFinish: () => setIsSubmitting(false),
+},
     );
 };

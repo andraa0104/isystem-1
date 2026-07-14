@@ -556,7 +556,8 @@ export default function PurchaseOrderInEdit({
                     'X-Skip-Loading-Overlay': '1',
                 },
                 onStart: () => setIsSubmitting(true),
-                onSuccess: (page) => {
+                onFinish: () => setIsSubmitting(false),
+onSuccess: (page) => {
                     if (page?.props?.flash?.error) {
                         toastError(page.props.flash.error);
                         setIsSubmitting(false);

@@ -750,7 +750,8 @@ export default function PurchaseRequirementEdit({
             },
             {
                 onStart: () => setIsSubmitting(true),
-                onError: () => setIsSubmitting(false),
+                onFinish: () => setIsSubmitting(false),
+onError: () => setIsSubmitting(false),
                 onSuccess: (page) => {
                     setIsSubmitting(false);
                 },

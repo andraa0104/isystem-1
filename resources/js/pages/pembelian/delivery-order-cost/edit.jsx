@@ -382,7 +382,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
             {
                 onStart: () => setIsSubmitting(true),
                 onFinish: () => setIsSubmitting(false),
-            },
+},
         );
     };
 

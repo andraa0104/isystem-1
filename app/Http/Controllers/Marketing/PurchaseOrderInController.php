@@ -1387,12 +1387,24 @@ class PurchaseOrderInController
                     ->route('marketing.purchase-order-in.index')
                     ->with('success', 'Data PO IN berhasil disimpan.');
             }
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Data PO IN berhasil disimpan.',
+                    'redirect' => route('marketing.purchase-order-in.index'),
+                ]);
+            }
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil disimpan.');
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Throwable $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $this->formatFailureMessage('menyimpan', $e),
+                ], 500);
+            }
+
             return back()
                 ->withInput()
                 ->with('error', $this->formatFailureMessage('menyimpan', $e));
@@ -1529,7 +1541,13 @@ class PurchaseOrderInController
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'Data PO IN berhasil diperbarui.');
-                return inertia_location('/marketing/purchase-order-in');
+                return redirect('/marketing/purchase-order-in');
+            }
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Data PO IN berhasil diperbarui.',
+                    'redirect' => route('marketing.purchase-order-in.index'),
+                ]);
             }
             return redirect()
                 ->route('marketing.purchase-order-in.index')
@@ -1537,6 +1555,12 @@ class PurchaseOrderInController
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Throwable $e) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'Gagal memperbarui data: ' . $e->getMessage(),
+                ], 500);
+            }
+
             return back()->with('error', 'Gagal memperbarui data: ' . $e->getMessage());
         }
     }
@@ -1569,7 +1593,7 @@ class PurchaseOrderInController
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'PO In berhasil dihapus.');
-                return inertia_location('/marketing/purchase-order-in');
+                return redirect('/marketing/purchase-order-in');
             }
 
             return redirect()

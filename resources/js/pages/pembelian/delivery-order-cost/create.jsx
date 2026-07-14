@@ -210,7 +210,7 @@ export default function DeliveryOrderCostCreate() {
             {
                 onStart: () => setIsSubmitting(true),
                 onFinish: () => setIsSubmitting(false),
-            },
+},
         );
     };
 

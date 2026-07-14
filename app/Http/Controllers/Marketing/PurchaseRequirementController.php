@@ -1216,7 +1216,7 @@ class PurchaseRequirementController
         if ($request->header('X-Inertia')) {
             Cache::tags(['poin_data'])->flush();
             session()->flash('success', 'Data PR berhasil disimpan.');
-            return inertia_location('/marketing/purchase-requirement');
+            return redirect('/marketing/purchase-requirement');
         }
 
         Cache::tags(['poin_data'])->flush();
@@ -1437,7 +1437,7 @@ class PurchaseRequirementController
 
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data PR berhasil diperbarui.');
-            return inertia_location('/marketing/purchase-requirement');
+            return redirect('/marketing/purchase-requirement');
         }
 
         return redirect()
@@ -1987,7 +1987,7 @@ class PurchaseRequirementController
         if ($request->header('X-Inertia')) {
             Cache::tags(['poin_data'])->flush();
             session()->flash('success', 'Data PR berhasil dihapus.');
-            return inertia_location('/marketing/purchase-requirement');
+            return redirect('/marketing/purchase-requirement');
         }
         Cache::tags(['poin_data'])->flush();
         return response()->json(['message' => 'Data PR berhasil dihapus.']);

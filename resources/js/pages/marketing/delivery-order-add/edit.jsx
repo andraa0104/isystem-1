@@ -130,7 +130,7 @@ export default function DeliveryOrderAddEdit({ deliveryOrder, items = [] }) {
                 preserveState: true,
                 onStart: () => setIsSubmitting(true),
                 onFinish: () => setIsSubmitting(false),
-                onSuccess: () => {
+onSuccess: () => {
                     setFormData((prev) => ({
                         ...prev,
                         items: prev.items.map((row) =>

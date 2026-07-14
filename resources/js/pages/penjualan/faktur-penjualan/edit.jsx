@@ -238,7 +238,7 @@ export default function FakturPenjualanEdit({
                     });
                 },
                 onFinish: () => setIsSubmitting(false),
-            },
+},
         );
     };
 

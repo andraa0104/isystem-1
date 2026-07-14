@@ -244,7 +244,8 @@ export default function DeliveryOrderEdit({
                 {
                     preserveScroll: true,
                     onStart: () => setIsSubmitting(true),
-                    onError: () => setIsSubmitting(false),
+                onFinish: () => setIsSubmitting(false),
+onError: () => setIsSubmitting(false),
                     onSuccess: (page) => {
                         if (page?.props?.flash?.error) {
                             setIsSubmitting(false);
@@ -270,7 +271,8 @@ export default function DeliveryOrderEdit({
                 preserveScroll: true,
                 preserveState: true,
                 onStart: () => setIsSubmitting(true),
-                onError: () => setIsSubmitting(false),
+                onFinish: () => setIsSubmitting(false),
+onError: () => setIsSubmitting(false),
                 onSuccess: (page) => {
                     if (page?.props?.flash?.error) {
                         setIsSubmitting(false);
@@ -423,7 +425,8 @@ export default function DeliveryOrderEdit({
                 preserveScroll: true,
                 preserveState: true,
                 onStart: () => setIsSubmitting(true),
-                onError: () => setIsSubmitting(false),
+                onFinish: () => setIsSubmitting(false),
+onError: () => setIsSubmitting(false),
                 onSuccess: (page) => {
                     if (page?.props?.flash?.error) {
                         setIsSubmitting(false);

@@ -506,7 +506,7 @@ export default function PenerimaanMaterialIndex() {
                     setRowsByMode((prev) => ({ ...prev, mi: [] }));
                 },
                 onFinish: () => setIsSaving(false),
-            },
+},
         );
     };
 
@@ -563,7 +563,7 @@ export default function PenerimaanMaterialIndex() {
                     setRowsByMode((prev) => ({ ...prev, mis: [] }));
                 },
                 onFinish: () => setIsSaving(false),
-            },
+},
         );
     };
 
@@ -620,7 +620,7 @@ export default function PenerimaanMaterialIndex() {
                     setRowsByMode((prev) => ({ ...prev, mib: [] }));
                 },
                 onFinish: () => setIsSaving(false),
-            },
+},
         );
     };
 

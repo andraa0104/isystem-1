@@ -650,7 +650,8 @@ export default function QuotationEdit({
             },
             {
                 onStart: () => setIsSubmitting(true),
-                onSuccess: (page) => {
+                onFinish: () => setIsSubmitting(false),
+onSuccess: (page) => {
                     if (page?.props?.flash?.error) {
                         showToast(page.props.flash.error, 'error');
                         setIsSubmitting(false);
@@ -676,7 +677,7 @@ export default function QuotationEdit({
                 },
                 onCancel: () => setIsSubmitting(false),
                 onFinish: () => setIsSubmitting(false),
-            },
+},
         );
     };
 

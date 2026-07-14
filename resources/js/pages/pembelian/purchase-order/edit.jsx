@@ -1075,7 +1075,8 @@ export default function PurchaseOrderEdit({
             payload,
             {
                 onStart: () => setIsSubmitting(true),
-                onError: () => setIsSubmitting(false),
+                onFinish: () => setIsSubmitting(false),
+onError: () => setIsSubmitting(false),
                 onSuccess: (page) => {
                     if (page?.props?.flash?.error) {
                         setIsSubmitting(false);
@@ -1103,7 +1104,8 @@ export default function PurchaseOrderEdit({
             payload,
             {
                 onStart: () => setIsSubmitting(true),
-                onError: () => setIsSubmitting(false),
+                onFinish: () => setIsSubmitting(false),
+onError: () => setIsSubmitting(false),
                 onSuccess: (page) => {
                     if (page?.props?.flash?.error) {
                         setIsSubmitting(false);

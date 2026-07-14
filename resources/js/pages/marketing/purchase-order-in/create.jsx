@@ -325,7 +325,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 'X-Skip-Loading-Overlay': '1',
             },
             onStart: () => setIsSubmitting(true),
-            onError: (errors) => {
+                onFinish: () => setIsSubmitting(false),
+onError: (errors) => {
                 setIsSubmitting(false);
                 if (errors?.no_poin) {
                     setValidationErrors((prev) => ({
@@ -349,7 +350,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
             },
             onFinish: () => setIsSubmitting(false),
-        });
+});
     };
 
     const handleEditItem = (item) => {
