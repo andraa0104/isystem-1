@@ -675,6 +675,7 @@ export default function QuotationEdit({
                     setIsSubmitting(false);
                 },
                 onCancel: () => setIsSubmitting(false),
+                onFinish: () => setIsSubmitting(false),
             },
         );
     };

@@ -519,6 +519,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                         'success',
                     );
                     setIsSubmitting(false);
+                    router.visit('/marketing/quotation');
                 },
                 onError: (errors) => {
                     showToast(
@@ -531,6 +532,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                     setIsSubmitting(false);
                 },
                 onCancel: () => setIsSubmitting(false),
+                onFinish: () => setIsSubmitting(false),
             },
         );
     };
