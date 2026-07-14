@@ -775,6 +775,18 @@ export default function PurchaseOrderInIndex({
                     setActiveModal(null);
                     setIsConfirmDeleteOpen(false);
                     setConfirmDeleteKode('');
+
+                    fetchPoInSummary();
+                    fetchPoInData({
+                        search,
+                        per_page: perPage,
+                        status: statusFilter,
+                        dateFilter: tableDateFilter,
+                        startDate: tableStartDate,
+                        endDate: tableEndDate,
+                        page: pagination.page || 1,
+                        isPartial: true,
+                    });
                 },
                 onError: (errors) => {
                     setIsDeleting(false);
@@ -784,6 +796,7 @@ export default function PurchaseOrderInIndex({
                             'Akses delete tidak diizinkan untuk menu ini.',
                     );
                 },
+                onFinish: () => setIsDeleting(false),
             },
         );
     };
