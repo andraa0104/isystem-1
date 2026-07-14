@@ -3,12 +3,11 @@ import { AppShell } from '@/components/app-shell';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
 import { usePage } from '@inertiajs/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
+import Swal from 'sweetalert2';
 
 export default function AppSidebarLayout({ children, breadcrumbs = [] }) {
     const { flash = {}, errors = {} } = usePage().props;
-    const [toast, setToast] = useState(null);
-    const toastTimer = useRef(null);
     const pendingToastKey = 'app:pending-toast';
 
     const showToast = (message, variant) => {
@@ -16,14 +15,15 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }) {
             return;
         }
 
-        if (toastTimer.current) {
-            clearTimeout(toastTimer.current);
-        }
-
-        setToast({ message, variant });
-        toastTimer.current = setTimeout(() => {
-            setToast(null);
-        }, 4000);
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: variant === 'success' ? 'success' : 'error',
+            title: message,
+            showConfirmButton: false,
+            timer: variant === 'success' ? 2600 : 3600,
+            timerProgressBar: true,
+        });
     };
 
     useEffect(() => {
@@ -73,9 +73,6 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }) {
 
         return () => {
             window.removeEventListener('app:toast', onGlobalToast);
-            if (toastTimer.current) {
-                clearTimeout(toastTimer.current);
-            }
         };
     }, []);
 
@@ -86,17 +83,6 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }) {
                 <AppSidebarHeader breadcrumbs={breadcrumbs} />
                 {children}
             </AppContent>
-            {toast && (
-                <div
-                    className={`fixed top-4 right-4 z-50 w-[92vw] max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg ${
-                        toast.variant === 'success'
-                            ? 'border-emerald-600 bg-emerald-600 text-white'
-                            : 'border-rose-600 bg-rose-600 text-white'
-                    }`}
-                >
-                    {toast.message}
-                </div>
-            )}
         </AppShell>
     );
 }
