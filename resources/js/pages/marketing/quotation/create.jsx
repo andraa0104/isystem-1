@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -82,6 +82,11 @@ const getFirstErrorMessage = (errors, fallback) => {
     const first = Object.values(errors ?? {})[0];
     return (Array.isArray(first) ? first[0] : first) || fallback;
 };
+
+const getCsrfToken = () =>
+    document
+        .querySelector('meta[name="csrf-token"]')
+        ?.getAttribute('content') ?? '';
 
 const todayDate = () => {
     const now = new Date();
@@ -476,65 +481,70 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
 
     const handleSubmit = (event) => {
         event.preventDefault();
-        router.post(
-            '/marketing/quotation',
-            {
-                db: customerForm.db,
-                tgl_penawaran: customerForm.tglPenawaran || todayDate(),
-                customer: fillOrSpace(customerForm.nama),
-                alamat: fillOrSpace(customerForm.alamat),
-                telp: fillOrSpace(customerForm.telepon),
-                fax: fillOrSpace(customerForm.fax),
-                email: fillOrSpace(customerForm.email),
-                attend: fillOrSpace(customerForm.attend),
-                payment: fillOrSpace(detailForm.payment),
-                validity: fillOrSpace(detailForm.validity),
-                delivery: fillOrSpace(detailForm.delivery),
-                franco: fillOrSpace(detailForm.franco),
-                note1: fillOrSpace(detailForm.note1),
-                note2: fillOrSpace(detailForm.note2),
-                note3: fillOrSpace(detailForm.note3),
-                materials: materialItems.map((item) => ({
-                    material: item.nama,
-                    quantity: item.quantity,
-                    harga_modal: item.hargaModal,
-                    harga_penawaran: item.hargaPenawaran,
-                    satuan: item.satuan,
-                    margin: item.margin,
-                    remark: item.remark,
-                })),
-            },
-            {
-                onStart: () => setIsSubmitting(true),
-                onSuccess: (page) => {
-                    if (page?.props?.flash?.error) {
-                        showToast(page.props.flash.error, 'error');
-                        setIsSubmitting(false);
-                        return;
-                    }
+        if (isSubmitting) {
+            return;
+        }
 
-                    showToast(
-                        page?.props?.flash?.success ||
-                            'Quotation berhasil disimpan.',
-                        'success',
-                    );
-                    setIsSubmitting(false);
-                    router.visit('/marketing/quotation');
-                },
-                onError: (errors) => {
-                    showToast(
-                        getFirstErrorMessage(
-                            errors,
-                            'Gagal menyimpan quotation.',
-                        ),
-                        'error',
-                    );
-                    setIsSubmitting(false);
-                },
-                onCancel: () => setIsSubmitting(false),
-                onFinish: () => setIsSubmitting(false),
+        setIsSubmitting(true);
+
+        const payload = {
+            db: customerForm.db,
+            tgl_penawaran: customerForm.tglPenawaran || todayDate(),
+            customer: fillOrSpace(customerForm.nama),
+            alamat: fillOrSpace(customerForm.alamat),
+            telp: fillOrSpace(customerForm.telepon),
+            fax: fillOrSpace(customerForm.fax),
+            email: fillOrSpace(customerForm.email),
+            attend: fillOrSpace(customerForm.attend),
+            payment: fillOrSpace(detailForm.payment),
+            validity: fillOrSpace(detailForm.validity),
+            delivery: fillOrSpace(detailForm.delivery),
+            franco: fillOrSpace(detailForm.franco),
+            note1: fillOrSpace(detailForm.note1),
+            note2: fillOrSpace(detailForm.note2),
+            note3: fillOrSpace(detailForm.note3),
+            materials: materialItems.map((item) => ({
+                material: item.nama,
+                quantity: item.quantity,
+                harga_modal: item.hargaModal,
+                harga_penawaran: item.hargaPenawaran,
+                satuan: item.satuan,
+                margin: item.margin,
+                remark: item.remark,
+            })),
+        };
+
+        fetch('/marketing/quotation', {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest',
             },
-        );
+            body: JSON.stringify(payload),
+        })
+            .then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    throw new Error(
+                        data?.message || 'Gagal menyimpan quotation.',
+                    );
+                }
+
+                showToast(
+                    data?.message || 'Quotation berhasil disimpan.',
+                    'success',
+                );
+                window.location.assign(
+                    data?.redirect || '/marketing/quotation',
+                );
+            })
+            .catch((error) => {
+                showToast(error?.message || 'Gagal menyimpan quotation.');
+                setIsSubmitting(false);
+            });
     };
 
     return (

@@ -768,7 +768,19 @@ class QuotationController
                 }
 
                 if ($isCounterConflict) {
+                    if ($request->expectsJson()) {
+                        return response()->json([
+                            'message' => 'Nomor sedang dipakai user lain.',
+                        ], 409);
+                    }
+
                     return back()->with('error', 'Nomor sedang dipakai user lain.');
+                }
+
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'message' => $exception->getMessage(),
+                    ], 422);
                 }
 
                 return back()->with('error', $exception->getMessage());
@@ -776,6 +788,13 @@ class QuotationController
         }
 
         Cache::tags(['quotation_data'])->flush();
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Data quotation berhasil disimpan.',
+                'redirect' => route('marketing.quotation.index'),
+            ]);
+        }
 
         return redirect()
             ->route('marketing.quotation.index')
