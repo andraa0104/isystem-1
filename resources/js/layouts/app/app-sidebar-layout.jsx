@@ -9,6 +9,7 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }) {
     const { flash = {}, errors = {} } = usePage().props;
     const [toast, setToast] = useState(null);
     const toastTimer = useRef(null);
+    const pendingToastKey = 'app:pending-toast';
 
     const showToast = (message, variant) => {
         if (!message) {
@@ -26,6 +27,21 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }) {
     };
 
     useEffect(() => {
+        const pendingToast = window.sessionStorage.getItem(pendingToastKey);
+        if (pendingToast) {
+            try {
+                const parsed = JSON.parse(pendingToast);
+                showToast(
+                    parsed?.message,
+                    parsed?.variant === 'success' ? 'success' : 'error',
+                );
+            } catch {
+                showToast(pendingToast, 'success');
+            } finally {
+                window.sessionStorage.removeItem(pendingToastKey);
+            }
+        }
+
         if (flash?.success) {
             showToast(flash.success, 'success');
             return;
@@ -72,7 +88,7 @@ export default function AppSidebarLayout({ children, breadcrumbs = [] }) {
             </AppContent>
             {toast && (
                 <div
-                    className={`fixed right-4 top-4 z-50 w-[92vw] max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg ${
+                    className={`fixed top-4 right-4 z-50 w-[92vw] max-w-sm rounded-lg border px-4 py-3 text-sm shadow-lg ${
                         toast.variant === 'success'
                             ? 'border-emerald-600 bg-emerald-600 text-white'
                             : 'border-rose-600 bg-rose-600 text-white'

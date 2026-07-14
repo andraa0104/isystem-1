@@ -533,9 +533,13 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                     );
                 }
 
-                showToast(
-                    data?.message || 'Quotation berhasil disimpan.',
-                    'success',
+                window.sessionStorage.setItem(
+                    'app:pending-toast',
+                    JSON.stringify({
+                        message:
+                            data?.message || 'Quotation berhasil disimpan.',
+                        variant: 'success',
+                    }),
                 );
                 window.location.assign(
                     data?.redirect || '/marketing/quotation',
