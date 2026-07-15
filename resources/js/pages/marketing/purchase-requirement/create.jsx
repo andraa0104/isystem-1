@@ -818,8 +818,8 @@ export default function PurchaseRequirementCreate() {
     const submitPurchaseRequirement = () => {
         router.post('/marketing/purchase-requirement', buildSubmitPayload(), {
             onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
-onError: () => setIsSubmitting(false),
+            onFinish: () => setIsSubmitting(false),
+            onError: () => setIsSubmitting(false),
             onSuccess: (page) => {
                 if (page?.props?.flash?.error) {
                     setIsSubmitting(false);
@@ -934,7 +934,8 @@ onError: () => setIsSubmitting(false),
                         </CardHeader>
                         <CardContent className="grid gap-4 md:grid-cols-2">
                             {(!formData.refPo ||
-                                formData.refPo === forValue) && (
+                                formData.refPo === forValue ||
+                                formData.jenisPr) && (
                                 <div className="mb-2 rounded-xl border border-primary/10 bg-primary/5 p-4 md:col-span-2">
                                     <Label className="mb-3 block text-sm font-bold text-gray-700">
                                         Pilih Jenis PR:
