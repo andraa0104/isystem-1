@@ -319,13 +319,15 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             })),
         };
 
+        let isSuccess = false;
         router.post('/marketing/purchase-order-in', payload, {
             preserveScroll: true,
             headers: {
                 'X-Skip-Loading-Overlay': '1',
             },
             onStart: () => setIsSubmitting(true),
-onError: (errors) => {
+            onError: (errors) => {
+                isSuccess = true;
                 setIsSubmitting(false);
                 if (errors?.no_poin) {
                     setValidationErrors((prev) => ({
@@ -335,21 +337,55 @@ onError: (errors) => {
                 }
                 const first = Object.values(errors ?? {})[0];
                 const msg = Array.isArray(first) ? first[0] : first;
-                dispatchGlobalToast(msg || 'Gagal menyimpan PO In.', 'error');
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    timer: 3000,
+                    showConfirmButton: false,
+                    icon: 'error',
+                    title: msg || 'Gagal menyimpan PO In.',
+                });
             },
             onSuccess: (page) => {
+                isSuccess = true;
                 if (page?.props?.flash?.error) {
-                    dispatchGlobalToast(page.props.flash.error, 'error');
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        timer: 3000,
+                        showConfirmButton: false,
+                        icon: 'error',
+                        title: page.props.flash.error,
+                    });
                     setIsSubmitting(false);
                     return;
                 }
 
                 if (page?.props?.flash?.success) {
-                    dispatchGlobalToast(page.props.flash.success, 'success');
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        timer: 3000,
+                        showConfirmButton: false,
+                        icon: 'success',
+                        title: page.props.flash.success,
+                    });
                 }
             },
-            onFinish: () => setIsSubmitting(false),
-});
+            onFinish: () => {
+                setIsSubmitting(false);
+                if (!isSuccess) {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        timer: 3000,
+                        showConfirmButton: false,
+                        icon: 'error',
+                        title: 'Terjadi kesalahan pada server saat menyimpan.',
+                    });
+                }
+            },
+        });
     };
 
     const handleEditItem = (item) => {

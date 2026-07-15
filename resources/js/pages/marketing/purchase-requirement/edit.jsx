@@ -751,9 +751,39 @@ export default function PurchaseRequirementEdit({
             {
                 onStart: () => setIsSubmitting(true),
                 onFinish: () => setIsSubmitting(false),
-onError: () => setIsSubmitting(false),
-                onSuccess: (page) => {
+                onError: (errors) => {
                     setIsSubmitting(false);
+                    const firstError = Object.values(errors)[0];
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        timer: 3000,
+                        showConfirmButton: false,
+                        icon: 'error',
+                        title: firstError || 'Gagal menyimpan perubahan.',
+                    });
+                },
+                onSuccess: (page) => {
+                    if (page?.props?.flash?.error) {
+                        setIsSubmitting(false);
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            timer: 3000,
+                            showConfirmButton: false,
+                            icon: 'error',
+                            title: page.props.flash.error,
+                        });
+                    } else if (page?.props?.flash?.success) {
+                        Swal.fire({
+                            toast: true,
+                            position: 'top-end',
+                            timer: 3000,
+                            showConfirmButton: false,
+                            icon: 'success',
+                            title: page.props.flash.success,
+                        });
+                    }
                 },
             },
         );

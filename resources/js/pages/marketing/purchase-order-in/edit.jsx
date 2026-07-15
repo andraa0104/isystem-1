@@ -547,6 +547,7 @@ export default function PurchaseOrderInEdit({
             grand_total: grandTotal,
         };
 
+        let isSuccess = false;
         router.put(
             `/marketing/purchase-order-in/${encodeURIComponent(purchaseOrderIn?.kode_poin ?? '')}`,
             payload,
@@ -556,18 +557,31 @@ export default function PurchaseOrderInEdit({
                     'X-Skip-Loading-Overlay': '1',
                 },
                 onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
-onSuccess: (page) => {
+                onSuccess: (page) => {
+                    isSuccess = true;
                     if (page?.props?.flash?.error) {
                         toastError(page.props.flash.error);
                         setIsSubmitting(false);
+                        return;
+                    }
+                    if (page?.props?.flash?.success) {
+                        toastSuccess(page.props.flash.success);
                     }
                 },
                 onError: (errors) => {
+                    isSuccess = true;
                     setIsSubmitting(false);
                     const first = Object.values(errors ?? {})[0];
                     const msg = Array.isArray(first) ? first[0] : first;
                     toastError(msg || 'Gagal memperbarui PO In.');
+                },
+                onFinish: () => {
+                    setIsSubmitting(false);
+                    if (!isSuccess) {
+                        toastError(
+                            'Terjadi kesalahan pada server saat memperbarui PO In.',
+                        );
+                    }
                 },
             },
         );

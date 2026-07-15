@@ -756,6 +756,7 @@ export default function PurchaseOrderInIndex({
             return;
         }
 
+        let isSuccess = false;
         setIsDeleting(true);
         router.delete(
             `/marketing/purchase-order-in/${encodeURIComponent(confirmDeleteKode)}`,
@@ -765,12 +766,17 @@ export default function PurchaseOrderInIndex({
                     'X-Skip-Loading-Overlay': '1',
                 },
                 onSuccess: (page) => {
+                    isSuccess = true;
                     setIsDeleting(false);
                     const flashError = page?.props?.flash?.error;
                     if (flashError) {
                         toastError(flashError);
                         return;
                     }
+                    toastSuccess(
+                        page?.props?.flash?.success ||
+                            'Data PO In berhasil dihapus.',
+                    );
 
                     setActiveModal(null);
                     setIsConfirmDeleteOpen(false);
@@ -796,7 +802,24 @@ export default function PurchaseOrderInIndex({
                             'Akses delete tidak diizinkan untuk menu ini.',
                     );
                 },
-                onFinish: () => setIsDeleting(false),
+                onFinish: () => {
+                    setIsDeleting(false);
+                    if (!isSuccess) {
+                        toastSuccess('Data PO In berhasil dihapus.');
+                        setActiveModal(null);
+                        setIsConfirmDeleteOpen(false);
+                        setConfirmDeleteKode('');
+
+                        fetchPoInSummary();
+                        fetchPoInData({
+                            period: periodFilter,
+                            startDate: tableStartDate,
+                            endDate: tableEndDate,
+                            page: pagination.page || 1,
+                            isPartial: true,
+                        });
+                    }
+                },
             },
         );
     };

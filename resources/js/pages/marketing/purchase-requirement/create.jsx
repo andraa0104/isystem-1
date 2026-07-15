@@ -33,6 +33,7 @@ import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import { ArrowLeft, Check, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -819,10 +820,38 @@ export default function PurchaseRequirementCreate() {
         router.post('/marketing/purchase-requirement', buildSubmitPayload(), {
             onStart: () => setIsSubmitting(true),
             onFinish: () => setIsSubmitting(false),
-            onError: () => setIsSubmitting(false),
+            onError: (errors) => {
+                setIsSubmitting(false);
+                const firstError = Object.values(errors)[0];
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    timer: 3000,
+                    showConfirmButton: false,
+                    icon: 'error',
+                    title: firstError || 'Gagal menyimpan data.',
+                });
+            },
             onSuccess: (page) => {
                 if (page?.props?.flash?.error) {
                     setIsSubmitting(false);
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        timer: 3000,
+                        showConfirmButton: false,
+                        icon: 'error',
+                        title: page.props.flash.error,
+                    });
+                } else if (page?.props?.flash?.success) {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        timer: 3000,
+                        showConfirmButton: false,
+                        icon: 'success',
+                        title: page.props.flash.success,
+                    });
                 }
             },
         });
