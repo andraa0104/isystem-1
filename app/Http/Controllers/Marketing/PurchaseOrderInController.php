@@ -19,7 +19,10 @@ class PurchaseOrderInController
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
         ]);
 
+        $prefix = $this->resolveDatabasePrefix($request);
+
         $purchaseOrders = DB::table('tb_poin')
+            ->where('kode_poin', 'like', $prefix . '.POIN-%')
             ->whereDate('created_at', '>=', $validated['start_date'])
             ->whereDate('created_at', '<=', $validated['end_date'])
             ->orderByDesc('created_at')
@@ -178,6 +181,11 @@ class PurchaseOrderInController
         }
 
         $prefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', preg_replace('/^db/i', '', $database)));
+        
+        if ($prefix === 'B3S') {
+            $prefix = 'BBBS';
+        }
+
         return $prefix !== '' ? $prefix : 'SYS';
     }
 
@@ -398,6 +406,7 @@ class PurchaseOrderInController
         $startDate = (string) $request->query('start_date', '');
         $endDate = (string) $request->query('end_date', '');
 
+        $prefix = $this->resolveDatabasePrefix($request);
         $data = $this->getPurchaseOrderInData(
             $search,
             $perPage,
@@ -410,7 +419,8 @@ class PurchaseOrderInController
             $paginationOnly,
             $dateFilter,
             $startDate,
-            $endDate
+            $endDate,
+            $prefix
         );
         $data['applied_filters'] = [
             'search' => $search,
@@ -440,9 +450,10 @@ class PurchaseOrderInController
         $paginationOnly = false,
         $dateFilter = 'today',
         $startDate = '',
-        $endDate = ''
+        $endDate = '',
+        $prefix = ''
     ) {
-        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate) {
+        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate, $prefix) {
             $detailStats = DB::table('tb_detailpoin')
                 ->select('kode_poin')
                 ->selectRaw('count(*) as total_items')
@@ -461,7 +472,7 @@ class PurchaseOrderInController
                 ->whereRaw("trim(coalesce(kdo.ref_po, '')) <> ''")
                 ->groupByRaw('lower(trim(kdo.ref_po))');
 
-            $prStats = DB::table('tb_poin as pr_p')
+            $prStats = DB::table('tb_poin as pr_p')->where('pr_p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->join('tb_pr as pr', function ($join) {
                     $join->whereRaw("find_in_set(lower(trim(pr_p.no_poin)), replace(lower(coalesce(pr.ref_po, '')), ' ', '')) > 0");
                 })
@@ -481,7 +492,7 @@ class PurchaseOrderInController
 
             if ($summaryOnly && $summaryScope !== 'all') {
                 if ($summaryScope === 'total') {
-                    $periodCounts = DB::table('tb_poin')
+                    $periodCounts = DB::table('tb_poin')->where('kode_poin', 'like', $prefix . '.POIN-%')
                         ->selectRaw("count(*) as total")
                         ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
                         ->selectRaw("count(case when created_at >= ? then 1 end) as week", [$startWeek])
@@ -503,7 +514,7 @@ class PurchaseOrderInController
                 }
 
                 if ($summaryScope === 'outstanding' || $summaryScope === 'outstanding_pr' || $summaryScope === 'outstanding_do') {
-                    $row = DB::table('tb_poin as p')
+                    $row = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                         ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_pr")
                         ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
@@ -521,7 +532,7 @@ class PurchaseOrderInController
                 }
 
                 if ($summaryScope === 'sisa' || $summaryScope === 'sisa_pr' || $summaryScope === 'sisa_do') {
-                    $row = DB::table('tb_poin as p')
+                    $row = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                         ->leftJoinSub($doStats, 'dos', function ($join) {
                             $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
@@ -543,7 +554,8 @@ class PurchaseOrderInController
 
                 if ($summaryScope === 'realized' || $summaryScope === 'realized_pr' || $summaryScope === 'realized_do') {
                     $doCounts = DB::table('tb_kddo as kdo')
-                        ->join('tb_poin as p', function ($join) {
+                        ->join('tb_poin as p', function ($join) use ($prefix) {
+                            $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
                             $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(p.no_poin))');
                         })
                         ->joinSub($detailStats, 'do_ds', function ($join) {
@@ -560,7 +572,7 @@ class PurchaseOrderInController
                         ->selectRaw("count(distinct case when str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ? then lower(trim(kdo.no_do)) end) as realized_do_year", [$startYear, $endYear])
                         ->first();
 
-                    $row = DB::table('tb_poin as p')
+                    $row = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                         ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
                         ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
@@ -602,7 +614,8 @@ class PurchaseOrderInController
             if ($statusFilter === 'realized_do') {
                 $doDateExpression = "str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')";
                 $query = DB::table('tb_kddo as kdo')
-                    ->join('tb_poin as p', function ($join) {
+                    ->join('tb_poin as p', function ($join) use ($prefix) {
+                            $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
                         $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(p.no_poin))');
                     })
                     ->joinSub($detailStats, 'ds', function ($join) {
@@ -659,7 +672,7 @@ class PurchaseOrderInController
                 ];
             }
 
-            $query = DB::table('tb_poin as p')
+            $query = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->select(
                     'p.id',
                     'p.kode_poin',
@@ -792,7 +805,7 @@ class PurchaseOrderInController
                 }
             }
 
-            $statusData = DB::table('tb_poin as p')
+            $statusData = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                 ->leftJoinSub($doStats, 'dos', function ($join) {
                     $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
@@ -818,7 +831,7 @@ class PurchaseOrderInController
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_year", [$startYear, $endYear])
                 ->first();
 
-            $periodCounts = DB::table('tb_poin')
+            $periodCounts = DB::table('tb_poin')->where('kode_poin', 'like', $prefix . '.POIN-%')
                 ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
                 ->selectRaw("count(case when created_at >= ? then 1 end) as week", [$startWeek])
                 ->selectRaw("count(case when created_at >= ? then 1 end) as month", [$startMonth])
@@ -858,7 +871,7 @@ class PurchaseOrderInController
                 ]
             ];
 
-            $base = DB::table('tb_poin as p')
+            $base = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                 ->leftJoinSub($doStats, 'dos', function ($join) {
                     $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
