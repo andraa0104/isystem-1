@@ -1350,7 +1350,6 @@ class PurchaseOrderInController
                 ]);
 
                 $detailId = (int) (DB::table('tb_detailpoin')->max('id') ?? 0) + 1;
-                $detailHasNoPoinColumn = Schema::hasColumn('tb_detailpoin', 'no_poin');
                 $detailData = [];
                 foreach (($validated['materials'] ?? []) as $index => $item) {
                     $qty = (float) ($item['qty'] ?? 0);
@@ -1378,9 +1377,7 @@ class PurchaseOrderInController
                         'updated_at' => $nowGmt8,
                     ];
 
-                    if ($detailHasNoPoinColumn) {
-                        $detailRow['no_poin'] = $noPoin;
-                    }
+                    $detailRow['no_poin'] = $noPoin;
 
                     $detailData[] = $detailRow;
                 }
@@ -1540,14 +1537,12 @@ class PurchaseOrderInController
                         'updated_at' => $nowGmt8,
                     ]);
 
-                if (Schema::hasColumn('tb_detailpoin', 'no_poin')) {
-                    DB::table('tb_detailpoin')
-                        ->where('kode_poin', $kodePoin)
-                        ->update([
-                            'no_poin' => $newNoPoin,
-                            'updated_at' => $nowGmt8,
-                        ]);
-                }
+                DB::table('tb_detailpoin')
+                    ->where('kode_poin', $kodePoin)
+                    ->update([
+                        'no_poin' => $newNoPoin,
+                        'updated_at' => $nowGmt8,
+                    ]);
 
                 $this->syncPurchaseRequirementRefPo($oldNoPoin, $newNoPoin);
             });
@@ -1677,9 +1672,7 @@ class PurchaseOrderInController
                 'updated_at' => $nowGmt8,
             ];
 
-            if (Schema::hasColumn('tb_detailpoin', 'no_poin')) {
-                $insertData['no_poin'] = trim((string) ($header->no_poin ?? ''));
-            }
+            $insertData['no_poin'] = trim((string) ($header->no_poin ?? ''));
 
             DB::table('tb_detailpoin')->insert($insertData);
 
