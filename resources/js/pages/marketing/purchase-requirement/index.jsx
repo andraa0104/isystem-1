@@ -1520,7 +1520,9 @@ export default function PurchaseRequirementIndex({
                                 <th className="w-[40%] min-w-72 px-1 py-3 text-left">
                                     Customer
                                 </th>
-                                <th className="px-2 py-3 text-left">Ref PO</th>
+                                <th className="w-auto px-2 py-3 text-left">
+                                    Ref PO
+                                </th>
                                 <th className="px-2 py-3 text-left">
                                     Jenis PR
                                 </th>
@@ -1556,7 +1558,7 @@ export default function PurchaseRequirementIndex({
                                                 item.for_customer,
                                             )}
                                         </td>
-                                        <td className="px-2 py-3 align-top [overflow-wrap:anywhere] break-words whitespace-normal">
+                                        <td className="w-auto px-2 py-3 align-top [overflow-wrap:anywhere] whitespace-normal">
                                             {renderSeparatedValues(item.ref_po)}
                                         </td>
                                         <td className="px-2 py-3 align-top text-sm [overflow-wrap:anywhere] whitespace-normal">
@@ -2111,7 +2113,7 @@ export default function PurchaseRequirementIndex({
                                         <th className="w-full px-2 py-2 text-left whitespace-nowrap">
                                             Customer
                                         </th>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                        <th className="w-auto px-2 py-2 text-left">
                                             Ref PO
                                         </th>
                                         <th className="px-2 py-2 text-left whitespace-nowrap">
@@ -2156,7 +2158,7 @@ export default function PurchaseRequirementIndex({
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                <td className="w-auto px-2 py-2 [overflow-wrap:anywhere] whitespace-normal">
                                                     {renderSeparatedValues(
                                                         item.ref_po,
                                                     )}
@@ -2354,7 +2356,7 @@ export default function PurchaseRequirementIndex({
                                         <th className="w-full px-2 py-2 text-left whitespace-nowrap">
                                             Customer
                                         </th>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                        <th className="w-auto px-2 py-2 text-left">
                                             Ref PO
                                         </th>
                                         <th className="px-2 py-2 text-left whitespace-nowrap">
@@ -2399,7 +2401,7 @@ export default function PurchaseRequirementIndex({
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                <td className="w-auto px-2 py-2 [overflow-wrap:anywhere] whitespace-normal">
                                                     {renderSeparatedValues(
                                                         item.ref_po,
                                                     )}
@@ -2594,7 +2596,7 @@ export default function PurchaseRequirementIndex({
                                         <th className="w-full px-2 py-2 text-left whitespace-nowrap">
                                             Customer
                                         </th>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
+                                        <th className="w-auto px-2 py-2 text-left">
                                             Ref PO
                                         </th>
                                         <th className="px-2 py-2 text-left whitespace-nowrap">
@@ -2644,7 +2646,7 @@ export default function PurchaseRequirementIndex({
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                <td className="w-auto px-2 py-2 [overflow-wrap:anywhere] whitespace-normal">
                                                     {renderSeparatedValues(
                                                         item.ref_po,
                                                     )}
