@@ -373,7 +373,7 @@ class PurchaseRequirementController
         }
 
         $purchaseRequirementDetails = DB::table('tb_detailpr')
-            ->select('no_pr', 'no', 'kd_material', 'material', 'qty', 'unit', 'sisa_pr', 'payment', 'renmark', 'ref_po', 'for_customer')
+            ->select('no_pr', 'no', 'kd_material', 'material', 'qty', 'unit', 'sisa_pr', 'payment', 'renmark', 'ref_po', 'for_customer', 'price_po', 'unit_price', 'margin', 'stok')
             ->where('no_pr', $noPr)
             ->orderBy('no')
             ->get();

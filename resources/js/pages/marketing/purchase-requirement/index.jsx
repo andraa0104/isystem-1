@@ -49,9 +49,9 @@ const splitMultiValue = (value) =>
     Array.isArray(value)
         ? value
         : String(value ?? '')
-              .split(/\s*(?:,|\/)\s*/)
-              .map((item) => item.trim())
-              .filter(Boolean);
+            .split(/\s*(?:,|\/)\s*/)
+            .map((item) => item.trim())
+            .filter(Boolean);
 
 const getValue = (source, keys) => {
     for (const key of keys) {
@@ -69,6 +69,14 @@ const formatRupiah = (value) => {
     );
     if (Number.isNaN(number)) return '-';
     return `Rp. ${new Intl.NumberFormat('id-ID').format(number)}`;
+};
+
+const formatNumber = (value) => {
+    const number = Number(
+        typeof value === 'string' ? value.replace(/,/g, '').trim() : value,
+    );
+    if (Number.isNaN(number)) return '-';
+    return new Intl.NumberFormat('id-ID').format(number);
 };
 
 const parseFlexibleDate = (value) => {
@@ -362,9 +370,9 @@ export default function PurchaseRequirementIndex({
         const list = Array.isArray(values)
             ? values
             : String(values ?? '')
-                  .split(/\s*,\s*/)
-                  .map((item) => item.trim())
-                  .filter(Boolean);
+                .split(/\s*,\s*/)
+                .map((item) => item.trim())
+                .filter(Boolean);
 
         if (list.length === 0) {
             return renderValue(values);
@@ -1017,7 +1025,7 @@ export default function PurchaseRequirementIndex({
                         if (status >= 400)
                             throw new Error(
                                 data.message ||
-                                    'Gagal menghapus Customer dari PR',
+                                'Gagal menghapus Customer dari PR',
                             );
                         Swal.fire(
                             'Terhapus!',
@@ -1779,18 +1787,18 @@ export default function PurchaseRequirementIndex({
                                                 'payment_term',
                                             ]) !== '-'
                                                 ? getValue(selectedPr, [
-                                                      'payment',
-                                                      'Payment',
-                                                      'payment_term',
-                                                  ])
+                                                    'payment',
+                                                    'Payment',
+                                                    'payment_term',
+                                                ])
                                                 : getValue(
-                                                      selectedDetails?.[0],
-                                                      [
-                                                          'payment',
-                                                          'Payment',
-                                                          'payment_term',
-                                                      ],
-                                                  )}
+                                                    selectedDetails?.[0],
+                                                    [
+                                                        'payment',
+                                                        'Payment',
+                                                        'payment_term',
+                                                    ],
+                                                )}
                                         </span>
                                     </div>
                                 </div>
@@ -1813,12 +1821,11 @@ export default function PurchaseRequirementIndex({
                                                             1,
                                                         );
                                                     }}
-                                                    className={`-mb-[1px] border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-                                                        activeMaterialTab ===
+                                                    className={`-mb-[1px] border-b-2 px-4 py-2 text-sm font-medium transition-colors ${activeMaterialTab ===
                                                         tab
-                                                            ? 'border-primary text-foreground'
-                                                            : 'border-transparent text-muted-foreground hover:border-sidebar-border hover:text-foreground'
-                                                    }`}
+                                                        ? 'border-primary text-foreground'
+                                                        : 'border-transparent text-muted-foreground hover:border-sidebar-border hover:text-foreground'
+                                                        }`}
                                                 >
                                                     {tab}
                                                 </button>
@@ -1832,7 +1839,7 @@ export default function PurchaseRequirementIndex({
                                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                                 value={
                                                     materialPageSize ===
-                                                    Infinity
+                                                        Infinity
                                                         ? 'all'
                                                         : materialPageSize
                                                 }
@@ -1875,32 +1882,49 @@ export default function PurchaseRequirementIndex({
                                         <table className="w-full text-sm">
                                             <thead className="bg-muted/50 text-muted-foreground">
                                                 <tr>
-                                                    <th className="w-14 px-2 py-3 text-left">
+                                                    <th rowSpan={2} className="w-14 px-2 py-3 text-left align-top">
                                                         No
                                                     </th>
-                                                    <th className="px-2 py-3 text-left">
+                                                    <th rowSpan={2} className="px-2 py-3 text-left align-top">
                                                         Material
                                                     </th>
-                                                    <th className="w-px px-2 py-3 text-left whitespace-nowrap">
+                                                    <th rowSpan={2} className="w-px px-2 py-3 text-left whitespace-nowrap align-top">
                                                         Qty
                                                     </th>
-                                                    <th className="w-px px-2 py-3 text-left whitespace-nowrap">
+                                                    <th rowSpan={2} className="w-px px-2 py-3 text-left whitespace-nowrap align-top">
                                                         Sisa PR
                                                     </th>
-                                                    <th className="px-2 py-3 text-left">
+                                                    <th colSpan={2} className="px-2 py-2 text-center border-b border-sidebar-border/70">
+                                                        Price In
+                                                    </th>
+                                                    <th rowSpan={2} className="px-2 py-3 text-right whitespace-nowrap align-top w-[1%]">
+                                                        Margin
+                                                    </th>
+                                                    <th rowSpan={2} className="px-2 py-3 text-right whitespace-nowrap align-top w-[1%]">
+                                                        Stok
+                                                    </th>
+                                                    <th rowSpan={2} className="px-2 py-3 text-left align-top">
                                                         Remark
+                                                    </th>
+                                                </tr>
+                                                <tr>
+                                                    <th className="px-2 py-2 text-right whitespace-nowrap w-[1%] border-r border-sidebar-border/70">
+                                                        PO
+                                                    </th>
+                                                    <th className="px-2 py-2 text-right whitespace-nowrap w-[1%]">
+                                                        Estimate
                                                     </th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 <PlainTableStateRows
                                                     loading={detailLoading}
-                                                    columns={6}
+                                                    columns={9}
                                                     rows={5}
                                                     isEmpty={
                                                         !detailLoading &&
                                                         displayedMaterialDetails.length ===
-                                                            0
+                                                        0
                                                     }
                                                     emptyMessage={
                                                         detailError ||
@@ -1915,12 +1939,12 @@ export default function PurchaseRequirementIndex({
                                                         >
                                                             <td className="px-2 py-3">
                                                                 {(materialPageSize ===
-                                                                Infinity
+                                                                    Infinity
                                                                     ? index
                                                                     : (materialCurrentPage -
-                                                                          1) *
-                                                                          materialPageSize +
-                                                                      index) +
+                                                                        1) *
+                                                                    materialPageSize +
+                                                                    index) +
                                                                     1}
                                                             </td>
                                                             <td className="px-2 py-3">
@@ -1962,6 +1986,18 @@ export default function PurchaseRequirementIndex({
                                                                     ],
                                                                 )}
                                                             </td>
+                                                            <td className="px-2 py-3 text-right whitespace-nowrap w-[1%] border-r border-sidebar-border/70">
+                                                                {formatRupiah(getValue(detail, ['price_po']))}
+                                                            </td>
+                                                            <td className="px-2 py-3 text-right whitespace-nowrap w-[1%]">
+                                                                {formatRupiah(getValue(detail, ['unit_price']))}
+                                                            </td>
+                                                            <td className="px-2 py-3 text-right whitespace-nowrap w-[1%]">
+                                                                {renderValue(getValue(detail, ['margin']))} {getValue(detail, ['margin']) ? '%' : ''}
+                                                            </td>
+                                                            <td className="px-2 py-3 text-right whitespace-nowrap w-[1%]">
+                                                                {formatNumber(getValue(detail, ['stok']))}
+                                                            </td>
                                                             <td className="px-2 py-3">
                                                                 {getValue(
                                                                     detail,
@@ -1989,14 +2025,14 @@ export default function PurchaseRequirementIndex({
                                                     {Math.min(
                                                         (materialCurrentPage -
                                                             1) *
-                                                            materialPageSize +
-                                                            1,
+                                                        materialPageSize +
+                                                        1,
                                                         materialTotalItems,
                                                     )}
                                                     -
                                                     {Math.min(
                                                         materialCurrentPage *
-                                                            materialPageSize,
+                                                        materialPageSize,
                                                         materialTotalItems,
                                                     )}{' '}
                                                     dari {materialTotalItems}{' '}
@@ -2012,7 +2048,7 @@ export default function PurchaseRequirementIndex({
                                                                     Math.max(
                                                                         1,
                                                                         page -
-                                                                            1,
+                                                                        1,
                                                                     ),
                                                             )
                                                         }
@@ -2038,7 +2074,7 @@ export default function PurchaseRequirementIndex({
                                                                     Math.min(
                                                                         materialTotalPages,
                                                                         page +
-                                                                            1,
+                                                                        1,
                                                                     ),
                                                             )
                                                         }
@@ -2155,7 +2191,7 @@ export default function PurchaseRequirementIndex({
                                         isEmpty={
                                             !outstandingLoading &&
                                             displayedOutstandingPurchaseRequirements.length ===
-                                                0
+                                            0
                                         }
                                         emptyMessage={
                                             outstandingError ||
@@ -2246,14 +2282,14 @@ export default function PurchaseRequirementIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (outstandingCurrentPage - 1) *
-                                                outstandingPageSize +
-                                                1,
+                                            outstandingPageSize +
+                                            1,
                                             outstandingTotalItems,
                                         )}
                                         -
                                         {Math.min(
                                             outstandingCurrentPage *
-                                                outstandingPageSize,
+                                            outstandingPageSize,
                                             outstandingTotalItems,
                                         )}{' '}
                                         dari {outstandingTotalItems} data
@@ -2398,7 +2434,7 @@ export default function PurchaseRequirementIndex({
                                         isEmpty={
                                             !sisaPoLoading &&
                                             displayedSisaPoPurchaseRequirements.length ===
-                                                0
+                                            0
                                         }
                                         emptyMessage={
                                             sisaPoError ||
@@ -2489,8 +2525,8 @@ export default function PurchaseRequirementIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (sisaPoCurrentPage - 1) *
-                                                sisaPoPageSize +
-                                                1,
+                                            sisaPoPageSize +
+                                            1,
                                             sisaPoTotalItems,
                                         )}
                                         -
@@ -2638,7 +2674,7 @@ export default function PurchaseRequirementIndex({
                                         isEmpty={
                                             !realizedLoading &&
                                             displayedRealizedPurchaseRequirements.length ===
-                                                0
+                                            0
                                         }
                                         emptyMessage={
                                             realizedError ||
@@ -2708,14 +2744,14 @@ export default function PurchaseRequirementIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (realizedCurrentPage - 1) *
-                                                realizedPageSize +
-                                                1,
+                                            realizedPageSize +
+                                            1,
                                             realizedTotalItems,
                                         )}
                                         -
                                         {Math.min(
                                             realizedCurrentPage *
-                                                realizedPageSize,
+                                            realizedPageSize,
                                             realizedTotalItems,
                                         )}{' '}
                                         dari {realizedTotalItems} data
