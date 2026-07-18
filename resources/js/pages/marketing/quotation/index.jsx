@@ -429,8 +429,8 @@ export default function QuotationIndex({
                     <button
                         type="button"
                         className={`px-4 py-2 text-sm font-medium transition-all border-b-2 ${activeTab === 'customer'
-                                ? 'border-primary text-primary font-bold'
-                                : 'border-transparent text-muted-foreground hover:text-foreground'
+                            ? 'border-primary text-primary font-bold'
+                            : 'border-transparent text-muted-foreground hover:text-foreground'
                             }`}
                         onClick={() => handleTabChange('customer')}
                     >
@@ -439,8 +439,8 @@ export default function QuotationIndex({
                     <button
                         type="button"
                         className={`px-4 py-2 text-sm font-medium transition-all border-b-2 ${activeTab === 'material'
-                                ? 'border-primary text-primary font-bold'
-                                : 'border-transparent text-muted-foreground hover:text-foreground'
+                            ? 'border-primary text-primary font-bold'
+                            : 'border-transparent text-muted-foreground hover:text-foreground'
                             }`}
                         onClick={() => handleTabChange('material')}
                     >
@@ -881,7 +881,7 @@ export default function QuotationIndex({
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{detail.Qty} {detail.Satuan}</td>
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{formatNumber(detail.Harga)}</td>
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{formatNumber(detail.Harga_Modal)}</td>
-                                                            <td className="w-1 whitespace-nowrap px-2 py-2">{detail.Margin}%</td>
+                                                            <td className="w-1 whitespace-nowrap px-2 py-2">{detail.Margin}</td>
                                                             <td className="w-[18rem] max-w-[18rem] px-2 py-2">
                                                                 <div className="truncate" title={detail.Remark}>
                                                                     {detail.Remark}
