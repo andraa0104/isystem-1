@@ -1643,6 +1643,21 @@ class PurchaseOrderController
 
         $partialCount = (int) ($partialStats->count ?? 0);
         $partialTotal = (float) ($partialStats->total ?? 0);
+        $partialIrIds = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->groupBy('no_po')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0')
+            ->pluck('no_po');
+
+        $partialIrStats = DB::table('tb_detailpo')
+            ->whereIn('no_po', $partialIrIds)
+            ->selectRaw('count(distinct no_po) as count, sum(coalesce(cast(ir_price as decimal(65,4)), 0)) as total')
+            ->first();
+
+        $partialIrCount = (int) ($partialIrStats->count ?? 0);
+        $partialIrTotal = (float) ($partialIrStats->total ?? 0);
+
 
         // 2. Fetch main PO headers
         $recentPurchaseOrders = DB::table('tb_po as po')
@@ -1769,6 +1784,8 @@ class PurchaseOrderController
             'outstandingTotal' => $outstandingTotal,
             'partialCount' => $partialCount,
             'partialTotal' => $partialTotal,
+            'partialIrCount' => $partialIrCount,
+            'partialIrTotal' => $partialIrTotal,
             'realizedCount' => $realizedCount,
             'realizedTotal' => $realizedTotal,
             'period' => $period,
@@ -2024,6 +2041,73 @@ class PurchaseOrderController
         return response()->json($response);
     }
 
+    public function partialIr(Request $request)
+    {
+        $search = trim((string) $request->query('search', ''));
+        $pageSizeRaw = $request->query('pageSize', 'all');
+        $page = max(1, (int) $request->query('page', 1));
+
+        $response = $this->bypassCache()->remember($this->poCacheKey('partial_ir', [
+            'search' => $search,
+            'pageSize' => $pageSizeRaw,
+            'page' => $page,
+        ], $request), self::PO_CACHE_TTL, function () use ($search, $pageSizeRaw, $page) {
+            $sub = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->groupBy('no_po')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0');
+
+        $query = DB::table('tb_po as po')
+            ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
+            ->select(
+                'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.for_cus', 'po.ppn', 'po.s_total', 'po.h_ppn'
+            )
+            ->orderby('no_po', 'desc');
+
+        if ($search !== '') {
+            $query->where(function($q) use ($search) {
+                $q->where('po.no_po', 'like', "%{$search}%")
+                  ->orWhere('po.nm_vdr', 'like', "%{$search}%")
+                  ->orWhere('po.ref_pr', 'like', "%{$search}%");
+            });
+        }
+
+        $total = (clone $query)->count();
+
+        if ($pageSizeRaw !== 'all') {
+            $pageSize = max(1, (int) $pageSizeRaw);
+            $query->limit($pageSize)->offset(($page - 1) * $pageSize);
+        }
+
+        $purchaseOrders = collect($query->get());
+
+        $hasRealized = false;
+        if ($purchaseOrders->isNotEmpty()) {
+            $hasRealized = DB::table('tb_kddo')
+                ->whereIn('ref_po', $purchaseOrders->pluck('no_po'))
+                ->exists();
+        }
+
+        $purchaseOrders->transform(function ($item) use ($hasRealized) {
+            $item->is_outstanding = 0;
+            $item->is_partial = 0;
+            $item->is_fully_realized = 0; 
+            $item->is_partial_ir = 1;
+            $item->has_realized = $hasRealized ? 1 : 0;
+            return $item;
+        });
+
+        return [
+            'purchaseOrders' => $purchaseOrders,
+            'total' => $total,
+            'page' => $page,
+            'pageSize' => $pageSizeRaw === 'all' ? $total : (int)$pageSizeRaw,
+        ];
+        });
+
+        return response()->json($response);
+    }
     public function partial(Request $request)
     {
         $search = trim((string) $request->query('search', ''));
@@ -2137,6 +2221,7 @@ class PurchaseOrderController
                         'qty',
                         'sisa_pr',
                         'gr_mat',
+                        'ir_mat',
                         'unit',
                         'price',
                         'total_price',
