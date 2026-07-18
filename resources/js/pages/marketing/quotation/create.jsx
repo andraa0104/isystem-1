@@ -78,6 +78,13 @@ const showToast = (message, variant = 'error') => {
     );
 };
 
+const resizeTextareaToContent = (element) => {
+    if (!element) return;
+
+    element.style.height = 'auto';
+    element.style.height = `${element.scrollHeight}px`;
+};
+
 const getFirstErrorMessage = (errors, fallback) => {
     const first = Object.values(errors ?? {})[0];
     return (Array.isArray(first) ? first[0] : first) || fallback;
@@ -111,6 +118,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const [customerError, setCustomerError] = useState('');
     const [materialError, setMaterialError] = useState('');
     const hargaPenawaranRef = useRef(null);
+    const namaMaterialRef = useRef(null);
     const customerRequestSeq = useRef(0);
     const materialRequestSeq = useRef(0);
 
@@ -199,6 +207,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         const margin = ((penawaran - modal) / modal) * 100;
         return Number.isFinite(margin) ? margin.toFixed(2) : '';
     }, [materialForm.hargaModal, materialForm.hargaPenawaran]);
+
+    useEffect(() => {
+        resizeTextareaToContent(namaMaterialRef.current);
+    }, [activeStep, materialForm.nama]);
 
     useEffect(() => {
         setCustomerPage(1);
@@ -831,25 +843,32 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             <h2 className="text-base font-semibold">
                                 Step 3 - Data Material
                             </h2>
-                            <div className="grid gap-4 lg:grid-cols-2">
-                                <div className="grid gap-2">
+                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[12rem_12rem_minmax(14rem,1fr)_minmax(14rem,1fr)_12rem]">
+                                <div className="grid gap-2 md:col-span-2 xl:col-span-5">
                                     <Label htmlFor="nama_material">
                                         Nama Material
                                     </Label>
-                                    <div className="flex flex-col gap-2 sm:flex-row">
-                                        <Input
+                                    <div className="flex flex-row gap-2">
+                                        <textarea
                                             id="nama_material"
+                                            ref={namaMaterialRef}
+                                            rows={1}
+                                            className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-input bg-background px-3 py-2 text-sm [overflow-wrap:anywhere]"
                                             value={materialForm.nama}
-                                            onChange={(event) =>
+                                            onChange={(event) => {
+                                                resizeTextareaToContent(
+                                                    event.currentTarget,
+                                                );
                                                 setMaterialForm((prev) => ({
                                                     ...prev,
                                                     nama: event.target.value,
-                                                }))
-                                            }
+                                                }));
+                                            }}
                                         />
                                         <Button
                                             type="button"
                                             variant="outline"
+                                            className="shrink-0"
                                             onClick={() => {
                                                 setMaterialModalOpen(true);
                                                 loadMaterials();
@@ -955,7 +974,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         readOnly
                                     />
                                 </div>
-                                <div className="grid gap-2 lg:col-span-2">
+                                <div className="grid gap-2 md:col-span-2 xl:col-span-5">
                                     <Label htmlFor="remark">Remark</Label>
                                     <textarea
                                         id="remark"
@@ -1032,7 +1051,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 <td className="px-4 py-3">
                                                     {index + 1}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                <td className="max-w-xs whitespace-normal break-words px-4 py-3">
                                                     {item.nama}
                                                 </td>
                                                 <td className="px-4 py-3">

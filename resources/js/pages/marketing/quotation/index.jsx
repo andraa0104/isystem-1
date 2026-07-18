@@ -50,9 +50,9 @@ export default function QuotationIndex({
     const [currentPage, setCurrentPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState(period);
     const [remotePenawaran, setRemotePenawaran] = useState(penawaran);
-    
+
     const [loading, setLoading] = useState(false);
-    
+
     // State Modal & Detail
     const [selectedPenawaran, setSelectedPenawaran] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -63,7 +63,7 @@ export default function QuotationIndex({
     const [modalMaterialPageSize, setModalMaterialPageSize] = useState(5);
     const [modalMaterialCurrentPage, setModalMaterialCurrentPage] = useState(1);
     const [isDeleting, setIsDeleting] = useState(false);
-    
+
     // State Navigasi Tab Utama
     const [activeTab, setActiveTab] = useState('customer');
 
@@ -86,12 +86,12 @@ export default function QuotationIndex({
                 period: newPeriod,
                 search,
             });
-            const resPenawaran = await fetch(`/marketing/quotation/data?${params.toString()}`, { 
-                headers: { Accept: 'application/json' } 
+            const resPenawaran = await fetch(`/marketing/quotation/data?${params.toString()}`, {
+                headers: { Accept: 'application/json' }
             });
             const dataPenawaran = await resPenawaran.json();
             setRemotePenawaran(dataPenawaran.penawaran || []);
-            
+
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
@@ -163,7 +163,7 @@ export default function QuotationIndex({
     }, [remotePenawaran]);
 
     const totalItems = useMemo(() => filteredPenawaran.length, [filteredPenawaran]);
-    
+
     const totalPages = useMemo(() => {
         if (pageSize === Infinity) return 1;
         return Math.max(1, Math.ceil(totalItems / pageSize));
@@ -253,16 +253,16 @@ export default function QuotationIndex({
         }
     }, []);
 
-    
+
     const handleOpenModal = async (item) => {
         const noPenawaran = item.No_penawaran || item.No_Penawaran;
         if (!noPenawaran) return;
-    
+
         setDetailLoading(true);
         setIsModalOpen(true);
         setDetailRows([]);
         setDetailRowsNo(noPenawaran);
-    
+
         // 1. Ambil data Header dengan cara yang konsisten
         let header;
         if (item.Customer !== undefined) {
@@ -272,7 +272,7 @@ export default function QuotationIndex({
             // Data dari Tab 2 (perlu fetch header)
             header = await fetchHeaderData(noPenawaran);
         }
-    
+
         // 2. Normalisasi Data (PENTING!)
         // Pastikan properti "No_penawaran", "Tgl_Penawaran", dan "Tgl_Posting" selalu ada
         const normalizedHeader = {
@@ -281,9 +281,9 @@ export default function QuotationIndex({
             Tgl_Penawaran: header?.Tgl_Penawaran || '-',
             Tgl_Posting: header?.Tgl_Posting || '-'
         };
-    
+
         setSelectedPenawaran(normalizedHeader);
-    
+
         // 3. Ambil Detail
         const details = await fetchDetailData(noPenawaran);
         setDetailRows(Array.isArray(details) ? details : (details.details || []));
@@ -388,7 +388,7 @@ export default function QuotationIndex({
                         timer: 1800,
                         showConfirmButton: false,
                     });
-                    
+
                     if (activeTab === 'customer') {
                         fetchQuotationData(statusFilter, debouncedSearchTerm);
                     } else {
@@ -428,22 +428,20 @@ export default function QuotationIndex({
                 <div className="mt-4 flex border-b border-sidebar-border">
                     <button
                         type="button"
-                        className={`px-4 py-2 text-sm font-medium transition-all border-b-2 ${
-                            activeTab === 'customer'
+                        className={`px-4 py-2 text-sm font-medium transition-all border-b-2 ${activeTab === 'customer'
                                 ? 'border-primary text-primary font-bold'
                                 : 'border-transparent text-muted-foreground hover:text-foreground'
-                        }`}
+                            }`}
                         onClick={() => handleTabChange('customer')}
                     >
                         Data Quotation Customer
                     </button>
                     <button
                         type="button"
-                        className={`px-4 py-2 text-sm font-medium transition-all border-b-2 ${
-                            activeTab === 'material'
+                        className={`px-4 py-2 text-sm font-medium transition-all border-b-2 ${activeTab === 'material'
                                 ? 'border-primary text-primary font-bold'
                                 : 'border-transparent text-muted-foreground hover:text-foreground'
-                        }`}
+                            }`}
                         onClick={() => handleTabChange('material')}
                     >
                         Data Quotation Material
@@ -883,7 +881,7 @@ export default function QuotationIndex({
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{detail.Qty} {detail.Satuan}</td>
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{formatNumber(detail.Harga)}</td>
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{formatNumber(detail.Harga_Modal)}</td>
-                                                            <td className="w-1 whitespace-nowrap px-2 py-2">{detail.Margin}</td>
+                                                            <td className="w-1 whitespace-nowrap px-2 py-2">{detail.Margin}%</td>
                                                             <td className="w-[18rem] max-w-[18rem] px-2 py-2">
                                                                 <div className="truncate" title={detail.Remark}>
                                                                     {detail.Remark}

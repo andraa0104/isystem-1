@@ -83,6 +83,13 @@ const showToast = (message, variant = 'error') => {
     );
 };
 
+const resizeTextareaToContent = (element) => {
+    if (!element) return;
+
+    element.style.height = 'auto';
+    element.style.height = `${element.scrollHeight}px`;
+};
+
 const getFirstErrorMessage = (errors, fallback) => {
     const first = Object.values(errors ?? {})[0];
     return (Array.isArray(first) ? first[0] : first) || fallback;
@@ -157,6 +164,7 @@ export default function QuotationEdit({
     const [customerError, setCustomerError] = useState('');
     const [materialError, setMaterialError] = useState('');
     const hargaPenawaranRef = useRef(null);
+    const namaMaterialRef = useRef(null);
 
     const [customerForm, setCustomerForm] = useState(() =>
         buildCustomerForm(quotation),
@@ -180,8 +188,6 @@ export default function QuotationEdit({
         buildMaterialItems(quotationDetails),
     );
     const [editingMaterialId, setEditingMaterialId] = useState(null);
-    const [editingMaterial, setEditingMaterial] = useState(null);
-    const [editingMaterialErrors, setEditingMaterialErrors] = useState({});
 
     const [customerSearch, setCustomerSearch] = useState('');
     const [customerPageSize, setCustomerPageSize] = useState(10);
@@ -289,6 +295,10 @@ export default function QuotationEdit({
         const margin = ((penawaran - modal) / modal) * 100;
         return Number.isFinite(margin) ? margin.toFixed(2) : '';
     }, [materialForm.hargaModal, materialForm.hargaPenawaran]);
+
+    useEffect(() => {
+        resizeTextareaToContent(namaMaterialRef.current);
+    }, [activeStep, materialForm.nama]);
 
     useEffect(() => {
         setCustomerForm(buildCustomerForm(quotation));
@@ -481,8 +491,7 @@ export default function QuotationEdit({
                     prev.filter((item) => item.id !== id),
                 );
                 if (editingMaterialId === id) {
-                    setEditingMaterialId(null);
-                    setEditingMaterial(null);
+                    handleCancelEditMaterial();
                 }
             };
 
@@ -510,67 +519,64 @@ export default function QuotationEdit({
 
     const handleEditMaterial = (item) => {
         setEditingMaterialId(item.id);
-        setEditingMaterialErrors({});
-        setEditingMaterial({
-            ...item,
-            margin:
-                calculateMargin(item.hargaModal, item.hargaPenawaran) ||
-                item.margin,
+        setActiveStep(2);
+        setMaterialFormErrors({});
+        setMaterialForm({
+            nama: item.nama ?? '',
+            satuan: item.satuan ?? '',
+            quantity: item.quantity ?? '',
+            hargaModal: item.hargaModal ?? '',
+            hargaPenawaran: item.hargaPenawaran ?? '',
+            remark: item.remark ?? '',
         });
-    };
-
-    const handleEditMaterialChange = (field, value) => {
-        if (
-            field === 'hargaPenawaran' &&
-            String(value ?? '').replace(/\D/g, '')
-        ) {
-            setEditingMaterialErrors((prev) => ({
-                ...prev,
-                hargaPenawaran: '',
-            }));
-        }
-
-        setEditingMaterial((prev) => {
-            if (!prev) {
-                return prev;
-            }
-            const nextValue =
-                field === 'hargaModal' || field === 'hargaPenawaran'
-                    ? String(value ?? '').replace(/\D/g, '')
-                    : value;
-            const next = { ...prev, [field]: nextValue };
-            if (field === 'hargaModal' || field === 'hargaPenawaran') {
-                next.margin = calculateMargin(
-                    next.hargaModal,
-                    next.hargaPenawaran,
-                );
-            }
-            return next;
+        window.requestAnimationFrame(() => {
+            namaMaterialRef.current?.focus();
         });
     };
 
     const handleCancelEditMaterial = () => {
         setEditingMaterialId(null);
-        setEditingMaterial(null);
-        setEditingMaterialErrors({});
+        setMaterialFormErrors({});
+        setMaterialForm({
+            nama: '',
+            satuan: '',
+            quantity: '1',
+            hargaModal: '',
+            hargaPenawaran: '',
+            remark: '',
+        });
     };
 
     const handleSaveMaterial = async () => {
-        if (!quotation?.No_penawaran || !editingMaterial?.detailId) {
+        const targetItem = materialItems.find(
+            (item) => item.id === editingMaterialId,
+        );
+        if (!targetItem) {
             return;
         }
 
         const nextErrors = {};
-        if (!String(editingMaterial.hargaPenawaran ?? '').trim()) {
+        if (!String(materialForm.hargaPenawaran ?? '').trim()) {
             nextErrors.hargaPenawaran = 'Harga penawaran wajib diisi.';
         }
 
-        setEditingMaterialErrors(nextErrors);
+        setMaterialFormErrors(nextErrors);
         if (Object.keys(nextErrors).length > 0) {
             return;
         }
 
-        if (parseNumber(editingMaterial.margin) < 0) {
+        const nextMaterial = {
+            ...targetItem,
+            nama: materialForm.nama,
+            satuan: materialForm.satuan,
+            quantity: materialForm.quantity,
+            hargaModal: materialForm.hargaModal,
+            hargaPenawaran: materialForm.hargaPenawaran,
+            margin: marginValue,
+            remark: materialForm.remark,
+        };
+
+        if (parseNumber(nextMaterial.margin) < 0) {
             const result = await Swal.fire({
                 title: 'Margin Minus',
                 text: 'Margin material ini minus. Tetap lanjut simpan material?',
@@ -584,34 +590,39 @@ export default function QuotationEdit({
             }
         }
 
+        const finishSave = () => {
+            setMaterialItems((prev) =>
+                prev.map((item) =>
+                    item.id === editingMaterialId ? nextMaterial : item,
+                ),
+            );
+            handleCancelEditMaterial();
+        };
+
+        if (!quotation?.No_penawaran || !targetItem.detailId) {
+            finishSave();
+            return;
+        }
+
         router.put(
             `/marketing/quotation/${encodeURIComponent(
                 quotation.No_penawaran,
-            )}/detail/${editingMaterial.detailId}`,
+            )}/detail/${targetItem.detailId}`,
             {
-                material: editingMaterial.nama,
-                quantity: editingMaterial.quantity,
-                harga_modal: editingMaterial.hargaModal,
-                harga_penawaran: editingMaterial.hargaPenawaran,
-                satuan: editingMaterial.satuan,
-                margin: editingMaterial.margin,
-                remark: editingMaterial.remark,
+                material: nextMaterial.nama,
+                quantity: nextMaterial.quantity,
+                harga_modal: nextMaterial.hargaModal,
+                harga_penawaran: nextMaterial.hargaPenawaran,
+                satuan: nextMaterial.satuan,
+                margin: nextMaterial.margin,
+                remark: nextMaterial.remark,
             },
             {
                 preserveScroll: true,
                 preserveState: true,
                 onStart: () => setSavingMaterialId(editingMaterialId),
                 onFinish: () => setSavingMaterialId(null),
-                onSuccess: () => {
-                    setMaterialItems((prev) =>
-                        prev.map((item) =>
-                            item.id === editingMaterialId
-                                ? { ...editingMaterial }
-                                : item,
-                        ),
-                    );
-                    handleCancelEditMaterial();
-                },
+                onSuccess: finishSave,
             },
         );
     };
@@ -959,25 +970,32 @@ onSuccess: (page) => {
                             <h2 className="text-base font-semibold">
                                 Step 3 - Data Material
                             </h2>
-                            <div className="grid gap-4 lg:grid-cols-2">
-                                <div className="grid gap-2">
+                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[12rem_12rem_minmax(14rem,1fr)_minmax(14rem,1fr)_12rem]">
+                                <div className="grid gap-2 md:col-span-2 xl:col-span-5">
                                     <Label htmlFor="nama_material">
                                         Nama Material
                                     </Label>
-                                    <div className="flex flex-col gap-2 sm:flex-row">
-                                        <Input
+                                    <div className="flex flex-row gap-2">
+                                        <textarea
                                             id="nama_material"
+                                            ref={namaMaterialRef}
+                                            rows={1}
+                                            className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-input bg-background px-3 py-2 text-sm [overflow-wrap:anywhere]"
                                             value={materialForm.nama}
-                                            onChange={(event) =>
+                                            onChange={(event) => {
+                                                resizeTextareaToContent(
+                                                    event.currentTarget,
+                                                );
                                                 setMaterialForm((prev) => ({
                                                     ...prev,
                                                     nama: event.target.value,
-                                                }))
-                                            }
+                                                }));
+                                            }}
                                         />
                                         <Button
                                             type="button"
                                             variant="outline"
+                                            className="shrink-0"
                                             onClick={() => {
                                                 setMaterialModalOpen(true);
                                                 loadMaterials();
@@ -1083,7 +1101,7 @@ onSuccess: (page) => {
                                         readOnly
                                     />
                                 </div>
-                                <div className="grid gap-2 lg:col-span-2">
+                                <div className="grid gap-2 md:col-span-2 xl:col-span-5">
                                     <Label htmlFor="remark">Remark</Label>
                                     <textarea
                                         id="remark"
@@ -1102,10 +1120,32 @@ onSuccess: (page) => {
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button
                                     type="button"
-                                    onClick={handleAddMaterial}
+                                    onClick={
+                                        editingMaterialId
+                                            ? handleSaveMaterial
+                                            : handleAddMaterial
+                                    }
+                                    disabled={!!savingMaterialId}
                                 >
-                                    Tambah Material
+                                    {savingMaterialId && (
+                                        <Spinner className="mr-2" />
+                                    )}
+                                    {editingMaterialId
+                                        ? savingMaterialId
+                                            ? 'Menyimpan...'
+                                            : 'Simpan Material'
+                                        : 'Tambah Material'}
                                 </Button>
+                                {editingMaterialId && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={handleCancelEditMaterial}
+                                        disabled={!!savingMaterialId}
+                                    >
+                                        Batal Edit
+                                    </Button>
+                                )}
                             </div>
 
                             <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
@@ -1159,191 +1199,52 @@ onSuccess: (page) => {
                                                 deletingMaterialId === item.id;
                                             const isSaving =
                                                 savingMaterialId === item.id;
-                                            const row = isEditing
-                                                ? editingMaterial
-                                                : item;
                                             return (
                                                 <tr
                                                     key={item.id}
-                                                    className="border-t border-sidebar-border/70"
+                                                    className={`border-t border-sidebar-border/70 ${
+                                                        isEditing
+                                                            ? 'bg-muted/40'
+                                                            : ''
+                                                    }`}
                                                 >
                                                     <td className="px-4 py-3">
                                                         {index + 1}
                                                     </td>
+                                                    <td className="max-w-xs whitespace-normal break-words px-4 py-3">
+                                                        {item.nama}
+                                                    </td>
                                                     <td className="px-4 py-3">
-                                                        {isEditing ? (
-                                                            <Input
-                                                                value={
-                                                                    row?.nama ??
-                                                                    ''
-                                                                }
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    handleEditMaterialChange(
-                                                                        'nama',
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            item.nama
+                                                        {item.satuan || '-'}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.quantity}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {formatRupiahInput(
+                                                            item.hargaModal,
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        {isEditing ? (
-                                                            <Input
-                                                                value={
-                                                                    row?.satuan ??
-                                                                    ''
-                                                                }
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    handleEditMaterialChange(
-                                                                        'satuan',
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            item.satuan || '-'
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {isEditing ? (
-                                                            <Input
-                                                                type="number"
-                                                                value={
-                                                                    row?.quantity ??
-                                                                    ''
-                                                                }
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    handleEditMaterialChange(
-                                                                        'quantity',
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            item.quantity
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {isEditing ? (
-                                                            <Input
-                                                                type="text"
-                                                                value={formatRupiahInput(
-                                                                    row?.hargaModal ??
-                                                                        '',
-                                                                )}
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    handleEditMaterialChange(
-                                                                        'hargaModal',
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            formatRupiahInput(
-                                                                item.hargaModal,
-                                                            )
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {isEditing ? (
-                                                            <>
-                                                                <Input
-                                                                    type="text"
-                                                                    value={formatRupiahInput(
-                                                                        row?.hargaPenawaran ??
-                                                                            '',
-                                                                    )}
-                                                                    onChange={(
-                                                                        event,
-                                                                    ) =>
-                                                                        handleEditMaterialChange(
-                                                                            'hargaPenawaran',
-                                                                            event
-                                                                                .target
-                                                                                .value,
-                                                                        )
-                                                                    }
-                                                                />
-                                                                <InputError
-                                                                    message={
-                                                                        editingMaterialErrors.hargaPenawaran
-                                                                    }
-                                                                />
-                                                            </>
-                                                        ) : (
-                                                            formatRupiahInput(
-                                                                item.hargaPenawaran,
-                                                            )
+                                                        {formatRupiahInput(
+                                                            item.hargaPenawaran,
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         {formatPercent(
-                                                            row?.margin,
+                                                            item.margin,
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3">
-                                                        {isEditing ? (
-                                                            <Input
-                                                                value={
-                                                                    row?.remark ??
-                                                                    ''
-                                                                }
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    handleEditMaterialChange(
-                                                                        'remark',
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            item.remark || '-'
-                                                        )}
+                                                        {item.remark || '-'}
                                                     </td>
                                                     <td className="px-4 py-3">
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             {isEditing ? (
                                                                 <>
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="ghost"
-                                                                        onClick={
-                                                                            handleSaveMaterial
-                                                                        }
-                                                                        disabled={
-                                                                            !row?.detailId ||
-                                                                            isSaving ||
-                                                                            isDeleting
-                                                                        }
-                                                                    >
-                                                                        {isSaving && (
-                                                                            <Spinner className="mr-2" />
-                                                                        )}
-                                                                        {isSaving
-                                                                            ? 'Menyimpan...'
-                                                                            : 'Simpan'}
-                                                                    </Button>
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        Sedang diedit
+                                                                    </span>
                                                                     <Button
                                                                         type="button"
                                                                         variant="ghost"
@@ -1440,6 +1341,7 @@ onSuccess: (page) => {
                                     type="submit"
                                     disabled={
                                         isSubmitting ||
+                                        !!editingMaterialId ||
                                         materialItems.length === 0
                                     }
                                 >
