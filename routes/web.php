@@ -775,4 +775,3 @@ Route::get('penjualan/faktur-penjualan/do-add-materials', [FakturPenjualanContro
     ->name('penjualan.faktur-penjualan.do-add-materials');
 
 require __DIR__.'/settings.php';
-require base_path('routes/test_data.php');
