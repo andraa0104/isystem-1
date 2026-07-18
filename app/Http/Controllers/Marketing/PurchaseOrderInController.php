@@ -952,6 +952,119 @@ class PurchaseOrderInController
         ]);
     }
 
+
+    public function track(Request $request)
+    {
+        $refPo = $request->query('ref_po');
+        if (empty($refPo)) {
+            return response()->json(['success' => false, 'message' => 'Silakan masukkan Ref PO.', 'data' => []]);
+        }
+        
+        $refPoLower = strtolower(trim($refPo));
+        $flow = [];
+        
+        // Level 1: PO In (tb_poin)
+        if (Schema::hasTable('tb_poin')) {
+            $poIns = DB::table('tb_poin')->whereRaw('lower(trim(no_poin)) = ?', [$refPoLower])->get();
+            foreach ($poIns as $poin) {
+                $date = $poin->created_at ?? $poin->date_poin ?? '-';
+                $flow[] = "Ref PO Customer telah di input pada {$date} dengan nomor document {$poin->kode_poin}";
+            }
+        }
+        
+        // Level 2: PR (tb_pr)
+        if (Schema::hasTable('tb_pr')) {
+            $prs = DB::table('tb_pr')->whereRaw('lower(trim(ref_po)) = ?', [$refPoLower])->get();
+            foreach ($prs as $pr) {
+                $flow[] = "Purchase Requirement telah dibuat pada {$pr->date} dengan nomor document {$pr->no_pr}";
+            }
+        }
+        
+        // Level 3: PO (tb_po)
+        $poNos = [];
+        if (Schema::hasTable('tb_po')) {
+            $pos = DB::table('tb_po')->whereRaw('lower(trim(ref_poin)) = ?', [$refPoLower])->get();
+            foreach ($pos as $po) {
+                $flow[] = "Purchase order telah dibuat pada {$po->tgl} dengan nomor document {$po->no_po}";
+                if (!empty($po->no_po)) {
+                    $poNos[] = strtolower(trim($po->no_po));
+                }
+            }
+        }
+        
+        // Level 4: Penerimaan Material (tb_mi)
+        if (Schema::hasTable('tb_mi') && count($poNos) > 0) {
+            $mis = DB::table('tb_mi')->whereIn(DB::raw('lower(trim(ref_po))'), $poNos)->get();
+            foreach ($mis as $mi) {
+                $tgl = $mi->posting_date ?? $mi->posting_tgl ?? $mi->tgl_mi ?? $mi->tgl_doc ?? $mi->tgl ?? '-';
+                $flow[] = "barang sudah diterimakan pada {$tgl} dengan nomor document {$mi->no_doc}";
+            }
+        }
+        
+        // Level 5: Delivery Order (tb_kddo & tb_kddob)
+        $doNos = [];
+        if (Schema::hasTable('tb_kddo')) {
+            $dos = DB::table('tb_kddo')->whereRaw('lower(trim(ref_po)) = ?', [$refPoLower])->get();
+            foreach ($dos as $doRecord) {
+                $doInfo = "Delivery Order telah dibuat pada tanggal {$doRecord->tgl} dengan nomor document {$doRecord->no_do}";
+                $doNos[] = strtolower(trim($doRecord->no_do));
+                
+                if (Schema::hasTable('tb_kddob')) {
+                    $dobantus = DB::table('tb_kddob')->whereRaw('lower(trim(ref_do)) = ?', [strtolower(trim($doRecord->no_do))])->get();
+                    foreach ($dobantus as $dob) {
+                        $doInfo .= " dan DO bantu pada tanggal {$dob->date} dengan nomor document {$dob->no_dob}";
+                    }
+                }
+                $flow[] = $doInfo;
+            }
+        }
+        
+        // Level 6: Faktur Penjualan (tb_kdfakturpenjualan)
+        $fakturNos = [];
+        if (Schema::hasTable('tb_kdfakturpenjualan')) {
+            $fakturs = DB::table('tb_kdfakturpenjualan')->whereRaw('lower(trim(ref_po)) = ?', [$refPoLower])->get();
+            foreach ($fakturs as $faktur) {
+                $flow[] = "faktur penjualan telah dibuat pada tanggal {$faktur->tgl_doc} dengan nomor document {$faktur->no_fakturpenjualan}";
+                if (!empty($faktur->no_fakturpenjualan)) {
+                    $fakturNos[] = strtolower(trim($faktur->no_fakturpenjualan));
+                }
+            }
+        }
+        
+        // Level 7: Kwitansi (tb_kwitansi)
+        if (Schema::hasTable('tb_kwitansi') && count($fakturNos) > 0) {
+            $kwitansis = DB::table('tb_kwitansi')->whereIn(DB::raw('lower(trim(ref_faktur))'), $fakturNos)->get();
+            foreach ($kwitansis as $kw) {
+                $flow[] = "kwitansi telah dibuat pada tanggal {$kw->tgl} dengan nomor document {$kw->no_kwitansi}";
+            }
+        }
+        
+        // Level 8: Tanda Terima Invoice (tb_ttinv)
+        if (Schema::hasTable('tb_ttinv')) {
+            $ttinvs = DB::table('tb_ttinv')->whereRaw('lower(trim(ref_po)) = ?', [$refPoLower])->get();
+            foreach ($ttinvs as $tt) {
+                $flow[] = "faktur penjualan telah diterima oleh {$tt->nm_penerima} pada tanggal {$tt->tgl_terima} dengan nomor document {$tt->no_ttinv}";
+            }
+        }
+        
+        // Level 9: Pembayaran / Kas (tb_kas)
+        if (Schema::hasTable('tb_kas') && count($fakturNos) > 0) {
+            $query = DB::table('tb_kas');
+            $query->where(function($q) use ($fakturNos) {
+                foreach ($fakturNos as $fn) {
+                    $q->orWhereRaw('lower(trim(keterangan)) like ?', ['%'.$fn.'%']);
+                }
+            });
+            $kasList = $query->get();
+            foreach ($kasList as $kas) {
+                $tglVoucher = $kas->Tgl_Voucher ?? $kas->tgl_voucher ?? '-';
+                $kodeVoucher = $kas->Kode_Voucher ?? $kas->kode_voucher ?? '-';
+                $flow[] = "transaksi sudah dibukukan pada tanggal {$tglVoucher} dengan nomor document {$kodeVoucher}";
+            }
+        }
+        
+        return response()->json(['success' => true, 'data' => $flow]);
+    }
     public function show(Request $request, $kodePoin)
     {
         $search = trim((string) $request->query('search', ''));

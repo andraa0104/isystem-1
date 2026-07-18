@@ -216,6 +216,40 @@ export default function PurchaseOrderInIndex({
     const canDelete = isAdmin || (hasPrivileges && menuAccess.delete === true);
 
     const [search, setSearch] = useState(filters.search ?? '');
+    // Tracking PO Customer State
+    const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+    const [trackingSearchKeyword, setTrackingSearchKeyword] = useState('');
+    const [isTrackingLoading, setIsTrackingLoading] = useState(false);
+    const [trackingResults, setTrackingResults] = useState([]);
+
+    const handleSearchTracking = () => {
+        if (!trackingSearchKeyword.trim()) {
+            toastError("Silakan masukkan Ref PO");
+            return;
+        }
+        setIsTrackingLoading(true);
+        setTrackingResults([]);
+
+        fetch(`/marketing/purchase-order-in/tracking?ref_po=${encodeURIComponent(trackingSearchKeyword.trim())}`, {
+            headers: { Accept: 'application/json' },
+        })
+            .then(res => res.json())
+            .then(res => {
+                if (res.success) {
+                    setTrackingResults(res.data || []);
+                } else {
+                    toastError(res.message || "Gagal memuat tracking data");
+                }
+            })
+            .catch(() => toastError("Gagal menghubungi server"))
+            .finally(() => setIsTrackingLoading(false));
+    };
+
+    const handleOpenTrackingModal = () => {
+        setTrackingSearchKeyword('');
+        setTrackingResults([]);
+        setIsTrackingModalOpen(true);
+    };
     const [perPage, setPerPage] = useState(String(filters.per_page ?? '5'));
     const [statusFilter, setStatusFilter] = useState(filters.status ?? 'all');
     const [tableDateFilter, setTableDateFilter] = useState(
@@ -499,8 +533,8 @@ export default function PurchaseOrderInIndex({
                     activeModal === 'all_data'
                         ? dataPoInPeriod
                         : activeModal === 'realized'
-                          ? realizedPeriod
-                          : 'all',
+                            ? realizedPeriod
+                            : 'all',
                 page: '1',
                 is_partial: '1',
             });
@@ -636,16 +670,16 @@ export default function PurchaseOrderInIndex({
                 ? outstandingItems
                 : outstandingDoItems
             : activeModal === 'sisa'
-              ? activeModalTab === 'pr'
-                  ? belumPrItems
-                  : sisaDoItems
-              : activeModal === 'realized'
                 ? activeModalTab === 'pr'
-                    ? realizedItemsByPeriod
-                    : realizedDoItemsByPeriod
-                : activeModal === 'all_data'
-                  ? dataItemsByPeriod
-                  : [];
+                    ? belumPrItems
+                    : sisaDoItems
+                : activeModal === 'realized'
+                    ? activeModalTab === 'pr'
+                        ? realizedItemsByPeriod
+                        : realizedDoItemsByPeriod
+                    : activeModal === 'all_data'
+                        ? dataItemsByPeriod
+                        : [];
 
     const modalFilteredItems = useMemo(() => {
         const term = modalSearch.trim().toLowerCase();
@@ -775,7 +809,7 @@ export default function PurchaseOrderInIndex({
                     }
                     toastSuccess(
                         page?.props?.flash?.success ||
-                            'Data PO In berhasil dihapus.',
+                        'Data PO In berhasil dihapus.',
                     );
 
                     setActiveModal(null);
@@ -798,8 +832,8 @@ export default function PurchaseOrderInIndex({
                     setIsDeleting(false);
                     toastError(
                         errors?.message ||
-                            errors?.error ||
-                            'Akses delete tidak diizinkan untuk menu ini.',
+                        errors?.error ||
+                        'Akses delete tidak diizinkan untuk menu ini.',
                     );
                 },
                 onFinish: () => {
@@ -930,6 +964,16 @@ export default function PurchaseOrderInIndex({
                             </h1>
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2 md:flex md:flex-wrap md:justify-end">
+                            <Button
+                                className="w-full border-2 border-slate-700 bg-[#ffffff] font-bold text-[#0f172a] hover:bg-[#f1f5f9] md:w-auto"
+                                style={{
+                                    backgroundColor: '#ffffff',
+                                    color: '#0f172a',
+                                }}
+                                onClick={handleOpenTrackingModal}
+                            >
+                                Tracking PO Customer
+                            </Button>
                             <Button
                                 className="w-full border-2 border-slate-700 bg-[#ffffff] font-bold text-[#0f172a] hover:bg-[#f1f5f9] md:w-auto"
                                 style={{
@@ -1451,15 +1495,15 @@ export default function PurchaseOrderInIndex({
                                                 {pagination.per_page === 'all'
                                                     ? index + 1
                                                     : (Number(
-                                                          pagination.page || 1,
-                                                      ) -
-                                                          1) *
-                                                          Number(
-                                                              pagination.per_page ||
-                                                                  5,
-                                                          ) +
-                                                      index +
-                                                      1}
+                                                        pagination.page || 1,
+                                                    ) -
+                                                        1) *
+                                                    Number(
+                                                        pagination.per_page ||
+                                                        5,
+                                                    ) +
+                                                    index +
+                                                    1}
                                             </p>
                                             <p className="mt-1 font-semibold break-words">
                                                 {item.kode_poin}
@@ -1509,7 +1553,7 @@ export default function PurchaseOrderInIndex({
                                             <p className="font-medium">
                                                 {formatDateDisplay(
                                                     item.created_at ||
-                                                        item.date_poin,
+                                                    item.date_poin,
                                                 )}
                                             </p>
                                         </div>
@@ -1576,15 +1620,15 @@ export default function PurchaseOrderInIndex({
                                                 {pagination.per_page === 'all'
                                                     ? index + 1
                                                     : (Number(
-                                                          pagination.page || 1,
-                                                      ) -
-                                                          1) *
-                                                          Number(
-                                                              pagination.per_page ||
-                                                                  5,
-                                                          ) +
-                                                      index +
-                                                      1}
+                                                        pagination.page || 1,
+                                                    ) -
+                                                        1) *
+                                                    Number(
+                                                        pagination.per_page ||
+                                                        5,
+                                                    ) +
+                                                    index +
+                                                    1}
                                             </td>
                                             <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
                                                 {item.kode_poin}
@@ -1595,7 +1639,7 @@ export default function PurchaseOrderInIndex({
                                             <td className="w-px px-1 py-2 whitespace-nowrap">
                                                 {formatDateDisplay(
                                                     item.created_at ||
-                                                        item.date_poin,
+                                                    item.date_poin,
                                                 )}
                                             </td>
                                             <td className="px-1 py-2">
@@ -1646,18 +1690,18 @@ export default function PurchaseOrderInIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (Number(pagination.page || 1) - 1) *
-                                                Number(
-                                                    pagination.per_page || 5,
-                                                ) +
-                                                1,
+                                            Number(
+                                                pagination.per_page || 5,
+                                            ) +
+                                            1,
                                             Number(pagination.total || 0),
                                         )}
                                         -
                                         {Math.min(
                                             Number(pagination.page || 1) *
-                                                Number(
-                                                    pagination.per_page || 5,
-                                                ),
+                                            Number(
+                                                pagination.per_page || 5,
+                                            ),
                                             Number(pagination.total || 0),
                                         )}{' '}
                                         dari {pagination.total} data
@@ -1701,16 +1745,16 @@ export default function PurchaseOrderInIndex({
                                         disabled={
                                             paginationLoading ||
                                             Number(pagination.page || 1) >=
-                                                Number(
-                                                    pagination.total_pages || 1,
-                                                )
+                                            Number(
+                                                pagination.total_pages || 1,
+                                            )
                                         }
                                         onClick={() =>
                                             fetchPoInData({
                                                 page: Math.min(
                                                     Number(
                                                         pagination.total_pages ||
-                                                            1,
+                                                        1,
                                                     ),
                                                     Number(
                                                         pagination.page || 1,
@@ -1806,14 +1850,14 @@ export default function PurchaseOrderInIndex({
                                                 value={
                                                     detailHeader.created_at
                                                         ? detailHeader.created_at.split(
-                                                              /[\sT]/,
-                                                          )[0]
+                                                            /[\sT]/,
+                                                        )[0]
                                                         : detailHeader.date_poin &&
                                                             detailHeader.date_poin.includes(
                                                                 '-',
                                                             )
-                                                          ? detailHeader.date_poin
-                                                          : ''
+                                                            ? detailHeader.date_poin
+                                                            : ''
                                                 }
                                                 readOnly
                                             />
@@ -2008,20 +2052,20 @@ export default function PurchaseOrderInIndex({
                                                             >
                                                                 <td className="w-px px-1 py-2 whitespace-nowrap">
                                                                     {detailPagination.per_page ===
-                                                                    'all'
+                                                                        'all'
                                                                         ? index +
-                                                                          1
+                                                                        1
                                                                         : (Number(
-                                                                              detailPagination.page ||
-                                                                                  1,
-                                                                          ) -
-                                                                              1) *
-                                                                              Number(
-                                                                                  detailPagination.per_page ||
-                                                                                      5,
-                                                                              ) +
-                                                                          index +
-                                                                          1}
+                                                                            detailPagination.page ||
+                                                                            1,
+                                                                        ) -
+                                                                            1) *
+                                                                        Number(
+                                                                            detailPagination.per_page ||
+                                                                            5,
+                                                                        ) +
+                                                                        index +
+                                                                        1}
                                                                 </td>
                                                                 <td className="px-1 py-2">
                                                                     {row.material ??
@@ -2033,13 +2077,13 @@ export default function PurchaseOrderInIndex({
                                                                 <td className="w-px px-1 py-2 text-right whitespace-nowrap">
                                                                     {formatRupiah(
                                                                         row.price_po_in ??
-                                                                            0,
+                                                                        0,
                                                                     )}
                                                                 </td>
                                                                 <td className="w-px px-1 py-2 text-right whitespace-nowrap">
                                                                     {formatRupiah(
                                                                         row.total_price_po_in ??
-                                                                            0,
+                                                                        0,
                                                                     )}
                                                                 </td>
                                                                 <td className="w-px px-1 py-2 text-right whitespace-nowrap">
@@ -2066,63 +2110,63 @@ export default function PurchaseOrderInIndex({
                                         </p>
                                         {String(detailPagination.per_page) !==
                                             'all' && (
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    disabled={
-                                                        Number(
-                                                            detailPagination.page ||
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        disabled={
+                                                            Number(
+                                                                detailPagination.page ||
                                                                 1,
-                                                        ) <= 1
-                                                    }
-                                                    onClick={() =>
-                                                        setDetailPage((prev) =>
-                                                            Math.max(
-                                                                1,
-                                                                prev - 1,
-                                                            ),
-                                                        )
-                                                    }
-                                                >
-                                                    Sebelumnya
-                                                </Button>
-                                                <span className="text-muted-foreground">
-                                                    Halaman{' '}
-                                                    {detailPagination.page} /{' '}
-                                                    {
-                                                        detailPagination.total_pages
-                                                    }
-                                                </span>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    disabled={
-                                                        Number(
-                                                            detailPagination.page,
-                                                        ) >=
-                                                        Number(
-                                                            detailPagination.total_pages,
-                                                        )
-                                                    }
-                                                    onClick={() =>
-                                                        setDetailPage((prev) =>
-                                                            Math.min(
-                                                                Number(
-                                                                    detailPagination.total_pages ||
-                                                                        1,
+                                                            ) <= 1
+                                                        }
+                                                        onClick={() =>
+                                                            setDetailPage((prev) =>
+                                                                Math.max(
+                                                                    1,
+                                                                    prev - 1,
                                                                 ),
-                                                                prev + 1,
-                                                            ),
-                                                        )
-                                                    }
-                                                >
-                                                    Berikutnya
-                                                </Button>
-                                            </div>
-                                        )}
+                                                            )
+                                                        }
+                                                    >
+                                                        Sebelumnya
+                                                    </Button>
+                                                    <span className="text-muted-foreground">
+                                                        Halaman{' '}
+                                                        {detailPagination.page} /{' '}
+                                                        {
+                                                            detailPagination.total_pages
+                                                        }
+                                                    </span>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        disabled={
+                                                            Number(
+                                                                detailPagination.page,
+                                                            ) >=
+                                                            Number(
+                                                                detailPagination.total_pages,
+                                                            )
+                                                        }
+                                                        onClick={() =>
+                                                            setDetailPage((prev) =>
+                                                                Math.min(
+                                                                    Number(
+                                                                        detailPagination.total_pages ||
+                                                                        1,
+                                                                    ),
+                                                                    prev + 1,
+                                                                ),
+                                                            )
+                                                        }
+                                                    >
+                                                        Berikutnya
+                                                    </Button>
+                                                </div>
+                                            )}
                                     </div>
 
                                     <div className="grid gap-2 md:grid-cols-4">
@@ -2133,7 +2177,7 @@ export default function PurchaseOrderInIndex({
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     detailHeader.total_price ??
-                                                        0,
+                                                    0,
                                                 )}
                                             </p>
                                         </div>
@@ -2154,7 +2198,7 @@ export default function PurchaseOrderInIndex({
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     detailHeader.ppn_amount ??
-                                                        0,
+                                                    0,
                                                 )}
                                             </p>
                                         </div>
@@ -2165,7 +2209,7 @@ export default function PurchaseOrderInIndex({
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     detailHeader.grand_total ??
-                                                        0,
+                                                    0,
                                                 )}
                                             </p>
                                         </div>
@@ -2190,10 +2234,10 @@ export default function PurchaseOrderInIndex({
                                 {activeModal === 'all_data'
                                     ? 'Data PO IN'
                                     : activeModal === 'outstanding'
-                                      ? 'Data PO IN Outstanding'
-                                      : activeModal === 'sisa'
-                                        ? 'Data PO IN Sisa'
-                                        : `Data PO IN Terealisasi (${periodLabelMap[realizedPeriod]})`}
+                                        ? 'Data PO IN Outstanding'
+                                        : activeModal === 'sisa'
+                                            ? 'Data PO IN Sisa'
+                                            : `Data PO IN Terealisasi (${periodLabelMap[realizedPeriod]})`}
                             </DialogTitle>
                         </DialogHeader>
 
@@ -2216,8 +2260,8 @@ export default function PurchaseOrderInIndex({
                                     {activeModal === 'outstanding'
                                         ? 'Outstanding PR'
                                         : activeModal === 'sisa'
-                                          ? 'Sisa PR'
-                                          : 'PR Selesai'}
+                                            ? 'Sisa PR'
+                                            : 'PR Selesai'}
                                 </button>
                                 <button
                                     type="button"
@@ -2236,8 +2280,8 @@ export default function PurchaseOrderInIndex({
                                     {activeModal === 'outstanding'
                                         ? 'Outstanding DO'
                                         : activeModal === 'sisa'
-                                          ? 'Sisa DO'
-                                          : 'DO Selesai'}
+                                            ? 'Sisa DO'
+                                            : 'DO Selesai'}
                                 </button>
                             </div>
                         )}
@@ -2300,12 +2344,12 @@ export default function PurchaseOrderInIndex({
                                         </th>
                                         <th className="w-32 px-2 py-2 text-left">
                                             {activeModal === 'realized' &&
-                                            activeModalTab === 'do'
+                                                activeModalTab === 'do'
                                                 ? 'Tgl DO Terakhir'
                                                 : activeModal === 'realized' &&
                                                     activeModalTab === 'pr'
-                                                  ? 'Tgl PR Terakhir'
-                                                  : 'Date Input'}
+                                                    ? 'Tgl PR Terakhir'
+                                                    : 'Date Input'}
                                         </th>
                                         <th className="px-2 py-2 text-left">
                                             Customer
@@ -2338,13 +2382,13 @@ export default function PurchaseOrderInIndex({
                                                 {modalPageSize === Infinity
                                                     ? index + 1
                                                     : (modalPage - 1) *
-                                                          modalPageSize +
-                                                      index +
-                                                      1}
+                                                    modalPageSize +
+                                                    index +
+                                                    1}
                                             </td>
                                             <td className="px-2 py-2 font-semibold whitespace-nowrap">
                                                 {activeModal === 'realized' &&
-                                                activeModalTab === 'do'
+                                                    activeModalTab === 'do'
                                                     ? item.no_do
                                                     : item.kode_poin}
                                             </td>
@@ -2358,11 +2402,11 @@ export default function PurchaseOrderInIndex({
                                                         activeModalTab === 'do'
                                                         ? item.last_do_date
                                                         : activeModal ===
-                                                                'realized' &&
+                                                            'realized' &&
                                                             activeModalTab ===
-                                                                'pr'
-                                                          ? item.last_pr_date
-                                                          : item.created_at ||
+                                                            'pr'
+                                                            ? item.last_pr_date
+                                                            : item.created_at ||
                                                             item.date_poin,
                                                 )}
                                             </td>
@@ -2375,67 +2419,67 @@ export default function PurchaseOrderInIndex({
                                             <td className="px-2 py-2">
                                                 {activeModal ===
                                                     'outstanding' ||
-                                                activeModal === 'sisa' ? (
+                                                    activeModal === 'sisa' ? (
                                                     <div className="flex items-center gap-2">
                                                         {(!Number(
                                                             item.has_do ?? 0,
                                                         ) ||
                                                             activeModal ===
-                                                                'sisa') && (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() => {
-                                                                    if (
-                                                                        !canUpdate
-                                                                    ) {
-                                                                        toastError(
-                                                                            'Akses edit tidak diizinkan untuk menu ini.',
-                                                                        );
-                                                                        return;
-                                                                    }
+                                                            'sisa') && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        if (
+                                                                            !canUpdate
+                                                                        ) {
+                                                                            toastError(
+                                                                                'Akses edit tidak diizinkan untuk menu ini.',
+                                                                            );
+                                                                            return;
+                                                                        }
 
-                                                                    setActiveModal(
-                                                                        null,
-                                                                    );
-                                                                    router.visit(
-                                                                        `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
-                                                                    );
-                                                                }}
-                                                                title="Edit"
-                                                            >
-                                                                <Pencil className="size-4" />
-                                                            </Button>
-                                                        )}
+                                                                        setActiveModal(
+                                                                            null,
+                                                                        );
+                                                                        router.visit(
+                                                                            `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
+                                                                        );
+                                                                    }}
+                                                                    title="Edit"
+                                                                >
+                                                                    <Pencil className="size-4" />
+                                                                </Button>
+                                                            )}
                                                         {activeModal ===
                                                             'outstanding' && (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                title="Hapus"
-                                                                onClick={() => {
-                                                                    if (
-                                                                        !canDelete
-                                                                    ) {
-                                                                        toastError(
-                                                                            'Akses delete tidak diizinkan untuk menu ini.',
-                                                                        );
-                                                                        return;
-                                                                    }
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    title="Hapus"
+                                                                    onClick={() => {
+                                                                        if (
+                                                                            !canDelete
+                                                                        ) {
+                                                                            toastError(
+                                                                                'Akses delete tidak diizinkan untuk menu ini.',
+                                                                            );
+                                                                            return;
+                                                                        }
 
-                                                                    setConfirmDeleteKode(
-                                                                        item.kode_poin,
-                                                                    );
-                                                                    setIsConfirmDeleteOpen(
-                                                                        true,
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <Trash2 className="size-4" />
-                                                            </Button>
-                                                        )}
+                                                                        setConfirmDeleteKode(
+                                                                            item.kode_poin,
+                                                                        );
+                                                                        setIsConfirmDeleteOpen(
+                                                                            true,
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Trash2 className="size-4" />
+                                                                </Button>
+                                                            )}
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-center gap-2">
@@ -2560,6 +2604,55 @@ export default function PurchaseOrderInIndex({
                         </div>
                     </DialogContent>
                 </Dialog>
+
+                {/* MODAL TRACKING PO CUSTOMER */}
+                <Dialog open={isTrackingModalOpen} onOpenChange={setIsTrackingModalOpen}>
+                    <DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col overflow-hidden">
+                        <DialogHeader>
+                            <DialogTitle>Tracking PO Customer</DialogTitle>
+                            <DialogDescription>
+                                Anda bisa melacak status PO Customer dengan memasukkan Ref PO di bawah ini.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="flex flex-col gap-4 py-4 min-h-0 overflow-y-auto">
+                            <div className="flex gap-2 relative z-10 w-full mb-2">
+                                <input
+                                    type="text"
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    placeholder="Masukkan Ref PO..."
+                                    value={trackingSearchKeyword}
+                                    onChange={(e) => setTrackingSearchKeyword(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSearchTracking()}
+                                />
+                                <Button onClick={handleSearchTracking} disabled={isTrackingLoading}>
+                                    {isTrackingLoading ? 'Mencari...' : 'Cari Data'}
+                                </Button>
+                            </div>
+
+                            {/* Tracking Results */}
+                            {trackingResults.length > 0 && (
+                                <div className="space-y-4 relative border-l-2 border-blue-500 ml-3 pl-6 mt-4">
+                                    {trackingResults.map((result, idx) => (
+                                        <div key={idx} className="relative">
+                                            {/* Node icon */}
+                                            <div className="absolute -left-[31px] top-1 h-4 w-4 rounded-full bg-blue-500 border-2 border-white dark:border-slate-900 z-10"></div>
+                                            <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-md text-sm border shadow-sm">
+                                                {result}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {!isTrackingLoading && trackingResults.length === 0 && trackingSearchKeyword && (
+                                <div className="text-center text-muted-foreground mt-4 text-sm">
+                                    Tidak ada data untuk ditampilkan (Silakan tekan tombol Cari Data)
+                                </div>
+                            )}
+                        </div>
+                    </DialogContent>
+                </Dialog>
+
             </div>
         </>
     );

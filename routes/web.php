@@ -246,6 +246,8 @@ Route::get('marketing/purchase-order-in/data', [PurchaseOrderInController::class
     ->name('marketing.purchase-order-in.data');
 Route::get('marketing/purchase-order-in/export', [PurchaseOrderInController::class, 'export'])
     ->name('marketing.purchase-order-in.export');
+Route::get('marketing/purchase-order-in/tracking', [PurchaseOrderInController::class, 'track'])
+    ->name('marketing.purchase-order-in.track');
 Route::post('pembelian/purchase-order/cluster-remarks', [\App\Http\Controllers\Marketing\AIPredictionController::class, 'clusterRemarks'])
     ->name('pembelian.purchase-order.cluster-remarks');
 Route::get('marketing/purchase-order-in/create', [PurchaseOrderInController::class, 'create'])
