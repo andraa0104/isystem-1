@@ -358,6 +358,29 @@ export default function PurchaseRequirementIndex({
         );
     };
 
+    const renderRefPoValues = (values) => {
+        const list = Array.isArray(values)
+            ? values
+            : String(values ?? '')
+                  .split(/\s*,\s*/)
+                  .map((item) => item.trim())
+                  .filter(Boolean);
+
+        if (list.length === 0) {
+            return renderValue(values);
+        }
+
+        return (
+            <div className="flex min-w-max flex-col gap-1">
+                {list.map((value, index) => (
+                    <div key={`${value}-${index}`} className="whitespace-nowrap">
+                        {value}
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     useEffect(() => {
         fetch('/penjualan/review-tagihan/overdue-customer-names', {
             headers: { Accept: 'application/json' },
@@ -1520,7 +1543,7 @@ export default function PurchaseRequirementIndex({
                                 <th className="w-[40%] min-w-72 px-1 py-3 text-left">
                                     Customer
                                 </th>
-                                <th className="w-auto px-2 py-3 text-left">
+                                <th className="w-max px-2 py-3 text-left whitespace-nowrap">
                                     Ref PO
                                 </th>
                                 <th className="px-2 py-3 text-left">
@@ -1558,8 +1581,8 @@ export default function PurchaseRequirementIndex({
                                                 item.for_customer,
                                             )}
                                         </td>
-                                        <td className="w-auto px-2 py-3 align-top [overflow-wrap:anywhere] whitespace-normal">
-                                            {renderSeparatedValues(item.ref_po)}
+                                        <td className="w-max px-2 py-3 align-top whitespace-nowrap">
+                                            {renderRefPoValues(item.ref_po)}
                                         </td>
                                         <td className="px-2 py-3 align-top text-sm [overflow-wrap:anywhere] whitespace-normal">
                                             {item.jenis_pr ?? '-'}
@@ -2113,7 +2136,7 @@ export default function PurchaseRequirementIndex({
                                         <th className="w-full px-2 py-2 text-left whitespace-nowrap">
                                             Customer
                                         </th>
-                                        <th className="w-auto px-2 py-2 text-left">
+                                        <th className="w-max px-2 py-2 text-left whitespace-nowrap">
                                             Ref PO
                                         </th>
                                         <th className="px-2 py-2 text-left whitespace-nowrap">
@@ -2158,8 +2181,8 @@ export default function PurchaseRequirementIndex({
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="w-auto px-2 py-2 [overflow-wrap:anywhere] whitespace-normal">
-                                                    {renderSeparatedValues(
+                                                <td className="w-max px-2 py-2 whitespace-nowrap">
+                                                    {renderRefPoValues(
                                                         item.ref_po,
                                                     )}
                                                 </td>
@@ -2356,7 +2379,7 @@ export default function PurchaseRequirementIndex({
                                         <th className="w-full px-2 py-2 text-left whitespace-nowrap">
                                             Customer
                                         </th>
-                                        <th className="w-auto px-2 py-2 text-left">
+                                        <th className="w-max px-2 py-2 text-left whitespace-nowrap">
                                             Ref PO
                                         </th>
                                         <th className="px-2 py-2 text-left whitespace-nowrap">
@@ -2401,8 +2424,8 @@ export default function PurchaseRequirementIndex({
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="w-auto px-2 py-2 [overflow-wrap:anywhere] whitespace-normal">
-                                                    {renderSeparatedValues(
+                                                <td className="w-max px-2 py-2 whitespace-nowrap">
+                                                    {renderRefPoValues(
                                                         item.ref_po,
                                                     )}
                                                 </td>
@@ -2596,7 +2619,7 @@ export default function PurchaseRequirementIndex({
                                         <th className="w-full px-2 py-2 text-left whitespace-nowrap">
                                             Customer
                                         </th>
-                                        <th className="w-auto px-2 py-2 text-left">
+                                        <th className="w-max px-2 py-2 text-left whitespace-nowrap">
                                             Ref PO
                                         </th>
                                         <th className="px-2 py-2 text-left whitespace-nowrap">
@@ -2646,8 +2669,8 @@ export default function PurchaseRequirementIndex({
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="w-auto px-2 py-2 [overflow-wrap:anywhere] whitespace-normal">
-                                                    {renderSeparatedValues(
+                                                <td className="w-max px-2 py-2 whitespace-nowrap">
+                                                    {renderRefPoValues(
                                                         item.ref_po,
                                                     )}
                                                 </td>
