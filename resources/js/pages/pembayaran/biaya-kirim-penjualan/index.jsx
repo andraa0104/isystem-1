@@ -668,7 +668,7 @@ export default function BiayaKirimPenjualanIndex({
                                                 </TableCell>
                                                 <TableCell>
                                                     {formatRupiah(
-                                                        row.jumlah_bayar,
+                                                        row.jumlah_inv || row.JUMLAH_INV || row.Jumlah_inv,
                                                     )}
                                                 </TableCell>
                                                 <TableCell>
@@ -894,7 +894,7 @@ export default function BiayaKirimPenjualanIndex({
                                                                 </TableCell>
                                                                 <TableCell>
                                                                     {formatRupiah(
-                                                                        row.jumlah_bayar,
+                                                                        row.jumlah_inv || row.JUMLAH_INV || row.Jumlah_inv,
                                                                     )}
                                                                 </TableCell>
                                                                 <TableCell>

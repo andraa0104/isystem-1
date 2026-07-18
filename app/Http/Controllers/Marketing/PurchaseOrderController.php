@@ -9,6 +9,13 @@ use Inertia\Inertia;
 
 class PurchaseOrderController
 {
+    private function bypassCache() {
+        return new class {
+            public function remember($key, $ttl, $callback) { return $callback(); }
+            public function flush() {}
+        };
+    }
+
     private function redistributePurchaseOrderQtyToPr(string $noPr, string $kdMaterial, ?string $customer = null, ?string $refPoin = null): void
     {
         $poQuery = DB::table('tb_detailpo')
@@ -74,7 +81,7 @@ class PurchaseOrderController
 
     private function flushPurchaseOrderCache(): void
     {
-        Cache::tags(self::PO_PR_CACHE_TAGS)->flush();
+        $this->bypassCache()->flush();
     }
 
     private function withRequiredSpace($value): string
@@ -85,7 +92,7 @@ class PurchaseOrderController
 
     public function create()
     {
-        $vendors = Cache::tags(self::PO_VENDOR_CACHE_TAGS)->remember($this->poCacheKey('vendors'), self::PO_VENDOR_CACHE_TTL, function () {
+        $vendors = $this->bypassCache()->remember($this->poCacheKey('vendors'), self::PO_VENDOR_CACHE_TTL, function () {
             return DB::table('tb_vendor')
                 ->select('kd_vdr', 'nm_vdr', 'almt_vdr', 'telp_vdr', 'eml_vdr', 'attn_vdr')
                 ->orderBy('nm_vdr')
@@ -101,7 +108,7 @@ class PurchaseOrderController
 
     public function edit($noPo)
     {
-        $purchaseOrder = Cache::tags(self::PO_CACHE_TAGS)->remember($this->poCacheKey('edit.header', [$noPo]), self::PO_CACHE_TTL, function () use ($noPo) {
+        $purchaseOrder = $this->bypassCache()->remember($this->poCacheKey('edit.header', [$noPo]), self::PO_CACHE_TTL, function () use ($noPo) {
             return DB::table('tb_po')
                 ->where('no_po', $noPo)
                 ->first();
@@ -113,14 +120,14 @@ class PurchaseOrderController
                 ->with('error', 'Data PO tidak ditemukan.');
         }
 
-        $purchaseOrderDetails = Cache::tags(self::PO_CACHE_TAGS)->remember($this->poCacheKey('edit.details', [$noPo]), self::PO_CACHE_TTL, function () use ($noPo) {
+        $purchaseOrderDetails = $this->bypassCache()->remember($this->poCacheKey('edit.details', [$noPo]), self::PO_CACHE_TTL, function () use ($noPo) {
             return DB::table('tb_detailpo')
                 ->where('no_po', $noPo)
                 ->orderBy('no')
                 ->get();
         });
 
-        $vendors = Cache::tags(self::PO_VENDOR_CACHE_TAGS)->remember($this->poCacheKey('vendors'), self::PO_VENDOR_CACHE_TTL, function () {
+        $vendors = $this->bypassCache()->remember($this->poCacheKey('vendors'), self::PO_VENDOR_CACHE_TTL, function () {
             return DB::table('tb_vendor')
                 ->select('kd_vdr', 'nm_vdr', 'almt_vdr', 'telp_vdr', 'eml_vdr', 'attn_vdr')
                 ->orderBy('nm_vdr')
@@ -284,7 +291,7 @@ class PurchaseOrderController
 
     public function vendors()
     {
-        $vendors = Cache::tags(self::PO_VENDOR_CACHE_TAGS)->remember($this->poCacheKey('vendors'), self::PO_VENDOR_CACHE_TTL, function () {
+        $vendors = $this->bypassCache()->remember($this->poCacheKey('vendors'), self::PO_VENDOR_CACHE_TTL, function () {
             return DB::table('tb_vendor')
                 ->select('kd_vdr', 'nm_vdr', 'almt_vdr', 'telp_vdr', 'eml_vdr', 'attn_vdr')
                 ->orderBy('nm_vdr')
@@ -1408,7 +1415,7 @@ class PurchaseOrderController
             'period' => (string) $request->query('period', 'today'),
         ], $request);
 
-        $response = Cache::tags(self::PO_CACHE_TAGS)->remember($cacheKey, self::PO_CACHE_TTL, function () use ($dateFilter, $status, $search, $pageSizeRaw, $page, $poDateExpr, $request) {
+        $response = $this->bypassCache()->remember($cacheKey, self::PO_CACHE_TTL, function () use ($dateFilter, $status, $search, $pageSizeRaw, $page, $poDateExpr, $request) {
             $statusSub = DB::table('tb_detailpo')
             ->select('no_po')
             ->selectRaw("
@@ -1428,6 +1435,7 @@ class PurchaseOrderController
                 'po.ref_pr',
                 'po.ref_quota',
                 'po.ref_poin',
+                'po.for_cus',
                 'po.ppn',
                 'po.s_total',
                 'po.h_ppn'
@@ -1638,7 +1646,7 @@ class PurchaseOrderController
 
         // 2. Fetch main PO headers
         $recentPurchaseOrders = DB::table('tb_po as po')
-            ->select('po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn')
+            ->select('po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.for_cus', 'po.ppn', 'po.s_total', 'po.h_ppn')
             ->orderBy('tgl', 'desc')
             ->orderBy('no_po', 'desc')
             ->limit(1500)
@@ -1651,7 +1659,7 @@ class PurchaseOrderController
         
         if ($missingSpecialIds->isNotEmpty()) {
             $specialStatusPurchaseOrders = DB::table('tb_po as po')
-                ->select('po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn')
+                ->select('po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.for_cus', 'po.ppn', 'po.s_total', 'po.h_ppn')
                 ->whereIn('po.no_po', $missingSpecialIds)
                 ->get();
         }
@@ -1784,7 +1792,7 @@ class PurchaseOrderController
             $actualDateKey = $now->year;
         }
 
-        $response = Cache::tags(self::PO_CACHE_TAGS)->remember($this->poCacheKey('realized', [
+        $response = $this->bypassCache()->remember($this->poCacheKey('realized', [
             'period' => $period,
             'actual_date' => $actualDateKey, // <--- Kunci Tanggal Dinamis
             'summary' => $request->boolean('summary'),
@@ -1806,6 +1814,7 @@ class PurchaseOrderController
                 'po.ref_pr',
                 'po.ref_quota',
                 'po.ref_poin',
+                'po.for_cus',
                 'po.ppn',
                 'po.s_total',
                 'po.h_ppn'
@@ -1882,7 +1891,7 @@ class PurchaseOrderController
             ]);
         }
 
-        $response = Cache::tags(self::PO_CACHE_TAGS)->remember($this->poCacheKey('details', [
+        $response = $this->bypassCache()->remember($this->poCacheKey('details', [
             'no_po' => $noPo,
             'realized_only' => $request->boolean('realized_only'),
             'search' => (string) $request->input('search', ''),
@@ -1949,7 +1958,7 @@ class PurchaseOrderController
         $pageSizeRaw = $request->query('pageSize', 'all');
         $page = max(1, (int) $request->query('page', 1));
 
-        $response = Cache::tags(self::PO_CACHE_TAGS)->remember($this->poCacheKey('outstanding', [
+        $response = $this->bypassCache()->remember($this->poCacheKey('outstanding', [
             'search' => $search,
             'pageSize' => $pageSizeRaw,
             'page' => $page,
@@ -1962,7 +1971,7 @@ class PurchaseOrderController
         $query = DB::table('tb_po as po')
             ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
             ->select(
-                'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn'
+                'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.for_cus', 'po.ppn', 'po.s_total', 'po.h_ppn'
             )
             ->orderby('no_po', 'desc');
 
@@ -2021,7 +2030,7 @@ class PurchaseOrderController
         $pageSizeRaw = $request->query('pageSize', 'all');
         $page = max(1, (int) $request->query('page', 1));
 
-        $response = Cache::tags(self::PO_CACHE_TAGS)->remember($this->poCacheKey('partial', [
+        $response = $this->bypassCache()->remember($this->poCacheKey('partial', [
             'search' => $search,
             'pageSize' => $pageSizeRaw,
             'page' => $page,
@@ -2035,7 +2044,7 @@ class PurchaseOrderController
         $query = DB::table('tb_po as po')
             ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
             ->select(
-                'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.ppn', 'po.s_total', 'po.h_ppn'
+                'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.for_cus', 'po.ppn', 'po.s_total', 'po.h_ppn'
             );
 
         if ($search !== '') {
@@ -2089,7 +2098,7 @@ class PurchaseOrderController
 
     public function print(Request $request, $noPo)
     {
-        $printData = Cache::tags(self::PO_VENDOR_CACHE_TAGS)->remember($this->poCacheKey('print', [$noPo], $request), self::PO_CACHE_TTL, function () use ($noPo) {
+        $printData = $this->bypassCache()->remember($this->poCacheKey('print', [$noPo], $request), self::PO_CACHE_TTL, function () use ($noPo) {
             $purchaseOrder = DB::table('tb_po as po')
                 ->leftJoin(
                     DB::raw('(

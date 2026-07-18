@@ -406,7 +406,7 @@ export default function BiayaKirimPenjualanPrint({
                                         </td>
                                         <td className="px-2 py-1 text-right">
                                             {formatMarginCell(
-                                                row?.margin_final,
+                                                row?.margin_final || row?.MARGIN_FINAL || row?.Margin_final,
                                             )}
                                         </td>
                                     </tr>

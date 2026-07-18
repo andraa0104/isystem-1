@@ -222,30 +222,30 @@ export default function PurchaseOrderInPrint({
                 <div className="mt-6 pb-2">
                     <table className="w-full table-fixed border-collapse border border-black text-[11px]">
                         <colgroup>
-                            <col className="w-[6%]" />
-                            <col className="w-[14%]" />
-                            <col className="w-[30%]" />
-                            <col className="w-[8%]" />
-                            <col className="w-[8%]" />
+                            <col className="w-[4%]" />
+                            <col className="w-[10%]" />
+                            <col className="w-[42%]" />
+                            <col className="w-[4%]" />
+                            <col className="w-[4%]" />
                             <col className="w-[13%]" />
                             <col className="w-[13%]" />
-                            <col className="w-[8%]" />
+                            <col className="w-[10%]" />
                         </colgroup>
                         <thead>
                             <tr>
-                                <th className="border-r border-black px-2 py-2 text-left">
+                                <th className="border-r border-black px-1 py-2 text-left">
                                     No.
                                 </th>
-                                <th className="border-r border-black px-2 py-2 text-left">
+                                <th className="border-r border-black px-1 py-2 text-left">
                                     Code Mat.
                                 </th>
                                 <th className="border-r border-black px-2 py-2 text-left">
                                     Material
                                 </th>
-                                <th className="border-r border-black px-2 py-2 text-right">
+                                <th className="border-r border-black px-1 py-2 text-right">
                                     Qty
                                 </th>
-                                <th className="border-r border-black px-2 py-2 text-left">
+                                <th className="border-r border-black px-1 py-2 text-left">
                                     Unit
                                 </th>
                                 <th className="border-r border-black px-2 py-2 text-right">
@@ -260,19 +260,19 @@ export default function PurchaseOrderInPrint({
                         <tbody>
                             {purchaseOrderDetails.map((item, index) => (
                                 <tr key={item.id ?? index}>
-                                    <td className="border-t border-r border-black px-2 py-2">
+                                    <td className="border-t border-r border-black px-1 py-2">
                                         {renderValue(index + 1)}
                                     </td>
-                                    <td className="border-t border-r border-black px-2 py-2">
+                                    <td className="border-t border-r border-black px-1 py-2">
                                         {renderValue(item?.kd_material)}
                                     </td>
                                     <td className="border-t border-r border-black px-2 py-2">
                                         {renderValue(item?.material)}
                                     </td>
-                                    <td className="border-t border-r border-black px-2 py-2 text-right">
+                                    <td className="border-t border-r border-black px-1 py-2 text-right">
                                         {formatNumber(item?.qty)}
                                     </td>
-                                    <td className="border-t border-r border-black px-2 py-2">
+                                    <td className="border-t border-r border-black px-1 py-2">
                                         {renderValue(item?.satuan)}
                                     </td>
                                     <td className="border-t border-r border-black px-2 py-2 text-right">
@@ -284,7 +284,7 @@ export default function PurchaseOrderInPrint({
                                     <td className="border-t border-black px-2 py-2">
                                         {renderValue(
                                             item?.tb_detailpoin_remark ??
-                                                item?.remark,
+                                            item?.remark,
                                         )}
                                     </td>
                                 </tr>
