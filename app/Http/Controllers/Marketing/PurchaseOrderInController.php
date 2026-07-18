@@ -995,7 +995,15 @@ class PurchaseOrderInController
         // Level 4: Penerimaan Material (tb_mi)
         if (Schema::hasTable('tb_mi') && count($poNos) > 0) {
             $mis = DB::table('tb_mi')->whereIn(DB::raw('lower(trim(ref_po))'), $poNos)->get();
+            $seenMi = [];
             foreach ($mis as $mi) {
+                if (!empty($mi->no_doc) && in_array(strtolower(trim($mi->no_doc)), $seenMi)) {
+                    continue;
+                }
+                if (!empty($mi->no_doc)) {
+                    $seenMi[] = strtolower(trim($mi->no_doc));
+                }
+                
                 $tgl = $mi->posting_date ?? $mi->posting_tgl ?? $mi->tgl_mi ?? $mi->tgl_doc ?? $mi->tgl ?? '-';
                 $flow[] = "barang sudah diterimakan pada {$tgl} dengan nomor document {$mi->no_doc}";
             }
