@@ -1587,7 +1587,7 @@ class PurchaseOrderController
             $finishedPoNumbers = DB::table('tb_detailpo')
                 ->whereIn('no_po', $poNumbersInPeriod)
                 ->groupBy('no_po')
-                ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) \!= coalesce(end_fl, 0) then 1 else 0 end) = 0')
+                ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) != coalesce(end_fl, 0) then 1 else 0 end) = 0')
                 ->pluck('no_po')
                 ->all();
 
@@ -1736,7 +1736,7 @@ class PurchaseOrderController
             $finishedPoNumbers = DB::table('tb_detailpo')
                 ->whereIn('no_po', $poNumbersInPeriod)
                 ->groupBy('no_po')
-                ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) \!= coalesce(end_fl, 0) then 1 else 0 end) = 0')
+                ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) != coalesce(end_fl, 0) then 1 else 0 end) = 0')
                 ->pluck('no_po')
                 ->all();
 
@@ -1856,7 +1856,7 @@ class PurchaseOrderController
         $finishedPoNumbers = DB::table('tb_detailpo')
             ->whereIn('no_po', $poNumbersInPeriod)
             ->groupBy('no_po')
-            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) \!= coalesce(end_fl, 0) then 1 else 0 end) = 0')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) != coalesce(end_fl, 0) then 1 else 0 end) = 0')
             ->pluck('no_po')
             ->all();
 
