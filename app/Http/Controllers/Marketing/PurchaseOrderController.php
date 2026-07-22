@@ -1420,8 +1420,7 @@ class PurchaseOrderController
             ->select('no_po')
             ->selectRaw("
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
-                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0
-                     and sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
                 case when sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized,
                 case when sum(case when coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_sisa_ir
             ")
@@ -1549,8 +1548,7 @@ class PurchaseOrderController
         $partialIds = DB::table('tb_detailpo')
             ->select('no_po')
             ->groupBy('no_po')
-            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
-            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) > 0')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
             ->pluck('no_po');
 
         $partialStats = DB::table('tb_po')
@@ -1635,8 +1633,7 @@ class PurchaseOrderController
         $partialIds = DB::table('tb_detailpo')
             ->select('no_po')
             ->groupBy('no_po')
-            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
-            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) > 0')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
             ->pluck('no_po');
 
         $partialStats = DB::table('tb_po')
@@ -1690,8 +1687,7 @@ class PurchaseOrderController
             ->select('no_po')
             ->selectRaw("
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
-                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 
-                     and sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
                 case when sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized
             ")
             ->whereIn('no_po', $poNumbers)
@@ -2156,8 +2152,7 @@ class PurchaseOrderController
             $sub = DB::table('tb_detailpo')
             ->select('no_po')
             ->groupBy('no_po')
-            ->havingRaw('sum(case when coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
-            ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0');
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0');
 
         $query = DB::table('tb_po as po')
             ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
