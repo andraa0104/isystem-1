@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
+import axios from 'axios';
 import {
     CalendarDays,
     Landmark,
@@ -191,6 +192,103 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         francoLoco: '',
         note: '',
     });
+
+    const [isOcrScanning, setIsOcrScanning] = useState(false);
+
+    // Convert Indonesian month name date to dd/mm/yyyy
+    const parseIndonesianDate = (str) => {
+        if (!str) return '';
+        const months = {
+            januari: '01',
+            februari: '02',
+            maret: '03',
+            april: '04',
+            mei: '05',
+            juni: '06',
+            juli: '07',
+            agustus: '08',
+            agt: '08',
+            september: '09',
+            oktober: '10',
+            november: '11',
+            desember: '12',
+        };
+        const m = str.toLowerCase().match(/(\d{1,2})\s+([a-z]+)\s+(\d{4})/);
+        if (m) {
+            const day = m[1].padStart(2, '0');
+            const mon = months[m[2]] || months[m[2].slice(0, 3)];
+            const year = m[3];
+            if (mon) return `${day}/${mon}/${year}`;
+        }
+        // Try dd-mm-yyyy or dd/mm/yyyy already
+        const m2 = str.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+        if (m2) return `${m2[1]}/${m2[2]}/${m2[3]}`;
+        return '';
+    };
+
+    const handleOcrUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setIsOcrScanning(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        axios
+            .post('/marketing/purchase-order-in/ocr-upload', formData)
+            .then((res) => {
+                const data = res.data;
+                setForm((prev) => {
+                    const next = { ...prev };
+                    if (data.ref_poin) next.noPoin = data.ref_poin;
+                    if (data.catatan) next.note = data.catatan;
+                    if (data.kd_customer) {
+                        next.customerCode = data.kd_customer;
+                        next.customerName = data.nm_customer;
+                    }
+                    if (data.tgl) next.date = data.tgl;
+                    if (data.delivery_date)
+                        next.deliveryDate = data.delivery_date;
+                    if (data.ppn_pct) next.ppnPercent = String(data.ppn_pct);
+                    if (data.franco) next.francoLoco = data.franco;
+
+                    return next;
+                });
+
+                // Trigger AI predict for Payment Term, PPN, and Franco Loco
+                if (data.nm_customer) {
+                    predictFields(data.nm_customer);
+                }
+
+                if (data.items && data.items.length > 0) {
+                    const newItems = data.items.map((item, idx) => ({
+                        kodeMaterial: item.kd_brg || '',
+                        material: item.nm_brg || item.nm_brg_ocr || '',
+                        qty: item.qty || 1,
+                        unit: 'Pcs',
+                        unitPrice: item.price || 0,
+                        totalPricePoIn: (item.qty || 1) * (item.price || 0),
+                        note:
+                            item.nm_brg_ocr && item.nm_brg_ocr !== item.nm_brg
+                                ? `OCR: ${item.nm_brg_ocr}`
+                                : '',
+                        id: `${Date.now()}-${idx}`,
+                    }));
+                    setItems((prev) => [...prev, ...newItems]);
+                }
+
+                dispatchGlobalToast(
+                    'Pengenalan AI Dokumen PO berhasil!',
+                    'success',
+                );
+            })
+            .catch((err) => {
+                console.error(err);
+                dispatchGlobalToast('Gagal memproses OCR Dokumen.', 'error');
+            })
+            .finally(() => {
+                setIsOcrScanning(false);
+                e.target.value = null;
+            });
+    };
 
     const [itemForm, setItemForm] = useState({
         kodeMaterial: '',
@@ -818,6 +916,55 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     <h1 className="mt-1 text-xl font-bold text-white sm:text-2xl">
                         Form Purchase Order In
                     </h1>
+                    <div className="mt-4 mb-2 flex flex-col items-start justify-between rounded-lg border border-slate-600 bg-[#1e293b] p-4 shadow-sm sm:flex-row sm:items-center">
+                        <div className="mb-3 sm:mb-0">
+                            <h3 className="text-lg font-bold text-white">
+                                AI Auto-Fill (OCR) ✨
+                            </h3>
+                            <p className="text-sm font-medium text-slate-300">
+                                Unggah foto atau PDF Purchase Order dari
+                                Kustomer, sistem AI akan otomatis mengenali dan
+                                mengisi Form secara ajaib.
+                            </p>
+                        </div>
+                        <div className="flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row">
+                            <input
+                                type="file"
+                                id="ocr-upload"
+                                accept="image/*,.pdf"
+                                className="hidden"
+                                onChange={handleOcrUpload}
+                            />
+                            <label
+                                htmlFor="ocr-upload"
+                                className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg px-6 py-2.5 font-bold text-white shadow-md transition-all sm:w-auto ${isOcrScanning ? 'bg-indigo-300' : 'bg-gradient-to-r from-indigo-500 to-indigo-600 hover:scale-105 hover:from-indigo-600 hover:to-indigo-700 active:scale-95'}`}
+                            >
+                                {isOcrScanning
+                                    ? 'AI Memproses...'
+                                    : 'Scan Dokumen PO'}
+                                <svg
+                                    xmlns="http://www.w0.org/2000/svg"
+                                    className={`h-5 w-5 ${isOcrScanning ? 'animate-spin' : ''}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                                    />
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                                    />
+                                </svg>
+                            </label>
+                        </div>
+                    </div>
                 </section>
 
                 <div className="grid min-w-0 gap-5">

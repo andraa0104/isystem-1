@@ -270,6 +270,7 @@ Route::get('marketing/purchase-order-in/materials', [PurchaseOrderInController::
     ->name('marketing.purchase-order-in.materials');
 Route::post('marketing/purchase-order-in/materials', [PurchaseOrderInController::class, 'storeMaterial'])
     ->name('marketing.purchase-order-in.materials.store');
+Route::post('marketing/purchase-order-in/ocr-upload', [PurchaseOrderInController::class, 'ocrUpload'])->name('marketing.purchase-order-in.ocr-upload');
 Route::get('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'customers'])
     ->name('marketing.purchase-order-in.customers');
 Route::post('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'storeCustomer'])

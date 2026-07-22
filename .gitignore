@@ -27,3 +27,8 @@ yarn-error.log
 
 # Generated artifacts
 /resources/resources/
+
+# Python ML
+app/Services/Keuangan/KasDss/python_ml/uvic.log
+app/Services/Keuangan/KasDss/python_ml/__pycache__/
+*.pyc

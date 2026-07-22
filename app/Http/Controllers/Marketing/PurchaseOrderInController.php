@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -349,6 +350,51 @@ class PurchaseOrderInController
                         'ref_po' => $this->replaceRefPoValue($row->ref_po, $oldRefPo, $newRefPo),
                     ]);
             });
+    }
+
+    public function ocrUpload(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:pdf,png,jpg,jpeg|max:5120',
+        ]);
+
+        try {
+            $file = $request->file('file');
+
+            $cfile = new \CURLFile(
+                $file->getPathname(),
+                $file->getClientMimeType(),
+                $file->getClientOriginalName()
+            );
+
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, 'http://host.docker.internal:8000/ocr-po');
+            curl_setopt($ch, CURLOPT_POST, 1);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, ['file' => $cfile]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+
+            $result   = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr  = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                \Illuminate\Support\Facades\Log::error('OCR cURL error: ' . $curlErr);
+                return response()->json(['error' => 'Gagal menghubungi ML service: ' . $curlErr], 500);
+            }
+
+            if ($httpCode === 200 && $result) {
+                return response()->json(json_decode($result, true));
+            }
+
+            \Illuminate\Support\Facades\Log::error('OCR ML API error: status=' . $httpCode . ' body=' . $result);
+            return response()->json(['error' => 'ML API error (Status ' . $httpCode . ')'], 500);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('OCR Error: ' . $e->getMessage());
+            return response()->json(['error' => 'Error: ' . $e->getMessage()], 500);
+        }
     }
 
     public function index(Request $request)

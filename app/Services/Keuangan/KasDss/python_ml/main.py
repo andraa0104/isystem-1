@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 import os
 import re
@@ -1127,3 +1127,276 @@ def predict_jurnal_penyesuaian(req: AdjustmentSuggestRequest):
         "score": round(score, 4)
     }]
     return resp
+
+
+def fuzzy_match_items(texts, conn, table, col_kode, col_nama, threshold=0.1):
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(f"SELECT {col_kode}, {col_nama} FROM {table}")
+        db_items = cursor.fetchall()
+    except Exception as e:
+        print(e)
+        return [None]*len(texts)
+    finally:
+        cursor.close()
+        
+    db_names = [str(item[col_nama]).lower() for item in db_items]
+    
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+    import numpy as np
+
+    # Use a token pattern that includes digits and single characters
+    vectorizer = TfidfVectorizer(ngram_range=(1, 3), token_pattern=r'(?u)\b\w+\b')
+    try:
+        tfidf_db = vectorizer.fit_transform(db_names)
+    except:
+        return [None]*len(texts)
+
+    results = []
+    for txt in texts:
+        txt_clean = re.sub(r'[^a-zA-Z0-9\s.,/-]', ' ', str(txt)).lower()
+        try:
+            tfidf_q = vectorizer.transform([txt_clean])
+            sim = cosine_similarity(tfidf_q, tfidf_db).flatten()
+            best_idx = np.argmax(sim)
+            best_score = sim[best_idx]
+            if best_score >= threshold:
+                results.append((str(db_items[best_idx][col_kode]), str(db_items[best_idx][col_nama])))
+            else:
+                results.append(None)
+        except Exception as e:
+            print("fuzzy tfidf err:", e)
+            results.append(None)
+            
+    return results
+
+@app.post("/ocr-po")
+
+async def ocr_po(file: UploadFile = File(...)):
+    suffix = os.path.splitext(file.filename)[1].lower() if file.filename else ".pdf"
+    temp_path = f"/tmp/ocr_upload{suffix}"
+    with open(temp_path, "wb") as f:
+        f.write(await file.read())
+        
+    text = ""
+    tables = []
+    try:
+        import pdfplumber
+        with pdfplumber.open(temp_path) as pdf:
+            for page in pdf.pages:
+                extracted = page.extract_text(x_tolerance=2)
+                if extracted: text += extracted + "\n"
+                tbls = page.extract_tables()
+                if tbls:
+                    for t in tbls:
+                        if t: tables.extend(t)
+    except Exception as e:
+        return {"error": str(e)}
+        
+    if os.path.exists(temp_path):
+        os.remove(temp_path)
+
+    def search(pattern, txt, group=1, flags=re.IGNORECASE):
+        m = re.search(pattern, txt, flags)
+        return m.group(group).strip() if m else ""
+
+    for row in tables:
+        cells = [str(c).strip() for c in row if c]
+        if any(re.search(r'(?:No\.?\s*PO|Tanggal|Date|Jadwal|Delivery|Syarat)', c, re.IGNORECASE) for c in cells):
+            text += "\n" + " ".join(cells)
+
+    ref_po = search(r'(?:No\.?\s*PO|Nomor\s+PO|Purchase\s+Order\s+No|PO\s+Number|Order\s+No)[^\w]*([\w\-\/]+)', text)
+
+    MONTH_PATTERN = r'(?:Jan(?:uari)?|Feb(?:ruari)?|Mar(?:et)?|Apr(?:il)?|Mei|Jun(?:i)?|Jul(?:i)?|Agt|Agu(?:stus)?|Sep(?:tember)?|Okt(?:ober)?|Nov(?:ember)?|Des(?:ember)?)'
+    DATE_PATTERN_ALPHA = r'\d{1,2}[^\w\d\n]{0,3}' + MONTH_PATTERN + r'[^\w\d\n]{0,3}\d{4}'
+    DATE_PATTERN_NUM = r'\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}'
+    DATE_PATTERN  = rf'({DATE_PATTERN_ALPHA}|{DATE_PATTERN_NUM})'
+
+    tgl_raw = search(r'(?:Tanggal(?:\s+PO|)|Tgl\.?(?:\s*PO|\s*Order|)|Date(?:\s+PO\s+In|))[^\w\d\n]*' + DATE_PATTERN, text)
+    delivery_raw = search(r'(?:Jadwal\s+Pengiriman|Delivery\s+Date|Tgl\.?\s*Kirim|Due\s+Date|Pengiriman)[^\w\d\n]*' + DATE_PATTERN, text)
+
+    payment = search(r'(?:Syarat|Payment\s*Term[s]?|Pembayaran|Term[s]?\s+of\s+Payment)[^\w]*([^\n]+)', text)
+    if payment: payment = payment.split('\n')[0].strip()[:80]
+
+    ppn_pct = ""
+    ppn_val_str = search(r'PPN[^\d]*([\d.,]+)', text)
+    subtotal_str = search(r'(?:Sub\s*Total|Subtotal)[^\d]*([\d.,]+)', text)
+    def parse_idr(s):
+        if not s: return 0.0
+        dot_count = s.count('.')
+        if dot_count > 1 or (dot_count == 1 and len(s.split('.')[-1]) == 3): s = s.replace('.', '')
+        s = s.replace(',', '.')
+        try: return float(s)
+        except: return 0.0
+
+    ppn_val = parse_idr(ppn_val_str)
+    subtotal_val = parse_idr(subtotal_str)
+    if ppn_val > 0 and subtotal_val > 0:
+        computed_pct = round((ppn_val / subtotal_val) * 100)
+        if computed_pct in [0, 1, 2, 5, 10, 11, 12]: ppn_pct = str(computed_pct)
+
+    franco = search(r'Franco\s*(?:Loco|Lokasi)?[^\w\n]*([^\n]+(?:\n[^\n]+){0,3})', text)
+    if franco: franco = franco.strip().split('\n')[0].strip()[:150]
+
+    catatan_raw = search(r'(?:Catatan|Keterangan|Notes?|Remarks?)\s*:?\s*([^\n]+(?:\n[^\n]+){0,6})', text)
+    catatan = ""
+    if catatan_raw:
+        right_col_markers = re.compile(r'(?:Franco|Loco|NPWP|Syarat|Jadwal|Pengiriman|Sub\s*Total|PPN|Grand|Terbilang)', re.IGNORECASE)
+        lines_out = []
+        footer_markers = re.compile(r'(?:Mangkupalas|Telp/?Fax|Contact|Dibuat|Hormat|Mengetahui|Approved|Telp\.|Fax\.)', re.IGNORECASE)
+        for line in catatan_raw.splitlines():
+            if footer_markers.search(line):
+                break # Stop processing Catatan when we hit the document footer!
+                
+            if right_col_markers.search(line):
+                m = right_col_markers.search(line)
+                left = line[:m.start()].strip()
+                if left: lines_out.append(left)
+            else:
+                if line.strip(): lines_out.append(line.strip())
+        catatan = "\n".join(l for l in lines_out if l).strip()[:300]
+
+    lines_all = text.split('\n')
+    kepada_idx = next((i for i, l in enumerate(lines_all) if re.search(r'^\s*Kepada', l, re.IGNORECASE)), min(6, len(lines_all)))
+    top_lines = "\n".join(lines_all[:kepada_idx]).strip()
+    if not top_lines: top_lines = "\n".join(lines_all[:4])
+
+    conn = get_db_connection()
+    cust_match = fuzzy_match_items([top_lines], conn, "tb_cs", "kd_cs", "nm_cs")
+    kd_cs = cust_match[0][0] if cust_match[0] else ""
+    nm_cs = cust_match[0][1] if cust_match[0] else ""
+
+    items = []
+    item_texts = []
+    item_codes = []
+    raw_qty = []
+    raw_price = []
+
+    for row in tables:
+        row = [str(cell).strip() if cell else "" for cell in row]
+        row_text = " ".join(row).lower()
+        if any(h in row_text for h in ["qty", "quantity", "description", "nama barang", "harga satuan", "kode barang", "satuan", "no."]): continue
+        if any(h in row_text for h in ["sub total", "subtotal", "grand total", "ppn", "terbilang"]): continue
+
+        desc = ""
+        kode = ""
+        qty = 0.0
+        price = 0.0
+
+        for i_cell, cell in enumerate(row):
+            c = cell.strip()
+            if not c: continue
+            
+            # Skip likely row numbers at the start (1, 2, 3...)
+            if i_cell == 0 and re.match(r'^\d+$', c) and float(c) < 100:
+                continue
+                
+            if re.match(r'^\d{6,12}$', c):
+                kode = c
+                continue
+            if re.match(r'^[\d.,]+$', c):
+                dc, cc = c.count('.'), c.count(',')
+                if dc > 1: val_s = c.replace('.', '').replace(',', '.')
+                elif dc == 1 and cc == 0:
+                    parts = c.split('.')
+                    val_s = c.replace('.', '') if len(parts[1]) == 3 else c
+                elif cc == 1: val_s = c.replace('.', '').replace(',', '.')
+                else: val_s = re.sub(r'[^0-9.]', '', c)
+                try: num = float(val_s) if val_s else 0.0
+                except ValueError: num = 0.0
+
+                if num > 0 and num < 10000 and qty == 0: qty = num
+                elif num >= 1000 and price == 0: price = num
+                continue
+            if re.match(r'^(?:PCS|KG|LTR|M|BUH|SET|PC|BOX|BTL|LBR|UNIT|ROLL|BTG|MTR)$', c, re.IGNORECASE): continue
+            if len(c) > len(desc): desc = c
+
+        if not desc and not kode: continue
+        if qty <= 0 and price <= 0: continue
+
+        item_texts.append(desc)
+        item_codes.append(kode)
+        raw_qty.append(qty if qty > 0 else 1)
+        raw_price.append(price)
+
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT kd_material, material FROM tb_barang")
+    all_materials = cursor.fetchall()
+    cursor.close()
+
+    mat_by_code = {str(r['kd_material']).strip(): r for r in all_materials}
+
+    fuzzy_texts = []
+    fuzzy_indices = []
+    for i, (code, txt) in enumerate(zip(item_codes, item_texts)):
+        if code and code in mat_by_code:
+            row = mat_by_code[code]
+            items.append({
+                "kd_brg": row['kd_material'],
+                "nm_brg": row['material'],
+                "nm_brg_ocr": txt or code,
+                "qty": raw_qty[i],
+                "price": raw_price[i]
+            })
+        else:
+            fuzzy_texts.append(txt or code)
+            fuzzy_indices.append(i)
+
+    if fuzzy_texts:
+        def clean_m(t): return re.sub(r'[^a-z0-9]', '', str(t).lower())
+        for j, idx in enumerate(fuzzy_indices):
+            ocr_text = item_texts[idx]
+            ocr_clean = clean_m(ocr_text)
+            best_match = None
+            for db_row in all_materials:
+                db_clean = clean_m(db_row['material'])
+                if ocr_clean in db_clean or db_clean in ocr_clean:
+                    best_match = (db_row['kd_material'], db_row['material'])
+                    break
+            if not best_match:
+                m = fuzzy_match_items([ocr_text], conn, "tb_barang", "kd_material", "material", threshold=0.1)
+                best_match = m[0] if m and m[0] else None
+            if best_match:
+                items.append({
+                    "kd_brg": best_match[0], 
+                    "nm_brg": best_match[1], 
+                    "nm_brg_ocr": ocr_text, 
+                    "qty": raw_qty[idx], 
+                    "price": raw_price[idx]
+                })
+
+    def normalize_date(d_str):
+        if not d_str: return ""
+        d_str = d_str.strip()
+        m = re.search(r"(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})", d_str)
+        if m: return f"{m.group(1).zfill(2)}/{m.group(2).zfill(2)}/{m.group(3)}"
+        months_dic = {
+            "jan": "01", "januari": "01", "feb": "02", "februari": "02", "pebruari": "02",
+            "mar": "03", "maret": "03", "apr": "04", "april": "04", "mei": "05",
+            "jun": "06", "juni": "06", "jul": "07", "juli": "07", "agt": "08",
+            "agustus": "08", "agu": "08", "sep": "09", "september": "09",
+            "okt": "10", "oktober": "10", "nov": "11", "november": "11",
+            "des": "12", "desember": "12"
+        }
+        ma = re.search(r"(\d{1,2})[^\w\d\n]{1,3}([a-zA-Z]+)[^\w\d\n]{1,3}(\d{4})", d_str)
+        if ma:
+            mon = months_dic.get(ma.group(2).lower(), "01")
+            return f"{ma.group(1).zfill(2)}/{mon}/{ma.group(3)}"
+        return d_str
+
+    conn.close()
+
+    return {
+        "text_raw": text[:1500],
+        "ref_poin": ref_po,
+        "tgl": normalize_date(tgl_raw),
+        "delivery_date": normalize_date(delivery_raw),
+        "payment": payment,
+        "ppn_pct": ppn_pct,
+        "franco": franco,
+        "catatan": catatan,
+        "kd_customer": kd_cs,
+        "nm_customer": nm_cs,
+        "items": items
+    }
