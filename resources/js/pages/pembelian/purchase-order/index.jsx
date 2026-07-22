@@ -154,7 +154,8 @@ export default function PurchaseOrderIndex({
     const [partialIrSearchTerm, setPartialIrSearchTerm] = useState('');
     const [partialIrPageSize, setPartialIrPageSize] = useState(5);
     const [partialIrCurrentPage, setPartialIrCurrentPage] = useState(1);
-    const [debouncedPartialIrSearch, setDebouncedPartialIrSearch] = useState('');
+    const [debouncedPartialIrSearch, setDebouncedPartialIrSearch] =
+        useState('');
     const [partialIrTotalRows, setPartialIrTotalRows] = useState(0);
     const [selectedDetails, setSelectedDetails] = useState([]);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -201,7 +202,6 @@ export default function PurchaseOrderIndex({
 
         return Math.max(1, Math.ceil(totalItems / pageSize));
     }, [pageSize, totalItems]);
-
 
     const partialIrTotalPages = useMemo(() => {
         if (partialIrPageSize === Infinity) {
@@ -348,8 +348,12 @@ export default function PurchaseOrderIndex({
                 );
                 setTableTotalRows(Number(data?.total ?? 0));
                 if (data?.summary) {
-                    setOutstandingCountState(data.summary.outstandingCount ?? 0);
-                    setOutstandingTotalState(data.summary.outstandingTotal ?? 0);
+                    setOutstandingCountState(
+                        data.summary.outstandingCount ?? 0,
+                    );
+                    setOutstandingTotalState(
+                        data.summary.outstandingTotal ?? 0,
+                    );
                     setPartialCountState(data.summary.partialCount ?? 0);
                     setPartialTotalState(data.summary.partialTotal ?? 0);
                     setRealizedCountState(data.summary.realizedCount ?? 0);
@@ -531,7 +535,6 @@ export default function PurchaseOrderIndex({
         outstandingPageSize,
     ]);
 
-
     useEffect(() => {
         const handler = setTimeout(() => {
             setDebouncedPartialIrSearch(partialIrSearchTerm);
@@ -561,12 +564,16 @@ export default function PurchaseOrderIndex({
                 return response.json();
             })
             .then((data) => {
-                const list = Array.isArray(data?.purchaseOrders) ? data.purchaseOrders : [];
+                const list = Array.isArray(data?.purchaseOrders)
+                    ? data.purchaseOrders
+                    : [];
                 setPartialIrList(list);
                 setPartialIrTotalRows(Number(data?.total ?? 0));
             })
             .catch((error) => {
-                setPartialIrError(normalizeApiError(error, 'Gagal memuat data PO sisa IR.'));
+                setPartialIrError(
+                    normalizeApiError(error, 'Gagal memuat data PO sisa IR.'),
+                );
             })
             .finally(() => {
                 setPartialIrLoading(false);
@@ -703,13 +710,14 @@ export default function PurchaseOrderIndex({
                     const html = `
                         <div style="text-align:left; white-space:pre-wrap; word-break:break-word;">
                             <div>${String(normalized.summary || 'Gagal menghapus PO.')}</div>
-                            ${detail
-                            ? `<details style="margin-top:8px;"><summary style="cursor:pointer;">Detail error</summary><pre style="margin-top:8px; max-height:260px; overflow:auto;">${detail.replace(
-                                /</g,
-                                '&lt;',
-                            )}</pre></details>`
-                            : ''
-                        }
+                            ${
+                                detail
+                                    ? `<details style="margin-top:8px;"><summary style="cursor:pointer;">Detail error</summary><pre style="margin-top:8px; max-height:260px; overflow:auto;">${detail.replace(
+                                          /</g,
+                                          '&lt;',
+                                      )}</pre></details>`
+                                    : ''
+                            }
                         </div>
                     `;
                     Swal.fire({
@@ -1029,6 +1037,7 @@ export default function PurchaseOrderIndex({
                                     PO Outstanding
                                 </option>
                                 <option value="partial">PO Sisa GR</option>
+                                <option value="sisa_ir">PO Sisa IR</option>
                                 <option value="realized">PO Terealisasi</option>
                                 <option value="all">Semua Data</option>
                             </select>
@@ -1097,9 +1106,13 @@ export default function PurchaseOrderIndex({
                     <table className="w-full text-sm">
                         <thead className="bg-muted/50 text-muted-foreground">
                             <tr className="sticky top-0 z-10 bg-muted/50">
-                                <th className="px-3 py-2 text-left w-[1%] whitespace-nowrap">No PO</th>
-                                <th className="px-3 py-2 text-left w-[1%] whitespace-nowrap">Date</th>
-                                <th className="px-3 py-2 text-left w-[1%] whitespace-nowrap">
+                                <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">
+                                    No PO
+                                </th>
+                                <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">
+                                    Date
+                                </th>
+                                <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">
                                     Ref PO
                                 </th>
                                 <th className="px-3 py-2 text-left">
@@ -1108,10 +1121,12 @@ export default function PurchaseOrderIndex({
                                 <th className="px-3 py-2 text-left">
                                     Nama Vendor
                                 </th>
-                                <th className="px-3 py-2 text-right w-[1%] whitespace-nowrap">
+                                <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">
                                     Total Price
                                 </th>
-                                <th className="px-3 py-2 text-right w-[1%] whitespace-nowrap">Action</th>
+                                <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">
+                                    Action
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1135,8 +1150,10 @@ export default function PurchaseOrderIndex({
                                     key={item.no_po}
                                     className="border-t border-sidebar-border/70"
                                 >
-                                    <td className="px-3 py-2 w-[1%] whitespace-nowrap">{item.no_po}</td>
-                                    <td className="px-3 py-2 w-[1%] whitespace-nowrap">
+                                    <td className="w-[1%] px-3 py-2 whitespace-nowrap">
+                                        {item.no_po}
+                                    </td>
+                                    <td className="w-[1%] px-3 py-2 whitespace-nowrap">
                                         {formatDateId(
                                             getRawValue(item, [
                                                 'tgl',
@@ -1147,7 +1164,7 @@ export default function PurchaseOrderIndex({
                                             ]),
                                         )}
                                     </td>
-                                    <td className="px-3 py-2 w-[1%] whitespace-nowrap">
+                                    <td className="w-[1%] px-3 py-2 whitespace-nowrap">
                                         {renderValue(item.ref_poin)}
                                     </td>
                                     <td className="px-3 py-2">
@@ -1166,7 +1183,7 @@ export default function PurchaseOrderIndex({
                                             'Vendor',
                                         ])}
                                     </td>
-                                    <td className="px-3 py-2 text-right w-[1%] whitespace-nowrap">
+                                    <td className="w-[1%] px-3 py-2 text-right whitespace-nowrap">
                                         {formatRupiah(
                                             getValue(item, [
                                                 'g_total',
@@ -1177,7 +1194,7 @@ export default function PurchaseOrderIndex({
                                             ]),
                                         )}
                                     </td>
-                                    <td className="px-3 py-2 w-[1%] whitespace-nowrap">
+                                    <td className="w-[1%] px-3 py-2 whitespace-nowrap">
                                         <div className="flex items-center justify-end gap-2">
                                             <ActionIconButton
                                                 label="Detail"
@@ -1602,7 +1619,7 @@ export default function PurchaseOrderIndex({
                                                         !detailLoading &&
                                                         !detailError &&
                                                         displayedDetailItems.length ===
-                                                        0
+                                                            0
                                                     }
                                                     emptyTitle="Tidak ada detail PO."
                                                 />
@@ -1684,14 +1701,14 @@ export default function PurchaseOrderIndex({
                                                     {Math.min(
                                                         (detailCurrentPage -
                                                             1) *
-                                                        detailPageSize +
-                                                        1,
+                                                            detailPageSize +
+                                                            1,
                                                         detailTotalItems,
                                                     )}
                                                     -
                                                     {Math.min(
                                                         detailCurrentPage *
-                                                        detailPageSize,
+                                                            detailPageSize,
                                                         detailTotalItems,
                                                     )}{' '}
                                                     dari {detailTotalItems}
@@ -1706,7 +1723,7 @@ export default function PurchaseOrderIndex({
                                                                     Math.max(
                                                                         1,
                                                                         page -
-                                                                        1,
+                                                                            1,
                                                                     ),
                                                             )
                                                         }
@@ -1731,7 +1748,7 @@ export default function PurchaseOrderIndex({
                                                                     Math.min(
                                                                         detailTotalPages,
                                                                         page +
-                                                                        1,
+                                                                            1,
                                                                     ),
                                                             )
                                                         }
@@ -1845,11 +1862,11 @@ export default function PurchaseOrderIndex({
                                         loading={
                                             outstandingLoading &&
                                             displayedOutstandingPurchaseOrders.length ===
-                                            0
+                                                0
                                         }
                                         error={
                                             displayedOutstandingPurchaseOrders.length ===
-                                                0
+                                            0
                                                 ? outstandingError
                                                 : null
                                         }
@@ -1858,7 +1875,7 @@ export default function PurchaseOrderIndex({
                                             !outstandingLoading &&
                                             !outstandingError &&
                                             displayedOutstandingPurchaseOrders.length ===
-                                            0
+                                                0
                                         }
                                         emptyTitle="Tidak ada PO outstanding."
                                     />
@@ -1915,29 +1932,29 @@ export default function PurchaseOrderIndex({
                                                         </ActionIconButton>
                                                         {Number(
                                                             item.can_delete ??
-                                                            item.canDelete ??
-                                                            0,
+                                                                item.canDelete ??
+                                                                0,
                                                         ) === 1 && (
-                                                                <ActionIconButton
-                                                                    label="Hapus"
-                                                                    onClick={() =>
-                                                                        handleDeletePo(
-                                                                            item.no_po,
-                                                                        )
-                                                                    }
-                                                                    disabled={
-                                                                        deletingId !==
-                                                                        null
-                                                                    }
-                                                                >
-                                                                    {deletingId ===
-                                                                        item.no_po ? (
-                                                                        <Loader2 className="size-4 animate-spin" />
-                                                                    ) : (
-                                                                        <Trash2 className="size-4 text-destructive" />
-                                                                    )}
-                                                                </ActionIconButton>
-                                                            )}
+                                                            <ActionIconButton
+                                                                label="Hapus"
+                                                                onClick={() =>
+                                                                    handleDeletePo(
+                                                                        item.no_po,
+                                                                    )
+                                                                }
+                                                                disabled={
+                                                                    deletingId !==
+                                                                    null
+                                                                }
+                                                            >
+                                                                {deletingId ===
+                                                                item.no_po ? (
+                                                                    <Loader2 className="size-4 animate-spin" />
+                                                                ) : (
+                                                                    <Trash2 className="size-4 text-destructive" />
+                                                                )}
+                                                            </ActionIconButton>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1954,14 +1971,14 @@ export default function PurchaseOrderIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (outstandingCurrentPage - 1) *
-                                            outstandingPageSize +
-                                            1,
+                                                outstandingPageSize +
+                                                1,
                                             outstandingTotalRows,
                                         )}
                                         -
                                         {Math.min(
                                             outstandingCurrentPage *
-                                            outstandingPageSize,
+                                                outstandingPageSize,
                                             outstandingTotalRows,
                                         )}{' '}
                                         dari {outstandingTotalRows} data
@@ -2106,11 +2123,11 @@ export default function PurchaseOrderIndex({
                                         loading={
                                             realizedLoading &&
                                             displayedRealizedPurchaseOrders.length ===
-                                            0
+                                                0
                                         }
                                         error={
                                             displayedRealizedPurchaseOrders.length ===
-                                                0
+                                            0
                                                 ? realizedError
                                                 : null
                                         }
@@ -2121,7 +2138,7 @@ export default function PurchaseOrderIndex({
                                             !realizedLoading &&
                                             !realizedError &&
                                             displayedRealizedPurchaseOrders.length ===
-                                            0
+                                                0
                                         }
                                         emptyTitle="Tidak ada PO terealisasi."
                                     />
@@ -2192,14 +2209,14 @@ export default function PurchaseOrderIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (realizedCurrentPage - 1) *
-                                            realizedPageSize +
-                                            1,
+                                                realizedPageSize +
+                                                1,
                                             realizedTotalItems,
                                         )}
                                         -
                                         {Math.min(
                                             realizedCurrentPage *
-                                            realizedPageSize,
+                                                realizedPageSize,
                                             realizedTotalItems,
                                         )}{' '}
                                         dari {realizedTotalItems} data
@@ -2338,11 +2355,11 @@ export default function PurchaseOrderIndex({
                                         loading={
                                             partialLoading &&
                                             displayedPartialPurchaseOrders.length ===
-                                            0
+                                                0
                                         }
                                         error={
                                             displayedPartialPurchaseOrders.length ===
-                                                0
+                                            0
                                                 ? partialError
                                                 : null
                                         }
@@ -2351,7 +2368,7 @@ export default function PurchaseOrderIndex({
                                             !partialLoading &&
                                             !partialError &&
                                             displayedPartialPurchaseOrders.length ===
-                                            0
+                                                0
                                         }
                                         emptyTitle="Tidak ada PO sisa GR."
                                     />
@@ -2423,14 +2440,14 @@ export default function PurchaseOrderIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (partialCurrentPage - 1) *
-                                            partialPageSize +
-                                            1,
+                                                partialPageSize +
+                                                1,
                                             partialTotalRows,
                                         )}
                                         -
                                         {Math.min(
                                             partialCurrentPage *
-                                            partialPageSize,
+                                                partialPageSize,
                                             partialTotalRows,
                                         )}{' '}
                                         dari {partialTotalRows} data
@@ -2536,7 +2553,9 @@ export default function PurchaseOrderIndex({
                                     placeholder="Cari no PO, ref PO, customer, vendor..."
                                     value={partialIrSearchTerm}
                                     onChange={(event) =>
-                                        setPartialIrSearchTerm(event.target.value)
+                                        setPartialIrSearchTerm(
+                                            event.target.value,
+                                        )
                                     }
                                 />
                             </label>
@@ -2569,11 +2588,11 @@ export default function PurchaseOrderIndex({
                                         loading={
                                             partialIrLoading &&
                                             displayedPartialPurchaseOrders.length ===
-                                            0
+                                                0
                                         }
                                         error={
                                             displayedPartialPurchaseOrders.length ===
-                                                0
+                                            0
                                                 ? partialIrError
                                                 : null
                                         }
@@ -2582,7 +2601,7 @@ export default function PurchaseOrderIndex({
                                             !partialIrLoading &&
                                             !partialIrError &&
                                             displayedPartialPurchaseOrders.length ===
-                                            0
+                                                0
                                         }
                                         emptyTitle="Tidak ada PO sisa GR."
                                     />
@@ -2654,14 +2673,14 @@ export default function PurchaseOrderIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (partialIrCurrentPage - 1) *
-                                            partialIrPageSize +
-                                            1,
+                                                partialIrPageSize +
+                                                1,
                                             partialTotalRows,
                                         )}
                                         -
                                         {Math.min(
                                             partialIrCurrentPage *
-                                            partialIrPageSize,
+                                                partialIrPageSize,
                                             partialTotalRows,
                                         )}{' '}
                                         dari {partialTotalRows} data
@@ -2671,11 +2690,14 @@ export default function PurchaseOrderIndex({
                                             variant="outline"
                                             size="sm"
                                             onClick={() =>
-                                                setPartialIrCurrentPage((page) =>
-                                                    Math.max(1, page - 1),
+                                                setPartialIrCurrentPage(
+                                                    (page) =>
+                                                        Math.max(1, page - 1),
                                                 )
                                             }
-                                            disabled={partialIrCurrentPage === 1}
+                                            disabled={
+                                                partialIrCurrentPage === 1
+                                            }
                                         >
                                             Sebelumnya
                                         </Button>
@@ -2687,11 +2709,12 @@ export default function PurchaseOrderIndex({
                                             variant="outline"
                                             size="sm"
                                             onClick={() =>
-                                                setPartialIrCurrentPage((page) =>
-                                                    Math.min(
-                                                        partialIrTotalPages,
-                                                        page + 1,
-                                                    ),
+                                                setPartialIrCurrentPage(
+                                                    (page) =>
+                                                        Math.min(
+                                                            partialIrTotalPages,
+                                                            page + 1,
+                                                        ),
                                                 )
                                             }
                                             disabled={

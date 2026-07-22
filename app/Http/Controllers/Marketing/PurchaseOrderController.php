@@ -1388,7 +1388,7 @@ class PurchaseOrderController
         $search = trim((string) $request->query('search', ''));
         $pageSizeRaw = $request->query('pageSize', '5');
         $page = max(1, (int) $request->query('page', 1));
-        $poDateExpr = "coalesce(date(po.tgl), str_to_date(po.tgl, '%Y-%m-%d'), str_to_date(po.tgl, '%Y/%m/%d'), str_to_date(po.tgl, '%d/%m/%Y'), str_to_date(po.tgl, '%d-%m-%Y'), str_to_date(po.tgl, '%d.%m.%Y'))";
+        $poDateExpr = "coalesce(str_to_date(po.tgl, '%d.%m.%Y'), str_to_date(po.tgl, '%d/%m/%Y'), str_to_date(po.tgl, '%d-%m-%Y'), str_to_date(po.tgl, '%Y-%m-%d'), str_to_date(po.tgl, '%Y/%m/%d'), date(po.tgl))";
 
         $now = \Carbon\Carbon::now();
         $actualDateKey = $dateFilter;
@@ -1421,7 +1421,9 @@ class PurchaseOrderController
             ->selectRaw("
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0
-                     and sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_partial
+                     and sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
+                case when sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized,
+                case when sum(case when coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_sisa_ir
             ")
             ->groupBy('no_po');
 
@@ -1471,8 +1473,9 @@ class PurchaseOrderController
         } elseif ($status === 'partial') {
             $query->whereRaw('coalesce(s.is_partial, 0) = 1');
         } elseif ($status === 'realized') {
-            $query->whereRaw('coalesce(s.is_outstanding, 0) = 0')
-                ->whereRaw('coalesce(s.is_partial, 0) = 0');
+            $query->whereRaw('coalesce(s.is_fully_realized, 0) = 1');
+        } elseif ($status === 'sisa_ir') {
+            $query->whereRaw('coalesce(s.is_sisa_ir, 0) = 1');
         }
 
         if ($search !== '') {
@@ -1547,7 +1550,7 @@ class PurchaseOrderController
             ->select('no_po')
             ->groupBy('no_po')
             ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
-            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) > 0')
             ->pluck('no_po');
 
         $partialStats = DB::table('tb_po')
@@ -1555,7 +1558,7 @@ class PurchaseOrderController
             ->selectRaw('count(*) as count, sum(g_total) as total')
             ->first();
 
-        $docDateExpr = "coalesce(date(k.doc_tgl), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%d.%m.%Y'))";
+        $docDateExpr = "coalesce(str_to_date(k.doc_tgl, '%d.%m.%Y'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), date(k.doc_tgl))";
 
         $now = now();
         $startDate = $now->copy()->startOfDay()->toDateString();
@@ -1586,7 +1589,7 @@ class PurchaseOrderController
             $finishedPoNumbers = DB::table('tb_detailpo')
                 ->whereIn('no_po', $poNumbersInPeriod)
                 ->groupBy('no_po')
-                ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 then 1 else 0 end) = 0')
+                ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0 then 1 else 0 end) = 0')
                 ->pluck('no_po')
                 ->all();
 
@@ -1633,7 +1636,7 @@ class PurchaseOrderController
             ->select('no_po')
             ->groupBy('no_po')
             ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
-            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0')
+            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) > 0')
             ->pluck('no_po');
 
         $partialStats = DB::table('tb_po')
@@ -1688,8 +1691,8 @@ class PurchaseOrderController
             ->selectRaw("
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 
-                     and sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
-                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized
+                     and sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
+                case when sum(case when coalesce(qty, 0) > 0 and (coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0) then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized
             ")
             ->whereIn('no_po', $poNumbers)
             ->groupBy('no_po')
@@ -1705,7 +1708,7 @@ class PurchaseOrderController
         });
 
         // 4. Realized stats in specific period
-        $docDateExpr = "coalesce(date(k.doc_tgl), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%d.%m.%Y'))";
+        $docDateExpr = "coalesce(str_to_date(k.doc_tgl, '%d.%m.%Y'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), date(k.doc_tgl))";
 
         $now = now();
         $startDate = $now->copy()->startOfDay()->toDateString();
@@ -1737,7 +1740,7 @@ class PurchaseOrderController
             $finishedPoNumbers = DB::table('tb_detailpo')
                 ->whereIn('no_po', $poNumbersInPeriod)
                 ->groupBy('no_po')
-                ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 then 1 else 0 end) = 0')
+                ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0 then 1 else 0 end) = 0')
                 ->pluck('no_po')
                 ->all();
 
@@ -1815,14 +1818,68 @@ class PurchaseOrderController
             'summary' => $request->boolean('summary'),
         ], $request), self::PO_CACHE_TTL, function () use ($request, $period) {
 
-        $docDateExpr = "coalesce(date(k.doc_tgl), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%d.%m.%Y'))";
+        $docDateExpr = "coalesce(str_to_date(k.doc_tgl, '%d.%m.%Y'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), date(k.doc_tgl))";
+
+        $now = now();
+        $startDate = $now->copy()->startOfDay()->toDateString();
+        $endDate = $now->copy()->endOfDay()->toDateString();
+
+        if ($period === 'this_week') {
+            $startDate = $now->copy()->startOfWeek()->toDateString();
+            $endDate = $now->copy()->endOfWeek()->toDateString();
+        } elseif ($period === 'this_month') {
+            $startDate = $now->copy()->startOfMonth()->toDateString();
+            $endDate = $now->copy()->endOfMonth()->toDateString();
+        } elseif ($period === 'this_year') {
+            $startDate = $now->copy()->startOfYear()->toDateString();
+            $endDate = $now->copy()->endOfYear()->toDateString();
+        }
+
+        $poNumbersInPeriod = DB::table('tb_kdmi as k')
+            ->whereRaw("{$docDateExpr} >= ?", [$startDate])
+            ->whereRaw("{$docDateExpr} <= ?", [$endDate])
+            ->pluck('ref_pr')
+            ->unique()
+            ->filter()
+            ->all();
+
+        if (empty($poNumbersInPeriod)) {
+            if ($request->boolean('summary')) {
+                return [
+                    'realizedCount' => 0,
+                    'realizedTotal' => 0,
+                    'period' => $period,
+                ];
+            }
+            return [
+                'purchaseOrders' => [],
+                'realizedTotal' => 0,
+            ];
+        }
+
+        $finishedPoNumbers = DB::table('tb_detailpo')
+            ->whereIn('no_po', $poNumbersInPeriod)
+            ->groupBy('no_po')
+            ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0 then 1 else 0 end) = 0')
+            ->pluck('no_po')
+            ->all();
+
+        if (empty($finishedPoNumbers)) {
+            if ($request->boolean('summary')) {
+                return [
+                    'realizedCount' => 0,
+                    'realizedTotal' => 0,
+                    'period' => $period,
+                ];
+            }
+            return [
+                'purchaseOrders' => [],
+                'realizedTotal' => 0,
+            ];
+        }
 
         $query = DB::table('tb_po as po')
-            ->join('tb_kdmi as k', 'po.no_po', '=', 'k.ref_pr')
-            ->whereNotExists(function($q) {
-                $q->select(DB::raw(1))->from('tb_detailpo as d')->whereColumn('d.no_po', 'po.no_po')
-                  ->whereRaw('coalesce(d.gr_mat, 0) > 0');
-            })
+            ->whereIn('po.no_po', $finishedPoNumbers)
             ->select(
                 'po.no_po',
                 'po.tgl',
@@ -1836,33 +1893,10 @@ class PurchaseOrderController
                 'po.s_total',
                 'po.h_ppn'
             )
-            ->selectRaw('0 as is_outstanding')
-            ->distinct();
-
-        $now = now();
-        if ($period === 'today') {
-            $query->whereRaw("{$docDateExpr} = ?", [$now->toDateString()]);
-        } elseif ($period === 'this_week') {
-            $query->whereRaw("{$docDateExpr} between ? and ?", [
-                $now->startOfWeek()->toDateString(),
-                $now->endOfWeek()->toDateString(),
-            ]);
-        } elseif ($period === 'this_month') {
-            $query->whereRaw("month({$docDateExpr}) = ?", [$now->month])
-                ->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
-        } elseif ($period === 'this_year') {
-            $query->whereRaw("year({$docDateExpr}) = ?", [$now->year]);
-        }
+            ->selectRaw('0 as is_outstanding');
 
         if ($request->boolean('summary')) {
-            $summaryQuery = (clone $query)
-                ->select('po.no_po', 'po.g_total')
-                ->distinct();
-
-            $summary = DB::query()
-                ->fromSub($summaryQuery, 'realized_po')
-                ->selectRaw('count(*) as count, coalesce(sum(g_total), 0) as total')
-                ->first();
+            $summary = DB::table('tb_po')->whereIn('no_po', $finishedPoNumbers)->selectRaw('count(*) as count, coalesce(sum(g_total), 0) as total')->first();
 
             return [
                 'realizedCount' => (int) ($summary->count ?? 0),
@@ -1874,7 +1908,7 @@ class PurchaseOrderController
         $realizedTotal = (clone $query)->sum('g_total');
 
         $purchaseOrders = $query
-            ->orderBy('po.tgl', 'desc')
+            ->orderByRaw("coalesce(str_to_date(po.tgl, '%d.%m.%Y'), str_to_date(po.tgl, '%d/%m/%Y'), str_to_date(po.tgl, '%d-%m-%Y'), str_to_date(po.tgl, '%Y-%m-%d'), str_to_date(po.tgl, '%Y/%m/%d'), date(po.tgl)) desc")
             ->orderBy('po.no_po', 'desc')
             ->get();
 
@@ -2123,7 +2157,7 @@ class PurchaseOrderController
             ->select('no_po')
             ->groupBy('no_po')
             ->havingRaw('sum(case when coalesce(gr_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
-            ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 then 1 else 0 end) > 0');
+            ->havingRaw('sum(case when coalesce(gr_mat, 0) > 0 or coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0');
 
         $query = DB::table('tb_po as po')
             ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
