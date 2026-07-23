@@ -259,9 +259,18 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             next.customerCode = data.kd_customer;
                             next.customerName = data.nm_customer;
                         }
-                        if (data.tgl) next.date = data.tgl;
+                        const formatAiDate = (d) => {
+                            if (!d) return '';
+                            const p = d.split('-');
+                            if (p.length === 3 && p[0].length === 4)
+                                return `${p[2]}/${p[1]}/${p[0]}`;
+                            return d;
+                        };
+                        if (data.tgl) next.date = formatAiDate(data.tgl);
                         if (data.delivery_date)
-                            next.deliveryDate = data.delivery_date;
+                            next.deliveryDate = formatAiDate(
+                                data.delivery_date,
+                            );
                         if (data.payment) next.paymentTerm = data.payment;
                         if (data.ppn_pct)
                             next.ppnPercent = String(data.ppn_pct);
