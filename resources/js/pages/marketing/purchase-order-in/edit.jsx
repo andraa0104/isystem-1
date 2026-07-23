@@ -39,6 +39,10 @@ const formatInteger = (value) =>
     new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(
         Math.trunc(toNumber(value)),
     );
+const formatStock = (value) =>
+    new Intl.NumberFormat('id-ID', { maximumFractionDigits: 4 }).format(
+        toNumber(value),
+    );
 const toDisplayDate = (value) => {
     const text = String(value ?? '').trim();
     if (!text) {
@@ -1818,19 +1822,19 @@ export default function PurchaseOrderInEdit({
                                             {item.material ?? '-'}
                                         </td>
                                         <td className="px-2 py-2 text-right whitespace-nowrap">
-                                            {formatInteger(item.stok_g1)}
+                                            {formatStock(item.stok_g1)}
                                         </td>
                                         <td className="px-2 py-2 text-right whitespace-nowrap">
-                                            {formatInteger(item.stok_g2)}
+                                            {formatStock(item.stok_g2)}
                                         </td>
                                         <td className="px-2 py-2 text-right whitespace-nowrap">
-                                            {formatInteger(item.stok_g3)}
+                                            {formatStock(item.stok_g3)}
                                         </td>
                                         <td className="px-2 py-2 text-right whitespace-nowrap">
-                                            {formatInteger(item.stok_g4)}
+                                            {formatStock(item.stok_g4)}
                                         </td>
                                         <td className="px-2 py-2 text-right whitespace-nowrap">
-                                            {formatInteger(item.stok)}
+                                            {formatStock(item.stok)}
                                         </td>
                                         <td className="px-2 py-2 whitespace-nowrap">
                                             {item.unit ?? '-'}

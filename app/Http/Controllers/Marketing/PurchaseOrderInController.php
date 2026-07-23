@@ -1224,14 +1224,15 @@ class PurchaseOrderInController
         $stockTotal = $this->barangStockTotalExpression();
 
         $query = DB::table('tb_barang')->selectRaw("
+            tb_barang.*,
             {$codeColumn} as kd_material,
             {$nameColumn} as material,
             {$unitColumn} as unit,
-            cast(coalesce(cast(stok_g1 as decimal(65,4)), 0) as signed) as stok_g1,
-            cast(coalesce(cast(stok_g2 as decimal(65,4)), 0) as signed) as stok_g2,
-            cast(coalesce(cast(stok_g3 as decimal(65,4)), 0) as signed) as stok_g3,
-            cast(coalesce(cast(stok_g4 as decimal(65,4)), 0) as signed) as stok_g4,
-            cast({$stockTotal} as signed) as stok
+            coalesce(cast(stok_g1 as decimal(65,4)), 0) as stok_g1,
+            coalesce(cast(stok_g2 as decimal(65,4)), 0) as stok_g2,
+            coalesce(cast(stok_g3 as decimal(65,4)), 0) as stok_g3,
+            coalesce(cast(stok_g4 as decimal(65,4)), 0) as stok_g4,
+            {$stockTotal} as stok
         ");
 
         if ($search !== '') {
