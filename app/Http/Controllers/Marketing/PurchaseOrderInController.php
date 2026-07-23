@@ -368,7 +368,7 @@ class PurchaseOrderInController
             );
 
             $ch = curl_init();
-            curl_setopt($ch, CURLOPT_URL, 'http://host.docker.internal:8000/ocr-po');
+            curl_setopt($ch, CURLOPT_URL, 'http://127.0.0.1:8000/ocr-po');
             curl_setopt($ch, CURLOPT_POST, 1);
             curl_setopt($ch, CURLOPT_POSTFIELDS, ['file' => $cfile]);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
