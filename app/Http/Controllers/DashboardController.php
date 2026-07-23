@@ -163,13 +163,27 @@ class DashboardController
 
     private function tbDoHppQuery()
     {
-        foreach (['pos_tgl', 'total'] as $column) {
-            if (!Schema::hasTable('tb_do') || !Schema::hasColumn('tb_do', $column)) {
-                return null;
-            }
+        $hasDo = Schema::hasTable('tb_do') && Schema::hasColumn('tb_do', 'pos_tgl') && Schema::hasColumn('tb_do', 'total');
+        $hasDob = Schema::hasTable('tb_dob') && Schema::hasColumn('tb_dob', 'pos_tgl') && Schema::hasColumn('tb_dob', 'total');
+
+        if (!$hasDo && !$hasDob) {
+            return null;
         }
 
-        return DB::table('tb_do as d');
+        $queries = [];
+        if ($hasDo) {
+            $queries[] = DB::table('tb_do')->select('pos_tgl', 'total');
+        }
+        if ($hasDob) {
+            $queries[] = DB::table('tb_dob')->select('pos_tgl', 'total');
+        }
+
+        $first = array_shift($queries);
+        foreach ($queries as $q) {
+            $first->unionAll($q);
+        }
+
+        return DB::table(DB::raw("({$first->toSql()}) as d"));
     }
 
     private function normalizedDateSql(string $column): string
