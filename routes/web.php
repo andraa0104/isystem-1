@@ -254,6 +254,19 @@ Route::get('marketing/purchase-order-in/create', [PurchaseOrderInController::cla
     ->name('marketing.purchase-order-in.create');
 Route::post('marketing/purchase-order-in', [PurchaseOrderInController::class, 'store'])
     ->name('marketing.purchase-order-in.store');
+Route::get('marketing/purchase-order-in/materials', [PurchaseOrderInController::class, 'materials'])
+    ->name('marketing.purchase-order-in.materials');
+Route::post('marketing/purchase-order-in/materials', [PurchaseOrderInController::class, 'storeMaterial'])
+    ->name('marketing.purchase-order-in.materials.store');
+Route::post('marketing/purchase-order-in/ocr-upload', [PurchaseOrderInController::class, 'ocrUpload'])
+    ->name('marketing.purchase-order-in.ocr-upload');
+Route::get('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'customers'])
+    ->name('marketing.purchase-order-in.customers');
+Route::post('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'storeCustomer'])
+    ->name('marketing.purchase-order-in.customers.store');
+Route::post('marketing/purchase-order-in/predict', [AIPredictionController::class, 'predictPOIn'])
+    ->name('marketing.purchase-order-in.predict');
+
 Route::get('marketing/purchase-order-in/{kodePoin}/edit', [PurchaseOrderInController::class, 'edit'])
     ->name('marketing.purchase-order-in.edit');
 Route::put('marketing/purchase-order-in/{kodePoin}', [PurchaseOrderInController::class, 'update'])
@@ -266,17 +279,6 @@ Route::put('marketing/purchase-order-in/{kodePoin}/detail/{detailId}', [Purchase
     ->name('marketing.purchase-order-in.detail.update');
 Route::delete('marketing/purchase-order-in/{kodePoin}/detail/{detailId}', [PurchaseOrderInController::class, 'destroyDetail'])
     ->name('marketing.purchase-order-in.detail.destroy');
-Route::get('marketing/purchase-order-in/materials', [PurchaseOrderInController::class, 'materials'])
-    ->name('marketing.purchase-order-in.materials');
-Route::post('marketing/purchase-order-in/materials', [PurchaseOrderInController::class, 'storeMaterial'])
-    ->name('marketing.purchase-order-in.materials.store');
-Route::post('marketing/purchase-order-in/ocr-upload', [PurchaseOrderInController::class, 'ocrUpload'])->name('marketing.purchase-order-in.ocr-upload');
-Route::get('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'customers'])
-    ->name('marketing.purchase-order-in.customers');
-Route::post('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'storeCustomer'])
-    ->name('marketing.purchase-order-in.customers.store');
-Route::post('marketing/purchase-order-in/predict', [AIPredictionController::class, 'predictPOIn'])
-    ->name('marketing.purchase-order-in.predict');
 Route::get('marketing/purchase-order-in/{kodePoin}/show', [PurchaseOrderInController::class, 'show'])
     ->name('marketing.purchase-order-in.show');
 Route::get('marketing/purchase-order-in/{kodePoin}/print', [PurchaseOrderInController::class, 'print'])
