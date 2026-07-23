@@ -25,7 +25,13 @@ def calculate_similarity(s1, s2):
     b1, b2 = get_bigrams(s1), get_bigrams(s2)
     if not b1 or not b2:
         return 0
-    return len(b1 & b2) / max(len(b1), len(b2))
+        
+    overlap = len(b1 & b2)
+    # Using min instead of max allows for partial substring matches (e.g., 'telen' and 'telen prima sawit')
+    # but we will take a weighted average between Jaccard and Substring match
+    jaccard = overlap / max(len(b1), len(b2))
+    substring = overlap / min(len(b1), len(b2))
+    return (jaccard * 0.3) + (substring * 0.7)
 
 def predict_next_po(po_list):
     """

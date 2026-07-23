@@ -1179,146 +1179,82 @@ async def ocr_po(file: UploadFile = File(...)):
     with open(temp_path, "wb") as f:
         f.write(await file.read())
         
-    text = ""
-    tables = []
-    try:
-        import pdfplumber
-        with pdfplumber.open(temp_path) as pdf:
-            for page in pdf.pages:
-                extracted = page.extract_text(x_tolerance=2)
-                if extracted: text += extracted + "\n"
-                tbls = page.extract_tables()
-                if tbls:
-                    for t in tbls:
-                        if t: tables.extend(t)
-    except Exception as e:
-        return {"error": str(e)}
-        
-    if os.path.exists(temp_path):
-        os.remove(temp_path)
-
-    def search(pattern, txt, group=1, flags=re.IGNORECASE):
-        m = re.search(pattern, txt, flags)
-        return m.group(group).strip() if m else ""
-
-    for row in tables:
-        cells = [str(c).strip() for c in row if c]
-        if any(re.search(r'(?:No\.?\s*PO|Tanggal|Date|Jadwal|Delivery|Syarat)', c, re.IGNORECASE) for c in cells):
-            text += "\n" + " ".join(cells)
-
-    ref_po = search(r'(?:No\.?\s*PO|Nomor\s+PO|Purchase\s+Order\s+No|PO\s+Number|Order\s+No)[^\w]*([\w\-\/]+)', text)
-
-    MONTH_PATTERN = r'(?:Jan(?:uari)?|Feb(?:ruari)?|Mar(?:et)?|Apr(?:il)?|Mei|Jun(?:i)?|Jul(?:i)?|Agt|Agu(?:stus)?|Sep(?:tember)?|Okt(?:ober)?|Nov(?:ember)?|Des(?:ember)?)'
-    DATE_PATTERN_ALPHA = r'\d{1,2}[^\w\d\n]{0,3}' + MONTH_PATTERN + r'[^\w\d\n]{0,3}\d{4}'
-    DATE_PATTERN_NUM = r'\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}'
-    DATE_PATTERN  = rf'({DATE_PATTERN_ALPHA}|{DATE_PATTERN_NUM})'
-
-    tgl_raw = search(r'(?:Tanggal(?:\s+PO|)|Tgl\.?(?:\s*PO|\s*Order|)|Date(?:\s+PO\s+In|))[^\w\d\n]*' + DATE_PATTERN, text)
-    delivery_raw = search(r'(?:Jadwal\s+Pengiriman|Delivery\s+Date|Tgl\.?\s*Kirim|Due\s+Date|Pengiriman)[^\w\d\n]*' + DATE_PATTERN, text)
-
-    payment = search(r'(?:Syarat|Payment\s*Term[s]?|Pembayaran|Term[s]?\s+of\s+Payment)[^\w]*([^\n]+)', text)
-    if payment: payment = payment.split('\n')[0].strip()[:80]
-
-    ppn_pct = ""
-    ppn_val_str = search(r'PPN[^\d]*([\d.,]+)', text)
-    subtotal_str = search(r'(?:Sub\s*Total|Subtotal)[^\d]*([\d.,]+)', text)
-    def parse_idr(s):
-        if not s: return 0.0
-        dot_count = s.count('.')
-        if dot_count > 1 or (dot_count == 1 and len(s.split('.')[-1]) == 3): s = s.replace('.', '')
-        s = s.replace(',', '.')
-        try: return float(s)
-        except: return 0.0
-
-    ppn_val = parse_idr(ppn_val_str)
-    subtotal_val = parse_idr(subtotal_str)
-    if ppn_val > 0 and subtotal_val > 0:
-        computed_pct = round((ppn_val / subtotal_val) * 100)
-        if computed_pct in [0, 1, 2, 5, 10, 11, 12]: ppn_pct = str(computed_pct)
-
-    franco = search(r'Franco\s*(?:Loco|Lokasi)?[^\w\n]*([^\n]+(?:\n[^\n]+){0,3})', text)
-    if franco: franco = franco.strip().split('\n')[0].strip()[:150]
-
-    catatan_raw = search(r'(?:Catatan|Keterangan|Notes?|Remarks?)\s*:?\s*([^\n]+(?:\n[^\n]+){0,6})', text)
-    catatan = ""
-    if catatan_raw:
-        right_col_markers = re.compile(r'(?:Franco|Loco|NPWP|Syarat|Jadwal|Pengiriman|Sub\s*Total|PPN|Grand|Terbilang)', re.IGNORECASE)
-        lines_out = []
-        footer_markers = re.compile(r'(?:Mangkupalas|Telp/?Fax|Contact|Dibuat|Hormat|Mengetahui|Approved|Telp\.|Fax\.)', re.IGNORECASE)
-        for line in catatan_raw.splitlines():
-            if footer_markers.search(line):
-                break # Stop processing Catatan when we hit the document footer!
-                
-            if right_col_markers.search(line):
-                m = right_col_markers.search(line)
-                left = line[:m.start()].strip()
-                if left: lines_out.append(left)
-            else:
-                if line.strip(): lines_out.append(line.strip())
-        catatan = "\n".join(l for l in lines_out if l).strip()[:300]
-
-    lines_all = text.split('\n')
-    kepada_idx = next((i for i, l in enumerate(lines_all) if re.search(r'^\s*Kepada', l, re.IGNORECASE)), min(6, len(lines_all)))
-    top_lines = "\n".join(lines_all[:kepada_idx]).strip()
-    if not top_lines: top_lines = "\n".join(lines_all[:4])
-
+    from fastapi import HTTPException
     conn = get_db_connection()
-    cust_match = fuzzy_match_items([top_lines], conn, "tb_cs", "kd_cs", "nm_cs")
-    kd_cs = cust_match[0][0] if cust_match[0] else ""
-    nm_cs = cust_match[0][1] if cust_match[0] else ""
-
-    items = []
-    item_texts = []
-    item_codes = []
-    raw_qty = []
-    raw_price = []
-
-    for row in tables:
-        row = [str(cell).strip() if cell else "" for cell in row]
-        row_text = " ".join(row).lower()
-        if any(h in row_text for h in ["qty", "quantity", "description", "nama barang", "harga satuan", "kode barang", "satuan", "no."]): continue
-        if any(h in row_text for h in ["sub total", "subtotal", "grand total", "ppn", "terbilang"]): continue
-
-        desc = ""
-        kode = ""
-        qty = 0.0
-        price = 0.0
-
-        for i_cell, cell in enumerate(row):
-            c = cell.strip()
-            if not c: continue
+    try:
+        from google import genai
+        from google.genai import types
+        import json
+        
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        with open(temp_path, "rb") as f:
+            pdf_bytes = f.read()
             
-            # Skip likely row numbers at the start (1, 2, 3...)
-            if i_cell == 0 and re.match(r'^\d+$', c) and float(c) < 100:
-                continue
-                
-            if re.match(r'^\d{6,12}$', c):
-                kode = c
-                continue
-            if re.match(r'^[\d.,]+$', c):
-                dc, cc = c.count('.'), c.count(',')
-                if dc > 1: val_s = c.replace('.', '').replace(',', '.')
-                elif dc == 1 and cc == 0:
-                    parts = c.split('.')
-                    val_s = c.replace('.', '') if len(parts[1]) == 3 else c
-                elif cc == 1: val_s = c.replace('.', '').replace(',', '.')
-                else: val_s = re.sub(r'[^0-9.]', '', c)
-                try: num = float(val_s) if val_s else 0.0
-                except ValueError: num = 0.0
+        prompt = """Anda adalah ahli akuntansi dan OCR tingkat dewa.
+Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan format sebagai murni JSON:
+{
+  "ref_poin": "Nomor PO dari customer (string)",
+  "tgl": "Tanggal PO dalam format mutlak yyyy-mm-dd (jika ada nama bulan bahasa indonesia, konversi ke bulan angka)",
+  "delivery_date": "Tanggal Pengiriman / Jadwal dalam format mutlak yyyy-mm-dd. Jika tertulis '+45 hari' hitung dari tgl PO (jika ada nama bulan, konversi ke angka)",
+  "payment": "Syarat Pembayaran (contoh: '45 Hari', 'Cash', '30 days due')",
+  "franco": "Lokasi franco loco atau area pengiriman. Abaikan jika detail kepanjangan, ambil lokasi intinya saja.",
+  "ppn_pct": "Pajak Pertambahan Nilai atau PPN (Angka int, misal 11 jika 11%, atau 0 jika tidak ada)",
+  "nm_customer": "Nama lengkap pembeli atau ditujukan Kepada (contoh 'PT ABC' atau 'CV DEF')",
+  "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
+  "items": [
+      {
+          "kode": "Kode barang jika terlihat, atau string kosong",
+          "desc": "Detail nama barang yang diorder berserta spesifikasinya, JANGAN masukkan qty/satuan",
+          "qty": "Jumlah barang (float/int)",
+          "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
+      }
+  ]
+}
+DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
+"""
+        import time
+        response = None
+        for attempt in range(4):
+            try:
+                response = client.models.generate_content(
+                    model='gemini-3.5-flash',
+                    contents=[prompt, types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf')],
+                    config=types.GenerateContentConfig(response_mime_type="application/json")
+                )
+                break
+            except Exception as e:
+                import traceback
+                if ('503' in str(e) or '429' in str(e)) and attempt < 3:
+                    time.sleep(2 + attempt * 2)
+                    continue
+                traceback.print_exc()
+                raise HTTPException(status_code=500, detail=f"Google AI API Error: {str(e)}")
+        
+        data = json.loads(response.text)
+        
+        # Prepare for fuzzy match
+        item_texts = []
+        item_codes = []
+        raw_qty = []
+        raw_price = []
+        item_remarks = []
+        
+        for item in data.get('items', []):
+            item_texts.append(item.get('desc', ''))
+            item_codes.append(item.get('kode', ''))
+            q = item.get('qty', 1)
+            raw_qty.append(float(q) if q else 1.0)
+            p = item.get('price', 0)
+            raw_price.append(float(p) if p else 0.0)
+            item_remarks.append("")
 
-                if num > 0 and num < 10000 and qty == 0: qty = num
-                elif num >= 1000 and price == 0: price = num
-                continue
-            if re.match(r'^(?:PCS|KG|LTR|M|BUH|SET|PC|BOX|BTL|LBR|UNIT|ROLL|BTG|MTR)$', c, re.IGNORECASE): continue
-            if len(c) > len(desc): desc = c
-
-        if not desc and not kode: continue
-        if qty <= 0 and price <= 0: continue
-
-        item_texts.append(desc)
-        item_codes.append(kode)
-        raw_qty.append(qty if qty > 0 else 1)
-        raw_price.append(price)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT kd_material, material FROM tb_barang")
@@ -1327,6 +1263,7 @@ async def ocr_po(file: UploadFile = File(...)):
 
     mat_by_code = {str(r['kd_material']).strip(): r for r in all_materials}
 
+    items = []
     fuzzy_texts = []
     fuzzy_indices = []
     for i, (code, txt) in enumerate(zip(item_codes, item_texts)):
@@ -1337,7 +1274,8 @@ async def ocr_po(file: UploadFile = File(...)):
                 "nm_brg": row['material'],
                 "nm_brg_ocr": txt or code,
                 "qty": raw_qty[i],
-                "price": raw_price[i]
+                "price": raw_price[i],
+                "remark": item_remarks[i]
             })
         else:
             fuzzy_texts.append(txt or code)
@@ -1363,39 +1301,25 @@ async def ocr_po(file: UploadFile = File(...)):
                     "nm_brg": best_match[1], 
                     "nm_brg_ocr": ocr_text, 
                     "qty": raw_qty[idx], 
-                    "price": raw_price[idx]
+                    "price": raw_price[idx],
+                    "remark": item_remarks[idx]
                 })
 
-    def normalize_date(d_str):
-        if not d_str: return ""
-        d_str = d_str.strip()
-        m = re.search(r"(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})", d_str)
-        if m: return f"{m.group(1).zfill(2)}/{m.group(2).zfill(2)}/{m.group(3)}"
-        months_dic = {
-            "jan": "01", "januari": "01", "feb": "02", "februari": "02", "pebruari": "02",
-            "mar": "03", "maret": "03", "apr": "04", "april": "04", "mei": "05",
-            "jun": "06", "juni": "06", "jul": "07", "juli": "07", "agt": "08",
-            "agustus": "08", "agu": "08", "sep": "09", "september": "09",
-            "okt": "10", "oktober": "10", "nov": "11", "november": "11",
-            "des": "12", "desember": "12"
-        }
-        ma = re.search(r"(\d{1,2})[^\w\d\n]{1,3}([a-zA-Z]+)[^\w\d\n]{1,3}(\d{4})", d_str)
-        if ma:
-            mon = months_dic.get(ma.group(2).lower(), "01")
-            return f"{ma.group(1).zfill(2)}/{mon}/{ma.group(3)}"
-        return d_str
+    cust_match = fuzzy_match_items([data.get('nm_customer', '')], conn, "tb_cs", "kd_cs", "nm_cs")
+    kd_cs = cust_match[0][0] if cust_match[0] else ""
+    nm_cs = cust_match[0][1] if cust_match[0] else data.get('nm_customer', '')
 
     conn.close()
 
     return {
-        "text_raw": text[:1500],
-        "ref_poin": ref_po,
-        "tgl": normalize_date(tgl_raw),
-        "delivery_date": normalize_date(delivery_raw),
-        "payment": payment,
-        "ppn_pct": ppn_pct,
-        "franco": franco,
-        "catatan": catatan,
+        "text_raw": "",
+        "ref_poin": data.get('ref_poin', ''),
+        "tgl": data.get('tgl', ''),
+        "delivery_date": data.get('delivery_date', ''),
+        "payment": data.get('payment', ''),
+        "franco": data.get('franco', ''),
+        "ppn_pct": data.get('ppn_pct', 0),
+        "catatan": data.get('catatan', ''),
         "kd_customer": kd_cs,
         "nm_customer": nm_cs,
         "items": items

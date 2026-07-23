@@ -32,3 +32,11 @@ yarn-error.log
 app/Services/Keuangan/KasDss/python_ml/uvic.log
 app/Services/Keuangan/KasDss/python_ml/__pycache__/
 *.pyc
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+
+# Logs
+*.log
