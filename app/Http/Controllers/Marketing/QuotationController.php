@@ -8,10 +8,15 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use App\Services\Marketing\QuotationDss;
+use App\Services\Marketing\QuotationService;
 
 class QuotationController
 {
     private array $columnCache = [];
+
+    public function __construct(
+        private QuotationService $quotationService
+    ) {}
 
     private function valueOrSpace(mixed $value): string
     {
@@ -89,26 +94,11 @@ class QuotationController
     }
     public function destroy(Request $request, $noPenawaran)
     {
-        $noPenawaran = trim((string) $noPenawaran);
-        if ($noPenawaran === '') {
-            return response()->json(['message' => 'No penawaran tidak valid.'], 400);
-        }
-
         try {
-            DB::transaction(function () use ($noPenawaran) {
-                DB::table('tb_penawarandetail')
-                    ->whereRaw('lower(trim(No_penawaran)) = ?', [strtolower($noPenawaran)])
-                    ->delete();
-
-                DB::table('tb_penawaran')
-                    ->whereRaw('lower(trim(No_penawaran)) = ?', [strtolower($noPenawaran)])
-                    ->delete();
-            });
-
-            Cache::tags(['quotation_data'])->flush();
-
+            $this->quotationService->deleteQuotation((string) $noPenawaran);
         } catch (\Throwable $e) {
-            return response()->json(['message' => $e->getMessage()], 500);
+            $status = $e->getCode() ?: 500;
+            return response()->json(['message' => $e->getMessage()], $status);
         }
 
         return response()->json(['message' => 'Data quotation berhasil dihapus.']);
@@ -523,70 +513,15 @@ class QuotationController
 
     public function update(Request $request, $noPenawaran)
     {
-        $materials = $request->input('materials', []);
-        if (!is_array($materials)) {
-            $materials = [];
-        }
-
-        $exists = DB::table('tb_penawaran')
-            ->where('No_penawaran', $noPenawaran)
-            ->exists();
-
-        if (!$exists) {
-            return redirect()
-                ->route('marketing.quotation.index')
-                ->with('error', 'Data quotation tidak ditemukan.');
-        }
-
         try {
-            DB::transaction(function () use ($request, $materials, $noPenawaran) {
-                DB::table('tb_penawaran')
-                    ->where('No_penawaran', $noPenawaran)
-                    ->update([
-                        'Tgl_penawaran' => $request->input('tgl_penawaran') ?? Carbon::today()->toDateString(),
-                        'Customer' => $this->valueOrSpace($request->input('customer')),
-                        'Alamat' => $this->valueOrSpace($request->input('alamat')),
-                        'Telp' => $this->valueOrSpace($request->input('telp')),
-                        'Fax' => $this->valueOrSpace($request->input('fax')),
-                        'Email' => $this->valueOrSpace($request->input('email')),
-                        'Attend' => $this->valueOrSpace($request->input('attend')),
-                        'Payment' => $this->valueOrSpace($request->input('payment')),
-                        'Validity' => $this->valueOrSpace($request->input('validity')),
-                        'Delivery' => $this->valueOrSpace($request->input('delivery')),
-                        'Franco' => $this->valueOrSpace($request->input('franco')),
-                        'Note1' => $this->valueOrSpace($request->input('note1')),
-                        'Note2' => $this->valueOrSpace($request->input('note2')),
-                        'Note3' => $this->valueOrSpace($request->input('note3')),
-                    ]);
-
-                $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
-                
-                DB::table('tb_penawarandetail')
-                    ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
-                    ->delete();
-
-                $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
-                $insertData = [];
-                foreach ($materials as $item) {
-                    $insertData[] = [
-                        $noPenawaranColumn => $noPenawaran,
-                        'Material' => $item['material'] ?? null,
-                        'Qty' => $item['quantity'] ?? null,
-                        'Harga' => $item['harga_penawaran'] ?? null,
-                        $hargaModalColumn => $item['harga_modal'] ?? null,
-                        'Satuan' => $item['satuan'] ?? null,
-                        'Margin' => $item['margin'] ?? null,
-                        'Remark' => $this->valueOrSpace($item['remark'] ?? null),
-                    ];
-                }
-                if (!empty($insertData)) {
-                    DB::table('tb_penawarandetail')->insert($insertData);
-                }
-            });
-
-            Cache::tags(['quotation_data'])->flush();
-
+            $this->quotationService->updateQuotation($noPenawaran, $request->all());
         } catch (\Throwable $exception) {
+            $status = $exception->getCode();
+            if ($status === 404) {
+                return redirect()
+                    ->route('marketing.quotation.index')
+                    ->with('error', $exception->getMessage());
+            }
             return back()->with('error', $exception->getMessage());
         }
 
@@ -597,59 +532,23 @@ class QuotationController
 
     public function updateDetail(Request $request, $noPenawaran, $detailId)
     {
-        $noPenawaranColumn = $this->resolveColumn(
-            'tb_penawarandetail',
-            ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
-            'No_penawaran'
-        );
-        
-        $exists = DB::table('tb_penawarandetail')
-            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
-            ->where('ID', $detailId)
-            ->exists();
-
-        if (!$exists) {
-            return back()->with('error', 'Detail quotation tidak ditemukan.');
+        try {
+            $this->quotationService->updateQuotationDetail($noPenawaran, (int) $detailId, $request->all());
+        } catch (\Throwable $exception) {
+            return back()->with('error', $exception->getMessage());
         }
-
-        $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
-        DB::table('tb_penawarandetail')
-            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
-            ->where('ID', $detailId)
-            ->update([
-                'Material' => $request->input('material'),
-                'Qty' => $request->input('quantity'),
-                'Harga' => $request->input('harga_penawaran'),
-                $hargaModalColumn => $request->input('harga_modal'),
-                'Satuan' => $request->input('satuan'),
-                'Margin' => $request->input('margin'),
-                'Remark' => $this->valueOrSpace($request->input('remark')),
-            ]);
-
-        Cache::tags(['quotation_data'])->flush();
 
         return back()->with('success', 'Detail quotation berhasil diperbarui.');
     }
 
     public function destroyDetail($noPenawaran, $detailId)
     {
-        $noPenawaranColumn = $this->resolveColumn(
-            'tb_penawarandetail',
-            ['No_Penawaran', 'No_penawaran', 'no_penawaran'],
-            'No_penawaran'
-        );
-        
-        $deleted = DB::table('tb_penawarandetail')
-            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
-            ->where('ID', $detailId)
-            ->delete();
-
-        if (!$deleted) {
-            return back()->with('error', 'Detail quotation tidak ditemukan.');
+        try {
+            $this->quotationService->deleteQuotationDetail($noPenawaran, (int) $detailId);
+        } catch (\Throwable $exception) {
+            return back()->with('error', $exception->getMessage());
         }
-
-        Cache::tags(['quotation_data'])->flush();
-
+        
         return back()->with('success', 'Detail quotation berhasil dihapus.');
     }
 
@@ -669,125 +568,17 @@ class QuotationController
             $prefix = 'SJA';
         }
 
-        $materials = $request->input('materials', []);
-        if (!is_array($materials)) {
-            $materials = [];
-        }
-
-        $maxAttempts = 10;
-        $attempt = 0;
-
-        while (true) {
-            try {
-                DB::transaction(function () use ($request, $materials, $prefix) {
-                    $counter = DB::table('tb_counter')
-                        ->select('nomor_terakhir')
-                        ->where('nama_tabel', 'tb_penawaran')
-                        ->first();
-
-                    if (!$counter) {
-                        throw new \RuntimeException('Data counter tb_penawaran tidak ditemukan.');
-                    }
-
-                    $oldNumber = (int) $counter->nomor_terakhir;
-                    $newNumber = $oldNumber + 1;
-
-                    $updated = DB::table('tb_counter')
-                        ->where('nama_tabel', 'tb_penawaran')
-                        ->where('nomor_terakhir', $oldNumber)
-                        ->update(['nomor_terakhir' => $newNumber]);
-
-                    if ($updated === 0) {
-                        throw new \RuntimeException('counter_tb_penawaran_dipakai');
-                    }
-
-                    $noPenawaran = $prefix.str_pad((string) $newNumber, 7, '0', STR_PAD_LEFT);
-
-                    if (DB::table('tb_penawaran')->where('No_penawaran', $noPenawaran)->exists()) {
-                        throw new \RuntimeException('duplicate_no_penawaran');
-                    }
-
-                    DB::table('tb_penawaran')->insert([
-                        'No_penawaran' => $noPenawaran,
-                        'Tgl_penawaran' => $request->input('tgl_penawaran') ?? Carbon::today()->toDateString(),
-                        'Tgl_Posting' => Carbon::today()->toDateString(),
-                        'Customer' => $this->valueOrSpace($request->input('customer')),
-                        'Alamat' => $this->valueOrSpace($request->input('alamat')),
-                        'Telp' => $this->valueOrSpace($request->input('telp')),
-                        'Fax' => $this->valueOrSpace($request->input('fax')),
-                        'Email' => $this->valueOrSpace($request->input('email')),
-                        'Attend' => $this->valueOrSpace($request->input('attend')),
-                        'Payment' => $this->valueOrSpace($request->input('payment')),
-                        'Validity' => $this->valueOrSpace($request->input('validity')),
-                        'Delivery' => $this->valueOrSpace($request->input('delivery')),
-                        'Franco' => $this->valueOrSpace($request->input('franco')),
-                        'Note1' => $this->valueOrSpace($request->input('note1')),
-                        'Note2' => $this->valueOrSpace($request->input('note2')),
-                        'Note3' => $this->valueOrSpace($request->input('note3')),
-                    ]);
-
-                    $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
-                    $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
-                    $insertData = [];
-                    
-                    foreach ($materials as $item) {
-                        // Logika untuk menambahkan % pada Margin
-                        $marginInput = $item['margin'] ?? null;
-                        if ($marginInput !== null && trim($marginInput) !== '' && !str_contains($marginInput, '%')) {
-                            $marginInput = trim($marginInput) . '%';
-                        }
-
-                        $insertData[] = [
-                            $noPenawaranColumn => $noPenawaran,
-                            'Material' => $item['material'] ?? null,
-                            'Qty' => $item['quantity'] ?? null,
-                            'Harga' => $item['harga_penawaran'] ?? null,
-                            $hargaModalColumn => $item['harga_modal'] ?? null,
-                            'Satuan' => $item['satuan'] ?? null,
-                            'Margin' => $marginInput, // Margin sudah difilter dengan %
-                            'Remark' => $this->valueOrSpace($item['remark'] ?? null),
-                        ];
-                    }
-                    
-                    if (!empty($insertData)) {
-                        DB::table('tb_penawarandetail')->insert($insertData);
-                    }
-                });
-                break;
-            } catch (\Throwable $exception) {
-                $attempt++;
-                $message = strtolower($exception->getMessage());
-                $isCounterConflict = str_contains($message, 'counter_tb_penawaran_dipakai');
-                $isDuplicate = str_contains($message, 'duplicate_no_penawaran')
-                    || str_contains($message, 'duplicate')
-                    || ($exception instanceof \Illuminate\Database\QueryException
-                        && $exception->getCode() === '23000');
-
-                if ($attempt < $maxAttempts && ($isCounterConflict || $isDuplicate)) {
-                    continue;
-                }
-
-                if ($isCounterConflict) {
-                    if ($request->expectsJson()) {
-                        return response()->json([
-                            'message' => 'Nomor sedang dipakai user lain.',
-                        ], 409);
-                    }
-
-                    return back()->with('error', 'Nomor sedang dipakai user lain.');
-                }
-
-                if ($request->expectsJson()) {
-                    return response()->json([
-                        'message' => $exception->getMessage(),
-                    ], 422);
-                }
-
-                return back()->with('error', $exception->getMessage());
+        try {
+            $this->quotationService->createQuotation($request->all(), $prefix);
+        } catch (\Throwable $exception) {
+            if ($request->expectsJson()) {
+                $status = $exception->getCode() ?: 422;
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                ], $status);
             }
+            return back()->with('error', $exception->getMessage());
         }
-
-        Cache::tags(['quotation_data'])->flush();
 
         if ($request->expectsJson()) {
             return response()->json([
