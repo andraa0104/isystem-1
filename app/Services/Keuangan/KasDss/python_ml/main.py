@@ -1265,8 +1265,8 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
   "items": [
       {{
-          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING - ATURAN PERKEBUNAN KELAPA SAWIT: 1. Jika ada 'Oil Palm Sickle' / 'Sickle', ITU ADALAH 'EGREK HITAM' (DILARANG KERAS jadikan 'Sabit' / Brush Strainer). 2. Jika ada 'Axe for Harvesting' / 'Axe', ITU ADALAH 'Kapak Buah + Gagang' atau sejenis 'Kapak' lengkap untuk panen! 3. Cari wujud benda di list katalog. Jika ada yang maknanya persis, isi kodenya. Jika tidak ada yang wujudnya sama secara fisik, kosongkan. DILARANG memilih Buku Panduan / Jurnal Tanaman (seperti 'Budidaya Kelapa Sawit')!",
-          "desc": "JIKA KODE KOSONG: Isi dengan NAMA BENDA FISIK UTAMA dalam istilah sawit (Contoh: 'Kapak Buah', 'Egrek'). DILARANG MENULIS KATA SIFAT/KETERANGAN (spt 'untuk panen', 'tajam') agar mesin pencari tidak bingung! JANGAN masukkan qty.",
+          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. ATURAN PENCOCOKAN: 1. Cari barang di katalog yang persis sama maknanya secara wujud fisik. DILARANG memilih Buku Panduan / Jasa! 2. CONTOH KASUS KHUSUS DARI INGGRIS: 'Oil Palm Sickle / Sickle' = 'Egrek Hitam'. 'Axe for Harvesting' = 'Kapak Buah + Gagang'. 3. Jika ketemu di katalog, isi kodenya. Jika tidak ada yang sama secara fisik, kosongkan.",
+          "desc": "JIKA KODE KOSONG: Tuliskan NAMA PRODUK FISIK + SPESIFIKASI PENTING (Contoh: 'Bola Lampu Tornado 24 Watt', 'Egrek Hitam'). JANGAN masukkan kalimat keterangan seperti 'untuk panen' atau 'digunakan untuk', buang kata kerja! Pertahankan nama merk/spek teknis agar sistem pencari kata bisa bekerja (Contoh: Philips Tornado 24 Watt -> Lampu Tornado 24 Watt). JANGAN masukkan qty.",
           "qty": "Jumlah barang (float/int)",
           "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
       }}
