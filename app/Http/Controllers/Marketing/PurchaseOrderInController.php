@@ -388,8 +388,16 @@ class PurchaseOrderInController
                 return response()->json(json_decode($result, true));
             }
 
+            $errorMsg = 'ML API error (Status ' . $httpCode . ')';
+            if ($result) {
+                $parsed = json_decode($result, true);
+                if (is_array($parsed) && isset($parsed['detail'])) {
+                    $errorMsg = $parsed['detail'];
+                }
+            }
+            
             \Illuminate\Support\Facades\Log::error('OCR ML API error: status=' . $httpCode . ' body=' . $result);
-            return response()->json(['error' => 'ML API error (Status ' . $httpCode . ')'], 500);
+            return response()->json(['error' => $errorMsg], 500);
 
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error('OCR Error: ' . $e->getMessage());
