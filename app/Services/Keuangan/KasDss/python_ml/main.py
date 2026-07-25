@@ -1318,29 +1318,19 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
 
             for src in unresolved_items:
                 query_embed = st_model.encode(src['desc'], convert_to_tensor=True)
-                scores      = util.cos_sim(query_embed, db_embeds)[0]
-                best_idx    = int(scores.argmax())
-                best_score  = float(scores[best_idx])
+                scores_mat  = util.cos_sim(query_embed, db_embeds)[0]
+                best_idx    = int(scores_mat.argmax())
 
-                if best_score >= 0.35:
-                    best_row = all_materials[best_idx]
-                    resolved_items.append({
-                        "kd_brg": str(best_row['kd_material']),
-                        "nm_brg": str(best_row['material']),
-                        "nm_brg_ocr": src['desc'],
-                        "qty": src['qty'],
-                        "price": src['price'],
-                        "remark": ""
-                    })
-                else:
-                    resolved_items.append({
-                        "kd_brg": None,
-                        "nm_brg": src['desc'],
-                        "nm_brg_ocr": src['desc'],
-                        "qty": src['qty'],
-                        "price": src['price'],
-                        "remark": ""
-                    })
+                # Always pick the closest database material — no threshold cutoff
+                best_row = all_materials[best_idx]
+                resolved_items.append({
+                    "kd_brg": str(best_row['kd_material']),
+                    "nm_brg": str(best_row['material']),
+                    "nm_brg_ocr": src['desc'],
+                    "qty": src['qty'],
+                    "price": src['price'],
+                    "remark": ""
+                })
         except Exception as st_err:
             import traceback; traceback.print_exc()
             # Fallback to raw OCR text if sentence-transformers fails
