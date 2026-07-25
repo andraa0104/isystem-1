@@ -276,20 +276,12 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             next.ppnPercent = String(data.ppn_pct);
                         if (data.franco) next.francoLoco = data.franco;
 
-                        const combinedText = JSON.stringify(data).toLowerCase();
-                        if (/(include|included|exclude|excluded|inc|exc|termasuk)\s*ppn|ppn\s*rp\.?\s*0/i.test(combinedText)) {
-                            next.ppnPercent = '0';
-                        }
-
                         return next;
                     });
 
-                    const combinedTextForPredict = JSON.stringify(data).toLowerCase();
-                    const hasExcludedPpn = /(include|included|exclude|excluded|inc|exc|termasuk)\s*ppn|ppn\s*rp\.?\s*0/i.test(combinedTextForPredict);
-
                     // Trigger AI predict for Payment Term, PPN, and Franco Loco
                     if (data.nm_customer) {
-                        predictFields(data.nm_customer, { skipPpnPredict: hasExcludedPpn });
+                        predictFields(data.nm_customer);
                     }
 
                     if (data.items && data.items.length > 0) {
@@ -767,7 +759,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         }
     };
 
-    const predictFields = async (customerName, options = {}) => {
+    const predictFields = async (customerName) => {
         if (!customerName) return;
         setIsPredicting(true);
         try {
@@ -796,7 +788,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     setForm((prev) => ({
                         ...prev,
                         ppnPercent:
-                            data.ppn !== null && !options.skipPpnPredict
+                            data.ppn !== null
                                 ? String(data.ppn)
                                 : prev.ppnPercent,
                         francoLoco: data.franco || prev.francoLoco,
