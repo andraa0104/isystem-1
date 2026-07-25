@@ -2030,7 +2030,7 @@ class PurchaseRequirementController
                 'd.renmark'
             )
             ->where('d.no_pr', $noPr)
-            ->orderBy('d.no')
+            ->orderByRaw('cast(d.no as unsigned)')
             ->get();
 
         $database = $request->session()->get('tenant.database') ?? $request->cookie('tenant_database');

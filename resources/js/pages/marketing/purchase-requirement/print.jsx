@@ -242,7 +242,7 @@ export default function PurchaseRequirementPrint({
                                     className="border-t border-black"
                                 >
                                     <td className="border-r border-black px-1 py-1 text-center align-top">
-                                        {detail.no ?? index + 1}
+                                        {index + 1}
                                     </td>
                                     <td className="code-material-cell border-r border-black px-1 py-1 align-top">
                                         {renderValue(detail.kd_material)}
