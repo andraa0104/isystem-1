@@ -40,3 +40,6 @@ __pycache__/
 
 # Logs
 *.log
+
+# Ignore OCR Service Logs
+app/Services/Keuangan/KasDss/python_ml/ocr_log.txt

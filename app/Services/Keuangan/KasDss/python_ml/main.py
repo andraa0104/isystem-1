@@ -1265,8 +1265,8 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
   "items": [
       {{
-          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING: Pahami makna barang di PDF (contoh: 'Sickle' -> Egrek, 'Axe untuk panen' -> Kapak Buah), lalu BACA katalog tersebut. JIKA ADA yang secara logika adalah benda yang TEPAT SAMA (jangan pilih Cover jika itu alat murni, dll), isi dengan kodenya! Kosongkan jika sama sekali berbeda maknanya.",
-          "desc": "NAMA BARANG RESMI dari katalog sesuai kode di atas. Jika kodenya kosong (tidak cocok dari katalog mana pun), barulah isi dengan terjemahan teknis Indonesia dari barang tersebut. JANGAN masukkan qty.",
+          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING: Pahami SUBJEK UTAMA benda di PDF (contoh: 'Sickle' -> Egrek, 'Axe for harvesting' -> Kapak Buah). JANGAN tertipu oleh kata kerja (seperti 'panen'). Cari BENDANYA di katalog. JIKA ADA benda yang TEPAT SAMA secara jenis fisiknya (Bukan aksesoris/cover/buku), isi kodenya. Jika tidak ada yang jenis bendanya sama, kosongkan.",
+          "desc": "NAMA BARANG RESMI dari katalog sesuai kode di atas. Jika kodenya kosong (tidak cocok dari katalog mana pun), barulah isi dengan terjemahan teknis Indonesia PURE OBJECT dari barang tersebut tanpa kata aksesoris. JANGAN masukkan qty.",
           "qty": "Jumlah barang (float/int)",
           "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
       }}
@@ -1355,8 +1355,8 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
                 best_idx = int(np.argmax(scores))
                 best_score = float(scores[best_idx])
                 
-                # Dynamic threshold: anything above 0.15 is generally a solid semantic/char match in TF-IDF composite
-                if best_score > 0.15:
+                # Dynamic threshold: raised to 0.40 to prevent peripheral string matches ('panen') from returning textbooks
+                if best_score > 0.40:
                     best_row = all_materials[best_idx]
                     resolved_items.append({
                         "kd_brg": str(best_row['kd_material']),
@@ -1406,7 +1406,7 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
                 import numpy as np
                 best_idx   = int(np.argmax(scores))
                 best_score = float(scores[best_idx])
-                if best_score > 0.15:
+                if best_score > 0.35:
                     kd_cs = str(all_customers[best_idx]['kd_cs'])
                     nm_cs = str(all_customers[best_idx]['nm_cs'])
     except Exception:
