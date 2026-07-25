@@ -1265,8 +1265,8 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
   "items": [
       {{
-          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING: Pahami SUBJEK UTAMA benda dan KONTEKS FUNGSIONAL dari PDF (contoh: 'Sickle' -> Egrek, 'Axe for harvesting' -> Kapak untuk digunakan). JIKA deskripsi mengimplikasikan alat siap pakai/digunakan di lapangan, pilih benda di katalog yang mewakili SATU KESATUAN UTUH (contoh: Kapak + Gagang / Kapak Kayu Set). Jangan pilih suku cadang mentah jika konteksnya siap pakai. JIKA ADA benda yang TEPAT SAMA secara makna fisiknya, isi kodenya. Jika tidak ada yang sama jenisnya, kosongkan.",
-          "desc": "NAMA BARANG RESMI dari katalog sesuai kode di atas. Jika kodenya kosong (tidak cocok dari katalog mana pun), barulah isi dengan terjemahan teknis Indonesia PURE OBJECT dari barang tersebut secara lengkap. JANGAN masukkan qty.",
+          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING - IKUTI LOGIKA INI UTK MENGISI KODE: 1. Identifikasi BENDA FISIK UTAMA (contoh: 'Sickle'->Egrek, 'Axe'->Kapak). WAJIB BENDA FISIK, DILARANG KERAS memilih Buku Panduan, Jasa, atau Tanaman! 2. Cari benda fisik tersebut di katalog. 3. Jika deskripsi PO mengisyaratkan alat siap pakai (contoh: 'for harvesting'), dan di katalog ada versi 'Alat Saja' vs 'Alat + Gagang/Set', PILIH versi yang + Gagang/Set. Jika ada yang persis sama, isi kodenya. Jika tidak ada yang nyambung secara benda fisik, kosongkan.",
+          "desc": "NAMA BARANG RESMI dari katalog sesuai kode di atas. Jika kodenya kosong (berbeda makna fisik dari semua isi katalog), isi dengan terjemahan teknis Indonesia benda aslinya secara spesifik dan utuh. JANGAN masukkan qty.",
           "qty": "Jumlah barang (float/int)",
           "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
       }}
