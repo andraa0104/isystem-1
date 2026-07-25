@@ -73,11 +73,6 @@ class SimpleAuthController extends Controller
             ]);
         }
 
-        // Set session flag to Y on successful login
-        Pengguna::on($connection)
-            ->where('pengguna', $user->pengguna)
-            ->update(['Sesi' => 'Y']);
-
         $onlineTtlSeconds = 120;
         $onlineSetKey = self::onlineUsersSetKey($database);
         $onlineAliveKey = self::onlineUserAliveKey($database, $user->pengguna);
@@ -115,23 +110,9 @@ class SimpleAuthController extends Controller
             ?? $request->session()->get('tenant.database');
         $username = $request->cookie('login_user')
             ?? optional(Auth::user())->pengguna;
-        $allowed = config('tenants.databases', []);
 
         if (!$username) {
             return response()->json(['ok' => false], 401);
-        }
-
-        if ($database && in_array($database, $allowed, true)) {
-            $connection = config('tenants.connection', config('database.default'));
-            config(['database.default' => $connection]);
-            DB::setDefaultConnection($connection);
-            config(["database.connections.$connection.database" => $database]);
-            DB::purge($connection);
-            DB::reconnect($connection);
-
-            Pengguna::on($connection)
-                ->where('pengguna', $username)
-                ->update(['Sesi' => 'Y']);
         }
 
         $key = 'browser_active:' . ($database ?: 'default') . ':' . $username;
@@ -164,6 +145,19 @@ class SimpleAuthController extends Controller
             ?? optional(Auth::user())->pengguna;
         $allowed = config('tenants.databases', []);
 
+        if ($database && $username) {
+            $onlineSetKey = self::onlineUsersSetKey($database);
+            $onlineAliveKey = self::onlineUserAliveKey($database, $username);
+            $onlineNameKey = self::onlineUserNameKey($database, $username);
+
+            $usernames = Cache::store('file')->get($onlineSetKey, []);
+            $usernames = array_filter($usernames, fn($user) => $user !== $username);
+            Cache::store('file')->forever($onlineSetKey, array_values($usernames));
+
+            Cache::store('file')->forget($onlineAliveKey);
+            Cache::store('file')->forget($onlineNameKey);
+        }
+
         if ($database && in_array($database, $allowed, true)) {
             $connection = config('tenants.connection', config('database.default'));
             config(['database.default' => $connection]);
@@ -178,20 +172,7 @@ class SimpleAuthController extends Controller
                     ->where('pengguna', $username)
                     ->update([
                         $column => now('Asia/Singapore'),
-                        'Sesi' => 'T',
                     ]);
-
-                $onlineSetKey = self::onlineUsersSetKey($database);
-                $onlineAliveKey = self::onlineUserAliveKey($database, $username);
-                $onlineNameKey = self::onlineUserNameKey($database, $username);
-
-                // Replace Redis srem with Cache array filter
-                $usernames = Cache::store('file')->get($onlineSetKey, []);
-                $usernames = array_filter($usernames, fn($u) => $u !== $username);
-                Cache::store('file')->forever($onlineSetKey, array_values($usernames));
-
-                Cache::store('file')->forget($onlineAliveKey);
-                Cache::store('file')->forget($onlineNameKey);
             }
         }
 
