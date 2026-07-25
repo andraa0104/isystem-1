@@ -1295,7 +1295,6 @@ Isi Dokumen PO:
 {extracted_text[:6000]}
 """
         import requests
-        import os
         qwen_api_key = "sk-ws-H.XRERYM.l4Nu.MEUCIEQDL0TtdkuYnO3fdiXKP-Ur4itYfD-WTIzv7bIDwoJPAiEAlLJjzWlbn2GRiX2Tnc7RpJ_e5FYr-n59dgXogC6wbRs"
 
         if not qwen_api_key:
