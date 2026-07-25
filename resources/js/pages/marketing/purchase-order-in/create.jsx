@@ -295,7 +295,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             note: item.remark || '',
                             id: `${Date.now()}-${idx}`,
                         }));
-                        setItems((prev) => [...prev, ...newItems]);
+                        setItems(newItems);
                     }
 
                     dispatchGlobalToast(
