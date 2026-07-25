@@ -613,26 +613,36 @@ def build_adjustment_lines(group, req):
         })
     return out
 
-def robust_token_overlap(query: str, choices: list):
-    """Calculates Szymkiewicz-Simpson coefficient + Jaccard tie-breaker for token sets."""
-    import re
-    def tokenize(s):
-        s = re.sub(r'[^a-zA-Z0-9]', ' ', str(s)).lower()
-        # Filter out very short tokens like single letters unless it's a number
-        return set([w for w in s.split() if len(w) > 1 or w.isdigit()])
-    
-    q_tokens = tokenize(query)
-    scores = []
-    for c in choices:
-        c_tokens = tokenize(c)
-        if not q_tokens or not c_tokens:
-            scores.append(0.0)
-            continue
-        intersection = q_tokens.intersection(c_tokens)
-        overlap = len(intersection) / min(len(q_tokens), len(c_tokens))
-        jaccard = len(intersection) / len(q_tokens.union(c_tokens))
-        scores.append(overlap + (jaccard * 0.1))
-    return scores
+def smart_local_match(query: str, choices: list):
+    """
+    A globally semantic local matcher that combines Word TF-IDF and Character N-Gram TF-IDF.
+    It inherently understands dataset-specific term weights (e.g. rare accessories like 'cover' 
+    will carry high variance penalty if missing) without needing hardcoded rules.
+    """
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+    from sklearn.pipeline import FeatureUnion
+    import numpy as np
+
+    if not choices or not query.strip():
+        return [0.0] * len(choices)
+        
+    try:
+        # 1. Word n-grams for exact matching / compounding
+        word_vec = TfidfVectorizer(analyzer='word', ngram_range=(1, 2))
+        # 2. Char n-grams for typo resilience and morphological variants
+        char_vec = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5))
+        
+        union = FeatureUnion([("word", word_vec), ("char", char_vec)])
+        
+        matrix = union.fit_transform(choices)
+        query_vec = union.transform([query])
+        
+        sims = cosine_similarity(query_vec, matrix)[0]
+        return sims.tolist()
+    except Exception:
+        # Safe fallback if TF-IDF fails (e.g. choices too small/empty)
+        return [0.0] * len(choices)
 
 def get_st_model():
     """Return (and cache) the shared Sentence Transformers model."""
@@ -1234,12 +1244,12 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "payment": "Syarat Pembayaran (contoh: '45 Hari', 'Cash', '30 days due')",
   "franco": "Lokasi franco loco atau area pengiriman. Abaikan jika detail kepanjangan, ambil lokasi intinya saja.",
   "ppn_pct": "Pajak Pertambahan Nilai atau PPN (Angka int, misal 11 jika 11%, atau 0 jika tidak ada)",
-  "nm_customer": "Nama lengkap PEMBELI (Buyer / Perusahaan Pemesan) yang menerbitkan PO ini (biasanya letaknya besar di kop surat, atau di tulisan paling atas sebelah kiri/tengah/kanan halaman). BUKAN nama perusahaan yang dituju (seperti CV SEMESTA JAYA ABADI). HARUS AKURAT dari data pembeli.",
+  "nm_customer": "Nama Perusahaan PEMBELI/PEMESAN (Buyer Company) yang valid. Temukan dengan teliti di dokumen, biasanya merupakan Pihak Pertama di kop surat (kiri/tengah/kanan atas). BUKAN nama pihak/vendor yang dituju (misal: 'TO: CV SEMESTA JAYA ABADI' itu bukan customer). BUKAN nama PIC perorangan. HARUS akurat.",
   "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
   "items": [
       {
           "kode": "Kode barang jika terlihat, atau string kosong",
-          "desc": "Detail nama barang yang diorder berserta spesifikasi/ukurannya. WAJIB PENTING: Terjemahkan HANYA ke Bahasa Indonesia (contoh: 'OIL PALM SICKLE' -> 'EGREK SAWIT'). DILARANG menyertakan nama bahasa Inggrisnya. JANGAN masukkan qty/satuan.",
+          "desc": "Detail nama barang yang diorder. Jika dalam bahasa asing, TERJEMAHKAN ke istilah teknis utama di Indonesia sesuai konteks industrinya. Ambil INTI BENDA-nya saja (jangan berasumsi ini aksesoris/cover/gagang/dll jika tidak tertulis). DILARANG menyertakan nama aslinya dalam bahasa asing. JANGAN masukkan qty.",
           "qty": "Jumlah barang (float/int)",
           "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
       }
@@ -1321,13 +1331,13 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
         else:
             unresolved_items.append({"desc": txt, "qty": qty, "price": price})
 
-    # --- Step 2: Custom Token Overlap matching for unresolved items ---
+    # --- Step 2: Smart Local Match (TF-IDF Composite) for unresolved items ---
     if unresolved_items:
         try:
             db_names  = [str(r['material']).strip() for r in all_materials]
             
             for src in unresolved_items:
-                scores = robust_token_overlap(src['desc'], db_names)
+                scores = smart_local_match(src['desc'], db_names)
                 if not scores:
                     raise Exception("No scores")
                     
@@ -1335,8 +1345,8 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
                 best_idx = int(np.argmax(scores))
                 best_score = float(scores[best_idx])
                 
-                # Pick the best match if there's reasonable overlap (score > 0.4)
-                if best_score > 0.4:
+                # Dynamic threshold: anything above 0.15 is generally a solid semantic/char match in TF-IDF composite
+                if best_score > 0.15:
                     best_row = all_materials[best_idx]
                     resolved_items.append({
                         "kd_brg": str(best_row['kd_material']),
@@ -1370,7 +1380,7 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
 
     items = resolved_items
 
-    # --- Customer matching with robust token overlap ---
+    # --- Customer matching with Smart Local Match (TF-IDF Composite) ---
     kd_cs = ""
     nm_cs = data.get('nm_customer', '')
     try:
@@ -1381,13 +1391,13 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
 
         if all_customers and nm_cs:
             cs_names = [str(r['nm_cs']).strip() for r in all_customers]
-            scores   = robust_token_overlap(nm_cs, cs_names)
+            scores   = smart_local_match(nm_cs, cs_names)
             
             if scores:
                 import numpy as np
                 best_idx   = int(np.argmax(scores))
                 best_score = float(scores[best_idx])
-                if best_score > 0.5:
+                if best_score > 0.15:
                     kd_cs = str(all_customers[best_idx]['kd_cs'])
                     nm_cs = str(all_customers[best_idx]['nm_cs'])
     except Exception:
