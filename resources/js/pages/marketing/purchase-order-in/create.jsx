@@ -309,7 +309,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 clearInterval(progressInterval);
                 setOcrProgress(0);
                 setIsOcrScanning(false);
-                dispatchGlobalToast('Gagal memproses OCR Dokumen.', 'error');
+
+                const errMsg = err.response?.data?.error || err.message || 'Gagal memproses OCR Dokumen.';
+                dispatchGlobalToast(`Gagal: ${errMsg}`, 'error');
             })
             .finally(() => {
                 e.target.value = null;
