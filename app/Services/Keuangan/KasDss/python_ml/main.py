@@ -1295,17 +1295,31 @@ Isi Dokumen PO:
 {extracted_text[:6000]}
 """
         import requests
-        response = requests.post("http://localhost:11434/api/generate", json={
-            "model": "qwen2.5:3b",
-            "prompt": prompt,
-            "stream": False,
-            "format": "json"
-        }, timeout=120)
+        import os
+        qwen_api_key = "sk-ws-H.XRERYM.l4Nu.MEUCIEQDL0TtdkuYnO3fdiXKP-Ur4itYfD-WTIzv7bIDwoJPAiEAlLJjzWlbn2GRiX2Tnc7RpJ_e5FYr-n59dgXogC6wbRs"
+
+        if not qwen_api_key:
+            raise HTTPException(status_code=500, detail="Qwen API Key belum disetting (QWEN_API_KEY)")
+
+        payload = {
+            "model": "qwen-plus",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant that strictly outputs JSON."},
+                {"role": "user", "content": prompt}
+            ]
+        }
+        headers = {
+            "Authorization": f"Bearer {qwen_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.post("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", headers=headers, json=payload, timeout=60)
         
         if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="Gagal menghubungi Ollama Qwen lokal")
+            raise HTTPException(status_code=500, detail=f"Gagal menghubungi Qwen Cloud: {response.text}")
             
-        raw_response = response.json().get('response', '{}')
+        res_json = response.json()
+        raw_response = res_json['choices'][0]['message']['content']
         # Clean markdown if present
         import re
         json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
