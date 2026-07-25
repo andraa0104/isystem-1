@@ -196,6 +196,7 @@ export default function PurchaseRequirementCreate() {
                 key: po.kode_poin,
                 refPo: po.no_poin,
                 customer: po.customer_name,
+                noteDoc: po.note_doc,
                 items: materialItems.filter(
                     (material) => material.refPo === po.no_poin,
                 ),
@@ -223,6 +224,8 @@ export default function PurchaseRequirementCreate() {
         materialGroups.length > 1
             ? (materialGroups[activeMaterialGroupIndex]?.items ?? [])
             : materialItems;
+    const activeMaterialGroup =
+        materialGroups[activeMaterialGroupIndex] ?? materialGroups[0];
 
     const customerTotalPages = useMemo(() => {
         if (customerPageSize === Infinity) {
@@ -528,6 +531,7 @@ export default function PurchaseRequirementCreate() {
                     kode_poin: po.kode_poin,
                     no_poin: po.no_poin,
                     customer_name: po.customer_name,
+                    note_doc: po.note_doc,
                 })),
         ]);
         if (poNumbers.length > 0) {
@@ -1187,6 +1191,19 @@ export default function PurchaseRequirementCreate() {
                                         </CardDescription>
                                     </CardHeader>
                                     <CardContent className="p-0">
+                                        {activeMaterialGroup &&
+                                            activeMaterialGroup.refPo !==
+                                                'Material Manual' && (
+                                                <div className="mx-6 mt-6 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
+                                                    <p className="font-semibold">
+                                                        Catatan Dokumen
+                                                    </p>
+                                                    <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                                                        {activeMaterialGroup.noteDoc ||
+                                                            '-'}
+                                                    </p>
+                                                </div>
+                                            )}
                                         {/* Material List (Cards) - Always Used */}
                                         <div className="min-h-[300px] space-y-4 p-6">
                                             {materialGroups.length > 1 && (
@@ -2252,6 +2269,8 @@ export default function PurchaseRequirementCreate() {
                                                                     item.no_poin,
                                                                 customer_name:
                                                                     item.customer_name,
+                                                                note_doc:
+                                                                    item.note_doc,
                                                             },
                                                         ]);
                                                         setIsCustomerModalOpen(

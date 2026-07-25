@@ -187,6 +187,7 @@ export default function PurchaseRequirementEdit({
             refPo: item.ref_po ?? purchaseRequirement?.ref_po ?? '',
             forCustomer:
                 item.for_customer ?? purchaseRequirement?.for_customer ?? '',
+            noteDoc: item.note_doc ?? '',
         })),
     );
 
@@ -335,6 +336,7 @@ export default function PurchaseRequirementEdit({
                 groups.set(refPo, {
                     refPo,
                     customer: item.forCustomer || '',
+                    noteDoc: item.noteDoc || '',
                     count: 0,
                 });
             }
@@ -1055,6 +1057,19 @@ export default function PurchaseRequirementEdit({
                                             </button>
                                         ))}
                                     </div>
+                                </div>
+                            )}
+                            {activePoTab && activePoTab !== 'Tanpa PO In' && (
+                                <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
+                                    <p className="font-semibold">
+                                        Catatan Dokumen
+                                    </p>
+                                    <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                                        {poTabs.find(
+                                            (tab) =>
+                                                tab.refPo === activePoTab,
+                                        )?.noteDoc || '-'}
+                                    </p>
                                 </div>
                             )}
                             {/* Search & page-size controls */}

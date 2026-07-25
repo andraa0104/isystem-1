@@ -731,7 +731,7 @@ class PurchaseRequirementController
         }
 
         $query = DB::table('tb_poin')
-            ->select('kode_poin', 'no_poin', 'date_poin', 'customer_name')
+            ->select('kode_poin', 'no_poin', 'date_poin', 'customer_name', 'note_doc')
             ->whereExists(function ($subQuery) {
                 $subQuery->select(DB::raw(1))
                     ->from('tb_detailpoin as d')
@@ -886,13 +886,13 @@ class PurchaseRequirementController
 
         $selectedHeader = DB::table('tb_poin')
             ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower($kodePoin)])
-            ->first(['kode_poin', 'no_poin', 'customer_name']);
+            ->first(['kode_poin', 'no_poin', 'customer_name', 'note_doc']);
 
         $matchingPoIns = collect();
         if ($selectedHeader && !empty($selectedMaterialKeys)) {
             $candidateHeaders = DB::table('tb_poin')
                 ->whereRaw('lower(trim(kode_poin)) <> ?', [strtolower($kodePoin)])
-                ->get(['kode_poin', 'no_poin', 'customer_name']);
+                ->get(['kode_poin', 'no_poin', 'customer_name', 'note_doc']);
 
             foreach ($candidateHeaders as $candidate) {
                 $candidateItems = DB::table('tb_detailpoin')
@@ -910,6 +910,7 @@ class PurchaseRequirementController
                         'kode_poin' => $candidate->kode_poin,
                         'no_poin' => $candidate->no_poin,
                         'customer_name' => $candidate->customer_name,
+                        'note_doc' => $candidate->note_doc,
                         'materials' => $candidateItems->map(fn ($detail) => [
                             'id' => $detail->id,
                             'kd_material' => $detail->kd_material,
@@ -968,6 +969,7 @@ class PurchaseRequirementController
             ->orderBy('d.no')
             ->select(
                 'd.*',
+                'p_ref.note_doc as note_doc',
                 DB::raw('coalesce(cast(b.stok_g1 as decimal(18,4)), 0) as stok_g1'),
                 DB::raw('coalesce(cast(b.stok_g2 as decimal(18,4)), 0) as stok_g2'),
                 DB::raw('coalesce(cast(b.stok_g3 as decimal(18,4)), 0) as stok_g3'),
