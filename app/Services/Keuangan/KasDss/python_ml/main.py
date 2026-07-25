@@ -1265,8 +1265,8 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
   "items": [
       {{
-          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING: Pahami SUBJEK UTAMA benda di PDF (contoh: 'Sickle' -> Egrek, 'Axe for harvesting' -> Kapak Buah). JANGAN tertipu oleh kata kerja (seperti 'panen'). Cari BENDANYA di katalog. JIKA ADA benda yang TEPAT SAMA secara jenis fisiknya (Bukan aksesoris/cover/buku), isi kodenya. Jika tidak ada yang jenis bendanya sama, kosongkan.",
-          "desc": "NAMA BARANG RESMI dari katalog sesuai kode di atas. Jika kodenya kosong (tidak cocok dari katalog mana pun), barulah isi dengan terjemahan teknis Indonesia PURE OBJECT dari barang tersebut tanpa kata aksesoris. JANGAN masukkan qty.",
+          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING: Pahami SUBJEK UTAMA benda dan KONTEKS FUNGSIONAL dari PDF (contoh: 'Sickle' -> Egrek, 'Axe for harvesting' -> Kapak untuk digunakan). JIKA deskripsi mengimplikasikan alat siap pakai/digunakan di lapangan, pilih benda di katalog yang mewakili SATU KESATUAN UTUH (contoh: Kapak + Gagang / Kapak Kayu Set). Jangan pilih suku cadang mentah jika konteksnya siap pakai. JIKA ADA benda yang TEPAT SAMA secara makna fisiknya, isi kodenya. Jika tidak ada yang sama jenisnya, kosongkan.",
+          "desc": "NAMA BARANG RESMI dari katalog sesuai kode di atas. Jika kodenya kosong (tidak cocok dari katalog mana pun), barulah isi dengan terjemahan teknis Indonesia PURE OBJECT dari barang tersebut secara lengkap. JANGAN masukkan qty.",
           "qty": "Jumlah barang (float/int)",
           "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
       }}
