@@ -1204,7 +1204,7 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "items": [
       {
           "kode": "Kode barang jika terlihat, atau string kosong",
-          "desc": "Detail nama barang yang diorder berserta spesifikasinya, JANGAN masukkan qty/satuan",
+          "desc": "Detail nama barang yang diorder berserta spesifikasinya. WAJIB: Jika menggunakan bahasa Inggris, terjemahkan ke Bahasa Indonesia atau gabungkan (contoh: 'OIL PALM SICKLE (EGREK SAWIT)'), agar cocok dengan database. JANGAN masukkan qty/satuan",
           "qty": "Jumlah barang (float/int)",
           "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
       }
@@ -1263,47 +1263,84 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
 
     mat_by_code = {str(r['kd_material']).strip(): r for r in all_materials}
 
-    items = []
-    fuzzy_texts = []
-    fuzzy_indices = []
-    for i, (code, txt) in enumerate(zip(item_codes, item_texts)):
+    # --- Step 1: resolve items that already have exact kode ---
+    unresolved_items = []
+    resolved_items   = []
+    for i, item in enumerate(data.get('items', [])):
+        txt   = item.get('desc', '')
+        code  = item.get('kode', '')
+        q     = item.get('qty', 1)
+        p     = item.get('price', 0)
+        qty   = float(q) if q else 1.0
+        price = float(p) if p else 0.0
         if code and code in mat_by_code:
             row = mat_by_code[code]
-            items.append({
+            resolved_items.append({
                 "kd_brg": row['kd_material'],
                 "nm_brg": row['material'],
                 "nm_brg_ocr": txt or code,
-                "qty": raw_qty[i],
-                "price": raw_price[i],
-                "remark": item_remarks[i]
+                "qty": qty,
+                "price": price,
+                "remark": ""
             })
         else:
-            fuzzy_texts.append(txt or code)
-            fuzzy_indices.append(i)
+            unresolved_items.append({"desc": txt, "qty": qty, "price": price})
 
-    if fuzzy_texts:
-        def clean_m(t): return re.sub(r'[^a-z0-9]', '', str(t).lower())
-        for j, idx in enumerate(fuzzy_indices):
-            ocr_text = item_texts[idx]
-            ocr_clean = clean_m(ocr_text)
-            best_match = None
-            for db_row in all_materials:
-                db_clean = clean_m(db_row['material'])
-                if ocr_clean in db_clean or db_clean in ocr_clean:
-                    best_match = (db_row['kd_material'], db_row['material'])
-                    break
-            if not best_match:
-                m = fuzzy_match_items([ocr_text], conn, "tb_barang", "kd_material", "material", threshold=0.1)
-                best_match = m[0] if m and m[0] else None
-            if best_match:
-                items.append({
-                    "kd_brg": best_match[0], 
-                    "nm_brg": best_match[1], 
-                    "nm_brg_ocr": ocr_text, 
-                    "qty": raw_qty[idx], 
-                    "price": raw_price[idx],
-                    "remark": item_remarks[idx]
+    # --- Step 2: Sentence Transformers semantic matching for unresolved items ---
+    if unresolved_items:
+        try:
+            from sentence_transformers import SentenceTransformer, util
+
+            # Cache model globally to avoid reloading on every request
+            if "st_model" not in models:
+                models["st_model"] = SentenceTransformer(
+                    "paraphrase-multilingual-MiniLM-L12-v2",
+                    device="cpu"
+                )
+            st_model = models["st_model"]
+
+            db_names  = [str(r['material']).strip() for r in all_materials]
+            db_embeds = st_model.encode(db_names, convert_to_tensor=True, batch_size=128, show_progress_bar=False)
+
+            for src in unresolved_items:
+                query_embed = st_model.encode(src['desc'], convert_to_tensor=True)
+                scores      = util.cos_sim(query_embed, db_embeds)[0]
+                best_idx    = int(scores.argmax())
+                best_score  = float(scores[best_idx])
+
+                if best_score >= 0.35:
+                    best_row = all_materials[best_idx]
+                    resolved_items.append({
+                        "kd_brg": str(best_row['kd_material']),
+                        "nm_brg": str(best_row['material']),
+                        "nm_brg_ocr": src['desc'],
+                        "qty": src['qty'],
+                        "price": src['price'],
+                        "remark": ""
+                    })
+                else:
+                    resolved_items.append({
+                        "kd_brg": None,
+                        "nm_brg": src['desc'],
+                        "nm_brg_ocr": src['desc'],
+                        "qty": src['qty'],
+                        "price": src['price'],
+                        "remark": ""
+                    })
+        except Exception as st_err:
+            import traceback; traceback.print_exc()
+            # Fallback to raw OCR text if sentence-transformers fails
+            for src in unresolved_items:
+                resolved_items.append({
+                    "kd_brg": None,
+                    "nm_brg": src['desc'],
+                    "nm_brg_ocr": src['desc'],
+                    "qty": src['qty'],
+                    "price": src['price'],
+                    "remark": ""
                 })
+
+    items = resolved_items
 
     cust_match = fuzzy_match_items([data.get('nm_customer', '')], conn, "tb_cs", "kd_cs", "nm_cs")
     kd_cs = cust_match[0][0] if cust_match[0] else ""
