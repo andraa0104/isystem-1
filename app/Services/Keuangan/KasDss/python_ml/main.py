@@ -1318,9 +1318,12 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
-    # --- Step 1: resolve items that already have exact kode ---
-    unresolved_items = []
-    resolved_items   = []
+    # --- Step 1 & 2: Process items sequentially to maintain original document order ---
+    resolved_items = []
+    
+    # Pre-fetch database names for fast inline TF-IDF if needed
+    db_names = [str(r['material']).strip() for r in all_materials] if all_materials else []
+
     for i, item in enumerate(data.get('items', [])):
         txt   = item.get('desc', '')
         code  = str(item.get('kode', '')).strip()
@@ -1328,6 +1331,8 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
         p     = item.get('price', 0)
         qty   = float(q) if q else 1.0
         price = float(p) if p else 0.0
+
+        # Exact Code Match from Gemini Context
         if code and code in mat_by_code:
             row = mat_by_code[code]
             resolved_items.append({
@@ -1338,55 +1343,42 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
                 "price": price,
                 "remark": ""
             })
-        else:
-            unresolved_items.append({"desc": txt, "qty": qty, "price": price})
+            continue
 
-    # --- Step 2: Smart Local Match (TF-IDF Composite) for unresolved items ---
-    if unresolved_items:
-        try:
-            db_names  = [str(r['material']).strip() for r in all_materials]
-            
-            for src in unresolved_items:
-                scores = smart_local_match(src['desc'], db_names)
-                if not scores:
-                    raise Exception("No scores")
+        # Fallback to Smart Local Match if no exact code
+        matched = False
+        if txt and db_names:
+            try:
+                scores = smart_local_match(txt, db_names)
+                if scores:
+                    import numpy as np
+                    best_idx = int(np.argmax(scores))
+                    best_score = float(scores[best_idx])
                     
-                import numpy as np
-                best_idx = int(np.argmax(scores))
-                best_score = float(scores[best_idx])
-                
-                # Dynamic threshold: raised to 0.40 to prevent peripheral string matches ('panen') from returning textbooks
-                if best_score > 0.40:
-                    best_row = all_materials[best_idx]
-                    resolved_items.append({
-                        "kd_brg": str(best_row['kd_material']),
-                        "nm_brg": str(best_row['material']),
-                        "nm_brg_ocr": src['desc'],
-                        "qty": src['qty'],
-                        "price": src['price'],
-                        "remark": ""
-                    })
-                else:
-                    resolved_items.append({
-                        "kd_brg": None,
-                        "nm_brg": src['desc'],
-                        "nm_brg_ocr": src['desc'],
-                        "qty": src['qty'],
-                        "price": src['price'],
-                        "remark": ""
-                    })
-        except Exception as st_err:
-            import traceback; traceback.print_exc()
-            # Fallback to raw OCR text if sentence-transformers fails
-            for src in unresolved_items:
-                resolved_items.append({
-                    "kd_brg": None,
-                    "nm_brg": src['desc'],
-                    "nm_brg_ocr": src['desc'],
-                    "qty": src['qty'],
-                    "price": src['price'],
-                    "remark": ""
-                })
+                    if best_score > 0.40:
+                        best_row = all_materials[best_idx]
+                        resolved_items.append({
+                            "kd_brg": str(best_row['kd_material']),
+                            "nm_brg": str(best_row['material']),
+                            "nm_brg_ocr": txt,
+                            "qty": qty,
+                            "price": price,
+                            "remark": ""
+                        })
+                        matched = True
+            except Exception as st_err:
+                import traceback; traceback.print_exc()
+
+        # If completely unresolvable, push empty/raw row inline to preserve order
+        if not matched:
+            resolved_items.append({
+                "kd_brg": None,
+                "nm_brg": txt,
+                "nm_brg_ocr": txt,
+                "qty": qty,
+                "price": price,
+                "remark": ""
+            })
 
     items = resolved_items
 
