@@ -1265,8 +1265,8 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
   "items": [
       {{
-          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING - IKUTI LOGIKA INI UTK MENGISI KODE: 1. Identifikasi BENDA FISIK UTAMA (contoh: 'Sickle'->Egrek, 'Axe'->Kapak). WAJIB BENDA FISIK, DILARANG KERAS memilih Buku Panduan, Jasa, atau Tanaman! 2. Cari benda fisik tersebut di katalog. 3. Jika deskripsi PO mengisyaratkan alat siap pakai (contoh: 'for harvesting'), dan di katalog ada versi 'Alat Saja' vs 'Alat + Gagang/Set', PILIH versi yang + Gagang/Set. Jika ada yang persis sama, isi kodenya. Jika tidak ada yang nyambung secara benda fisik, kosongkan.",
-          "desc": "NAMA BARANG RESMI dari katalog sesuai kode di atas. Jika kodenya kosong (berbeda makna fisik dari semua isi katalog), isi dengan terjemahan teknis Indonesia benda aslinya secara spesifik dan utuh. JANGAN masukkan qty.",
+          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING - LOGIKA BERPIKIR: 1. Identifikasi BENDA FISIK UTAMA (contoh: 'Sickle'->Egrek, 'Axe for harvesting'->Kapak Kayu / Kapak yg ada gagangnya). WAJIB BENDA FISIK, DILARANG KERAS memilih Buku Panduan, Jasa, atau judul Tanaman (seperti 'Budidaya Kelapa Sawit')! 2. Cari benda tersebut di list katalog. Jika ada yang persis sama maknanya secara fisik utuh, isi kodenya. Jika tidak ada yang sama, kosongkan.",
+          "desc": "JIKA KODE KOSONG: Isi dengan MAKSIMAL 2 KATA BENDA FISIK UTAMA (Contoh: 'Kapak', 'Egrek'). DILARANG KERAS menuliskan kata kerja, sifat, atau keterangan (seperti 'untuk panen', 'buah', 'tajam'). HANYA NAMA BENDANYA SAJA agar sistem tidak salah menebak! JANGAN masukkan qty.",
           "qty": "Jumlah barang (float/int)",
           "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
       }}
