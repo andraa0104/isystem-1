@@ -1231,30 +1231,47 @@ async def ocr_po(file: UploadFile = File(...)):
         from google.genai import types
         import json
         
+        # --- Pre-fetch DB Catalog for AI Semantic Matching ---
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT kd_material, material FROM tb_barang")
+        all_materials = cursor.fetchall()
+        
+        cursor.execute("SELECT kd_cs, nm_cs FROM tb_cs")
+        all_customers = cursor.fetchall()
+        cursor.close()
+        
+        # We sample up to 1500 items max to avoid huge payload, but usually it's small enough.
+        mat_str = ", ".join([f"'{m['kd_material']}': '{m['material'].strip()}'" for m in all_materials[:1500]])
+        cs_str = ", ".join([f"'{c['kd_cs']}': '{c['nm_cs'].strip()}'" for c in all_customers[:500]])
+        
+        mat_by_code = {str(r['kd_material']).strip(): r for r in all_materials}
+        cs_by_code = {str(r['kd_cs']).strip(): r for r in all_customers}
+
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         with open(temp_path, "rb") as f:
             pdf_bytes = f.read()
             
-        prompt = """Anda adalah ahli akuntansi dan OCR tingkat dewa.
+        prompt = f"""Anda adalah ahli akuntansi dan OCR tingkat dewa.
 Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan format sebagai murni JSON:
-{
+{{
   "ref_poin": "Nomor PO dari customer (string)",
   "tgl": "Tanggal PO dalam format mutlak yyyy-mm-dd (jika ada nama bulan bahasa indonesia, konversi ke bulan angka)",
   "delivery_date": "Tanggal Pengiriman / Jadwal dalam format mutlak yyyy-mm-dd. Jika tertulis '+45 hari' hitung dari tgl PO (jika ada nama bulan, konversi ke angka)",
   "payment": "Syarat Pembayaran (contoh: '45 Hari', 'Cash', '30 days due')",
   "franco": "Lokasi franco loco atau area pengiriman. Abaikan jika detail kepanjangan, ambil lokasi intinya saja.",
   "ppn_pct": "Pajak Pertambahan Nilai atau PPN (Angka int, misal 11 jika 11%, atau 0 jika tidak ada)",
-  "nm_customer": "Nama Perusahaan PEMBELI/PEMESAN (Buyer Company) yang valid. Temukan dengan teliti di dokumen, biasanya merupakan Pihak Pertama di kop surat (kiri/tengah/kanan atas). BUKAN nama pihak/vendor yang dituju (misal: 'TO: CV SEMESTA JAYA ABADI' itu bukan customer). BUKAN nama PIC perorangan. HARUS akurat.",
+  "kd_customer": "SANGAT PENTING: Cari nama PEMBELI (Buyer Company) di PDF yang menerbitkan kop surat, lalu temukan kodenya di katalog ini: [{cs_str}]. JIKA ADA yang cocok secara logika perusahaan, isi dengan kodenya. Jika tidak ada sama sekali di katalog, isi string kosong.",
+  "nm_customer": "Nama lengkap perusahaan pembeli yang sesuai dengan kode di atas, atau nama aslinya dari teks jika kodenya kosong.",
   "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
   "items": [
-      {
-          "kode": "Kode barang jika terlihat, atau string kosong",
-          "desc": "Detail nama barang yang diorder. Jika dalam bahasa asing, TERJEMAHKAN ke istilah teknis utama di Indonesia sesuai konteks industrinya. Ambil INTI BENDA-nya saja (jangan berasumsi ini aksesoris/cover/gagang/dll jika tidak tertulis). DILARANG menyertakan nama aslinya dalam bahasa asing. JANGAN masukkan qty.",
+      {{
+          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING: Pahami makna barang di PDF (contoh: 'Sickle' -> Egrek, 'Axe untuk panen' -> Kapak Buah), lalu BACA katalog tersebut. JIKA ADA yang secara logika adalah benda yang TEPAT SAMA (jangan pilih Cover jika itu alat murni, dll), isi dengan kodenya! Kosongkan jika sama sekali berbeda maknanya.",
+          "desc": "NAMA BARANG RESMI dari katalog sesuai kode di atas. Jika kodenya kosong (tidak cocok dari katalog mana pun), barulah isi dengan terjemahan teknis Indonesia dari barang tersebut. JANGAN masukkan qty.",
           "qty": "Jumlah barang (float/int)",
           "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
-      }
+      }}
   ]
-}
+}}
 DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
 """
         import time
@@ -1301,19 +1318,12 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT kd_material, material FROM tb_barang")
-    all_materials = cursor.fetchall()
-    cursor.close()
-
-    mat_by_code = {str(r['kd_material']).strip(): r for r in all_materials}
-
     # --- Step 1: resolve items that already have exact kode ---
     unresolved_items = []
     resolved_items   = []
     for i, item in enumerate(data.get('items', [])):
         txt   = item.get('desc', '')
-        code  = item.get('kode', '')
+        code  = str(item.get('kode', '')).strip()
         q     = item.get('qty', 1)
         p     = item.get('price', 0)
         qty   = float(q) if q else 1.0
@@ -1381,15 +1391,14 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
     items = resolved_items
 
     # --- Customer matching with Smart Local Match (TF-IDF Composite) ---
-    kd_cs = ""
+    kd_cs = data.get('kd_customer') or ""
     nm_cs = data.get('nm_customer', '')
     try:
-        cursor_cs = conn.cursor(dictionary=True)
-        cursor_cs.execute("SELECT kd_cs, nm_cs FROM tb_cs")
-        all_customers = cursor_cs.fetchall()
-        cursor_cs.close()
-
-        if all_customers and nm_cs:
+        # If Gemini already found the exact code from injection, use it directly!
+        if kd_cs and str(kd_cs) in cs_by_code:
+            pass # Already populated by data.get further up implicitly handled by caller mapping... wait, let's map it:
+            nm_cs = cs_by_code[str(kd_cs)]['nm_cs']
+        elif all_customers and nm_cs:
             cs_names = [str(r['nm_cs']).strip() for r in all_customers]
             scores   = smart_local_match(nm_cs, cs_names)
             
