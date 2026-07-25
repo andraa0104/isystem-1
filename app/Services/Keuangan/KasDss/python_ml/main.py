@@ -1218,7 +1218,7 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "items": [
       {
           "kode": "Kode barang jika terlihat, atau string kosong",
-          "desc": "Detail nama barang yang diorder berserta spesifikasinya. WAJIB: Jika menggunakan bahasa Inggris, terjemahkan ke Bahasa Indonesia atau gabungkan (contoh: 'OIL PALM SICKLE (EGREK SAWIT)'), agar cocok dengan database. JANGAN masukkan qty/satuan",
+          "desc": "Detail nama barang yang diorder berserta spesifikasi/ukurannya. WAJIB PENTING: Terjemahkan HANYA ke Bahasa Indonesia (contoh: 'OIL PALM SICKLE' -> 'EGREK SAWIT'). DILARANG menyertakan nama bahasa Inggrisnya. JANGAN masukkan qty/satuan.",
           "qty": "Jumlah barang (float/int)",
           "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
       }
@@ -1303,34 +1303,30 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
     # --- Step 2: Sentence Transformers semantic matching for unresolved items ---
     if unresolved_items:
         try:
-            from sentence_transformers import SentenceTransformer, util
-
-            # Cache model globally to avoid reloading on every request
-            if "st_model" not in models:
-                models["st_model"] = SentenceTransformer(
-                    "paraphrase-multilingual-MiniLM-L12-v2",
-                    device="cpu"
-                )
-            st_model = models["st_model"]
-
             db_names  = [str(r['material']).strip() for r in all_materials]
-            db_embeds = st_model.encode(db_names, convert_to_tensor=True, batch_size=128, show_progress_bar=False)
-
+            
             for src in unresolved_items:
-                query_embed = st_model.encode(src['desc'], convert_to_tensor=True)
-                scores_mat  = util.cos_sim(query_embed, db_embeds)[0]
-                best_idx    = int(scores_mat.argmax())
-
-                # Always pick the closest database material — no threshold cutoff
-                best_row = all_materials[best_idx]
-                resolved_items.append({
-                    "kd_brg": str(best_row['kd_material']),
-                    "nm_brg": str(best_row['material']),
-                    "nm_brg_ocr": src['desc'],
-                    "qty": src['qty'],
-                    "price": src['price'],
-                    "remark": ""
-                })
+                ranked, scores_mat = st_rank_indices(src['desc'], db_names, top_k=1)
+                if len(ranked) > 0:
+                    best_idx = int(ranked[0])
+                    best_row = all_materials[best_idx]
+                    resolved_items.append({
+                        "kd_brg": str(best_row['kd_material']),
+                        "nm_brg": str(best_row['material']),
+                        "nm_brg_ocr": src['desc'],
+                        "qty": src['qty'],
+                        "price": src['price'],
+                        "remark": ""
+                    })
+                else:
+                    resolved_items.append({
+                        "kd_brg": None,
+                        "nm_brg": src['desc'],
+                        "nm_brg_ocr": src['desc'],
+                        "qty": src['qty'],
+                        "price": src['price'],
+                        "remark": ""
+                    })
         except Exception as st_err:
             import traceback; traceback.print_exc()
             # Fallback to raw OCR text if sentence-transformers fails
@@ -1350,28 +1346,21 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
     kd_cs = ""
     nm_cs = data.get('nm_customer', '')
     try:
-        from sentence_transformers import SentenceTransformer, util
-        if "st_model" not in models:
-            models["st_model"] = SentenceTransformer(
-                "paraphrase-multilingual-MiniLM-L12-v2", device="cpu"
-            )
-        st_model = models["st_model"]
-
         cursor_cs = conn.cursor(dictionary=True)
         cursor_cs.execute("SELECT kd_cs, nm_cs FROM tb_cs")
         all_customers = cursor_cs.fetchall()
         cursor_cs.close()
 
         if all_customers and nm_cs:
-            cs_names   = [str(r['nm_cs']).strip() for r in all_customers]
-            cs_embeds  = st_model.encode(cs_names, convert_to_tensor=True, batch_size=128, show_progress_bar=False)
-            q_embed    = st_model.encode(nm_cs, convert_to_tensor=True)
-            scores     = util.cos_sim(q_embed, cs_embeds)[0]
-            best_idx   = int(scores.argmax())
-            best_score = float(scores[best_idx])
-            if best_score >= 0.35:
-                kd_cs = str(all_customers[best_idx]['kd_cs'])
-                nm_cs = str(all_customers[best_idx]['nm_cs'])
+            cs_names     = [str(r['nm_cs']).strip() for r in all_customers]
+            ranked, scrs = st_rank_indices(nm_cs, cs_names, top_k=1)
+            
+            if len(ranked) > 0:
+                best_idx   = int(ranked[0])
+                best_score = float(scrs[best_idx])
+                if best_score >= 0.35:
+                    kd_cs = str(all_customers[best_idx]['kd_cs'])
+                    nm_cs = str(all_customers[best_idx]['nm_cs'])
     except Exception:
         pass
 
