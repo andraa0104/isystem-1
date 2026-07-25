@@ -1312,7 +1312,7 @@ Isi Dokumen PO:
             "Content-Type": "application/json"
         }
         
-        response = requests.post("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", headers=headers, json=payload, timeout=60)
+        response = requests.post("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", headers=headers, json=payload, timeout=300)
         
         if response.status_code != 200:
             raise HTTPException(status_code=500, detail=f"Gagal menghubungi Qwen Cloud: {response.text}")
