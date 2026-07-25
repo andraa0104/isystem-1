@@ -613,6 +613,27 @@ def build_adjustment_lines(group, req):
         })
     return out
 
+def robust_token_overlap(query: str, choices: list):
+    """Calculates Szymkiewicz-Simpson coefficient + Jaccard tie-breaker for token sets."""
+    import re
+    def tokenize(s):
+        s = re.sub(r'[^a-zA-Z0-9]', ' ', str(s)).lower()
+        # Filter out very short tokens like single letters unless it's a number
+        return set([w for w in s.split() if len(w) > 1 or w.isdigit()])
+    
+    q_tokens = tokenize(query)
+    scores = []
+    for c in choices:
+        c_tokens = tokenize(c)
+        if not q_tokens or not c_tokens:
+            scores.append(0.0)
+            continue
+        intersection = q_tokens.intersection(c_tokens)
+        overlap = len(intersection) / min(len(q_tokens), len(c_tokens))
+        jaccard = len(intersection) / len(q_tokens.union(c_tokens))
+        scores.append(overlap + (jaccard * 0.1))
+    return scores
+
 def get_st_model():
     """Return (and cache) the shared Sentence Transformers model."""
     if "st_model" not in models:
@@ -1213,7 +1234,7 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "payment": "Syarat Pembayaran (contoh: '45 Hari', 'Cash', '30 days due')",
   "franco": "Lokasi franco loco atau area pengiriman. Abaikan jika detail kepanjangan, ambil lokasi intinya saja.",
   "ppn_pct": "Pajak Pertambahan Nilai atau PPN (Angka int, misal 11 jika 11%, atau 0 jika tidak ada)",
-  "nm_customer": "Nama lengkap pembeli atau ditujukan Kepada (contoh 'PT ABC' atau 'CV DEF')",
+  "nm_customer": "Nama lengkap PEMBELI (Buyer / Perusahaan Pemesan) yang menerbitkan PO ini (biasanya letaknya besar di kop surat, atau di tulisan paling atas sebelah kiri/tengah/kanan halaman). BUKAN nama perusahaan yang dituju (seperti CV SEMESTA JAYA ABADI). HARUS AKURAT dari data pembeli.",
   "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
   "items": [
       {
@@ -1300,15 +1321,22 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
         else:
             unresolved_items.append({"desc": txt, "qty": qty, "price": price})
 
-    # --- Step 2: Sentence Transformers semantic matching for unresolved items ---
+    # --- Step 2: Custom Token Overlap matching for unresolved items ---
     if unresolved_items:
         try:
             db_names  = [str(r['material']).strip() for r in all_materials]
             
             for src in unresolved_items:
-                ranked, scores_mat = st_rank_indices(src['desc'], db_names, top_k=1)
-                if len(ranked) > 0:
-                    best_idx = int(ranked[0])
+                scores = robust_token_overlap(src['desc'], db_names)
+                if not scores:
+                    raise Exception("No scores")
+                    
+                import numpy as np
+                best_idx = int(np.argmax(scores))
+                best_score = float(scores[best_idx])
+                
+                # Pick the best match if there's reasonable overlap (score > 0.4)
+                if best_score > 0.4:
                     best_row = all_materials[best_idx]
                     resolved_items.append({
                         "kd_brg": str(best_row['kd_material']),
@@ -1342,7 +1370,7 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
 
     items = resolved_items
 
-    # --- Customer matching with Sentence Transformers ---
+    # --- Customer matching with robust token overlap ---
     kd_cs = ""
     nm_cs = data.get('nm_customer', '')
     try:
@@ -1352,17 +1380,18 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
         cursor_cs.close()
 
         if all_customers and nm_cs:
-            cs_names     = [str(r['nm_cs']).strip() for r in all_customers]
-            ranked, scrs = st_rank_indices(nm_cs, cs_names, top_k=1)
+            cs_names = [str(r['nm_cs']).strip() for r in all_customers]
+            scores   = robust_token_overlap(nm_cs, cs_names)
             
-            if len(ranked) > 0:
-                best_idx   = int(ranked[0])
-                best_score = float(scrs[best_idx])
-                if best_score >= 0.35:
+            if scores:
+                import numpy as np
+                best_idx   = int(np.argmax(scores))
+                best_score = float(scores[best_idx])
+                if best_score > 0.5:
                     kd_cs = str(all_customers[best_idx]['kd_cs'])
                     nm_cs = str(all_customers[best_idx]['nm_cs'])
     except Exception:
-        pass
+        import traceback; traceback.print_exc()
 
     conn.close()
 
