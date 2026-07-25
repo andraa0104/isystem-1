@@ -10,6 +10,12 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import SGDClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics.pairwise import cosine_similarity
+import requests
+import json
+try:
+    import fitz  # PyMuPDF
+except ImportError:
+    fitz = None
 
 # Load Laravel .env from the active project path. The app may run from
 # /var/www/html in Docker or /root/isystem-1 locally.
@@ -1419,3 +1425,70 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
         "nm_customer": nm_cs,
         "items": items
     }
+
+@app.post("/scan-po")
+async def scan_po(file: UploadFile = File(...)):
+    if not fitz:
+        return {"error": "PyMuPDF (fitz) is not installed. Please install PyMuPDF dependencies."}
+    if not requests:
+        return {"error": "requests module not installed."}
+    
+    extracted_text = ""
+    try:
+        content = await file.read()
+        
+        if file.filename.lower().endswith(".pdf"):
+            doc = fitz.open(stream=content, filetype="pdf")
+            for page in doc:
+                extracted_text += page.get_text() + "\n"
+        else:
+            try:
+                from PIL import Image
+                import io
+                import pytesseract
+                img = Image.open(io.BytesIO(content))
+                extracted_text = pytesseract.image_to_string(img)
+            except Exception as ei:
+                return {"error": "Image extraction failed. Ensure pytesseract and Pillow are installed."}
+                
+        if not extracted_text.strip():
+            return {"error": "No text extracted from document."}
+            
+        prompt = f"""
+Analyze the following Purchase Order document text and extract the key information in JSON format.
+Ensure you return ONLY valid JSON and no other conversational text.
+
+Fields to extract:
+- ref_poin (string, Purchase Order number)
+- nm_customer (string, the vendor or customer name issuing the PO)
+- tgl (string, PO date in format YYYY-MM-DD or DD/MM/YYYY)
+- delivery_date (string, if mentioned)
+- payment (string, e.g. "30 Hari", "Cash", etc.)
+- franco (string, e.g. "Franco Jakarta", "Loco")
+- ppn_pct (number, e.g. 11 or 0)
+- catatan (string, notes)
+- items (list of objects with: kd_brg (string, material code if any), nm_brg (string, material name), qty (number), price (number), remark (string, item notes))
+
+Document Text:
+{extracted_text[:4000]}
+"""
+        response = requests.post("http://localhost:11434/api/generate", json={
+            "model": "qwen2.5",
+            "prompt": prompt,
+            "stream": False,
+            "format": "json"
+        }, timeout=120)
+        
+        if response.status_code == 200:
+            result = response.json()
+            raw_response = result.get('response', '{}')
+            try:
+                parsed_json = json.loads(raw_response)
+                return parsed_json
+            except json.JSONDecodeError:
+                return {"error": "AI returned invalid JSON", "raw": raw_response}
+        else:
+            return {"success": False, "error": "Ollama API error", "status": response.status_code}
+            
+    except Exception as e:
+        return {"success": False, "error": str(e)}
