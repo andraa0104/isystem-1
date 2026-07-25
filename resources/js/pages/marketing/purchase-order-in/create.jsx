@@ -276,12 +276,20 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             next.ppnPercent = String(data.ppn_pct);
                         if (data.franco) next.francoLoco = data.franco;
 
+                        const combinedText = JSON.stringify(data).toLowerCase();
+                        if (/(include|included|exclude|excluded|inc|exc|termasuk)\s*ppn|ppn\s*rp\.?\s*0/i.test(combinedText)) {
+                            next.ppnPercent = '0';
+                        }
+
                         return next;
                     });
 
+                    const combinedTextForPredict = JSON.stringify(data).toLowerCase();
+                    const hasExcludedPpn = /(include|included|exclude|excluded|inc|exc|termasuk)\s*ppn|ppn\s*rp\.?\s*0/i.test(combinedTextForPredict);
+
                     // Trigger AI predict for Payment Term, PPN, and Franco Loco
                     if (data.nm_customer) {
-                        predictFields(data.nm_customer);
+                        predictFields(data.nm_customer, { skipPpnPredict: hasExcludedPpn });
                     }
 
                     if (data.items && data.items.length > 0) {
@@ -721,9 +729,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
                 throw new Error(
                     data?.message ||
-                        (data?.errors &&
-                            Object.values(data.errors).flat()[0]) ||
-                        'Gagal menyimpan customer.',
+                    (data?.errors &&
+                        Object.values(data.errors).flat()[0]) ||
+                    'Gagal menyimpan customer.',
                 );
             }
 
@@ -759,7 +767,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         }
     };
 
-    const predictFields = async (customerName) => {
+    const predictFields = async (customerName, options = {}) => {
         if (!customerName) return;
         setIsPredicting(true);
         try {
@@ -788,7 +796,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     setForm((prev) => ({
                         ...prev,
                         ppnPercent:
-                            data.ppn !== null
+                            data.ppn !== null && !options.skipPpnPredict
                                 ? String(data.ppn)
                                 : prev.ppnPercent,
                         francoLoco: data.franco || prev.francoLoco,
@@ -835,9 +843,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
                 throw new Error(
                     data?.message ||
-                        (data?.errors &&
-                            Object.values(data.errors).flat()[0]) ||
-                        'Gagal menyimpan material.',
+                    (data?.errors &&
+                        Object.values(data.errors).flat()[0]) ||
+                    'Gagal menyimpan material.',
                 );
             }
 
@@ -1700,9 +1708,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                        toNumber(
-                                                            item.unitPrice,
-                                                        ),
+                                                    toNumber(
+                                                        item.unitPrice,
+                                                    ),
                                                 )}
                                             </p>
                                         </div>
@@ -1789,9 +1797,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             <td className="px-4 py-3">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                        toNumber(
-                                                            item.unitPrice,
-                                                        ),
+                                                    toNumber(
+                                                        item.unitPrice,
+                                                    ),
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -1968,7 +1976,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             {materialLoading
                                                 ? 'Memuat data material...'
                                                 : materialError ||
-                                                  'Tidak ada data material.'}
+                                                'Tidak ada data material.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2025,8 +2033,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (materialCurrentPage - 1) *
-                                            materialPageSize +
-                                            1,
+                                        materialPageSize +
+                                        1,
                                         materialTotalItems,
                                     )}
                                     -
@@ -2169,7 +2177,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             {customerLoading
                                                 ? 'Memuat data customer...'
                                                 : customerError ||
-                                                  'Tidak ada data customer.'}
+                                                'Tidak ada data customer.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2226,8 +2234,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 Menampilkan{' '}
                                 {Math.min(
                                     (customerCurrentPage - 1) *
-                                        customerPageSize +
-                                        1,
+                                    customerPageSize +
+                                    1,
                                     customerTotal,
                                 )}
                                 -
@@ -2268,7 +2276,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     disabled={
                                         customerTotalPages
                                             ? customerCurrentPage >=
-                                              customerTotalPages
+                                            customerTotalPages
                                             : true
                                     }
                                 >
