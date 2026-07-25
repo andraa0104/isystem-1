@@ -1253,9 +1253,20 @@ async def ocr_po(file: UploadFile = File(...)):
         mat_by_code = {str(r['kd_material']).strip(): r for r in all_materials}
         cs_by_code = {str(r['kd_cs']).strip(): r for r in all_customers}
 
-        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        with open(temp_path, "rb") as f:
-            pdf_bytes = f.read()
+        extracted_text = ""
+        import fitz
+        if temp_path.endswith(".pdf"):
+            doc = fitz.open(temp_path)
+            for page in doc:
+                extracted_text += page.get_text() + "\n"
+        else:
+            try:
+                import pytesseract
+                from PIL import Image
+                img = Image.open(temp_path)
+                extracted_text = pytesseract.image_to_string(img)
+            except:
+                pass
             
         prompt = f"""Anda adalah ahli akuntansi dan OCR tingkat dewa.
 Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan format sebagai murni JSON:
@@ -1279,26 +1290,23 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   ]
 }}
 DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
+
+Isi Dokumen PO:
+{extracted_text[:6000]}
 """
-        import time
-        response = None
-        for attempt in range(4):
-            try:
-                response = client.models.generate_content(
-                    model='gemini-3.5-flash',
-                    contents=[prompt, types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf')],
-                    config=types.GenerateContentConfig(response_mime_type="application/json")
-                )
-                break
-            except Exception as e:
-                import traceback
-                if ('503' in str(e) or '429' in str(e)) and attempt < 3:
-                    time.sleep(2 + attempt * 2)
-                    continue
-                traceback.print_exc()
-                raise HTTPException(status_code=500, detail=f"Google AI API Error: {str(e)}")
+        import requests
+        response = requests.post("http://localhost:11434/api/generate", json={
+            "model": "qwen2.5:3b",
+            "prompt": prompt,
+            "stream": False,
+            "format": "json"
+        }, timeout=120)
         
-        data = json.loads(response.text)
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail="Gagal menghubungi Ollama Qwen lokal")
+            
+        raw_response = response.json().get('response', '{}')
+        data = json.loads(raw_response)
         
         # Prepare for fuzzy match
         item_texts = []
