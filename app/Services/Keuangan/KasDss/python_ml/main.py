@@ -613,41 +613,61 @@ def build_adjustment_lines(group, req):
         })
     return out
 
+def get_st_model():
+    """Return (and cache) the shared Sentence Transformers model."""
+    if "st_model" not in models:
+        from sentence_transformers import SentenceTransformer
+        models["st_model"] = SentenceTransformer(
+            "paraphrase-multilingual-MiniLM-L12-v2", device="cpu"
+        )
+    return models["st_model"]
+
+
+def st_rank_indices(query: str, corpus: list, top_k: int = 30):
+    """Return (sorted indices, scores array) for corpus ranked by ST similarity."""
+    try:
+        from sentence_transformers import util
+        st = get_st_model()
+        q_emb  = st.encode(query, convert_to_tensor=True)
+        c_embs = st.encode(corpus, convert_to_tensor=True, batch_size=64, show_progress_bar=False)
+        scores = util.cos_sim(q_emb, c_embs)[0].cpu().numpy()
+        ranked = scores.argsort()[::-1][:top_k]
+        return ranked, scores
+    except Exception:
+        import numpy as np
+        scores = np.zeros(len(corpus))
+        return list(range(min(top_k, len(corpus)))), scores
+
+
 def suggest_from_history(mode, cleaned_input, dpp, max_lines):
     hist = models.get(f"history_{mode}")
     if not hist or cleaned_input == "":
         return None
 
     try:
-        vectorizer = hist["vectorizer"]
-        matrix = hist["matrix"]
-        df = hist["df"]
-        query_vec = vectorizer.transform([cleaned_input])
-        sims = cosine_similarity(query_vec, matrix)[0]
-        if len(sims) == 0:
-            return None
-        for idx in sims.argsort()[-25:][::-1]:
-            idx = int(idx)
-            score = float(sims[idx])
+        df     = hist["df"]
+        corpus = hist["corpus"]
+        ranked, scores = st_rank_indices(cleaned_input, corpus, top_k=25)
+
+        for idx in ranked:
+            idx   = int(idx)
+            score = float(scores[idx])
             if score < 0.12:
                 break
-
-            row = df.iloc[idx]
+            row   = df.iloc[idx]
             lines = build_history_lines(row, dpp, max_lines, mode, cleaned_input)
             if not lines:
                 continue
-
             return {
                 "lines": lines,
                 "score": score,
                 "evidence": {
                     "Kode_Voucher": str(row.get("Kode_Voucher") or ""),
-                    "Tgl_Voucher": str(row.get("Tgl_Voucher") or ""),
-                    "Keterangan": str(row.get("Keterangan") or ""),
+                    "Tgl_Voucher":  str(row.get("Tgl_Voucher")  or ""),
+                    "Keterangan":   str(row.get("Keterangan")   or ""),
                     "score": round(score, 4)
                 }
             }
-
         return None
     except Exception:
         return None
@@ -687,11 +707,8 @@ def train_models():
         if len(df) < 10:
             continue
 
-        hist_vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=8000)
-        hist_matrix = hist_vectorizer.fit_transform(df['X'])
         models[f"history_{mode}"] = {
-            "vectorizer": hist_vectorizer,
-            "matrix": hist_matrix,
+            "corpus": df['X'].tolist(),
             "df": df.reset_index(drop=True)
         }
         
@@ -875,14 +892,13 @@ def predict_input_pembelian(req: PurchaseSuggestRequest):
     if len(df) == 0:
         return resp
 
-    vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=6000)
-    matrix = vectorizer.fit_transform(df["X"])
-    sims = cosine_similarity(vectorizer.transform([query]), matrix)[0]
+    corpus = df["X"].tolist()
+    ranked, scores = st_rank_indices(query, corpus, top_k=30)
 
     best = None
-    for idx in sims.argsort()[-30:][::-1]:
+    for idx in ranked:
         idx = int(idx)
-        score = float(sims[idx])
+        score = float(scores[idx])
         row = df.iloc[idx]
         lines = build_purchase_lines(row, dpp, has_ppn)
         if not lines:
@@ -895,7 +911,7 @@ def predict_input_pembelian(req: PurchaseSuggestRequest):
             lines = build_purchase_lines(row, dpp, has_ppn)
             if not lines:
                 continue
-            score = float(sims[int(idx)]) if int(idx) < len(sims) else 0.0
+            score = float(scores[int(idx)]) if int(idx) < len(scores) else 0.0
             best = (row, lines, max(score, 0.01))
             break
 
@@ -988,18 +1004,17 @@ def predict_input_penjualan(req: SalesSuggestRequest):
     if len(df) == 0:
         return sales_default_response(0.25)
 
-    vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=6000)
-    matrix = vectorizer.fit_transform(df["X"])
-    sims = cosine_similarity(vectorizer.transform([query]), matrix)[0]
+    corpus = df["X"].tolist()
+    ranked, scores = st_rank_indices(query, corpus, top_k=30)
 
     best = None
-    for idx in sims.argsort()[-30:][::-1]:
+    for idx in ranked:
         idx = int(idx)
         row = df.iloc[idx]
         lines = build_sales_lines(row, dpp, has_ppn)
         if not lines:
             continue
-        best = (row, lines, float(sims[idx]))
+        best = (row, lines, float(scores[idx]))
         break
 
     if not best:
@@ -1007,7 +1022,7 @@ def predict_input_penjualan(req: SalesSuggestRequest):
             lines = build_sales_lines(row, dpp, has_ppn)
             if not lines:
                 continue
-            score = float(sims[int(idx)]) if int(idx) < len(sims) else 0.0
+            score = float(scores[int(idx)]) if int(idx) < len(scores) else 0.0
             best = (row, lines, max(score, 0.01))
             break
 
@@ -1099,17 +1114,16 @@ def predict_jurnal_penyesuaian(req: AdjustmentSuggestRequest):
     if not grouped:
         return resp
 
-    vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=6000)
-    matrix = vectorizer.fit_transform([g["text"] for g in grouped])
-    sims = cosine_similarity(vectorizer.transform([clean_text(remark)]), matrix)[0]
+    corpus  = [g["text"] for g in grouped]
+    ranked, scores = st_rank_indices(clean_text(remark), corpus, top_k=30)
 
     best = None
-    for idx in sims.argsort()[-30:][::-1]:
-        idx = int(idx)
+    for idx in ranked:
+        idx  = int(idx)
         lines = build_adjustment_lines(grouped[idx]["group"], req)
         if not lines:
             continue
-        best = (grouped[idx], lines, float(sims[idx]))
+        best = (grouped[idx], lines, float(scores[idx]))
         break
 
     if not best:
@@ -1342,9 +1356,34 @@ DILARANG MENGEMBALIKAN TEKS SELAIN JSON DI ATAS. PASTIKAN JSON VALID.
 
     items = resolved_items
 
-    cust_match = fuzzy_match_items([data.get('nm_customer', '')], conn, "tb_cs", "kd_cs", "nm_cs")
-    kd_cs = cust_match[0][0] if cust_match[0] else ""
-    nm_cs = cust_match[0][1] if cust_match[0] else data.get('nm_customer', '')
+    # --- Customer matching with Sentence Transformers ---
+    kd_cs = ""
+    nm_cs = data.get('nm_customer', '')
+    try:
+        from sentence_transformers import SentenceTransformer, util
+        if "st_model" not in models:
+            models["st_model"] = SentenceTransformer(
+                "paraphrase-multilingual-MiniLM-L12-v2", device="cpu"
+            )
+        st_model = models["st_model"]
+
+        cursor_cs = conn.cursor(dictionary=True)
+        cursor_cs.execute("SELECT kd_cs, nm_cs FROM tb_cs")
+        all_customers = cursor_cs.fetchall()
+        cursor_cs.close()
+
+        if all_customers and nm_cs:
+            cs_names   = [str(r['nm_cs']).strip() for r in all_customers]
+            cs_embeds  = st_model.encode(cs_names, convert_to_tensor=True, batch_size=128, show_progress_bar=False)
+            q_embed    = st_model.encode(nm_cs, convert_to_tensor=True)
+            scores     = util.cos_sim(q_embed, cs_embeds)[0]
+            best_idx   = int(scores.argmax())
+            best_score = float(scores[best_idx])
+            if best_score >= 0.35:
+                kd_cs = str(all_customers[best_idx]['kd_cs'])
+                nm_cs = str(all_customers[best_idx]['nm_cs'])
+    except Exception:
+        pass
 
     conn.close()
 
