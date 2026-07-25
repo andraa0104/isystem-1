@@ -1265,8 +1265,8 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
   "items": [
       {{
-          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING - LOGIKA BERPIKIR: 1. Identifikasi BENDA FISIK UTAMA (contoh: 'Sickle'->Egrek, 'Axe for harvesting'->Kapak Kayu / Kapak yg ada gagangnya). WAJIB BENDA FISIK, DILARANG KERAS memilih Buku Panduan, Jasa, atau judul Tanaman (seperti 'Budidaya Kelapa Sawit')! 2. Cari benda tersebut di list katalog. Jika ada yang persis sama maknanya secara fisik utuh, isi kodenya. Jika tidak ada yang sama, kosongkan.",
-          "desc": "JIKA KODE KOSONG: Isi dengan MAKSIMAL 2 KATA BENDA FISIK UTAMA (Contoh: 'Kapak', 'Egrek'). DILARANG KERAS menuliskan kata kerja, sifat, atau keterangan (seperti 'untuk panen', 'buah', 'tajam'). HANYA NAMA BENDANYA SAJA agar sistem tidak salah menebak! JANGAN masukkan qty.",
+          "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. PENTING - ATURAN PERKEBUNAN KELAPA SAWIT: 1. Jika ada 'Oil Palm Sickle' / 'Sickle', ITU ADALAH 'EGREK HITAM' (DILARANG KERAS jadikan 'Sabit' / Brush Strainer). 2. Jika ada 'Axe for Harvesting' / 'Axe', ITU ADALAH 'Kapak Buah + Gagang' atau sejenis 'Kapak' lengkap untuk panen! 3. Cari wujud benda di list katalog. Jika ada yang maknanya persis, isi kodenya. Jika tidak ada yang wujudnya sama secara fisik, kosongkan. DILARANG memilih Buku Panduan / Jurnal Tanaman (seperti 'Budidaya Kelapa Sawit')!",
+          "desc": "JIKA KODE KOSONG: Isi dengan NAMA BENDA FISIK UTAMA dalam istilah sawit (Contoh: 'Kapak Buah', 'Egrek'). DILARANG MENULIS KATA SIFAT/KETERANGAN (spt 'untuk panen', 'tajam') agar mesin pencari tidak bingung! JANGAN masukkan qty.",
           "qty": "Jumlah barang (float/int)",
           "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
       }}
