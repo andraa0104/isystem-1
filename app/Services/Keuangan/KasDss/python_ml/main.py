@@ -1306,7 +1306,23 @@ Isi Dokumen PO:
             raise HTTPException(status_code=500, detail="Gagal menghubungi Ollama Qwen lokal")
             
         raw_response = response.json().get('response', '{}')
-        data = json.loads(raw_response)
+        # Clean markdown if present
+        import re
+        json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(0))
+            except json.JSONDecodeError:
+                data = {}
+        else:
+            try:
+                data = json.loads(raw_response)
+            except json.JSONDecodeError:
+                data = {}
+        
+        print("====== QWEN OCR OUTPUT ======")
+        print(raw_response)
+        print("=============================")
         
         # Prepare for fuzzy match
         item_texts = []
