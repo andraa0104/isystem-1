@@ -1277,8 +1277,8 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "payment": "Syarat Pembayaran. ATURAN: (1) Jika berupa kata umum seperti Cash/Tunai, ambil kata tersebut SAJA tanpa persen atau keterangan tambahan (misal: Cash 100% → tulis Cash, Tunai 50% → tulis Tunai). (2) Jika berupa jumlah hari seperti '30 days', '45 hari', 'NET 30' → tulis angka + Hari saja (misal: 30 Hari, 45 Hari). (3) Jika berupa tanggal jatuh tempo (contoh: 31 August 2026), tulis tanggal tersebut dalam format yyyy-mm-dd.",
   "franco": "Lokasi franco loco atau area pengiriman. Abaikan jika detail kepanjangan, ambil lokasi intinya saja.",
   "ppn_pct": "Pajak Pertambahan Nilai atau PPN (Angka int, misal 11 jika 11%, atau 0 jika tidak ada)",
-  "kd_customer": "SANGAT PENTING: Dokumen ini adalah Purchase Order yang DITERBITKAN/DIKIRIM OLEH perusahaan PEMBELI kepada vendor/supplier. Tugasmu adalah menemukan nama perusahaan PEMBELI yang menerbitkan PO ini. CARA IDENTIFIKASI: Nama pembeli umumnya tercetak di KOP SURAT bagian atas halaman (bisa posisi kiri, tengah, atau kanan), biasanya berupa PT/CV diikuti nama perusahaan. PENTING: JANGAN mengambil nama dari bagian 'Kepada/To/Vendor/Supplier/Attention' karena itu nama vendor penerima, bukan pembeli. Setelah menemukan nama pembeli, cocokkan ke katalog ini: [{cs_str}]. Isi kodenya jika cocok, atau string kosong jika tidak ada.",
-  "nm_customer": "Nama lengkap perusahaan PEMBELI (penerbit PO ini, bukan vendor/supplier penerima). Ambil dari kop surat dokumen. Jika kode ditemukan di katalog, gunakan nama dari katalog. Jika tidak, tulis nama aslinya dari dokumen.",
+  "kd_customer": "SANGAT PENTING: Dokumen PO ini selalu dikirimkan KEPADA CV. SEMESTA JAYA ABADI. Jadi CV. SEMESTA JAYA ABADI / PT. SEMESTA JAYA ABADI ADALAH KAMI/PENJUAL BUKAN CUSTOMER/PEMBELI! Haram hukumnya menjadikan SEMESTA JAYA ABADI sebagai customer. Kamu WAJIB mencari nama perusahaan PEMBELI / BUYER yang letaknya PALING ATAS (kiri, tengah, kanan halam) yang mencantumkan logo/tulisan PT, CV, atau nama perusahaannya. JANGAN ambil teks dari blok 'Kepada/To/Vendor/Deliver to'. Setelah dapat nama perusahaan kop surat, temukan di katalog ini: [{cs_str}]. Isi kode jika ada.",
+  "nm_customer": "Nama lengkap perusahaan PEMBELI (Nama yang ada di Kop/Header paling atas). MUTLAK: JANGAN PERNAH mengisi ini dengan 'SEMESTA JAYA ABADI'. Tulis nama perusahaannya dari teks jika kode tidak ada di katalog.",
   "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
   "items": [
       {{
@@ -1406,25 +1406,24 @@ Isi Dokumen PO:
 
         # Fallback to Smart Local Match if no exact code
         matched = False
-        if txt and db_names:
+        if txt and all_materials:
             try:
-                scores = smart_local_match(txt, db_names)
-                if scores:
-                    import numpy as np
-                    best_idx = int(np.argmax(scores))
-                    best_score = float(scores[best_idx])
-                    
-                    if best_score > 0.40:
-                        best_row = all_materials[best_idx]
-                        resolved_items.append({
-                            "kd_brg": str(best_row['kd_material']),
-                            "nm_brg": str(best_row['material']),
-                            "nm_brg_ocr": txt,
-                            "qty": qty,
-                            "price": price,
-                            "remark": r_txt
-                        })
-                        matched = True
+                # Kirim seluruh daftar material (dibatasi 3000 item agar konteks proporsional) ke Ollama
+                candidates = [{"id": r['kd_material'], "name": r['material']} for r in all_materials[:3000]]
+                chosen_id = ollama_deep_match(txt, candidates, match_type="item")
+                if chosen_id and str(chosen_id).strip() != "NONE":
+                    for c in candidates:
+                        if str(c['id']) == str(chosen_id).strip():
+                            resolved_items.append({
+                                "kd_brg": c['id'],
+                                "nm_brg": c['name'],
+                                "nm_brg_ocr": txt,
+                                "qty": qty,
+                                "price": price,
+                                "remark": r_txt
+                            })
+                            matched = True
+                            break
             except Exception as st_err:
                 import traceback; traceback.print_exc()
 
@@ -1450,16 +1449,15 @@ Isi Dokumen PO:
             pass # Already populated by data.get further up implicitly handled by caller mapping... wait, let's map it:
             nm_cs = cs_by_code[str(kd_cs)]['nm_cs']
         elif all_customers and nm_cs:
-            cs_names = [str(r['nm_cs']).strip() for r in all_customers]
-            scores   = smart_local_match(nm_cs, cs_names)
-            
-            if scores:
-                import numpy as np
-                best_idx   = int(np.argmax(scores))
-                best_score = float(scores[best_idx])
-                if best_score > 0.35:
-                    kd_cs = str(all_customers[best_idx]['kd_cs'])
-                    nm_cs = str(all_customers[best_idx]['nm_cs'])
+            # Kirim seluruh daftar customer (dibatasi 3000 agar tidak out of memory) ke Ollama langsung
+            candidates = [{"id": r['kd_cs'], "name": r['nm_cs']} for r in all_customers[:3000]]
+            chosen_id = ollama_deep_match(nm_cs, candidates, match_type="customer")
+            if chosen_id and str(chosen_id).strip() != "NONE":
+                for c in candidates:
+                    if str(c['id']) == str(chosen_id).strip():
+                        kd_cs = c['id']
+                        nm_cs = c['name']
+                        break
     except Exception:
         import traceback; traceback.print_exc()
 
