@@ -367,12 +367,13 @@ class PurchaseOrderInController
                 $file->getClientOriginalName()
             );
 
+            set_time_limit(180);
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, 'http://127.0.0.1:8020/scan-po');
             curl_setopt($ch, CURLOPT_POST, 1);
             curl_setopt($ch, CURLOPT_POSTFIELDS, ['file' => $cfile]);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 180);
 
             $result   = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
