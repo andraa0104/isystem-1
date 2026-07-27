@@ -39,12 +39,6 @@ class SetTenantDatabase
 
             if ($currentDatabase !== $database) {
                 config(["database.connections.$connection.database" => $database]);
-                config(["database.connections.clickhouse.database" => $database]);
-                DB::purge("clickhouse");
-                try {
-                    DB::reconnect("clickhouse");
-                } catch (\Exception $e) {
-                }
                 DB::purge($connection);
                 try {
                     DB::reconnect($connection);

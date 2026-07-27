@@ -60,12 +60,6 @@ class SimpleAuthController extends Controller
         config(['database.default' => $connection]);
         DB::setDefaultConnection($connection);
         config(["database.connections.$connection.database" => $database]);
-        config(["database.connections.clickhouse.database" => $database]);
-        DB::purge("clickhouse");
-        try {
-            DB::reconnect("clickhouse");
-        } catch (\Exception $e) {
-        }
         DB::purge($connection);
         DB::reconnect($connection);
 
@@ -169,12 +163,6 @@ class SimpleAuthController extends Controller
             config(['database.default' => $connection]);
             DB::setDefaultConnection($connection);
             config(["database.connections.$connection.database" => $database]);
-        config(["database.connections.clickhouse.database" => $database]);
-        DB::purge("clickhouse");
-        try {
-            DB::reconnect("clickhouse");
-        } catch (\Exception $e) {
-        }
             DB::purge($connection);
             DB::reconnect($connection);
 
@@ -269,12 +257,6 @@ class SimpleAuthController extends Controller
         config(['database.default' => $connection]);
         DB::setDefaultConnection($connection);
         config(["database.connections.$connection.database" => $database]);
-        config(["database.connections.clickhouse.database" => $database]);
-        DB::purge("clickhouse");
-        try {
-            DB::reconnect("clickhouse");
-        } catch (\Exception $e) {
-        }
         DB::purge($connection);
         DB::reconnect($connection);
 

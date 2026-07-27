@@ -722,7 +722,7 @@ class DashboardController
             return $this->getSalesHppWeeklyStatsForMonth();
         }
 
-        $now = \Illuminate\Support\Carbon::now()->endOfMonth();
+        $now = Carbon::now()->endOfMonth();
         $months = 3;
 
         if ($period === '5_months') {
@@ -731,6 +731,8 @@ class DashboardController
             $months = 12;
         }
 
+        // We want to go back $months - 1 from current month to include current month
+        // e.g., 3 months: Current, Current-1, Current-2
         $start = $now->copy()->startOfMonth()->subMonths($months - 1);
 
         $result = [
@@ -752,46 +754,65 @@ class DashboardController
         $biayaLastUpdate = null;
 
         if ($group === 'week') {
-            $endWeekStart = \Illuminate\Support\Carbon::now()->startOfWeek(\Illuminate\Support\Carbon::MONDAY);
-            $startWeekStart = \Illuminate\Support\Carbon::now()
+            $endWeekStart = Carbon::now()->startOfWeek(Carbon::MONDAY);
+            $startWeekStart = Carbon::now()
                 ->startOfMonth()
                 ->subMonths($months - 1)
-                ->startOfWeek(\Illuminate\Support\Carbon::MONDAY);
-            
-            $nowStr = \Illuminate\Support\Carbon::now()->toDateString();
-            $startStr = $startWeekStart->toDateString();
+                ->startOfWeek(Carbon::MONDAY);
 
-            $salesData = collect(DB::connection('clickhouse')->select("
-                SELECT toYearWeek(tgl_doc, 1) as week_key, SUM(harga) as total 
-                FROM tb_kdfakturpenjualan 
-                WHERE tgl_doc >= '{$startStr}' AND tgl_doc <= '{$nowStr}' 
-                GROUP BY week_key
-            "))->pluck('total', 'week_key')->toArray();
+            // Sales grouped by week
+            $salesData = [];
+            if (Schema::hasTable('tb_kdfakturpenjualan')) {
+                $salesData = DB::table('tb_kdfakturpenjualan')
+                    ->selectRaw('YEARWEEK(tgl_doc, 1) as week_key, SUM(harga) as total')
+                    ->where('tgl_doc', '>=', $startWeekStart->toDateString())
+                    ->where('tgl_doc', '<=', Carbon::now()->toDateString())
+                    ->groupBy('week_key')
+                    ->pluck('total', 'week_key');
 
-            $salesLastUpdateInfo = DB::connection('clickhouse')->select("SELECT MAX(tgl_doc) as lst FROM tb_kdfakturpenjualan WHERE tgl_doc >= '{$startStr}'");
-            $salesLastUpdate = $salesLastUpdateInfo[0]['lst'] ?? null;
+                $salesLastUpdate = DB::table('tb_kdfakturpenjualan')
+                    ->selectRaw('MAX(tgl_doc) as last_update')
+                    ->where('tgl_doc', '>=', $startWeekStart->toDateString())
+                    ->value('last_update');
+            }
 
-            $hppData = collect(DB::connection('clickhouse')->select("
-                SELECT toYearWeek(parseDateTimeBestEffortOrNull(pos_tgl), 1) as week_key, SUM(COALESCE(total, 0)) as total
-                FROM (SELECT pos_tgl, total FROM tb_do UNION ALL SELECT pos_tgl, total FROM tb_dob) AS d
-                WHERE parseDateTimeBestEffortOrNull(pos_tgl) >= '{$startStr}' AND parseDateTimeBestEffortOrNull(pos_tgl) <= '{$nowStr}'
-                GROUP BY week_key
-            "))->pluck('total', 'week_key')->toArray();
+            // HPP grouped by week
+            $hppData = [];
+            $hppQuery = $this->tbDoHppQuery();
+            if ($hppQuery) {
+                $hppData = $hppQuery
+                    ->selectRaw("YEARWEEK(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), 1) as week_key, SUM(COALESCE(d.total,0)) as total")
+                    ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeekStart->toDateString()])
+                    ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [Carbon::now()->toDateString()])
+                    ->groupBy('week_key')
+                    ->pluck('total', 'week_key');
 
-            $hppLastUpdateInfo = DB::connection('clickhouse')->select("SELECT MAX(parseDateTimeBestEffortOrNull(pos_tgl)) as lst FROM (SELECT pos_tgl, total FROM tb_do UNION ALL SELECT pos_tgl, total FROM tb_dob) AS d WHERE parseDateTimeBestEffortOrNull(pos_tgl) >= '{$startStr}'");
-            $hppLastUpdate = $hppLastUpdateInfo[0]['lst'] ?? null;
+                $hppLastUpdateRaw = $this->tbDoHppQuery()
+                    ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
+                    ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeekStart->toDateString()])
+                    ->value('last_update');
+                $hppLastUpdate = $hppLastUpdateRaw;
+            }
 
-            $biayaData = collect(DB::connection('clickhouse')->select("
-                SELECT toYearWeek(Tgl_Voucher, 1) as week_key, SUM(COALESCE(Nominal1,0)) as total
-                FROM tb_kas
-                WHERE Kode_Akun1 LIKE '51%' AND Jenis_Beban1 = 'Debit'
-                  AND Tgl_Voucher >= '{$startStr}' AND Tgl_Voucher <= '{$nowStr}'
-                GROUP BY week_key
-            "))->pluck('total', 'week_key')->toArray();
+            // Biaya (Beban) from tb_kas: Kode_Akun1 starts with 51, Jenis_Beban1 Debit.
+            $biayaData = [];
+            $biayaQuery = $this->tbKasBiayaQuery();
+            if ($biayaQuery) {
+                $biayaData = $biayaQuery
+                    ->selectRaw("YEARWEEK(k.Tgl_Voucher, 1) as week_key, SUM(COALESCE(k.Nominal1,0)) as total")
+                    ->where('k.Tgl_Voucher', '>=', $startWeekStart->toDateString())
+                    ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
+                    ->groupBy('week_key')
+                    ->pluck('total', 'week_key');
 
-            $biayaLastUpdateInfo = DB::connection('clickhouse')->select("SELECT MAX(Tgl_Voucher) as lst FROM tb_kas WHERE Kode_Akun1 LIKE '51%' AND Jenis_Beban1 = 'Debit' AND Tgl_Voucher >= '{$startStr}' AND Tgl_Voucher <= '{$nowStr}'");
-            $biayaLastUpdate = $biayaLastUpdateInfo[0]['lst'] ?? null;
+                $biayaLastUpdate = $this->tbKasBiayaQuery()
+                    ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
+                    ->where('k.Tgl_Voucher', '>=', $startWeekStart->toDateString())
+                    ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
+                    ->value('last_update');
+            }
 
+            // Build series by week
             $cursor = $startWeekStart->copy();
             while ($cursor->lte($endWeekStart)) {
                 $isoYear = (int) $cursor->isoWeekYear();
@@ -830,37 +851,59 @@ class DashboardController
             return $result;
         }
 
-        $nowStr = $now->toDateString();
-        $startStr = $start->toDateString();
+        // Pre-fetch all relevant data grouped by month to avoid N+1 queries in loop
+        // Sales: tgl_doc is DATE type (YYYY-MM-DD)
+        $salesData = [];
+        if (Schema::hasTable('tb_kdfakturpenjualan')) {
+            $salesData = DB::table('tb_kdfakturpenjualan')
+                ->selectRaw("DATE_FORMAT(tgl_doc, '%Y-%m') as month_key, SUM(harga) as total")
+                ->where('tgl_doc', '>=', $start->toDateString())
+                ->where('tgl_doc', '<=', $now->toDateString())
+                ->groupBy('month_key')
+                ->pluck('total', 'month_key');
+            
+             $salesLastUpdate = DB::table('tb_kdfakturpenjualan')
+                ->selectRaw("MAX(tgl_doc) as last_update")
+                ->where('tgl_doc', '>=', $start->toDateString())
+                ->value('last_update');
+        }
 
-        $salesData = collect(DB::connection('clickhouse')->select("
-            SELECT formatDateTime(tgl_doc, '%Y-%m') as month_key, SUM(harga) as total 
-            FROM tb_kdfakturpenjualan 
-            WHERE tgl_doc >= '{$startStr}' AND tgl_doc <= '{$nowStr}' 
-            GROUP BY month_key
-        "))->pluck('total', 'month_key')->toArray();
-        $salesLastUpdateInfo = DB::connection('clickhouse')->select("SELECT MAX(tgl_doc) as lst FROM tb_kdfakturpenjualan WHERE tgl_doc >= '{$startStr}'");
-        $salesLastUpdate = $salesLastUpdateInfo[0]['lst'] ?? null;
+        $hppData = [];
+        $hppQuery = $this->tbDoHppQuery();
+        if ($hppQuery) {
+            $hppData = $hppQuery
+                ->selectRaw("DATE_FORMAT(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), '%Y-%m') as month_key, SUM(COALESCE(d.total,0)) as total")
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [$now->toDateString()])
+                ->groupBy('month_key')
+                ->pluck('total', 'month_key');
 
-        $hppData = collect(DB::connection('clickhouse')->select("
-            SELECT formatDateTime(parseDateTimeBestEffortOrNull(pos_tgl), '%Y-%m') as month_key, SUM(COALESCE(total, 0)) as total
-            FROM (SELECT pos_tgl, total FROM tb_do UNION ALL SELECT pos_tgl, total FROM tb_dob) AS d
-            WHERE parseDateTimeBestEffortOrNull(pos_tgl) >= '{$startStr}' AND parseDateTimeBestEffortOrNull(pos_tgl) <= '{$nowStr}'
-            GROUP BY month_key
-        "))->pluck('total', 'month_key')->toArray();
-        $hppLastUpdateInfo = DB::connection('clickhouse')->select("SELECT MAX(parseDateTimeBestEffortOrNull(pos_tgl)) as lst FROM (SELECT pos_tgl, total FROM tb_do UNION ALL SELECT pos_tgl, total FROM tb_dob) AS d WHERE parseDateTimeBestEffortOrNull(pos_tgl) >= '{$startStr}'");
-        $hppLastUpdate = $hppLastUpdateInfo[0]['lst'] ?? null;
+            $hppLastUpdateRaw = $this->tbDoHppQuery()
+                 ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
+                 ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
+                 ->value('last_update');
+            $hppLastUpdate = $hppLastUpdateRaw;
+        }
 
-        $biayaData = collect(DB::connection('clickhouse')->select("
-            SELECT formatDateTime(Tgl_Voucher, '%Y-%m') as month_key, SUM(COALESCE(Nominal1,0)) as total
-            FROM tb_kas
-            WHERE Kode_Akun1 LIKE '51%' AND Jenis_Beban1 = 'Debit'
-              AND Tgl_Voucher >= '{$startStr}' AND Tgl_Voucher <= '{$nowStr}'
-            GROUP BY month_key
-        "))->pluck('total', 'month_key')->toArray();
-        $biayaLastUpdateInfo = DB::connection('clickhouse')->select("SELECT MAX(Tgl_Voucher) as lst FROM tb_kas WHERE Kode_Akun1 LIKE '51%' AND Jenis_Beban1 = 'Debit' AND Tgl_Voucher >= '{$startStr}' AND Tgl_Voucher <= '{$nowStr}'");
-        $biayaLastUpdate = $biayaLastUpdateInfo[0]['lst'] ?? null;
+        // Biaya (Beban) from tb_kas: Kode_Akun1 starts with 51, Jenis_Beban1 Debit.
+        $biayaData = [];
+        $biayaQuery = $this->tbKasBiayaQuery();
+        if ($biayaQuery) {
+            $biayaData = $biayaQuery
+                ->selectRaw("DATE_FORMAT(k.Tgl_Voucher, '%Y-%m') as month_key, SUM(COALESCE(k.Nominal1,0)) as total")
+                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
+                ->where('k.Tgl_Voucher', '<=', $now->toDateString())
+                ->groupBy('month_key')
+                ->pluck('total', 'month_key');
 
+            $biayaLastUpdate = $this->tbKasBiayaQuery()
+                ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
+                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
+                ->where('k.Tgl_Voucher', '<=', $now->toDateString())
+                ->value('last_update');
+        }
+
+        // Build series
         for ($i = 0; $i < $months; $i++) {
             $currentMonth = $start->copy()->addMonths($i);
             $key = $currentMonth->format('Y-m');
@@ -882,6 +925,7 @@ class DashboardController
             $result['summary']['biaya_total'] += $biaya;
         }
 
+        // Determine overall last update
         $lastUpdate = $salesLastUpdate;
         if ($hppLastUpdate && (!$lastUpdate || $hppLastUpdate > $lastUpdate)) {
             $lastUpdate = $hppLastUpdate;
@@ -893,11 +937,11 @@ class DashboardController
 
         return $result;
     }
+
     private function getSalesHppDailyStats(): array
     {
-        $now = \Illuminate\Support\Carbon::now();
-        $start = $now->copy()->subDays(6);
-        $end = $now->copy();
+        $end = Carbon::now()->startOfDay();
+        $start = $end->copy()->subDays(6);
 
         $result = [
             'summary' => [
@@ -906,45 +950,59 @@ class DashboardController
                 'biaya_total' => 0,
                 'last_update' => null,
             ],
-            'debug' => [
-                'received_period' => '1_week',
-                'calculated_days' => 7,
-            ],
             'series' => [],
         ];
 
-        
-        $startStr = $start->toDateString();
-        $endStr = $end->toDateString();
+        $salesData = [];
+        $salesLastUpdate = null;
+        if (Schema::hasTable('tb_kdfakturpenjualan')) {
+            $salesData = DB::table('tb_kdfakturpenjualan')
+                ->selectRaw("DATE_FORMAT(tgl_doc, '%Y-%m-%d') as day_key, SUM(harga) as total")
+                ->where('tgl_doc', '>=', $start->toDateString())
+                ->where('tgl_doc', '<=', $end->toDateString())
+                ->groupBy('day_key')
+                ->pluck('total', 'day_key');
 
-        $salesData = collect(\Illuminate\Support\Facades\DB::connection('clickhouse')->select("
-            SELECT formatDateTime(tgl_doc, '%Y-%m-%d') as day_key, SUM(harga) as total 
-            FROM tb_kdfakturpenjualan 
-            WHERE tgl_doc >= '{$startStr}' AND tgl_doc <= '{$endStr}' 
-            GROUP BY day_key
-        "))->pluck('total', 'day_key')->toArray();
-        $salesLastUpdateInfo = \Illuminate\Support\Facades\DB::connection('clickhouse')->select("SELECT MAX(tgl_doc) as lst FROM tb_kdfakturpenjualan WHERE tgl_doc >= '{$startStr}' AND tgl_doc <= '{$endStr}'");
-        $salesLastUpdate = $salesLastUpdateInfo[0]['lst'] ?? null;
+            $salesLastUpdate = DB::table('tb_kdfakturpenjualan')
+                ->selectRaw('MAX(tgl_doc) as last_update')
+                ->where('tgl_doc', '>=', $start->toDateString())
+                ->value('last_update');
+        }
 
-        $hppData = collect(\Illuminate\Support\Facades\DB::connection('clickhouse')->select("
-            SELECT formatDateTime(parseDateTimeBestEffortOrNull(pos_tgl), '%Y-%m-%d') as day_key, SUM(COALESCE(total, 0)) as total
-            FROM (SELECT pos_tgl, total FROM tb_do UNION ALL SELECT pos_tgl, total FROM tb_dob) AS d
-            WHERE parseDateTimeBestEffortOrNull(pos_tgl) >= '{$startStr}' AND parseDateTimeBestEffortOrNull(pos_tgl) <= '{$endStr}'
-            GROUP BY day_key
-        "))->pluck('total', 'day_key')->toArray();
-        $hppLastUpdateInfo = \Illuminate\Support\Facades\DB::connection('clickhouse')->select("SELECT MAX(parseDateTimeBestEffortOrNull(pos_tgl)) as lst FROM (SELECT pos_tgl, total FROM tb_do UNION ALL SELECT pos_tgl, total FROM tb_dob) AS d WHERE parseDateTimeBestEffortOrNull(pos_tgl) >= '{$startStr}' AND parseDateTimeBestEffortOrNull(pos_tgl) <= '{$endStr}'");
-        $hppLastUpdate = $hppLastUpdateInfo[0]['lst'] ?? null;
+        $hppData = [];
+        $hppLastUpdate = null;
+        $hppQuery = $this->tbDoHppQuery();
+        if ($hppQuery) {
+            $hppData = $hppQuery
+                ->selectRaw("DATE_FORMAT(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), '%Y-%m-%d') as day_key, SUM(COALESCE(d.total,0)) as total")
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [$end->toDateString()])
+                ->groupBy('day_key')
+                ->pluck('total', 'day_key');
 
-        $biayaData = collect(\Illuminate\Support\Facades\DB::connection('clickhouse')->select("
-            SELECT formatDateTime(Tgl_Voucher, '%Y-%m-%d') as day_key, SUM(COALESCE(Nominal1,0)) as total
-            FROM tb_kas
-            WHERE Kode_Akun1 LIKE '51%' AND Jenis_Beban1 = 'Debit'
-              AND Tgl_Voucher >= '{$startStr}' AND Tgl_Voucher <= '{$endStr}'
-            GROUP BY day_key
-        "))->pluck('total', 'day_key')->toArray();
-        $biayaLastUpdateInfo = \Illuminate\Support\Facades\DB::connection('clickhouse')->select("SELECT MAX(Tgl_Voucher) as lst FROM tb_kas WHERE Kode_Akun1 LIKE '51%' AND Jenis_Beban1 = 'Debit' AND Tgl_Voucher >= '{$startStr}' AND Tgl_Voucher <= '{$endStr}'");
-        $biayaLastUpdate = $biayaLastUpdateInfo[0]['lst'] ?? null;
+            $hppLastUpdate = $this->tbDoHppQuery()
+                ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
+                ->value('last_update');
+        }
 
+        $biayaData = [];
+        $biayaLastUpdate = null;
+        $biayaQuery = $this->tbKasBiayaQuery();
+        if ($biayaQuery) {
+            $biayaData = $biayaQuery
+                ->selectRaw("DATE_FORMAT(k.Tgl_Voucher, '%Y-%m-%d') as day_key, SUM(COALESCE(k.Nominal1,0)) as total")
+                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
+                ->where('k.Tgl_Voucher', '<=', $end->toDateString())
+                ->groupBy('day_key')
+                ->pluck('total', 'day_key');
+
+            $biayaLastUpdate = $this->tbKasBiayaQuery()
+                ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
+                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
+                ->where('k.Tgl_Voucher', '<=', $end->toDateString())
+                ->value('last_update');
+        }
 
         for ($i = 0; $i < 7; $i += 1) {
             $day = $start->copy()->addDays($i);
@@ -977,6 +1035,7 @@ class DashboardController
         return $result;
     }
 
+    // Tambahkan method ini di dalam class DashboardController
 
     private function buildStockSummary(): array
     {
@@ -1185,12 +1244,9 @@ class DashboardController
 
     private function getSalesHppWeeklyStatsForMonth(): array
     {
-        $now = \Illuminate\Support\Carbon::now();
-        $startOfMonth = $now->copy()->startOfMonth();
-        $endOfMonth = $now->copy();
-
-        $startStr = $startOfMonth->toDateString();
-        $endStr = $endOfMonth->toDateString();
+        // 4 minggu berjalan (termasuk minggu ini)
+        $endWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
+        $startWeek = $endWeek->copy()->subWeeks(3);
 
         $result = [
             'summary' => [
@@ -1199,48 +1255,61 @@ class DashboardController
                 'biaya_total' => 0,
                 'last_update' => null,
             ],
-            'debug' => [
-                'received_period' => '1_month',
-                'calculated_weeks' => 0,
-            ],
             'series' => [],
         ];
 
-        $salesData = collect(\Illuminate\Support\Facades\DB::connection('clickhouse')->select("
-            SELECT toYearWeek(tgl_doc, 1) as week_key, SUM(harga) as total 
-            FROM tb_kdfakturpenjualan 
-            WHERE tgl_doc >= '{$startStr}' AND tgl_doc <= '{$endStr}' 
-            GROUP BY week_key
-        "))->pluck('total', 'week_key')->toArray();
-        $salesLastUpdateInfo = \Illuminate\Support\Facades\DB::connection('clickhouse')->select("SELECT MAX(tgl_doc) as lst FROM tb_kdfakturpenjualan WHERE tgl_doc >= '{$startStr}' AND tgl_doc <= '{$endStr}'");
-        $salesLastUpdate = $salesLastUpdateInfo[0]['lst'] ?? null;
+        $salesData = [];
+        $salesLastUpdate = null;
+        if (Schema::hasTable('tb_kdfakturpenjualan')) {
+            $salesData = DB::table('tb_kdfakturpenjualan')
+                ->selectRaw('YEARWEEK(tgl_doc, 1) as week_key, SUM(harga) as total')
+                ->where('tgl_doc', '>=', $startWeek->toDateString())
+                ->where('tgl_doc', '<=', Carbon::now()->toDateString())
+                ->groupBy('week_key')
+                ->pluck('total', 'week_key');
 
-        $hppData = collect(\Illuminate\Support\Facades\DB::connection('clickhouse')->select("
-            SELECT toYearWeek(parseDateTimeBestEffortOrNull(pos_tgl), 1) as week_key, SUM(COALESCE(total, 0)) as total
-            FROM (SELECT pos_tgl, total FROM tb_do UNION ALL SELECT pos_tgl, total FROM tb_dob) AS d
-            WHERE parseDateTimeBestEffortOrNull(pos_tgl) >= '{$startStr}' AND parseDateTimeBestEffortOrNull(pos_tgl) <= '{$endStr}'
-            GROUP BY week_key
-        "))->pluck('total', 'week_key')->toArray();
-        $hppLastUpdateInfo = \Illuminate\Support\Facades\DB::connection('clickhouse')->select("SELECT MAX(parseDateTimeBestEffortOrNull(pos_tgl)) as lst FROM (SELECT pos_tgl, total FROM tb_do UNION ALL SELECT pos_tgl, total FROM tb_dob) AS d WHERE parseDateTimeBestEffortOrNull(pos_tgl) >= '{$startStr}' AND parseDateTimeBestEffortOrNull(pos_tgl) <= '{$endStr}'");
-        $hppLastUpdate = $hppLastUpdateInfo[0]['lst'] ?? null;
+            $salesLastUpdate = DB::table('tb_kdfakturpenjualan')
+                ->selectRaw('MAX(tgl_doc) as last_update')
+                ->where('tgl_doc', '>=', $startWeek->toDateString())
+                ->value('last_update');
+        }
 
-        $biayaData = collect(\Illuminate\Support\Facades\DB::connection('clickhouse')->select("
-            SELECT toYearWeek(Tgl_Voucher, 1) as week_key, SUM(COALESCE(Nominal1,0)) as total
-            FROM tb_kas
-            WHERE Kode_Akun1 LIKE '51%' AND Jenis_Beban1 = 'Debit'
-              AND Tgl_Voucher >= '{$startStr}' AND Tgl_Voucher <= '{$endStr}'
-            GROUP BY week_key
-        "))->pluck('total', 'week_key')->toArray();
-        $biayaLastUpdateInfo = \Illuminate\Support\Facades\DB::connection('clickhouse')->select("SELECT MAX(Tgl_Voucher) as lst FROM tb_kas WHERE Kode_Akun1 LIKE '51%' AND Jenis_Beban1 = 'Debit' AND Tgl_Voucher >= '{$startStr}' AND Tgl_Voucher <= '{$endStr}'");
-        $biayaLastUpdate = $biayaLastUpdateInfo[0]['lst'] ?? null;
+        $hppData = [];
+        $hppLastUpdate = null;
+        $hppQuery = $this->tbDoHppQuery();
+        if ($hppQuery) {
+            $hppData = $hppQuery
+                ->selectRaw("YEARWEEK(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), 1) as week_key, SUM(COALESCE(d.total,0)) as total")
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeek->toDateString()])
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [Carbon::now()->toDateString()])
+                ->groupBy('week_key')
+                ->pluck('total', 'week_key');
 
-        // Iterasikan minggu
-        $startWeek = $startOfMonth->copy()->startOfWeek(\Illuminate\Support\Carbon::MONDAY);
-        $endWeek = $endOfMonth->copy()->startOfWeek(\Illuminate\Support\Carbon::MONDAY);
-        
+            $hppLastUpdate = $this->tbDoHppQuery()
+                ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
+                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeek->toDateString()])
+                ->value('last_update');
+        }
+
+        $biayaData = [];
+        $biayaLastUpdate = null;
+        $biayaQuery = $this->tbKasBiayaQuery();
+        if ($biayaQuery) {
+            $biayaData = $biayaQuery
+                ->selectRaw("YEARWEEK(k.Tgl_Voucher, 1) as week_key, SUM(COALESCE(k.Nominal1,0)) as total")
+                ->where('k.Tgl_Voucher', '>=', $startWeek->toDateString())
+                ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
+                ->groupBy('week_key')
+                ->pluck('total', 'week_key');
+
+            $biayaLastUpdate = $this->tbKasBiayaQuery()
+                ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
+                ->where('k.Tgl_Voucher', '>=', $startWeek->toDateString())
+                ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
+                ->value('last_update');
+        }
+
         $cursor = $startWeek->copy();
-        $weekCount = 0;
-        
         while ($cursor->lte($endWeek)) {
             $isoYear = (int) $cursor->isoWeekYear();
             $isoWeek = (int) $cursor->isoWeek();
@@ -1253,7 +1322,7 @@ class DashboardController
 
             $result['series'][] = [
                 'period' => $key,
-                'label' => sprintf('W%d', $weekCount + 1),
+                'label' => sprintf('W%02d %d', $isoWeek, $isoYear),
                 'sales' => $sales,
                 'hpp' => $hpp,
                 'biaya' => $biaya,
@@ -1264,10 +1333,8 @@ class DashboardController
             $result['summary']['biaya_total'] += $biaya;
 
             $cursor->addWeek();
-            $weekCount++;
         }
-        $result['debug']['calculated_weeks'] = $weekCount;
-        
+
         $lastUpdate = $salesLastUpdate;
         if ($hppLastUpdate && (!$lastUpdate || $hppLastUpdate > $lastUpdate)) {
             $lastUpdate = $hppLastUpdate;
