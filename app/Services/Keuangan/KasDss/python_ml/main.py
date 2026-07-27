@@ -1271,9 +1271,9 @@ async def ocr_po(file: UploadFile = File(...)):
         prompt = f"""Anda adalah ahli akuntansi dan OCR tingkat dewa.
 Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan format sebagai murni JSON:
 {{
-  "ref_poin": "Nomor PO dari customer (string)",
-  "tgl": "Tanggal PO dalam format mutlak yyyy-mm-dd (jika ada nama bulan bahasa indonesia, konversi ke bulan angka)",
-  "delivery_date": "Tanggal Pengiriman / Jadwal dalam format mutlak yyyy-mm-dd. Jika tertulis '+45 hari' hitung dari tgl PO (jika ada nama bulan, konversi ke angka)",
+  "ref_poin": "Nomor surat pesanan/PO murni dari customer (string). ATURAN MUTLAK: HARUS dicari dari blok identitas dokumen (Kop/Header/Informasi Utama) dengan keyword 'PO No', 'PO Number', 'No. PO', 'Order No'. BUKAN No PR, BUKAN Supplier Qtn No, dan SANGAT DILARANG menggunakan teks dari deskripsi barang (jangan gunakan kode seperti BTL dsb). Ambil angkanya saja jika bentuknya 'PO No. : XXXXX'.",
+  "tgl": "Tanggal terbit PO (yyyy-mm-dd). Cari di Kop surat dekat nama kota (contoh: Samarinda, 17 July 2026) atau label 'PO Date'. PENTING: JANGAN mengambil tanggal Quotation (Qtn Date) atau tanggal Purchase Request (PR Date).",
+  "delivery_date": "Tanggal pengiriman barang (yyyy-mm-dd). WAJIB dari label pengiriman seperti 'Delivery Date', 'Delivery Due', 'Req. Date'. DILARANG KERAS menggunakan tanggal dari 'Supplier Qtn Date' atau 'PR Date'.",
   "payment": "Syarat Pembayaran (contoh: '45 Hari', 'Cash', '30 days due')",
   "franco": "Lokasi franco loco atau area pengiriman. Abaikan jika detail kepanjangan, ambil lokasi intinya saja.",
   "ppn_pct": "Pajak Pertambahan Nilai atau PPN (Angka int, misal 11 jika 11%, atau 0 jika tidak ada)",
@@ -1284,8 +1284,9 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
       {{
           "kode": "KODE BARANG DALAM KATALOG INI: [{mat_str}]. ATURAN PENCOCOKAN: 1. Cari barang di katalog yang persis sama maknanya secara wujud fisik. DILARANG memilih Buku Panduan / Jasa! 2. CONTOH KASUS KHUSUS DARI INGGRIS: 'Oil Palm Sickle / Sickle' = 'Egrek Hitam'. 'Axe for Harvesting' = 'Kapak Buah + Gagang'. 3. Jika ketemu di katalog, isi kodenya. Jika tidak ada yang sama secara fisik, kosongkan.",
           "desc": "JIKA KODE KOSONG: Tuliskan NAMA PRODUK FISIK + SPESIFIKASI PENTING (Contoh: 'Bola Lampu Tornado 24 Watt', 'Egrek Hitam'). JANGAN masukkan kalimat keterangan seperti 'untuk panen' atau 'digunakan untuk', buang kata kerja! Pertahankan nama merk/spek teknis agar sistem pencari kata bisa bekerja (Contoh: Philips Tornado 24 Watt -> Lampu Tornado 24 Watt). JANGAN masukkan qty.",
-          "qty": "Jumlah barang (float/int)",
-          "price": "Harga satuan dalam float/angka murni tanpa currency (contoh: 600000.0)"
+          "qty": "Jumlah barang pesanan (angka murni). WAJIB mengambil angka eksak dari bawah kolom 'Quantity' atau 'Qty'. SANGAT DILARANG melakukan perhitungan/pembagian matematis! SANGAT DILARANG mengambil angka dari dalam ukuran/satuan (misal: 5 dari 500ML adalah SALAH, 10 dari 10 GRAM adalah SALAH). Ambil HANYA angka quantity murni (contoh jika '10 BTL', isikan 10).",
+          "price": "Harga satuan (angka murni tanpa titik separator). WAJIB mengambil angka eksak dari bawah kolom 'Unit Price' atau 'Price'. SANGAT DILARANG mengambil dari kolom 'Total Price'! SANGAT DILARANG melakukan pembagian sendiri! Salin angka Unit Price apa adanya, misal tertulis 59.000 maka isikan 59000.0.",
+          "remark": "Salin SELURUH teks spesifikasi tambahan/baris kedua yang tertulis persis di bawah nama barang utama pada dokumen. WAJIB disalin secara UTUH, dan JANGAN diringkas! Contoh: Jika di bawah nama barang tertulis '*REXCO 18 SPECIALIST CONTACT CLEANER 500 ML', salin seluruh tulisan tersebut ke field ini."
       }}
   ]
 }}
@@ -1295,30 +1296,44 @@ Isi Dokumen PO:
 {extracted_text[:6000]}
 """
         import requests
-        qwen_api_key = os.getenv("QWEN_API_KEY", "sk-ws-H.XRERYM.l4Nu.MEUCIEQDL0TtdkuYnO3fdiXKP-Ur4itYfD-WTIzv7bIDwoJPAiEAlLJjzWlbn2GRiX2Tnc7RpJ_e5FYr-n59dgXogC6wbRs")
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
 
-        if not qwen_api_key:
-            raise HTTPException(status_code=500, detail="Qwen API Key belum disetting (QWEN_API_KEY)")
+        if not gemini_api_key:
+            raise HTTPException(status_code=500, detail="Gemini API Key belum disetting (GEMINI_API_KEY)")
 
         payload = {
-            "model": "qwen-plus",
-            "messages": [
-                {"role": "system", "content": "You are a helpful assistant that strictly outputs JSON."},
-                {"role": "user", "content": prompt}
-            ]
+            "contents": [
+                {
+                    "parts": [
+                        {"text": prompt}
+                    ]
+                }
+            ],
+            "systemInstruction": {
+                "parts": [
+                    {"text": "You are a helpful assistant that strictly outputs JSON."}
+                ]
+            },
+            "generationConfig": {
+                "response_mime_type": "application/json",
+            }
         }
         headers = {
-            "Authorization": f"Bearer {qwen_api_key}",
             "Content-Type": "application/json"
         }
         
-        response = requests.post("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", headers=headers, json=payload, timeout=300)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={gemini_api_key}"
+        response = requests.post(url, headers=headers, json=payload, timeout=300)
         
         if response.status_code != 200:
-            raise HTTPException(status_code=500, detail=f"Gagal menghubungi Qwen Cloud: {response.text}")
+            raise HTTPException(status_code=500, detail=f"Gagal menghubungi Gemini API: {response.text}")
             
         res_json = response.json()
-        raw_response = res_json['choices'][0]['message']['content']
+        try:
+            raw_response = res_json['candidates'][0]['content']['parts'][0]['text']
+        except (KeyError, IndexError):
+            raise HTTPException(status_code=500, detail=f"Format response Gemini API tidak terduga: {response.text}")
+            
         # Clean markdown if present
         import re
         json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
@@ -1333,7 +1348,7 @@ Isi Dokumen PO:
             except json.JSONDecodeError:
                 data = {}
         
-        print("====== QWEN OCR OUTPUT ======")
+        print("====== GEMINI OCR OUTPUT ======")
         print(raw_response)
         print("=============================")
         
@@ -1374,6 +1389,7 @@ Isi Dokumen PO:
         p     = item.get('price', 0)
         qty   = float(q) if q else 1.0
         price = float(p) if p else 0.0
+        r_txt = str(item.get('remark', '')).strip()
 
         # Exact Code Match from Gemini Context
         if code and code in mat_by_code:
@@ -1384,7 +1400,7 @@ Isi Dokumen PO:
                 "nm_brg_ocr": txt or code,
                 "qty": qty,
                 "price": price,
-                "remark": ""
+                "remark": r_txt
             })
             continue
 
@@ -1406,7 +1422,7 @@ Isi Dokumen PO:
                             "nm_brg_ocr": txt,
                             "qty": qty,
                             "price": price,
-                            "remark": ""
+                            "remark": r_txt
                         })
                         matched = True
             except Exception as st_err:
@@ -1415,12 +1431,12 @@ Isi Dokumen PO:
         # If completely unresolvable, push empty/raw row inline to preserve order
         if not matched:
             resolved_items.append({
-                "kd_brg": None,
-                "nm_brg": txt,
+                "kd_brg": "",
+                "nm_brg": "",
                 "nm_brg_ocr": txt,
                 "qty": qty,
                 "price": price,
-                "remark": ""
+                "remark": r_txt
             })
 
     items = resolved_items

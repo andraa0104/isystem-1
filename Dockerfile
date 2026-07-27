@@ -1,4 +1,4 @@
-FROM php:8.2-fpm-bullseye AS asset-builder
+FROM php:8.3-fpm-bullseye AS asset-builder
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -30,7 +30,7 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction --prefer-di
 RUN npm ci
 RUN npm run build && mkdir -p public/build
 
-FROM php:8.2-fpm-bullseye
+FROM php:8.3-fpm-bullseye
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
