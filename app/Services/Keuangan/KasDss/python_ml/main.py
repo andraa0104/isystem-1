@@ -1235,8 +1235,7 @@ def ollama_deep_match(raw_text: str, top_candidates: list, match_type: str = "cu
     if not raw_text or not top_candidates: return None
 
     # Construct options string
-    opts_str = "
-".join([f"ID: {str(c['id'])}, NAMA: {str(c['name'])}" for c in top_candidates])
+    opts_str = "\n".join([f"ID: {str(c['id'])}, NAMA: {str(c['name'])}" for c in top_candidates])
 
     if match_type == "customer":
         prompt = f"""Tugas Anda adalah data-matching. Anda harus mencari nama perusahaan mana dalam DATABASE yang SAMA PERSIS dengan teks MENTAH pelanggan.
