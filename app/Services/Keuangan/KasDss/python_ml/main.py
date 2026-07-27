@@ -1222,6 +1222,72 @@ def fuzzy_match_items(texts, conn, table, col_kode, col_nama, threshold=0.1):
             
     return results
 
+
+def ollama_deep_match(raw_text: str, top_candidates: list, match_type: str = "customer"):
+    """
+    Asks the local Ollama Qwen model to pick the correct Database ID from the TF-IDF candidates.
+    Returns the exact ID string or None.
+    """
+    import urllib.request
+    import json
+    import os
+
+    if not raw_text or not top_candidates: return None
+
+    # Construct options string
+    opts_str = "
+".join([f"ID: {str(c['id'])}, NAMA: {str(c['name'])}" for c in top_candidates])
+
+    if match_type == "customer":
+        prompt = f"""Tugas Anda adalah data-matching. Anda harus mencari nama perusahaan mana dalam DATABASE yang SAMA PERSIS dengan teks MENTAH pelanggan.
+TEKS MENTAH DARI DOKUMEN: "{raw_text}"
+
+KANDIDAT DATABASE:
+{opts_str}
+
+ATURAN:
+1. Jika tidak ada yang cocok sama sekali secara logika/makna, jawab dengan kata: "NONE"
+2. Jika ada yang cocok, balas HANYA dengan ID-nya, tanpa penjelasan apapun, tanpa tanda kutip. Contoh balasan murni: CST00045"""
+    else:
+        prompt = f"""Tugas Anda adalah data-matching nama barang.
+TEKS BARANG DARI PO: "{raw_text}"
+
+KANDIDAT BARANG DI DATABASE:
+{opts_str}
+
+ATURAN:
+1. Pilih satu barang dari database yang secara wujud fisik, merk, atau fungsi paling identik.
+2. Jika tidak ada yang cocok/meragukan, balas dengan kata: "NONE".
+3. Jika yakin cocok, balas HANYA dengan ID-nya secara murni. Contoh balasan murni: M02-005"""
+
+    data = {
+        "model": "qwen2.5-vl:3b",
+        "prompt": prompt,
+        "stream": False,
+        "options": {
+            "temperature": 0.0
+        }
+    }
+
+    try:
+        req = urllib.request.Request("http://127.0.0.1:11434/api/generate", data=json.dumps(data).encode('utf-8'))
+        req.add_header('Content-Type', 'application/json')
+        with urllib.request.urlopen(req, timeout=10) as response:
+            res = json.loads(response.read().decode('utf-8'))
+            ans = res.get('response', '').strip()
+            # Clean possible markdown or weird chat
+            ans = ans.replace('"', '').replace("'", "").strip()
+            # If Qwen decides to yap, try to find the ID keyword
+            for c in top_candidates:
+                if str(c['id']).strip() in ans:
+                    return str(c['id'])
+            if "NONE" in ans.upper():
+                return None
+            return ans
+    except Exception as e:
+        print(f"Ollama Error: {e}")
+        return None
+
 @app.post("/ocr-po")
 
 async def ocr_po(file: UploadFile = File(...)):
