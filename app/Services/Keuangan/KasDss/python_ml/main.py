@@ -1438,7 +1438,7 @@ Isi Dokumen PO:
                                     
                 if not matched and scores:
                     best_idx = int(np.argmax(scores))
-                    if float(scores[best_idx]) > 0.50:
+                    if float(scores[best_idx]) > 0.35:
                         resolved_items.append({
                             "kd_brg": str(all_materials[best_idx]['kd_material']),
                             "nm_brg": str(all_materials[best_idx]['material']),
@@ -1497,7 +1497,7 @@ Isi Dokumen PO:
                     else:
                         # Auto fallback if very confident
                         best_idx = int(np.argmax(scores))
-                        if float(scores[best_idx]) > 0.50:
+                        if float(scores[best_idx]) > 0.35:
                             kd_cs = str(all_customers[best_idx]['kd_cs'])
                             nm_cs = str(all_customers[best_idx]['nm_cs'])
     except Exception:
