@@ -1274,11 +1274,11 @@ Ekstrak secara presisi data berikut dari lampiran Dokumen Purchase Order, dan fo
   "ref_poin": "Nomor surat pesanan/PO murni dari customer (string). ATURAN MUTLAK: HARUS dicari dari blok identitas dokumen (Kop/Header/Informasi Utama) dengan keyword 'PO No', 'PO Number', 'No. PO', 'Order No'. BUKAN No PR, BUKAN Supplier Qtn No, dan SANGAT DILARANG menggunakan teks dari deskripsi barang (jangan gunakan kode seperti BTL dsb). Ambil angkanya saja jika bentuknya 'PO No. : XXXXX'.",
   "tgl": "Tanggal terbit PO (yyyy-mm-dd). Cari di Kop surat dekat nama kota (contoh: Samarinda, 17 July 2026) atau label 'PO Date'. PENTING: JANGAN mengambil tanggal Quotation (Qtn Date) atau tanggal Purchase Request (PR Date).",
   "delivery_date": "Tanggal pengiriman barang (yyyy-mm-dd). WAJIB dari label pengiriman seperti 'Delivery Date', 'Delivery Due', 'Req. Date'. DILARANG KERAS menggunakan tanggal dari 'Supplier Qtn Date' atau 'PR Date'.",
-  "payment": "Syarat Pembayaran (contoh: '45 Hari', 'Cash', '30 days due')",
+  "payment": "Syarat Pembayaran. ATURAN: (1) Jika berupa kata umum seperti Cash/Tunai, ambil kata tersebut SAJA tanpa persen atau keterangan tambahan (misal: Cash 100% → tulis Cash, Tunai 50% → tulis Tunai). (2) Jika berupa jumlah hari seperti '30 days', '45 hari', 'NET 30' → tulis angka + Hari saja (misal: 30 Hari, 45 Hari). (3) Jika berupa tanggal jatuh tempo (contoh: 31 August 2026), tulis tanggal tersebut dalam format yyyy-mm-dd.",
   "franco": "Lokasi franco loco atau area pengiriman. Abaikan jika detail kepanjangan, ambil lokasi intinya saja.",
   "ppn_pct": "Pajak Pertambahan Nilai atau PPN (Angka int, misal 11 jika 11%, atau 0 jika tidak ada)",
-  "kd_customer": "SANGAT PENTING: Cari nama PEMBELI (Buyer Company) di PDF yang menerbitkan kop surat, lalu temukan kodenya di katalog ini: [{cs_str}]. JIKA ADA yang cocok secara logika perusahaan, isi dengan kodenya. Jika tidak ada sama sekali di katalog, isi string kosong.",
-  "nm_customer": "Nama lengkap perusahaan pembeli yang sesuai dengan kode di atas, atau nama aslinya dari teks jika kodenya kosong.",
+  "kd_customer": "SANGAT PENTING: Dokumen ini adalah Purchase Order yang DITERBITKAN/DIKIRIM OLEH perusahaan PEMBELI kepada vendor/supplier. Tugasmu adalah menemukan nama perusahaan PEMBELI yang menerbitkan PO ini. CARA IDENTIFIKASI: Nama pembeli umumnya tercetak di KOP SURAT bagian atas halaman (bisa posisi kiri, tengah, atau kanan), biasanya berupa PT/CV diikuti nama perusahaan. PENTING: JANGAN mengambil nama dari bagian 'Kepada/To/Vendor/Supplier/Attention' karena itu nama vendor penerima, bukan pembeli. Setelah menemukan nama pembeli, cocokkan ke katalog ini: [{cs_str}]. Isi kodenya jika cocok, atau string kosong jika tidak ada.",
+  "nm_customer": "Nama lengkap perusahaan PEMBELI (penerbit PO ini, bukan vendor/supplier penerima). Ambil dari kop surat dokumen. Jika kode ditemukan di katalog, gunakan nama dari katalog. Jika tidak, tulis nama aslinya dari dokumen.",
   "catatan": "Catatan / Remarks / Spesifikasi barang, HANYA teks murni. DILARANG memasukkan tulisan metadata seperti nama pembuat, contact, no telp, email, dll.",
   "items": [
       {{
@@ -1465,12 +1465,60 @@ Isi Dokumen PO:
 
     conn.close()
 
+    # --- Normalize payment term ---
+    def normalize_payment(raw_payment, po_date_str):
+        import re
+        from datetime import datetime, date
+
+        p = str(raw_payment or "").strip()
+        if not p:
+            return p
+
+        # Case 1: pure days pattern e.g. "30 days", "45 hari", "net 30", "net30"
+        m = re.search(r"(\d+)\s*(days?|hari)", p, re.IGNORECASE)
+        if m:
+            return f"{m.group(1)} Hari"
+        m_net = re.match(r"net\s*(\d+)", p, re.IGNORECASE)
+        if m_net:
+            return f"{m_net.group(1)} Hari"
+
+        # Case 2: starts with Cash/Tunai/etc (strip extra)
+        m_cash = re.match(r"^(cash|tunai|tempo|cod|transfer|kredit|credit)", p, re.IGNORECASE)
+        if m_cash:
+            return m_cash.group(1).capitalize()
+
+        # Case 3: looks like a date → calculate days from PO date
+        date_patterns = [
+            r"(\d{4}-\d{2}-\d{2})",
+            r"(\d{1,2}[\s\-/](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-/]\d{4})",
+            r"(\d{1,2}[\s\-/]\d{1,2}[\s\-/]\d{4})",
+        ]
+        for pat in date_patterns:
+            dm = re.search(pat, p, re.IGNORECASE)
+            if dm:
+                try:
+                    from dateutil import parser as dparser
+                    due_date = dparser.parse(dm.group(1), dayfirst=True).date()
+                    if po_date_str:
+                        po_date = dparser.parse(po_date_str).date()
+                        diff = (due_date - po_date).days
+                        if diff > 0:
+                            return f"{diff} Hari"
+                    return p  # fallback: return as-is if can't compute
+                except Exception:
+                    pass
+
+        return p  # return as-is if no pattern matches
+
+    payment_raw = data.get('payment', '')
+    payment_normalized = normalize_payment(payment_raw, data.get('tgl', ''))
+
     return {
         "text_raw": "",
         "ref_poin": data.get('ref_poin', ''),
         "tgl": data.get('tgl', ''),
         "delivery_date": data.get('delivery_date', ''),
-        "payment": data.get('payment', ''),
+        "payment": payment_normalized,
         "franco": data.get('franco', ''),
         "ppn_pct": data.get('ppn_pct', 0),
         "catatan": data.get('catatan', ''),
