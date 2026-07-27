@@ -1408,22 +1408,47 @@ Isi Dokumen PO:
         matched = False
         if txt and all_materials:
             try:
-                # Kirim seluruh daftar material (dibatasi 3000 item agar konteks proporsional) ke Ollama
-                candidates = [{"id": r['kd_material'], "name": r['material']} for r in all_materials[:3000]]
-                chosen_id = ollama_deep_match(txt, candidates, match_type="item")
-                if chosen_id and str(chosen_id).strip() != "NONE":
-                    for c in candidates:
-                        if str(c['id']) == str(chosen_id).strip():
-                            resolved_items.append({
-                                "kd_brg": c['id'],
-                                "nm_brg": c['name'],
-                                "nm_brg_ocr": txt,
-                                "qty": qty,
-                                "price": price,
-                                "remark": r_txt
-                            })
-                            matched = True
-                            break
+                # 1. RAG Filter
+                db_names = [str(r['material']).strip() for r in all_materials]
+                scores = smart_local_match(txt, db_names)
+                if scores:
+                    import numpy as np
+                    top_indices = np.argsort(scores)[-30:][::-1]
+                    candidates = []
+                    for idx in top_indices:
+                        if float(scores[idx]) > 0.01:
+                            candidates.append({"id": all_materials[idx]['kd_material'], "name": all_materials[idx]['material']})
+                    
+                    if candidates:
+                        # 2. Ollama precise selection
+                        chosen_id = ollama_deep_match(txt, candidates, match_type="item")
+                        if chosen_id and str(chosen_id).strip() != "NONE":
+                            for c in candidates:
+                                if str(c['id']) == str(chosen_id).strip():
+                                    resolved_items.append({
+                                        "kd_brg": c['id'],
+                                        "nm_brg": c['name'],
+                                        "nm_brg_ocr": txt,
+                                        "qty": qty,
+                                        "price": price,
+                                        "remark": r_txt
+                                    })
+                                    matched = True
+                                    break
+                                    
+                if not matched and scores:
+                    best_idx = int(np.argmax(scores))
+                    if float(scores[best_idx]) > 0.50:
+                        resolved_items.append({
+                            "kd_brg": str(all_materials[best_idx]['kd_material']),
+                            "nm_brg": str(all_materials[best_idx]['material']),
+                            "nm_brg_ocr": txt,
+                            "qty": qty,
+                            "price": price,
+                            "remark": r_txt
+                        })
+                        matched = True
+                        
             except Exception as st_err:
                 import traceback; traceback.print_exc()
 
@@ -1449,15 +1474,32 @@ Isi Dokumen PO:
             pass # Already populated by data.get further up implicitly handled by caller mapping... wait, let's map it:
             nm_cs = cs_by_code[str(kd_cs)]['nm_cs']
         elif all_customers and nm_cs:
-            # Kirim seluruh daftar customer (dibatasi 3000 agar tidak out of memory) ke Ollama langsung
-            candidates = [{"id": r['kd_cs'], "name": r['nm_cs']} for r in all_customers[:3000]]
-            chosen_id = ollama_deep_match(nm_cs, candidates, match_type="customer")
-            if chosen_id and str(chosen_id).strip() != "NONE":
-                for c in candidates:
-                    if str(c['id']) == str(chosen_id).strip():
-                        kd_cs = c['id']
-                        nm_cs = c['name']
-                        break
+            # 1. RAG Filter: TF-IDF for fastest Top 30 extraction
+            cs_names = [str(r['nm_cs']).strip() for r in all_customers]
+            scores = smart_local_match(nm_cs, cs_names)
+            if scores:
+                import numpy as np
+                top_indices = np.argsort(scores)[-30:][::-1]
+                candidates = []
+                for idx in top_indices:
+                    if float(scores[idx]) > 0.01:
+                        candidates.append({"id": all_customers[idx]['kd_cs'], "name": all_customers[idx]['nm_cs']})
+                
+                if candidates:
+                    # 2. Ollama evaluates the small short list (100% precision context)
+                    chosen_id = ollama_deep_match(nm_cs, candidates, match_type="customer")
+                    if chosen_id and str(chosen_id).strip() != "NONE":
+                        for c in candidates:
+                            if str(c['id']) == str(chosen_id).strip():
+                                kd_cs = c['id']
+                                nm_cs = c['name']
+                                break
+                    else:
+                        # Auto fallback if very confident
+                        best_idx = int(np.argmax(scores))
+                        if float(scores[best_idx]) > 0.50:
+                            kd_cs = str(all_customers[best_idx]['kd_cs'])
+                            nm_cs = str(all_customers[best_idx]['nm_cs'])
     except Exception:
         import traceback; traceback.print_exc()
 
