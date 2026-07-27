@@ -1260,7 +1260,7 @@ ATURAN:
 3. Jika yakin cocok, balas HANYA dengan ID-nya secara murni. Contoh balasan murni: M02-005"""
 
     data = {
-        "model": "qwen2.5-vl:3b",
+        "model": "qwen2.5:3b",
         "prompt": prompt,
         "stream": False,
         "options": {
