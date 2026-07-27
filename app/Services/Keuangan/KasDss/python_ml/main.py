@@ -1263,6 +1263,7 @@ ATURAN:
         "model": "qwen2.5:3b",
         "prompt": prompt,
         "stream": False,
+        "keep_alive": -1,
         "options": {
             "temperature": 0.0
         }
