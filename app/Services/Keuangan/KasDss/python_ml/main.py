@@ -85,6 +85,9 @@ def is_valid_account_seed(account):
 
 def safe_float(value, default=0.0):
     try:
+        import threading
+        threading.Thread(target=preload_ollama, daemon=True).start()
+
         if pd.isna(value):
             return default
         n = float(value)
@@ -770,6 +773,25 @@ def train_models():
             pipe_lawan = make_pipeline(TfidfVectorizer(ngram_range=(1,2), max_features=5000), SGDClassifier(loss='log_loss', class_weight='balanced'))
             pipe_lawan.fit(df_lawan['X'], df_lawan['y'])
             models[f"lawan_{mode}"] = pipe_lawan
+
+
+def preload_ollama():
+    """Background task to wake up Ollama model so it bypasses NGINX 504 frontend timeouts"""
+    import urllib.request, json
+    print("Waking up Qwen2.5 into RAM...")
+    data = {
+        "model": "qwen2.5:3b",
+        "prompt": "hi",
+        "stream": False,
+        "keep_alive": -1
+    }
+    try:
+        req = urllib.request.Request("http://127.0.0.1:11434/api/generate", data=json.dumps(data).encode('utf-8'))
+        req.add_header('Content-Type', 'application/json')
+        urllib.request.urlopen(req, timeout=300)
+        print("Qwen2.5 Preloaded successfully!")
+    except Exception as e:
+        print(f"Qwen2.5 Preload Error: {e}")
 
 @app.on_event("startup")
 def startup_event():
@@ -1479,7 +1501,7 @@ Isi Dokumen PO:
                 scores = smart_local_match(txt, db_names)
                 if scores:
                     import numpy as np
-                    top_indices = np.argsort(scores)[-30:][::-1]
+                    top_indices = np.argsort(scores)[-10:][::-1]
                     candidates = []
                     for idx in top_indices:
                         if float(scores[idx]) > 0.01:
@@ -1545,7 +1567,7 @@ Isi Dokumen PO:
             scores = smart_local_match(nm_cs, cs_names)
             if scores:
                 import numpy as np
-                top_indices = np.argsort(scores)[-30:][::-1]
+                top_indices = np.argsort(scores)[-10:][::-1]
                 candidates = []
                 for idx in top_indices:
                     if float(scores[idx]) > 0.01:
