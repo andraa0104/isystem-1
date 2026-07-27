@@ -1271,7 +1271,7 @@ ATURAN:
     try:
         req = urllib.request.Request("http://127.0.0.1:11434/api/generate", data=json.dumps(data).encode('utf-8'))
         req.add_header('Content-Type', 'application/json')
-        with urllib.request.urlopen(req, timeout=10) as response:
+        with urllib.request.urlopen(req, timeout=90) as response:
             res = json.loads(response.read().decode('utf-8'))
             ans = res.get('response', '').strip()
             # Clean possible markdown or weird chat
