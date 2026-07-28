@@ -43,3 +43,16 @@ __pycache__/
 
 # Ignore OCR Service Logs
 app/Services/Keuangan/KasDss/python_ml/ocr_log.txt
+
+# Temporary python environments
+venv/
+/venv/
+env/
+
+# Local test scripts
+test_*.py
+
+# Agent artifacts
+.gemini/
+
+venv_test/

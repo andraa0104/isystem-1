@@ -425,14 +425,14 @@ export default function PurchaseOrderInIndex({
         fetchPoInPagination(params);
     };
 
-    const fetchPoInSummaryScope = async (scope) => {
+    const fetchPoInSummaryScope = async (scope, dateFilterVal = 'all') => {
         setSummaryLoading((prev) => ({ ...prev, [scope]: true }));
         try {
             const queryParams = new URLSearchParams({
                 search: '',
                 per_page: '5',
                 status: 'all',
-                date_filter: 'all',
+                date_filter: dateFilterVal,
                 page: '1',
                 summary_only: '1',
                 summary_scope: scope,
@@ -454,8 +454,8 @@ export default function PurchaseOrderInIndex({
         }
     };
 
-    const fetchPoInSummary = () => {
-        [
+    const fetchPoInSummary = (scopes) => {
+        const scopesToFetch = scopes || [
             'outstanding_pr',
             'outstanding_do',
             'sisa_pr',
@@ -463,7 +463,15 @@ export default function PurchaseOrderInIndex({
             'realized_pr',
             'realized_do',
             'total',
-        ].forEach((scope) => fetchPoInSummaryScope(scope));
+        ];
+        scopesToFetch.forEach((scope) => {
+            if (scope === 'realized_pr' || scope === 'realized_do') {
+                // Actually `realizedPeriod` is accessible in this react component scope
+                fetchPoInSummaryScope(scope, realizedPeriod);
+            } else {
+                fetchPoInSummaryScope(scope, 'all');
+            }
+        });
     };
 
     useEffect(() => {
@@ -501,12 +509,14 @@ export default function PurchaseOrderInIndex({
         return realizedPeriod;
     }, [realizedPeriod]);
 
-    const realizedPrCount = Number(
-        summary.realized_pr_counts?.[realizedPeriodKey] ?? 0,
-    );
-    const realizedDoCount = Number(
-        summary.realized_do_counts?.[realizedPeriodKey] ?? 0,
-    );
+    const realizedPrCount = Number(summary.realized_pr ?? 0);
+    const realizedDoCount = Number(summary.realized_do ?? 0);
+
+    // Re-fetch only these specific counts when period changes
+    useEffect(() => {
+        fetchPoInSummary(['realized_pr', 'realized_do']);
+        // fetchModalData takes care of the actual rows separately because it reacts to realizedPeriod changes
+    }, [realizedPeriod]);
 
     const modalStatus = useMemo(() => {
         if (activeModal === 'outstanding') {
@@ -2369,11 +2379,14 @@ export default function PurchaseOrderInIndex({
                                     <PlainTableStateRows
                                         columns={7}
                                         loading={modalLoading}
-                                        isEmpty={!modalLoading && modalDisplayedItems.length === 0}
+                                        isEmpty={
+                                            !modalLoading &&
+                                            modalDisplayedItems.length === 0
+                                        }
                                         emptyTitle="Tidak ada data."
                                         skeletonRows={modalPageSize}
                                     />
-                                    
+
                                     {modalDisplayedItems.map((item, index) => (
                                         <tr
                                             key={`${item.no_do || item.no_poin}-${index}`}
@@ -2422,9 +2435,14 @@ export default function PurchaseOrderInIndex({
                                                     'outstanding' ||
                                                 activeModal === 'sisa' ? (
                                                     <div className="flex items-center gap-2">
-                                                        {(!Number(
-                                                            item.has_do ?? 0,
-                                                        ) ||
+                                                        {((activeModal ===
+                                                            'outstanding' &&
+                                                            activeModalTab ===
+                                                                'pr') ||
+                                                            !Number(
+                                                                item.has_do ??
+                                                                    0,
+                                                            ) ||
                                                             activeModal ===
                                                                 'sisa') && (
                                                             <Button
