@@ -440,7 +440,8 @@ class QuotationController
             $quotation = DB::table('tb_penawaran')
                 ->select(
                     'No_penawaran', 'Tgl_penawaran', 'Customer', 'Alamat', 'Telp',
-                    'Email', 'Attend', 'Payment', 'Validity', 'Delivery', 'Franco'
+                    'Email', 'Attend', 'Payment', 'Validity', 'Delivery', 'Franco',
+                    'Note1', 'Note2', 'Note3'
                 )
                 ->where('No_penawaran', $noPenawaran)
                 ->first();

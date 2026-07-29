@@ -250,6 +250,17 @@ export default function QuotationPrint({
                                     sewaktu-waktu dapat berubah (Tidak Mengikat)
                                 </td>
                             </tr>
+                            <tr>
+                                <td>Note</td>
+                                <td>: </td>
+                                <td>{renderValue(quotation?.Note1)}</td>
+                            </tr>
+                            <tr>
+                                <td>{renderValue(quotation?.Note2)}</td>
+                            </tr>
+                            <tr>
+                                <td>{renderValue(quotation?.Note3)}</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
