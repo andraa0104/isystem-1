@@ -202,6 +202,8 @@ export default function PurchaseOrderInIndex({
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [exportStartDate, setExportStartDate] = useState(monthStart);
     const [exportEndDate, setExportEndDate] = useState(today);
+    const [exportStatus, setExportStatus] = useState('all');
+    const [exportDateFilter, setExportDateFilter] = useState('today');
     const { auth } = usePage().props;
     const { resolvedAppearance } = useAppearance();
     const isDark = resolvedAppearance === 'dark';
@@ -908,29 +910,74 @@ export default function PurchaseOrderInIndex({
                     </DialogHeader>
                     <div className="space-y-4">
                         <label className="block space-y-2 text-sm">
-                            <span className="font-medium">Tanggal Awal</span>
-                            <input
-                                type="date"
+                            <span className="font-medium">Status</span>
+                            <select
                                 className="h-10 w-full rounded-md border border-input bg-background px-3"
-                                value={exportStartDate}
-                                max={exportEndDate}
+                                value={exportStatus}
                                 onChange={(event) =>
-                                    setExportStartDate(event.target.value)
+                                    setExportStatus(event.target.value)
                                 }
-                            />
+                            >
+                                <option value="all">Semua Data</option>
+                                <option value="outstanding_pr">Belum PR</option>
+                                <option value="outstanding_do">Belum DO</option>
+                                <option value="sisa_pr">Sisa PR</option>
+                                <option value="sisa_do">Sisa DO</option>
+                                <option value="realized_pr">PR Selesai</option>
+                                <option value="realized_do">DO Selesai</option>
+                            </select>
                         </label>
                         <label className="block space-y-2 text-sm">
-                            <span className="font-medium">Tanggal Akhir</span>
-                            <input
-                                type="date"
+                            <span className="font-medium">Filter Tanggal</span>
+                            <select
                                 className="h-10 w-full rounded-md border border-input bg-background px-3"
-                                value={exportEndDate}
-                                min={exportStartDate}
+                                value={exportDateFilter}
                                 onChange={(event) =>
-                                    setExportEndDate(event.target.value)
+                                    setExportDateFilter(event.target.value)
                                 }
-                            />
+                            >
+                                <option value="today">Hari Ini</option>
+                                <option value="this_week">Minggu Ini</option>
+                                <option value="this_month">Bulan Ini</option>
+                                <option value="this_year">Tahun Ini</option>
+                                <option value="range">Range Tanggal</option>
+                                <option value="all">Semua Data</option>
+                            </select>
                         </label>
+                        {exportDateFilter === 'range' && (
+                            <div className="flex gap-4">
+                                <label className="block flex-1 space-y-2 text-sm">
+                                    <span className="font-medium">
+                                        Tanggal Awal
+                                    </span>
+                                    <input
+                                        type="date"
+                                        className="h-10 w-full rounded-md border border-input bg-background px-3"
+                                        value={exportStartDate}
+                                        max={exportEndDate}
+                                        onChange={(event) =>
+                                            setExportStartDate(
+                                                event.target.value,
+                                            )
+                                        }
+                                    />
+                                </label>
+                                <label className="block flex-1 space-y-2 text-sm">
+                                    <span className="font-medium">
+                                        Tanggal Akhir
+                                    </span>
+                                    <input
+                                        type="date"
+                                        className="h-10 w-full rounded-md border border-input bg-background px-3"
+                                        value={exportEndDate}
+                                        min={exportStartDate}
+                                        onChange={(event) =>
+                                            setExportEndDate(event.target.value)
+                                        }
+                                    />
+                                </label>
+                            </div>
+                        )}
                         <div className="flex justify-end gap-2">
                             <Button
                                 type="button"
@@ -941,12 +988,22 @@ export default function PurchaseOrderInIndex({
                             </Button>
                             <Button
                                 type="button"
-                                disabled={!exportStartDate || !exportEndDate}
+                                disabled={
+                                    exportDateFilter === 'range' &&
+                                    (!exportStartDate || !exportEndDate)
+                                }
                                 onClick={() => {
                                     const params = new URLSearchParams({
-                                        start_date: exportStartDate,
-                                        end_date: exportEndDate,
+                                        status: exportStatus,
+                                        date_filter: exportDateFilter,
                                     });
+                                    if (exportDateFilter === 'range') {
+                                        params.set(
+                                            'start_date',
+                                            exportStartDate,
+                                        );
+                                        params.set('end_date', exportEndDate);
+                                    }
                                     window.open(
                                         `/marketing/purchase-order-in/export?${params}`,
                                         '_blank',

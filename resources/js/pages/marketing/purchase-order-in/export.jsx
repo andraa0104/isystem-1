@@ -87,6 +87,8 @@ export default function PurchaseOrderInExport({
                                     'Grand Total',
                                     'Material',
                                     'Qty',
+                                    'Sisa PR',
+                                    'Sisa DO',
                                     'Satuan',
                                     'Price',
                                     'Total Price Material',
@@ -105,7 +107,7 @@ export default function PurchaseOrderInExport({
                             {purchaseOrders.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={18}
+                                        colSpan={20}
                                         className="border border-slate-300 p-4 text-center"
                                     >
                                         Data Purchase Order In belum tersedia.
@@ -220,6 +222,20 @@ export default function PurchaseOrderInExport({
                                         <td className="border border-slate-300 p-2 text-right align-top whitespace-nowrap">
                                             {detail
                                                 ? formatNumber(detail.qty)
+                                                : '-'}
+                                        </td>
+                                        <td className="border border-slate-300 p-2 text-right align-top whitespace-nowrap">
+                                            {detail
+                                                ? formatNumber(
+                                                      detail.sisa_qtypr,
+                                                  )
+                                                : '-'}
+                                        </td>
+                                        <td className="border border-slate-300 p-2 text-right align-top whitespace-nowrap">
+                                            {detail
+                                                ? formatNumber(
+                                                      detail.sisa_qtydo,
+                                                  )
                                                 : '-'}
                                         </td>
                                         <td className="border border-slate-300 p-2 align-top">

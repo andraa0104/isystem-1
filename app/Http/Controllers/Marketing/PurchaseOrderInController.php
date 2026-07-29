@@ -15,17 +15,33 @@ class PurchaseOrderInController
 {
     public function export(Request $request)
     {
-        $validated = $request->validate([
-            'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
-        ]);
+        $statusFilter = $request->query('status', 'all');
+        $dateFilter = $request->query('date_filter', 'today');
+        $startDate = $request->query('start_date', '');
+        $endDate = $request->query('end_date', '');
 
         $prefix = $this->resolveDatabasePrefix($request);
 
+        $data = $this->getPurchaseOrderInData(
+            '',           // search
+            null,         // perPage
+            $statusFilter,
+            1,            // page
+            false,        // isPartial
+            false,        // summaryOnly
+            'all',        // summaryScope
+            true,         // rowsOnly
+            false,        // paginationOnly
+            $dateFilter,
+            $startDate,
+            $endDate,
+            $prefix
+        );
+
+        $kodePoins = collect($data['purchaseOrderIns'] ?? [])->pluck('kode_poin');
+
         $purchaseOrders = DB::table('tb_poin')
-            ->where('kode_poin', 'like', $prefix . '.POIN-%')
-            ->whereDate('created_at', '>=', $validated['start_date'])
-            ->whereDate('created_at', '<=', $validated['end_date'])
+            ->whereIn('kode_poin', $kodePoins)
             ->orderByDesc('created_at')
             ->orderByDesc('kode_poin')
             ->get();
@@ -86,8 +102,8 @@ class PurchaseOrderInController
 
         return Inertia::render('marketing/purchase-order-in/export', [
             'purchaseOrders' => $exportRows,
-            'startDate' => $validated['start_date'],
-            'endDate' => $validated['end_date'],
+            'startDate' => $startDate ?: now()->toDateString(),
+            'endDate' => $endDate ?: now()->toDateString(),
         ]);
     }
 
