@@ -769,9 +769,15 @@ class PurchaseOrderInController
                 $query->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin');
             }
 
-            $query->leftJoinSub($doStats, 'dos', function ($join) {
-                $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
-            })->selectRaw('case when coalesce(dos.do_count, 0) > 0 then 1 else 0 end as has_do');
+            $requiresDos = in_array($statusFilter, ['sisa_do', 'realized', 'realized_do'], true) || $needsDoDate;
+
+            if ($requiresDos) {
+                $query->leftJoinSub($doStats, 'dos', function ($join) {
+                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
+                })->selectRaw('case when coalesce(dos.do_count, 0) > 0 then 1 else 0 end as has_do');
+            } else {
+                $query->selectRaw('0 as has_do');
+            }
 
             if ($needsDoDate) {
                 $query->selectRaw('dos.last_do_date as last_do_date');
