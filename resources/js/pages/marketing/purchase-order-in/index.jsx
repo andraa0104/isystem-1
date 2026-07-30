@@ -325,6 +325,8 @@ export default function PurchaseOrderInIndex({
 
     const rowsRequestId = useRef(0);
     const paginationRequestId = useRef(0);
+    const isInitialTableLoad = useRef(true);
+    const isInitialRealizedSummaryLoad = useRef(true);
 
     const buildTableQueryParams = (params = {}) => {
         const queryParams = new URLSearchParams({
@@ -481,7 +483,7 @@ export default function PurchaseOrderInIndex({
     }, []);
 
     useEffect(() => {
-        const timer = setTimeout(() => {
+        const loadTable = () => {
             fetchPoInData({
                 search,
                 per_page: perPage,
@@ -492,6 +494,18 @@ export default function PurchaseOrderInIndex({
                 page: 1,
                 isPartial: true,
             });
+        };
+
+        // Muat tabel langsung saat halaman dibuka. Perubahan filter berikutnya
+        // tetap diberi debounce agar pencarian tidak mengirim request per ketik.
+        if (isInitialTableLoad.current) {
+            isInitialTableLoad.current = false;
+            loadTable();
+            return undefined;
+        }
+
+        const timer = setTimeout(() => {
+            loadTable();
         }, 250);
 
         return () => clearTimeout(timer);
@@ -516,6 +530,13 @@ export default function PurchaseOrderInIndex({
 
     // Re-fetch only these specific counts when period changes
     useEffect(() => {
+        // Initial request sudah dijalankan bersama kartu ringkasan lainnya.
+        // Hindari dua request PR/DO terealisasi saat halaman pertama dibuka.
+        if (isInitialRealizedSummaryLoad.current) {
+            isInitialRealizedSummaryLoad.current = false;
+            return;
+        }
+
         fetchPoInSummary(['realized_pr', 'realized_do']);
         // fetchModalData takes care of the actual rows separately because it reacts to realizedPeriod changes
     }, [realizedPeriod]);
@@ -1528,7 +1549,7 @@ export default function PurchaseOrderInIndex({
                         </div>
                     </div>
                     <div className="grid gap-3 md:hidden">
-                        {tableLoading && (
+                        {tableLoading && purchaseOrderIns.length === 0 && (
                             <>
                                 {Array.from({
                                     length:
@@ -1552,92 +1573,89 @@ export default function PurchaseOrderInIndex({
                                 Belum ada data PO In.
                             </div>
                         )}
-                        {!tableLoading &&
-                            purchaseOrderIns.map((item, index) => (
-                                <div
-                                    key={item.id ?? item.no_poin}
-                                    className="rounded-xl border border-sidebar-border/70 p-3 text-sm"
-                                >
-                                    <div className="mb-3 flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <p className="text-xs text-muted-foreground">
-                                                #
-                                                {pagination.per_page === 'all'
-                                                    ? index + 1
-                                                    : (Number(
-                                                          pagination.page || 1,
-                                                      ) -
-                                                          1) *
-                                                          Number(
-                                                              pagination.per_page ||
-                                                                  5,
-                                                          ) +
-                                                      index +
-                                                      1}
-                                            </p>
-                                            <p className="mt-1 font-semibold break-words">
-                                                {item.kode_poin}
-                                            </p>
-                                            <p className="break-words text-muted-foreground">
-                                                Ref PO: {item.no_poin || '-'}
-                                            </p>
-                                        </div>
-                                        <div className="flex shrink-0 items-center gap-2">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() =>
-                                                    openDetailModal(
-                                                        item.kode_poin,
-                                                    )
-                                                }
-                                                title="Lihat"
-                                            >
-                                                <Eye className="size-4" />
-                                            </Button>
-                                            <a
-                                                href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                                                title="Print"
-                                            >
-                                                <Printer className="size-4" />
-                                            </a>
-                                        </div>
+                        {purchaseOrderIns.map((item, index) => (
+                            <div
+                                key={item.id ?? item.no_poin}
+                                className="rounded-xl border border-sidebar-border/70 p-3 text-sm"
+                            >
+                                <div className="mb-3 flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="text-xs text-muted-foreground">
+                                            #
+                                            {pagination.per_page === 'all'
+                                                ? index + 1
+                                                : (Number(
+                                                      pagination.page || 1,
+                                                  ) -
+                                                      1) *
+                                                      Number(
+                                                          pagination.per_page ||
+                                                              5,
+                                                      ) +
+                                                  index +
+                                                  1}
+                                        </p>
+                                        <p className="mt-1 font-semibold break-words">
+                                            {item.kode_poin}
+                                        </p>
+                                        <p className="break-words text-muted-foreground">
+                                            Ref PO: {item.no_poin || '-'}
+                                        </p>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="col-span-2">
-                                            <p className="text-xs text-muted-foreground">
-                                                Customer
-                                            </p>
-                                            <p className="font-medium break-words">
-                                                {item.customer_name || '-'}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-muted-foreground">
-                                                Date Input
-                                            </p>
-                                            <p className="font-medium">
-                                                {formatDateDisplay(
-                                                    item.created_at ||
-                                                        item.date_poin,
-                                                )}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-muted-foreground">
-                                                Grand Total
-                                            </p>
-                                            <p className="font-semibold">
-                                                {formatRupiah(item.grand_total)}
-                                            </p>
-                                        </div>
+                                    <div className="flex shrink-0 items-center gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                openDetailModal(item.kode_poin)
+                                            }
+                                            title="Lihat"
+                                        >
+                                            <Eye className="size-4" />
+                                        </Button>
+                                        <a
+                                            href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                                            title="Print"
+                                        >
+                                            <Printer className="size-4" />
+                                        </a>
                                     </div>
                                 </div>
-                            ))}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="col-span-2">
+                                        <p className="text-xs text-muted-foreground">
+                                            Customer
+                                        </p>
+                                        <p className="font-medium break-words">
+                                            {item.customer_name || '-'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Date Input
+                                        </p>
+                                        <p className="font-medium">
+                                            {formatDateDisplay(
+                                                item.created_at ||
+                                                    item.date_poin,
+                                            )}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Grand Total
+                                        </p>
+                                        <p className="font-semibold">
+                                            {formatRupiah(item.grand_total)}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
                     </div>
 
                     <div className="hidden overflow-x-auto rounded-xl border border-sidebar-border/70 md:block">
@@ -1669,7 +1687,10 @@ export default function PurchaseOrderInIndex({
                             </thead>
                             <tbody>
                                 <PlainTableStateRows
-                                    loading={tableLoading}
+                                    loading={
+                                        tableLoading &&
+                                        purchaseOrderIns.length === 0
+                                    }
                                     columns={7}
                                     skeletonRows={
                                         perPage === 'all' ? 5 : Number(perPage)
@@ -1680,72 +1701,71 @@ export default function PurchaseOrderInIndex({
                                     }
                                     emptyTitle="Belum ada data PO In."
                                 />
-                                {!tableLoading &&
-                                    purchaseOrderIns.map((item, index) => (
-                                        <tr
-                                            key={item.id ?? item.no_poin}
-                                            className="border-t border-sidebar-border/70"
-                                        >
-                                            <td className="w-px px-1 py-2 whitespace-nowrap">
-                                                {pagination.per_page === 'all'
-                                                    ? index + 1
-                                                    : (Number(
-                                                          pagination.page || 1,
-                                                      ) -
-                                                          1) *
-                                                          Number(
-                                                              pagination.per_page ||
-                                                                  5,
-                                                          ) +
-                                                      index +
-                                                      1}
-                                            </td>
-                                            <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
-                                                {item.kode_poin}
-                                            </td>
-                                            <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
-                                                {item.no_poin}
-                                            </td>
-                                            <td className="w-px px-1 py-2 whitespace-nowrap">
-                                                {formatDateDisplay(
-                                                    item.created_at ||
-                                                        item.date_poin,
-                                                )}
-                                            </td>
-                                            <td className="px-1 py-2">
-                                                {item.customer_name}
-                                            </td>
-                                            <td className="px-2 py-2 text-right whitespace-nowrap">
-                                                {formatRupiah(item.grand_total)}
-                                            </td>
-                                            <td className="px-2 py-2">
-                                                <div className="flex items-center gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            openDetailModal(
-                                                                item.kode_poin,
-                                                            )
-                                                        }
-                                                        title="Lihat"
-                                                    >
-                                                        <Eye className="size-4" />
-                                                    </Button>
-                                                    <a
-                                                        href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                                                        title="Print"
-                                                    >
-                                                        <Printer className="size-4" />
-                                                    </a>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                {purchaseOrderIns.map((item, index) => (
+                                    <tr
+                                        key={item.id ?? item.no_poin}
+                                        className="border-t border-sidebar-border/70"
+                                    >
+                                        <td className="w-px px-1 py-2 whitespace-nowrap">
+                                            {pagination.per_page === 'all'
+                                                ? index + 1
+                                                : (Number(
+                                                      pagination.page || 1,
+                                                  ) -
+                                                      1) *
+                                                      Number(
+                                                          pagination.per_page ||
+                                                              5,
+                                                      ) +
+                                                  index +
+                                                  1}
+                                        </td>
+                                        <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
+                                            {item.kode_poin}
+                                        </td>
+                                        <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
+                                            {item.no_poin}
+                                        </td>
+                                        <td className="w-px px-1 py-2 whitespace-nowrap">
+                                            {formatDateDisplay(
+                                                item.created_at ||
+                                                    item.date_poin,
+                                            )}
+                                        </td>
+                                        <td className="px-1 py-2">
+                                            {item.customer_name}
+                                        </td>
+                                        <td className="px-2 py-2 text-right whitespace-nowrap">
+                                            {formatRupiah(item.grand_total)}
+                                        </td>
+                                        <td className="px-2 py-2">
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        openDetailModal(
+                                                            item.kode_poin,
+                                                        )
+                                                    }
+                                                    title="Lihat"
+                                                >
+                                                    <Eye className="size-4" />
+                                                </Button>
+                                                <a
+                                                    href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                                                    title="Print"
+                                                >
+                                                    <Printer className="size-4" />
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
                             </tbody>
                         </table>
                     </div>
