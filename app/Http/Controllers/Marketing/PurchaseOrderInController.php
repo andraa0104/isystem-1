@@ -525,6 +525,111 @@ class PurchaseOrderInController
         $prefix = ''
     ) {
         return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate, $prefix) {
+            // Kartu Total PO In hanya menghitung dokumen header. Jalankan
+            // sebelum statistik status dibuat agar query ini murni ke tb_poin.
+            if ($summaryOnly && $summaryScope === 'total') {
+                $now = now();
+                $periodCounts = DB::table('tb_poin')
+                    ->where('kode_poin', 'like', $prefix . '.POIN-%')
+                    ->selectRaw('count(*) as total')
+                    ->selectRaw('count(case when created_at >= ? then 1 end) as today', [$now->copy()->startOfDay()->toDateTimeString()])
+                    ->selectRaw('count(case when created_at >= ? then 1 end) as week', [$now->copy()->startOfWeek()->toDateTimeString()])
+                    ->selectRaw('count(case when created_at >= ? then 1 end) as month', [$now->copy()->startOfMonth()->toDateTimeString()])
+                    ->selectRaw('count(case when created_at >= ? then 1 end) as year', [$now->copy()->startOfYear()->toDateTimeString()])
+                    ->first();
+
+                return [
+                    'summary' => [
+                        'total' => (int) ($periodCounts->total ?? 0),
+                        'data_counts' => [
+                            'today' => (int) ($periodCounts->today ?? 0),
+                            'week' => (int) ($periodCounts->week ?? 0),
+                            'month' => (int) ($periodCounts->month ?? 0),
+                            'year' => (int) ($periodCounts->year ?? 0),
+                        ],
+                    ],
+                ];
+            }
+
+            // Filter "Semua Data" tidak membutuhkan status turunan dari detail,
+            // PR, atau DO. Tangani lebih awal agar request tabel hanya membaca
+            // tb_poin dan tidak membangun/menjalankan subquery join yang mahal.
+            if ($statusFilter === 'all' && !$summaryOnly) {
+                $now = now();
+                $query = DB::table('tb_poin as p')
+                    ->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                    ->select(
+                        'p.id',
+                        'p.kode_poin',
+                        'p.no_poin',
+                        'p.date_poin',
+                        'p.created_at',
+                        'p.delivery_date',
+                        'p.customer_name',
+                        'p.grand_total'
+                    )
+                    ->selectRaw('0 as has_do');
+
+                if ($search !== '') {
+                    $like = '%'.strtolower($search).'%';
+                    $query->where(function ($q) use ($like) {
+                        $q->whereRaw('lower(p.kode_poin) like ?', [$like])
+                            ->orWhereRaw('lower(p.no_poin) like ?', [$like])
+                            ->orWhereRaw('lower(p.customer_name) like ?', [$like]);
+                    });
+                }
+
+                if ($dateFilter === 'today') {
+                    $query->whereDate('p.created_at', $now->toDateString());
+                } elseif ($dateFilter === 'this_week') {
+                    $query->whereDate('p.created_at', '>=', $now->copy()->startOfWeek()->toDateString())
+                        ->whereDate('p.created_at', '<=', $now->copy()->endOfWeek()->toDateString());
+                } elseif ($dateFilter === 'this_month') {
+                    $query->whereYear('p.created_at', $now->year)
+                        ->whereMonth('p.created_at', $now->month);
+                } elseif ($dateFilter === 'this_year') {
+                    $query->whereYear('p.created_at', $now->year);
+                } elseif ($dateFilter === 'range') {
+                    if ($startDate !== '' && $endDate !== '') {
+                        $query->whereDate('p.created_at', '>=', $startDate)
+                            ->whereDate('p.created_at', '<=', $endDate);
+                    } else {
+                        $query->whereRaw('1 = 0');
+                    }
+                }
+
+                $total = $rowsOnly ? null : (clone $query)->count();
+                $rows = $paginationOnly
+                    ? collect()
+                    : ($perPage === null
+                        ? (clone $query)->orderByDesc('p.id')->get()
+                        : (clone $query)->orderByDesc('p.id')->forPage($page, $perPage)->get());
+
+                $pagination = [
+                    'total' => $total,
+                    'page' => $page,
+                    'per_page' => $perPage === null ? 'all' : $perPage,
+                    'total_pages' => $perPage === null ? 1 : max(1, (int) ceil(($total ?? 0) / $perPage)),
+                ];
+
+                if ($isPartial) {
+                    $response = [];
+                    if (!$paginationOnly) {
+                        $response['purchaseOrderIns'] = $rows;
+                    }
+                    if (!$rowsOnly) {
+                        $response['pagination'] = $pagination;
+                    }
+
+                    return $response;
+                }
+
+                return [
+                    'purchaseOrderIns' => $rows,
+                    'pagination' => $pagination,
+                ];
+            }
+
             $detailStats = DB::table('tb_detailpoin')
                 ->select('kode_poin')
                 ->selectRaw('count(*) as total_items')
@@ -562,28 +667,6 @@ class PurchaseOrderInController
             $endYear = $now->copy()->endOfYear()->toDateTimeString();
 
             if ($summaryOnly && $summaryScope !== 'all') {
-                if ($summaryScope === 'total') {
-                    $periodCounts = DB::table('tb_poin')->where('kode_poin', 'like', $prefix . '.POIN-%')
-                        ->selectRaw("count(*) as total")
-                        ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
-                        ->selectRaw("count(case when created_at >= ? then 1 end) as week", [$startWeek])
-                        ->selectRaw("count(case when created_at >= ? then 1 end) as month", [$startMonth])
-                        ->selectRaw("count(case when created_at >= ? then 1 end) as year", [$startYear])
-                        ->first();
-
-                    return [
-                        'summary' => [
-                            'total' => (int) ($periodCounts->total ?? 0),
-                            'data_counts' => [
-                                'today' => (int) ($periodCounts->today ?? 0),
-                                'week' => (int) ($periodCounts->week ?? 0),
-                                'month' => (int) ($periodCounts->month ?? 0),
-                                'year' => (int) ($periodCounts->year ?? 0),
-                            ],
-                        ],
-                    ];
-                }
-
                 if ($summaryScope === 'outstanding' || $summaryScope === 'outstanding_pr' || $summaryScope === 'outstanding_do') {
                     $row = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
