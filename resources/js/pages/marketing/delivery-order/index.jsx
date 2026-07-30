@@ -33,7 +33,9 @@ const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
 const normalizeCustomerName = (value) =>
-    String(value ?? '').trim().toLowerCase();
+    String(value ?? '')
+        .trim()
+        .toLowerCase();
 
 const toNumber = (value) => {
     const number = Number(value);
@@ -56,9 +58,13 @@ export default function DeliveryOrderIndex({
     realizedTotal = 0,
     period = 'today',
 }) {
-    const [deliveryOrdersList, setDeliveryOrdersList] = useState(deliveryOrders?.data || deliveryOrders || []);
-    const [outstandingCountState, setOutstandingCountState] = useState(outstandingCount);
-    const [outstandingTotalState, setOutstandingTotalState] = useState(outstandingTotal);
+    const [deliveryOrdersList, setDeliveryOrdersList] = useState(
+        deliveryOrders?.data || deliveryOrders || [],
+    );
+    const [outstandingCountState, setOutstandingCountState] =
+        useState(outstandingCount);
+    const [outstandingTotalState, setOutstandingTotalState] =
+        useState(outstandingTotal);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('outstanding');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
@@ -104,7 +110,9 @@ export default function DeliveryOrderIndex({
         });
 
         try {
-            const params = new URLSearchParams({ customer: normalizedCustomer });
+            const params = new URLSearchParams({
+                customer: normalizedCustomer,
+            });
             const response = await fetch(
                 `/marketing/purchase-requirement/overdue-invoices?${params.toString()}`,
                 { headers: { Accept: 'application/json' } },
@@ -130,7 +138,9 @@ export default function DeliveryOrderIndex({
 
     const renderCustomerWithOverdueMarker = (customer) => {
         const value = renderValue(customer);
-        const hasOverdue = overdueCustomers.has(normalizeCustomerName(customer));
+        const hasOverdue = overdueCustomers.has(
+            normalizeCustomerName(customer),
+        );
 
         return (
             <div className="flex flex-wrap items-center gap-2">
@@ -138,7 +148,7 @@ export default function DeliveryOrderIndex({
                 {hasOverdue && (
                     <button
                         type="button"
-                        className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 transition hover:border-red-300 hover:bg-red-100"
+                        className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-red-700 uppercase transition hover:border-red-300 hover:bg-red-100"
                         onClick={() => handleOpenOverdueDialog(customer)}
                         disabled={overdueDialogLoading}
                         title="Lihat tunggakan tagihan"
@@ -174,21 +184,27 @@ export default function DeliveryOrderIndex({
     const [realizedList, setRealizedList] = useState([]);
     const [realizedLoading, setRealizedLoading] = useState(false);
     const [realizedError, setRealizedError] = useState('');
-    
+
     // --- DIPISAH: State loading ---
     const [tableLoading, setTableLoading] = useState(true);
     const [summaryLoading, setSummaryLoading] = useState(true);
     const [tableError, setTableError] = useState('');
 
     const [tablePeriod, setTablePeriod] = useState('today'); // Default hari ini
-    const [tableDateRange, setTableDateRange] = useState({ start: '', end: '' });
+    const [tableDateRange, setTableDateRange] = useState({
+        start: '',
+        end: '',
+    });
 
     // --- DIPISAH: Fetch untuk Data Table Index Saja ---
     const fetchTableData = useCallback((selectedPeriod, range) => {
         setTableLoading(true);
         setTableError('');
 
-        const params = new URLSearchParams({ period: selectedPeriod, fetch_type: 'table' });
+        const params = new URLSearchParams({
+            period: selectedPeriod,
+            fetch_type: 'table',
+        });
         if (selectedPeriod === 'range' && range?.start && range?.end) {
             params.append('start_date', range.start);
             params.append('end_date', range.end);
@@ -203,9 +219,7 @@ export default function DeliveryOrderIndex({
             })
             .then((data) => {
                 const list = data?.deliveryOrders?.data || data?.deliveryOrders;
-                setDeliveryOrdersList(
-                    Array.isArray(list) ? list : []
-                );
+                setDeliveryOrdersList(Array.isArray(list) ? list : []);
             })
             .catch(() => {
                 setTableError('Gagal memuat data DO untuk tabel.');
@@ -218,7 +232,10 @@ export default function DeliveryOrderIndex({
     // --- DIPISAH: Fetch untuk Data Card Summary Saja ---
     const fetchSummaryData = useCallback((selectedPeriod) => {
         setSummaryLoading(true);
-        const params = new URLSearchParams({ period: selectedPeriod, fetch_type: 'summary' });
+        const params = new URLSearchParams({
+            period: selectedPeriod,
+            fetch_type: 'summary',
+        });
         fetch(`/marketing/delivery-order/data?${params.toString()}`, {
             headers: { Accept: 'application/json' },
         })
@@ -311,8 +328,6 @@ export default function DeliveryOrderIndex({
         const term = outstandingSearchTerm.trim().toLowerCase();
         return outstandingList
             .filter((item) => {
-                
-
                 if (!term) {
                     return true;
                 }
@@ -468,9 +483,7 @@ export default function DeliveryOrderIndex({
             })
             .then((data) => {
                 const list = data?.deliveryOrders?.data || data?.deliveryOrders;
-                setOutstandingList(
-                    Array.isArray(list) ? list : []
-                );
+                setOutstandingList(Array.isArray(list) ? list : []);
             })
             .catch(() => {
                 setOutstandingError('Gagal memuat data DO outstanding.');
@@ -506,14 +519,15 @@ export default function DeliveryOrderIndex({
                 return response.json();
             })
             .then((data) => {
-                const rawData = data?.deliveryOrders?.data || data?.deliveryOrders;
+                const rawData =
+                    data?.deliveryOrders?.data || data?.deliveryOrders;
                 const list = Array.isArray(rawData) ? rawData : [];
-                
+
                 setRealizedList(list);
-                // Catatan: length dari pagination adalah jumlah data per halaman. 
+                // Catatan: length dari pagination adalah jumlah data per halaman.
                 // Jika Anda ingin total keseluruhan, Anda bisa pakai data?.deliveryOrders?.total (jika pakai paginate biasa)
                 // Namun untuk simplePaginate, length per halaman sudah cukup untuk mencegah error array.
-                setRealizedCountState(list.length); 
+                setRealizedCountState(list.length);
                 setRealizedTotalState(data?.realizedTotal ?? 0);
                 setPeriodFilter(targetPeriod);
             })
@@ -857,7 +871,7 @@ export default function DeliveryOrderIndex({
                                 <option value="all">Semua Data</option>
                             </select>
                         </label>
-                        
+
                         {/* --- FILTER WAKTU TABEL --- */}
                         <label className="text-sm text-muted-foreground">
                             Waktu
@@ -867,10 +881,13 @@ export default function DeliveryOrderIndex({
                                 onChange={(event) => {
                                     const val = event.target.value;
                                     setTablePeriod(val);
-                                    
+
                                     if (val !== 'range') {
                                         fetchTableData(val, tableDateRange);
-                                    } else if (tableDateRange.start && tableDateRange.end) {
+                                    } else if (
+                                        tableDateRange.start &&
+                                        tableDateRange.end
+                                    ) {
                                         fetchTableData(val, tableDateRange);
                                     }
                                 }}
@@ -892,7 +909,10 @@ export default function DeliveryOrderIndex({
                                     className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs shadow-sm"
                                     value={tableDateRange.start}
                                     onChange={(e) => {
-                                        const newRange = { ...tableDateRange, start: e.target.value };
+                                        const newRange = {
+                                            ...tableDateRange,
+                                            start: e.target.value,
+                                        };
                                         setTableDateRange(newRange);
                                         if (newRange.start && newRange.end) {
                                             fetchTableData('range', newRange);
@@ -905,7 +925,10 @@ export default function DeliveryOrderIndex({
                                     className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs shadow-sm"
                                     value={tableDateRange.end}
                                     onChange={(e) => {
-                                        const newRange = { ...tableDateRange, end: e.target.value };
+                                        const newRange = {
+                                            ...tableDateRange,
+                                            end: e.target.value,
+                                        };
                                         setTableDateRange(newRange);
                                         if (newRange.start && newRange.end) {
                                             fetchTableData('range', newRange);
@@ -946,9 +969,18 @@ export default function DeliveryOrderIndex({
                         <tbody>
                             <PlainTableStateRows
                                 columns={5}
-                                loading={tableLoading}
-                                error={tableError}
-                                onRetry={() => fetchTableData(tablePeriod, tableDateRange)}
+                                loading={
+                                    tableLoading &&
+                                    displayedDeliveryOrders.length === 0
+                                }
+                                error={
+                                    displayedDeliveryOrders.length === 0
+                                        ? tableError
+                                        : ''
+                                }
+                                onRetry={() =>
+                                    fetchTableData(tablePeriod, tableDateRange)
+                                }
                                 isEmpty={
                                     !tableLoading &&
                                     !tableError &&
@@ -956,8 +988,7 @@ export default function DeliveryOrderIndex({
                                 }
                                 emptyMessage="Belum ada data DO."
                             />
-                            {!tableLoading &&
-                                !tableError &&
+                            {!tableError &&
                                 displayedDeliveryOrders.map((item) => (
                                     <tr
                                         key={item.no_do}
@@ -1776,7 +1807,7 @@ export default function DeliveryOrderIndex({
                     description={
                         overdueDialogLoading
                             ? 'Memuat data tunggakan tagihan customer...'
-                        : 'Daftar tagihan customer yang sudah melewati jatuh tempo.'
+                            : 'Daftar tagihan customer yang sudah melewati jatuh tempo.'
                     }
                 />
                 <InvoiceDetailDialog

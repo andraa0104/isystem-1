@@ -49,9 +49,9 @@ const splitMultiValue = (value) =>
     Array.isArray(value)
         ? value
         : String(value ?? '')
-            .split(/\s*(?:,|\/)\s*/)
-            .map((item) => item.trim())
-            .filter(Boolean);
+              .split(/\s*(?:,|\/)\s*/)
+              .map((item) => item.trim())
+              .filter(Boolean);
 
 const getValue = (source, keys) => {
     for (const key of keys) {
@@ -370,9 +370,9 @@ export default function PurchaseRequirementIndex({
         const list = Array.isArray(values)
             ? values
             : String(values ?? '')
-                .split(/\s*,\s*/)
-                .map((item) => item.trim())
-                .filter(Boolean);
+                  .split(/\s*,\s*/)
+                  .map((item) => item.trim())
+                  .filter(Boolean);
 
         if (list.length === 0) {
             return renderValue(values);
@@ -381,7 +381,10 @@ export default function PurchaseRequirementIndex({
         return (
             <div className="flex min-w-max flex-col gap-1">
                 {list.map((value, index) => (
-                    <div key={`${value}-${index}`} className="whitespace-nowrap">
+                    <div
+                        key={`${value}-${index}`}
+                        className="whitespace-nowrap"
+                    >
                         {value}
                     </div>
                 ))}
@@ -1014,18 +1017,16 @@ export default function PurchaseRequirementIndex({
                     },
                 )
                     .then((response) =>
-                        response
-                            .json()
-                            .then((data) => ({
-                                status: response.status,
-                                data,
-                            })),
+                        response.json().then((data) => ({
+                            status: response.status,
+                            data,
+                        })),
                     )
                     .then(({ status, data }) => {
                         if (status >= 400)
                             throw new Error(
                                 data.message ||
-                                'Gagal menghapus Customer dari PR',
+                                    'Gagal menghapus Customer dari PR',
                             );
                         Swal.fire(
                             'Terhapus!',
@@ -1565,61 +1566,63 @@ export default function PurchaseRequirementIndex({
                         <tbody>
                             <PlainTableStateRows
                                 columns={5}
-                                loading={tableLoading}
+                                loading={
+                                    tableLoading &&
+                                    displayedPurchaseRequirements.length === 0
+                                }
                                 isEmpty={
                                     !tableLoading &&
                                     displayedPurchaseRequirements.length === 0
                                 }
                                 emptyMessage="Belum ada data PR."
                             />
-                            {!tableLoading &&
-                                displayedPurchaseRequirements.map((item) => (
-                                    <tr
-                                        key={item.no_pr}
-                                        className="border-t border-sidebar-border/70"
-                                    >
-                                        <td className="w-px px-1 py-3 whitespace-nowrap">
-                                            {item.no_pr}
-                                        </td>
-                                        <td className="w-px px-1 py-3 whitespace-nowrap">
-                                            {item.date}
-                                        </td>
-                                        <td className="w-[40%] min-w-72 px-1 py-3 align-top [overflow-wrap:anywhere] whitespace-normal">
-                                            {renderCustomersWithOverdueMarkers(
-                                                item.for_customer,
-                                            )}
-                                        </td>
-                                        <td className="w-max px-2 py-3 align-top whitespace-nowrap">
-                                            {renderRefPoValues(item.ref_po)}
-                                        </td>
-                                        <td className="px-2 py-3 align-top text-sm [overflow-wrap:anywhere] whitespace-normal">
-                                            {item.jenis_pr ?? '-'}
-                                        </td>
-                                        <td className="w-28 px-2 py-3 align-top whitespace-nowrap">
-                                            <div className="flex min-w-max items-center gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        handleOpenModal(item)
-                                                    }
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    title="Lihat"
-                                                >
-                                                    <Eye className="size-4" />
-                                                </button>
-                                                <a
-                                                    href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/print`}
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    title="Cetak"
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                >
-                                                    <Printer className="size-4" />
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
+                            {displayedPurchaseRequirements.map((item) => (
+                                <tr
+                                    key={item.no_pr}
+                                    className="border-t border-sidebar-border/70"
+                                >
+                                    <td className="w-px px-1 py-3 whitespace-nowrap">
+                                        {item.no_pr}
+                                    </td>
+                                    <td className="w-px px-1 py-3 whitespace-nowrap">
+                                        {item.date}
+                                    </td>
+                                    <td className="w-[40%] min-w-72 px-1 py-3 align-top [overflow-wrap:anywhere] whitespace-normal">
+                                        {renderCustomersWithOverdueMarkers(
+                                            item.for_customer,
+                                        )}
+                                    </td>
+                                    <td className="w-max px-2 py-3 align-top whitespace-nowrap">
+                                        {renderRefPoValues(item.ref_po)}
+                                    </td>
+                                    <td className="px-2 py-3 align-top text-sm [overflow-wrap:anywhere] whitespace-normal">
+                                        {item.jenis_pr ?? '-'}
+                                    </td>
+                                    <td className="w-28 px-2 py-3 align-top whitespace-nowrap">
+                                        <div className="flex min-w-max items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleOpenModal(item)
+                                                }
+                                                className="text-muted-foreground transition hover:text-foreground"
+                                                title="Lihat"
+                                            >
+                                                <Eye className="size-4" />
+                                            </button>
+                                            <a
+                                                href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/print`}
+                                                className="text-muted-foreground transition hover:text-foreground"
+                                                title="Cetak"
+                                                target="_blank"
+                                                rel="noreferrer"
+                                            >
+                                                <Printer className="size-4" />
+                                            </a>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
@@ -1787,18 +1790,18 @@ export default function PurchaseRequirementIndex({
                                                 'payment_term',
                                             ]) !== '-'
                                                 ? getValue(selectedPr, [
-                                                    'payment',
-                                                    'Payment',
-                                                    'payment_term',
-                                                ])
+                                                      'payment',
+                                                      'Payment',
+                                                      'payment_term',
+                                                  ])
                                                 : getValue(
-                                                    selectedDetails?.[0],
-                                                    [
-                                                        'payment',
-                                                        'Payment',
-                                                        'payment_term',
-                                                    ],
-                                                )}
+                                                      selectedDetails?.[0],
+                                                      [
+                                                          'payment',
+                                                          'Payment',
+                                                          'payment_term',
+                                                      ],
+                                                  )}
                                         </span>
                                     </div>
                                 </div>
@@ -1821,11 +1824,12 @@ export default function PurchaseRequirementIndex({
                                                             1,
                                                         );
                                                     }}
-                                                    className={`-mb-[1px] border-b-2 px-4 py-2 text-sm font-medium transition-colors ${activeMaterialTab ===
+                                                    className={`-mb-[1px] border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+                                                        activeMaterialTab ===
                                                         tab
-                                                        ? 'border-primary text-foreground'
-                                                        : 'border-transparent text-muted-foreground hover:border-sidebar-border hover:text-foreground'
-                                                        }`}
+                                                            ? 'border-primary text-foreground'
+                                                            : 'border-transparent text-muted-foreground hover:border-sidebar-border hover:text-foreground'
+                                                    }`}
                                                 >
                                                     {tab}
                                                 </button>
@@ -1839,7 +1843,7 @@ export default function PurchaseRequirementIndex({
                                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
                                                 value={
                                                     materialPageSize ===
-                                                        Infinity
+                                                    Infinity
                                                         ? 'all'
                                                         : materialPageSize
                                                 }
@@ -1882,36 +1886,60 @@ export default function PurchaseRequirementIndex({
                                         <table className="w-full text-sm">
                                             <thead className="bg-muted/50 text-muted-foreground">
                                                 <tr>
-                                                    <th rowSpan={2} className="w-14 px-2 py-3 text-left align-top">
+                                                    <th
+                                                        rowSpan={2}
+                                                        className="w-14 px-2 py-3 text-left align-top"
+                                                    >
                                                         No
                                                     </th>
-                                                    <th rowSpan={2} className="px-2 py-3 text-left align-top">
+                                                    <th
+                                                        rowSpan={2}
+                                                        className="px-2 py-3 text-left align-top"
+                                                    >
                                                         Material
                                                     </th>
-                                                    <th rowSpan={2} className="w-px px-2 py-3 text-left whitespace-nowrap align-top">
+                                                    <th
+                                                        rowSpan={2}
+                                                        className="w-px px-2 py-3 text-left align-top whitespace-nowrap"
+                                                    >
                                                         Qty
                                                     </th>
-                                                    <th rowSpan={2} className="w-px px-2 py-3 text-left whitespace-nowrap align-top">
+                                                    <th
+                                                        rowSpan={2}
+                                                        className="w-px px-2 py-3 text-left align-top whitespace-nowrap"
+                                                    >
                                                         Sisa PR
                                                     </th>
-                                                    <th colSpan={2} className="px-2 py-2 text-center border-b border-sidebar-border/70">
+                                                    <th
+                                                        colSpan={2}
+                                                        className="border-b border-sidebar-border/70 px-2 py-2 text-center"
+                                                    >
                                                         Price In
                                                     </th>
-                                                    <th rowSpan={2} className="px-2 py-3 text-right whitespace-nowrap align-top w-[1%]">
+                                                    <th
+                                                        rowSpan={2}
+                                                        className="w-[1%] px-2 py-3 text-right align-top whitespace-nowrap"
+                                                    >
                                                         Margin
                                                     </th>
-                                                    <th rowSpan={2} className="px-2 py-3 text-right whitespace-nowrap align-top w-[1%]">
+                                                    <th
+                                                        rowSpan={2}
+                                                        className="w-[1%] px-2 py-3 text-right align-top whitespace-nowrap"
+                                                    >
                                                         Stok
                                                     </th>
-                                                    <th rowSpan={2} className="px-2 py-3 text-left align-top">
+                                                    <th
+                                                        rowSpan={2}
+                                                        className="px-2 py-3 text-left align-top"
+                                                    >
                                                         Remark
                                                     </th>
                                                 </tr>
                                                 <tr>
-                                                    <th className="px-2 py-2 text-right whitespace-nowrap w-[1%] border-r border-sidebar-border/70">
+                                                    <th className="w-[1%] border-r border-sidebar-border/70 px-2 py-2 text-right whitespace-nowrap">
                                                         PO
                                                     </th>
-                                                    <th className="px-2 py-2 text-right whitespace-nowrap w-[1%]">
+                                                    <th className="w-[1%] px-2 py-2 text-right whitespace-nowrap">
                                                         Estimate
                                                     </th>
                                                 </tr>
@@ -1924,7 +1952,7 @@ export default function PurchaseRequirementIndex({
                                                     isEmpty={
                                                         !detailLoading &&
                                                         displayedMaterialDetails.length ===
-                                                        0
+                                                            0
                                                     }
                                                     emptyMessage={
                                                         detailError ||
@@ -1939,12 +1967,12 @@ export default function PurchaseRequirementIndex({
                                                         >
                                                             <td className="px-2 py-3">
                                                                 {(materialPageSize ===
-                                                                    Infinity
+                                                                Infinity
                                                                     ? index
                                                                     : (materialCurrentPage -
-                                                                        1) *
-                                                                    materialPageSize +
-                                                                    index) +
+                                                                          1) *
+                                                                          materialPageSize +
+                                                                      index) +
                                                                     1}
                                                             </td>
                                                             <td className="px-2 py-3">
@@ -1986,17 +2014,51 @@ export default function PurchaseRequirementIndex({
                                                                     ],
                                                                 )}
                                                             </td>
-                                                            <td className="px-2 py-3 text-right whitespace-nowrap w-[1%] border-r border-sidebar-border/70">
-                                                                {formatRupiah(getValue(detail, ['price_po']))}
+                                                            <td className="w-[1%] border-r border-sidebar-border/70 px-2 py-3 text-right whitespace-nowrap">
+                                                                {formatRupiah(
+                                                                    getValue(
+                                                                        detail,
+                                                                        [
+                                                                            'price_po',
+                                                                        ],
+                                                                    ),
+                                                                )}
                                                             </td>
-                                                            <td className="px-2 py-3 text-right whitespace-nowrap w-[1%]">
-                                                                {formatRupiah(getValue(detail, ['unit_price']))}
+                                                            <td className="w-[1%] px-2 py-3 text-right whitespace-nowrap">
+                                                                {formatRupiah(
+                                                                    getValue(
+                                                                        detail,
+                                                                        [
+                                                                            'unit_price',
+                                                                        ],
+                                                                    ),
+                                                                )}
                                                             </td>
-                                                            <td className="px-2 py-3 text-right whitespace-nowrap w-[1%]">
-                                                                {renderValue(getValue(detail, ['margin']))} {getValue(detail, ['margin']) ? '%' : ''}
+                                                            <td className="w-[1%] px-2 py-3 text-right whitespace-nowrap">
+                                                                {renderValue(
+                                                                    getValue(
+                                                                        detail,
+                                                                        [
+                                                                            'margin',
+                                                                        ],
+                                                                    ),
+                                                                )}{' '}
+                                                                {getValue(
+                                                                    detail,
+                                                                    ['margin'],
+                                                                )
+                                                                    ? '%'
+                                                                    : ''}
                                                             </td>
-                                                            <td className="px-2 py-3 text-right whitespace-nowrap w-[1%]">
-                                                                {formatNumber(getValue(detail, ['stok']))}
+                                                            <td className="w-[1%] px-2 py-3 text-right whitespace-nowrap">
+                                                                {formatNumber(
+                                                                    getValue(
+                                                                        detail,
+                                                                        [
+                                                                            'stok',
+                                                                        ],
+                                                                    ),
+                                                                )}
                                                             </td>
                                                             <td className="px-2 py-3">
                                                                 {getValue(
@@ -2025,14 +2087,14 @@ export default function PurchaseRequirementIndex({
                                                     {Math.min(
                                                         (materialCurrentPage -
                                                             1) *
-                                                        materialPageSize +
-                                                        1,
+                                                            materialPageSize +
+                                                            1,
                                                         materialTotalItems,
                                                     )}
                                                     -
                                                     {Math.min(
                                                         materialCurrentPage *
-                                                        materialPageSize,
+                                                            materialPageSize,
                                                         materialTotalItems,
                                                     )}{' '}
                                                     dari {materialTotalItems}{' '}
@@ -2048,7 +2110,7 @@ export default function PurchaseRequirementIndex({
                                                                     Math.max(
                                                                         1,
                                                                         page -
-                                                                        1,
+                                                                            1,
                                                                     ),
                                                             )
                                                         }
@@ -2074,7 +2136,7 @@ export default function PurchaseRequirementIndex({
                                                                     Math.min(
                                                                         materialTotalPages,
                                                                         page +
-                                                                        1,
+                                                                            1,
                                                                     ),
                                                             )
                                                         }
@@ -2191,7 +2253,7 @@ export default function PurchaseRequirementIndex({
                                         isEmpty={
                                             !outstandingLoading &&
                                             displayedOutstandingPurchaseRequirements.length ===
-                                            0
+                                                0
                                         }
                                         emptyMessage={
                                             outstandingError ||
@@ -2282,14 +2344,14 @@ export default function PurchaseRequirementIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (outstandingCurrentPage - 1) *
-                                            outstandingPageSize +
-                                            1,
+                                                outstandingPageSize +
+                                                1,
                                             outstandingTotalItems,
                                         )}
                                         -
                                         {Math.min(
                                             outstandingCurrentPage *
-                                            outstandingPageSize,
+                                                outstandingPageSize,
                                             outstandingTotalItems,
                                         )}{' '}
                                         dari {outstandingTotalItems} data
@@ -2434,7 +2496,7 @@ export default function PurchaseRequirementIndex({
                                         isEmpty={
                                             !sisaPoLoading &&
                                             displayedSisaPoPurchaseRequirements.length ===
-                                            0
+                                                0
                                         }
                                         emptyMessage={
                                             sisaPoError ||
@@ -2525,8 +2587,8 @@ export default function PurchaseRequirementIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (sisaPoCurrentPage - 1) *
-                                            sisaPoPageSize +
-                                            1,
+                                                sisaPoPageSize +
+                                                1,
                                             sisaPoTotalItems,
                                         )}
                                         -
@@ -2674,7 +2736,7 @@ export default function PurchaseRequirementIndex({
                                         isEmpty={
                                             !realizedLoading &&
                                             displayedRealizedPurchaseRequirements.length ===
-                                            0
+                                                0
                                         }
                                         emptyMessage={
                                             realizedError ||
@@ -2744,14 +2806,14 @@ export default function PurchaseRequirementIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (realizedCurrentPage - 1) *
-                                            realizedPageSize +
-                                            1,
+                                                realizedPageSize +
+                                                1,
                                             realizedTotalItems,
                                         )}
                                         -
                                         {Math.min(
                                             realizedCurrentPage *
-                                            realizedPageSize,
+                                                realizedPageSize,
                                             realizedTotalItems,
                                         )}{' '}
                                         dari {realizedTotalItems} data

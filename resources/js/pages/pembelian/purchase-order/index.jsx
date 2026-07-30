@@ -20,7 +20,7 @@ import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { formatDateId } from '@/lib/formatters';
 import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Loader2, Pencil, Printer, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
 const breadcrumbs = [
@@ -83,6 +83,9 @@ const getPoStatus = (item) => {
     if (isOutstanding(item)) {
         return { label: 'Outstanding', variant: 'secondary' };
     }
+    if (Number(item.is_sisa_ir ?? 0) === 1) {
+        return { label: 'Sisa IR', variant: 'outline' };
+    }
     if (isPartialStatus(item)) {
         return { label: 'Sisa GR', variant: 'outline' };
     }
@@ -112,9 +115,12 @@ export default function PurchaseOrderIndex({
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
     const [realizedCountState, setRealizedCountState] = useState(realizedCount);
     const [realizedTotalState, setRealizedTotalState] = useState(realizedTotal);
-    const [isRealizedLoading, setIsRealizedLoading] = useState(false);
-    const [summaryLoading, setSummaryLoading] = useState(true);
-    const shouldLoadSummaryRef = useRef(true);
+    const [isRealizedLoading, setIsRealizedLoading] = useState(true);
+    const [summaryLoading, setSummaryLoading] = useState({
+        outstanding: true,
+        partial: true,
+        partial_ir: true,
+    });
     const [deletingId, setDeletingId] = useState(null);
     const [realizedList, setRealizedList] = useState([]);
     const [realizedSearchTerm, setRealizedSearchTerm] = useState('');
@@ -323,10 +329,6 @@ export default function PurchaseOrderIndex({
             'pageSize',
             pageSize === Infinity ? 'all' : String(pageSize),
         );
-        if (shouldLoadSummaryRef.current) {
-            params.set('include_summary', '1');
-            setSummaryLoading(true);
-        }
         if (tableDateFilter === 'range') {
             params.set('start_date', tableStartDate);
             params.set('end_date', tableEndDate);
@@ -347,19 +349,6 @@ export default function PurchaseOrderIndex({
                         : [],
                 );
                 setTableTotalRows(Number(data?.total ?? 0));
-                if (data?.summary) {
-                    setOutstandingCountState(
-                        data.summary.outstandingCount ?? 0,
-                    );
-                    setOutstandingTotalState(
-                        data.summary.outstandingTotal ?? 0,
-                    );
-                    setPartialCountState(data.summary.partialCount ?? 0);
-                    setPartialTotalState(data.summary.partialTotal ?? 0);
-                    setRealizedCountState(data.summary.realizedCount ?? 0);
-                    setRealizedTotalState(data.summary.realizedTotal ?? 0);
-                    shouldLoadSummaryRef.current = false;
-                }
             })
             .catch((error) => {
                 setPoError(
@@ -371,8 +360,46 @@ export default function PurchaseOrderIndex({
             })
             .finally(() => {
                 setPoLoading(false);
-                setSummaryLoading(false);
             });
+    };
+
+    const fetchPurchaseOrderSummary = (scope) => {
+        setSummaryLoading((current) => ({ ...current, [scope]: true }));
+        const params = new URLSearchParams({
+            summary_only: '1',
+            summary_scope: scope,
+            period: periodFilter,
+        });
+
+        fetch(`/pembelian/purchase-order/data?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
+            .then(async (response) => {
+                if (!response.ok) throw await readApiError(response);
+                return response.json();
+            })
+            .then((data) => {
+                const nextSummary = data?.summary ?? {};
+                if (scope === 'outstanding') {
+                    setOutstandingCountState(nextSummary.outstandingCount ?? 0);
+                    setOutstandingTotalState(nextSummary.outstandingTotal ?? 0);
+                } else if (scope === 'partial') {
+                    setPartialCountState(nextSummary.partialCount ?? 0);
+                    setPartialTotalState(nextSummary.partialTotal ?? 0);
+                } else if (scope === 'partial_ir') {
+                    setPartialIrCountState(nextSummary.partialIrCount ?? 0);
+                    setPartialIrTotalState(nextSummary.partialIrTotal ?? 0);
+                }
+            })
+            .catch((error) => {
+                console.error('Gagal memuat ringkasan purchase order:', error);
+            })
+            .finally(() =>
+                setSummaryLoading((current) => ({
+                    ...current,
+                    [scope]: false,
+                })),
+            );
     };
 
     useEffect(() => {
@@ -392,6 +419,15 @@ export default function PurchaseOrderIndex({
         currentPage,
         pageSize,
     ]);
+
+    useEffect(() => {
+        ['outstanding', 'partial', 'partial_ir'].forEach(
+            fetchPurchaseOrderSummary,
+        );
+        fetchRealizedSummary(periodFilter);
+        // Ringkasan kartu berjalan mandiri dari request tabel.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const fetchRealizedSummary = (p = periodFilter) => {
         setIsRealizedLoading(true);
@@ -878,14 +914,14 @@ export default function PurchaseOrderIndex({
                                     PO Outstanding
                                 </CardDescription>
                                 <CardTitle className="text-2xl">
-                                    {summaryLoading ? (
+                                    {summaryLoading.outstanding ? (
                                         <Skeleton className="h-8 w-16" />
                                     ) : (
                                         outstandingCountState
                                     )}
                                 </CardTitle>
                                 <div className="mt-1 text-sm text-muted-foreground">
-                                    {summaryLoading ? (
+                                    {summaryLoading.outstanding ? (
                                         <Skeleton className="h-4 w-24" />
                                     ) : (
                                         formatRupiah(outstandingTotalState)
@@ -906,14 +942,14 @@ export default function PurchaseOrderIndex({
                             <CardHeader className="pb-2">
                                 <CardDescription>PO sisa GR</CardDescription>
                                 <CardTitle className="text-2xl">
-                                    {summaryLoading ? (
+                                    {summaryLoading.partial ? (
                                         <Skeleton className="h-8 w-16" />
                                     ) : (
                                         partialCountState
                                     )}
                                 </CardTitle>
                                 <div className="mt-1 text-sm text-muted-foreground">
-                                    {summaryLoading ? (
+                                    {summaryLoading.partial ? (
                                         <Skeleton className="h-4 w-24" />
                                     ) : (
                                         formatRupiah(partialTotalState)
@@ -934,14 +970,14 @@ export default function PurchaseOrderIndex({
                             <CardHeader className="pb-2">
                                 <CardDescription>PO Sisa IR</CardDescription>
                                 <CardTitle className="text-2xl">
-                                    {summaryLoading ? (
+                                    {summaryLoading.partial_ir ? (
                                         <Skeleton className="h-8 w-16" />
                                     ) : (
                                         partialIrCountState
                                     )}
                                 </CardTitle>
                                 <div className="mt-1 text-sm text-muted-foreground">
-                                    {summaryLoading ? (
+                                    {summaryLoading.partial_ir ? (
                                         <Skeleton className="h-4 w-24" />
                                     ) : (
                                         formatRupiah(partialIrTotalState)
@@ -958,14 +994,14 @@ export default function PurchaseOrderIndex({
                                         PO Terealisasi
                                     </CardDescription>
                                     <CardTitle className="text-2xl">
-                                        {summaryLoading || isRealizedLoading ? (
+                                        {isRealizedLoading ? (
                                             <Skeleton className="h-8 w-16" />
                                         ) : (
                                             realizedCountState
                                         )}
                                     </CardTitle>
                                     <div className="mt-1 text-sm text-muted-foreground">
-                                        {summaryLoading || isRealizedLoading ? (
+                                        {isRealizedLoading ? (
                                             <Skeleton className="h-4 w-24" />
                                         ) : (
                                             formatRupiah(realizedTotalState)
@@ -1029,9 +1065,19 @@ export default function PurchaseOrderIndex({
                             <select
                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
                                 value={statusFilter}
-                                onChange={(event) =>
-                                    setStatusFilter(event.target.value)
-                                }
+                                onChange={(event) => {
+                                    const nextStatus = event.target.value;
+                                    setStatusFilter(nextStatus);
+                                    if (
+                                        [
+                                            'outstanding',
+                                            'partial',
+                                            'sisa_ir',
+                                        ].includes(nextStatus)
+                                    ) {
+                                        setTableDateFilter('all');
+                                    }
+                                }}
                             >
                                 <option value="outstanding">
                                     PO Outstanding
@@ -1132,8 +1178,15 @@ export default function PurchaseOrderIndex({
                         <tbody>
                             <PlainTableStateRows
                                 columns={7}
-                                loading={poLoading}
-                                error={poError}
+                                loading={
+                                    poLoading &&
+                                    displayedPurchaseOrders.length === 0
+                                }
+                                error={
+                                    displayedPurchaseOrders.length === 0
+                                        ? poError
+                                        : null
+                                }
                                 onRetry={fetchPurchaseOrders}
                                 isEmpty={
                                     !poLoading &&
@@ -2587,12 +2640,10 @@ export default function PurchaseOrderIndex({
                                         columns={5}
                                         loading={
                                             partialIrLoading &&
-                                            displayedPartialPurchaseOrders.length ===
-                                                0
+                                            partialIrList.length === 0
                                         }
                                         error={
-                                            displayedPartialPurchaseOrders.length ===
-                                            0
+                                            partialIrList.length === 0
                                                 ? partialIrError
                                                 : null
                                         }
@@ -2600,74 +2651,71 @@ export default function PurchaseOrderIndex({
                                         isEmpty={
                                             !partialIrLoading &&
                                             !partialIrError &&
-                                            displayedPartialPurchaseOrders.length ===
-                                                0
+                                            partialIrList.length === 0
                                         }
-                                        emptyTitle="Tidak ada PO sisa GR."
+                                        emptyTitle="Tidak ada PO sisa IR."
                                     />
-                                    {displayedPartialPurchaseOrders.map(
-                                        (item) => (
-                                            <tr
-                                                key={`partial-${item.no_po}`}
-                                                className="border-t border-sidebar-border/70"
-                                            >
-                                                <td className="px-4 py-3">
-                                                    {item.no_po}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatDateId(
-                                                        getRawValue(item, [
-                                                            'tgl',
-                                                            'Tgl',
-                                                            'date',
-                                                            'Date',
-                                                        ]),
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {getValue(item, [
-                                                        'nm_vdr',
-                                                        'Nm_vdr',
-                                                        'vendor',
-                                                        'Vendor',
-                                                    ])}
-                                                </td>
-                                                <td className="px-4 py-3 text-right whitespace-nowrap">
-                                                    {formatRupiah(
-                                                        getValue(item, [
-                                                            'g_total',
-                                                            'G_total',
-                                                            'total',
-                                                            'Total',
-                                                        ]),
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <ActionIconButton
-                                                            label="Detail"
-                                                            onClick={() => {
-                                                                setIsPartialIrModalOpen(
-                                                                    false,
-                                                                );
-                                                                handleOpenModal(
-                                                                    item,
-                                                                );
-                                                            }}
-                                                        >
-                                                            <Eye className="size-4" />
-                                                        </ActionIconButton>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ),
-                                    )}
+                                    {partialIrList.map((item) => (
+                                        <tr
+                                            key={`partial-${item.no_po}`}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="px-4 py-3">
+                                                {item.no_po}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {formatDateId(
+                                                    getRawValue(item, [
+                                                        'tgl',
+                                                        'Tgl',
+                                                        'date',
+                                                        'Date',
+                                                    ]),
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {getValue(item, [
+                                                    'nm_vdr',
+                                                    'Nm_vdr',
+                                                    'vendor',
+                                                    'Vendor',
+                                                ])}
+                                            </td>
+                                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                {formatRupiah(
+                                                    getValue(item, [
+                                                        'g_total',
+                                                        'G_total',
+                                                        'total',
+                                                        'Total',
+                                                    ]),
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <div className="flex items-center gap-2">
+                                                    <ActionIconButton
+                                                        label="Detail"
+                                                        onClick={() => {
+                                                            setIsPartialIrModalOpen(
+                                                                false,
+                                                            );
+                                                            handleOpenModal(
+                                                                item,
+                                                            );
+                                                        }}
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </ActionIconButton>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>
 
                         {partialIrPageSize !== Infinity &&
-                            partialTotalRows > 0 && (
+                            partialIrTotalRows > 0 && (
                                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                     <span>
                                         Menampilkan{' '}
@@ -2675,15 +2723,15 @@ export default function PurchaseOrderIndex({
                                             (partialIrCurrentPage - 1) *
                                                 partialIrPageSize +
                                                 1,
-                                            partialTotalRows,
+                                            partialIrTotalRows,
                                         )}
                                         -
                                         {Math.min(
                                             partialIrCurrentPage *
                                                 partialIrPageSize,
-                                            partialTotalRows,
+                                            partialIrTotalRows,
                                         )}{' '}
-                                        dari {partialTotalRows} data
+                                        dari {partialIrTotalRows} data
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <Button

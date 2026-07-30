@@ -1412,17 +1412,28 @@ class PurchaseOrderController
             'start_date' => (string) $request->query('start_date', ''),
             'end_date' => (string) $request->query('end_date', ''),
             'include_summary' => $request->boolean('include_summary'),
+            'summary_only' => $request->boolean('summary_only'),
+            'summary_scope' => (string) $request->query('summary_scope', 'all'),
             'period' => (string) $request->query('period', 'today'),
         ], $request);
 
         $response = $this->bypassCache()->remember($cacheKey, self::PO_CACHE_TTL, function () use ($dateFilter, $status, $search, $pageSizeRaw, $page, $poDateExpr, $request) {
+            if ($request->boolean('summary_only')) {
+                return [
+                    'summary' => $this->getPurchaseOrderSummaryScopeData(
+                        (string) $request->query('summary_scope', 'all'),
+                        (string) $request->query('period', 'today')
+                    ),
+                ];
+            }
+
             $statusSub = DB::table('tb_detailpo')
             ->select('no_po')
             ->selectRaw("
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) != coalesce(end_fl, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized,
-                case when sum(case when coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_sisa_ir
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 and sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_sisa_ir
             ")
             ->groupBy('no_po');
 
@@ -1442,7 +1453,8 @@ class PurchaseOrderController
                 'po.h_ppn'
             )
             ->selectRaw('coalesce(s.is_outstanding, 0) as is_outstanding')
-            ->selectRaw('coalesce(s.is_partial, 0) as is_partial');
+            ->selectRaw('coalesce(s.is_partial, 0) as is_partial')
+            ->selectRaw('coalesce(s.is_sisa_ir, 0) as is_sisa_ir');
 
         $now = now();
         if ($dateFilter === 'today') {
@@ -1529,6 +1541,43 @@ class PurchaseOrderController
         });
 
         return response()->json($response);
+    }
+
+    private function getPurchaseOrderSummaryScopeData(string $scope, string $period): array
+    {
+        if ($scope === 'outstanding') {
+            $stats = DB::table('tb_po')
+                ->whereIn('no_po', DB::table('tb_detailpo')->select('no_po')->groupBy('no_po')
+                    ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) = 0')
+                    ->havingRaw('count(*) > 0'))
+                ->selectRaw('count(*) as count, sum(g_total) as total')
+                ->first();
+
+            return ['outstandingCount' => (int) ($stats->count ?? 0), 'outstandingTotal' => (float) ($stats->total ?? 0)];
+        }
+
+        if ($scope === 'partial') {
+            $stats = DB::table('tb_po')
+                ->whereIn('no_po', DB::table('tb_detailpo')->select('no_po')->groupBy('no_po')
+                    ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) > 0'))
+                ->selectRaw('count(*) as count, sum(g_total) as total')
+                ->first();
+
+            return ['partialCount' => (int) ($stats->count ?? 0), 'partialTotal' => (float) ($stats->total ?? 0)];
+        }
+
+        if ($scope === 'partial_ir') {
+            $stats = DB::table('tb_detailpo')
+                ->whereIn('no_po', DB::table('tb_detailpo')->select('no_po')->groupBy('no_po')
+                    ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
+                    ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0'))
+                ->selectRaw('count(distinct no_po) as count, sum(coalesce(cast(ir_price as decimal(65,4)), 0)) as total')
+                ->first();
+
+            return ['partialIrCount' => (int) ($stats->count ?? 0), 'partialIrTotal' => (float) ($stats->total ?? 0)];
+        }
+
+        return $this->getPurchaseOrderSummaryData($period);
     }
 
     private function getPurchaseOrderSummaryData($period = 'today')
@@ -1967,6 +2016,7 @@ class PurchaseOrderController
                     'material',
                     'qty',
                     'gr_mat',
+                    'ir_mat',
                     'unit',
                     'price',
                     'total_price',
@@ -2250,6 +2300,7 @@ class PurchaseOrderController
                         'qty',
                         'sisa_pr',
                         'gr_mat',
+                    'ir_mat',
                         'ir_mat',
                         'unit',
                         'price',
@@ -2373,6 +2424,7 @@ class PurchaseOrderController
                         'ket3',
                         'ket4',
                         'gr_mat',
+                    'ir_mat',
                         'gr_price',
                         'ir_mat',
                         'ir_price',
