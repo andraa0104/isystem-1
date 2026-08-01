@@ -100,7 +100,9 @@ const getDeliveryUrgency = (value) => {
 };
 
 const getRowUrgency = (item) =>
-    Number(item.sisa_qtydo ?? 0) > 0 ? getDeliveryUrgency(item.delivery_date) : null;
+    (item.sisa_qtydo === undefined || item.sisa_qtydo === null || Number(item.sisa_qtydo) > 0)
+        ? getDeliveryUrgency(item.delivery_date)
+        : null;
 
 const toDate = (value) => {
     const text = String(value ?? '').trim();
@@ -108,7 +110,7 @@ const toDate = (value) => {
         return null;
     }
 
-    const dotDate = text.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    const dotDate = text.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\s.*)?$/);
     if (dotDate) {
         return new Date(
             Number(dotDate[3]),
@@ -117,12 +119,21 @@ const toDate = (value) => {
         );
     }
 
-    const slashDate = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    const slashDate = text.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s.*)?$/);
     if (slashDate) {
         return new Date(
             Number(slashDate[3]),
             Number(slashDate[2]) - 1,
             Number(slashDate[1]),
+        );
+    }
+
+    const dashDate = text.match(/^(\d{2})-(\d{2})-(\d{4})(?:\s.*)?$/);
+    if (dashDate) {
+        return new Date(
+            Number(dashDate[3]),
+            Number(dashDate[2]) - 1,
+            Number(dashDate[1]),
         );
     }
 
