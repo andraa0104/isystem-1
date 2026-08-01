@@ -744,17 +744,26 @@ export default function PurchaseOrderInIndex({
 
     const modalFilteredItems = useMemo(() => {
         const term = modalSearch.trim().toLowerCase();
-        if (!term) {
-            return modalItems;
-        }
-        return modalItems.filter((item) =>
+        const filtered = !term
+            ? modalItems
+            : modalItems.filter((item) =>
             [item.kode_poin, item.no_poin, item.customer_name].some((value) =>
                 String(value ?? '')
                     .toLowerCase()
                     .includes(term),
             ),
         );
-    }, [modalItems, modalSearch]);
+
+        if (!['outstanding', 'sisa'].includes(activeModal)) {
+            return filtered;
+        }
+
+        return [...filtered].sort((a, b) => {
+            const aDate = toDate(a.delivery_date)?.getTime() ?? Number.POSITIVE_INFINITY;
+            const bDate = toDate(b.delivery_date)?.getTime() ?? Number.POSITIVE_INFINITY;
+            return aDate - bDate;
+        });
+    }, [activeModal, modalItems, modalSearch]);
 
     const modalTotalItems = modalFilteredItems.length;
     const modalTotalPages = useMemo(() => {
@@ -2542,7 +2551,14 @@ export default function PurchaseOrderInIndex({
                                     {modalDisplayedItems.map((item, index) => (
                                         <tr
                                             key={`${item.no_do || item.no_poin}-${index}`}
-                                            className="border-t border-sidebar-border/70"
+                                            className={cn(
+                                                'border-t',
+                                                getRowUrgency(item) === 'overdue'
+                                                    ? 'border-red-500/40 bg-red-500/10'
+                                                    : getRowUrgency(item) === 'soon'
+                                                      ? 'border-yellow-500/40 bg-yellow-500/10'
+                                                      : 'border-sidebar-border/70',
+                                            )}
                                         >
                                             <td className="px-2 py-2 whitespace-nowrap">
                                                 {modalPageSize === Infinity
@@ -2578,6 +2594,16 @@ export default function PurchaseOrderInIndex({
                                             </td>
                                             <td className="px-2 py-2">
                                                 {item.customer_name}
+                                                {getRowUrgency(item) && (
+                                                    <span className={cn(
+                                                        'ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold',
+                                                        getRowUrgency(item) === 'overdue'
+                                                            ? 'border-red-600/40 bg-red-600/15 text-red-700'
+                                                            : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
+                                                    )}>
+                                                        Segera dikirim
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-2 py-2 text-right whitespace-nowrap">
                                                 {formatRupiah(item.grand_total)}
