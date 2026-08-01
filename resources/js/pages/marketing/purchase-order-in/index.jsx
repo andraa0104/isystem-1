@@ -2089,23 +2089,12 @@ export default function PurchaseOrderInIndex({
                                             <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                                 Tgl Buat
                                             </p>
-                                            <input
-                                                type="date"
-                                                className="h-5 w-full border-none bg-transparent p-0 text-sm font-semibold focus:ring-0"
-                                                value={
-                                                    detailHeader.created_at
-                                                        ? detailHeader.created_at.split(
-                                                            /[\sT]/,
-                                                        )[0]
-                                                        : detailHeader.date_poin &&
-                                                            detailHeader.date_poin.includes(
-                                                                '-',
-                                                            )
-                                                            ? detailHeader.date_poin
-                                                            : ''
-                                                }
-                                                readOnly
-                                            />
+                                            <p className="text-sm font-semibold whitespace-nowrap">
+                                                {formatDateDisplay(
+                                                    detailHeader.created_at ||
+                                                        detailHeader.date_poin,
+                                                )}
+                                            </p>
                                         </div>
                                         <div className="min-w-36 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
