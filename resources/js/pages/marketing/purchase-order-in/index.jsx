@@ -221,7 +221,7 @@ const SummaryMetric = ({ label, value, loading, onClick, icon, soonCount, overdu
             {loading ? <Skeleton className="h-6 w-10" /> : value}
         </div>
         {(soonCount !== undefined || overdueCount !== undefined) && (
-            <div className="mt-2 space-y-1 border-t border-sidebar-border/50 pt-2 text-[10px]">
+            <div className="mt-2 space-y-1 border-t border-sidebar-border/50 pt-2 text-[14px]">
                 {soonCount !== undefined && (
                     <div className="flex justify-between text-amber-600 dark:text-amber-500">
                         <span>≤ 5 Hari:</span>
