@@ -100,7 +100,9 @@ const getDeliveryUrgency = (value) => {
 };
 
 const getRowUrgency = (item) =>
-    (item.sisa_qtydo === undefined || item.sisa_qtydo === null || Number(item.sisa_qtydo) > 0)
+    item.sisa_qtydo !== undefined &&
+    item.sisa_qtydo !== null &&
+    Number(item.sisa_qtydo) !== 0
         ? getDeliveryUrgency(item.delivery_date)
         : null;
 
