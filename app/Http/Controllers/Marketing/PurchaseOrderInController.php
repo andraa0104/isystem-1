@@ -428,7 +428,7 @@ class PurchaseOrderInController
         $perPageInput = $request->query('per_page', 5);
         $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
         $statusFilter = $request->query('status', 'outstanding_do');
-        $dateFilter = $request->query('date_filter', 'today');
+        $dateFilter = $request->query('date_filter', 'all');
         $page = max(1, (int) $request->query('page', 1));
 
         return Inertia::render('marketing/purchase-order-in/index', [
