@@ -178,6 +178,7 @@ export default function PurchaseRequirementIndex({
     realizedDeferred = false,
 }) {
     const [searchTerm, setSearchTerm] = useState('');
+    const [activeTab, setActiveTab] = useState('customer');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
     const [purchaseRequirementsList, setPurchaseRequirementsList] = useState(
@@ -449,6 +450,18 @@ export default function PurchaseRequirementIndex({
         async (newPeriod, currentStatus, startDate = '', endDate = '') => {
             setTableLoading(true);
             try {
+                if (activeTab === 'material') {
+                    let materialUrl = `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=table&view=material&status=${currentStatus}&search=${encodeURIComponent(debouncedSearchTerm)}`;
+                    if (newPeriod === 'range' && startDate && endDate) {
+                        materialUrl += `&start_date=${startDate}&end_date=${endDate}`;
+                    }
+                    const materialResponse = await fetch(materialUrl, { headers: { Accept: 'application/json' } });
+                    const materialData = await materialResponse.json();
+                    setPurchaseRequirementsList(materialData.purchaseRequirements || []);
+                    setTableLoading(false);
+                    return;
+                }
+
                 // JIKA STATUS TEREALISASI, AMBIL LANGSUNG DARI ENDPOINT MILIK CARD!
                 if (currentStatus === 'realized') {
                     const params = new URLSearchParams({ period: newPeriod });
@@ -503,7 +516,7 @@ export default function PurchaseRequirementIndex({
                 setTableLoading(false);
             }
         },
-        [],
+        [activeTab, debouncedSearchTerm],
     );
 
     const fetchSummaryData = useCallback(async (newPeriod) => {
@@ -568,6 +581,7 @@ export default function PurchaseRequirementIndex({
             tableEndDate,
         );
     }, [
+        activeTab,
         tableDateFilter,
         statusFilter,
         tableStartDate,
@@ -673,6 +687,8 @@ export default function PurchaseRequirementIndex({
                 }
             }
 
+            if (activeTab === 'material') return true;
+
             const outstanding = Number(item.outstanding_count ?? 0) > 0;
             const sisaPoStatus = Number(item.sisa_po_count ?? 0) > 0;
 
@@ -689,7 +705,7 @@ export default function PurchaseRequirementIndex({
                 item.no_pr,
                 item.date,
                 item.for_customer,
-                item.ref_po,
+            item.ref_po,
             ];
             return values.some((value) =>
                 String(value ?? '')
@@ -706,6 +722,7 @@ export default function PurchaseRequirementIndex({
         debouncedSearchTerm,
         statusFilter,
         dateFilterBounds,
+        activeTab,
     ]);
 
     const totalItems = filteredPurchaseRequirements.length;
@@ -1441,6 +1458,14 @@ export default function PurchaseRequirementIndex({
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex w-full gap-1 rounded-lg border border-sidebar-border/70 bg-muted/30 p-1">
+                        <button type="button" onClick={() => setActiveTab('customer')} className={`rounded-md px-3 py-2 text-sm font-semibold ${activeTab === 'customer' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>
+                            Data PR Customer
+                        </button>
+                        <button type="button" onClick={() => setActiveTab('material')} className={`rounded-md px-3 py-2 text-sm font-semibold ${activeTab === 'material' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>
+                            Data PR Material
+                        </button>
+                    </div>
                     <div className="flex flex-wrap items-center gap-3">
                         <label className="text-sm text-muted-foreground">
                             Tampilkan
@@ -1530,7 +1555,7 @@ export default function PurchaseRequirementIndex({
                         <input
                             type="search"
                             className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                            placeholder="Cari customer, no PR, ref PO..."
+                            placeholder={activeTab === 'material' ? 'Cari material...' : 'Cari customer, no PR, ref PO...'}
                             value={searchTerm}
                             onChange={(event) =>
                                 setSearchTerm(event.target.value)
@@ -1549,23 +1574,27 @@ export default function PurchaseRequirementIndex({
                                 <th className="w-px px-1 py-3 text-left whitespace-nowrap">
                                     Date
                                 </th>
-                                <th className="w-[40%] min-w-72 px-1 py-3 text-left">
-                                    Customer
-                                </th>
-                                <th className="w-max px-2 py-3 text-left whitespace-nowrap">
-                                    Ref PO
-                                </th>
-                                <th className="px-2 py-3 text-left">
-                                    Jenis PR
-                                </th>
-                                <th className="w-28 px-2 py-3 text-left">
-                                    Action
-                                </th>
+                                {activeTab === 'material' ? (
+                                    <>
+                                        <th className="px-1 py-3 text-left">Ref PO</th>
+                                        <th className="px-1 py-3 text-left">Customer</th>
+                                        <th className="px-1 py-3 text-left">Material</th>
+                                        <th className="px-1 py-3 text-right">Qty</th>
+                                        <th className="px-1 py-3 text-right">Sisa PR</th>
+                                    </>
+                                ) : (
+                                    <>
+                                        <th className="w-[40%] min-w-72 px-1 py-3 text-left">Customer</th>
+                                        <th className="w-max px-2 py-3 text-left whitespace-nowrap">Ref PO</th>
+                                        <th className="px-2 py-3 text-left">Jenis PR</th>
+                                        <th className="w-28 px-2 py-3 text-left">Action</th>
+                                    </>
+                                )}
                             </tr>
                         </thead>
                         <tbody>
                             <PlainTableStateRows
-                                columns={5}
+                                columns={activeTab === 'material' ? 8 : 5}
                                 loading={
                                     tableLoading &&
                                     displayedPurchaseRequirements.length === 0
@@ -1578,7 +1607,7 @@ export default function PurchaseRequirementIndex({
                             />
                             {displayedPurchaseRequirements.map((item) => (
                                 <tr
-                                    key={item.no_pr}
+                                    key={`${activeTab}-${item.no_pr}-${item.material ?? ''}`}
                                     className="border-t border-sidebar-border/70"
                                 >
                                     <td className="w-px px-1 py-3 whitespace-nowrap">
@@ -1587,6 +1616,15 @@ export default function PurchaseRequirementIndex({
                                     <td className="w-px px-1 py-3 whitespace-nowrap">
                                         {item.date}
                                     </td>
+                                    {activeTab === 'material' ? (
+                                        <>
+                                            <td className="px-1 py-3 whitespace-nowrap">{item.ref_po ?? '-'}</td>
+                                            <td className="px-1 py-3">{item.for_customer ?? '-'}</td>
+                                            <td className="px-1 py-3">{item.material ?? '-'}</td>
+                                            <td className="px-1 py-3 text-right whitespace-nowrap">{item.qty ?? 0} {item.unit ?? ''}</td>
+                                            <td className="px-1 py-3 text-right whitespace-nowrap">{item.sisa_pr ?? 0}</td>
+                                        </>
+                                    ) : <>
                                     <td className="w-[40%] min-w-72 px-1 py-3 align-top [overflow-wrap:anywhere] whitespace-normal">
                                         {renderCustomersWithOverdueMarkers(
                                             item.for_customer,
@@ -1621,6 +1659,7 @@ export default function PurchaseRequirementIndex({
                                             </a>
                                         </div>
                                     </td>
+                                    </>}
                                 </tr>
                             ))}
                         </tbody>

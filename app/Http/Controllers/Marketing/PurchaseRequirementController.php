@@ -139,8 +139,18 @@ class PurchaseRequirementController
         $period = $request->query('period', 'today');
         $fetchType = $request->query('fetch_type');
         $status = $request->query('status', 'all');
-
+        $view = $request->query('view', 'customer');
         $response = [];
+        if ($fetchType === 'table' && $view === 'material') {
+            $response['purchaseRequirements'] = $this->getPurchaseRequirementMaterialList(
+                $request->query('period', 'all'),
+                $status,
+                trim((string) $request->query('search', '')),
+                $request->query('start_date'),
+                $request->query('end_date')
+            );
+            return response()->json($response);
+        }
 
         if ($fetchType === 'summary' || !$fetchType) {
             $summary = $this->getPurchaseRequirementSummary($period);
@@ -157,6 +167,42 @@ class PurchaseRequirementController
         }
 
         return response()->json($response);
+    }
+
+    private function getPurchaseRequirementMaterialList($period, $status, $search, $startDate = null, $endDate = null)
+    {
+        if (!in_array($status, ['all', 'outstanding', 'sisa_po', 'realized'], true)) {
+            $status = 'all';
+        }
+        $query = DB::table('tb_detailpr as d')
+            ->select('d.no_pr', 'd.date', 'd.ref_po', 'd.for_customer', 'd.material', 'd.qty', 'd.unit', 'd.sisa_pr');
+
+        if ($search !== '') {
+            $query->where('d.material', 'like', '%' . $search . '%');
+        }
+
+        if ($status === 'outstanding') {
+            $query->whereRaw('coalesce(d.sisa_pr, 0) = coalesce(d.qty, 0)');
+        } elseif ($status === 'sisa_po') {
+            $query->whereRaw('coalesce(d.sisa_pr, 0) > 0 and coalesce(d.sisa_pr, 0) <> coalesce(d.qty, 0)');
+        } elseif ($status === 'realized') {
+            $query->whereRaw('coalesce(d.sisa_pr, 0) = 0');
+        }
+
+        $dateExpr = "coalesce(date(d.date), str_to_date(d.date, '%Y-%m-%d'), str_to_date(d.date, '%Y/%m/%d'), str_to_date(d.date, '%d.%m.%Y'), str_to_date(d.date, '%d/%m/%Y'), str_to_date(d.date, '%d-%m-%Y'))";
+        if ($period === 'today') {
+            $query->whereRaw("{$dateExpr} = current_date()");
+        } elseif ($period === 'this_week') {
+            $query->whereRaw("{$dateExpr} between date_sub(current_date(), interval weekday(current_date()) day) and date_add(current_date(), interval (6 - weekday(current_date())) day)");
+        } elseif ($period === 'this_month') {
+            $query->whereRaw("year({$dateExpr}) = year(current_date()) and month({$dateExpr}) = month(current_date())");
+        } elseif ($period === 'this_year') {
+            $query->whereRaw("year({$dateExpr}) = year(current_date())");
+        } elseif ($period === 'range' && $startDate && $endDate) {
+            $query->whereRaw("{$dateExpr} between ? and ?", [$startDate, $endDate]);
+        }
+
+        return $query->orderByDesc('d.no_pr')->get();
     }
 
     public function overdueInvoices(Request $request)
