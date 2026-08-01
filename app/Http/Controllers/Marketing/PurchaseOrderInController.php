@@ -645,6 +645,7 @@ class PurchaseOrderInController
                 ->selectRaw('sum(case when coalesce(cast(sisa_qtydo as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as do_changed_count')
                 ->selectRaw('sum(case when coalesce(cast(sisa_qtydo as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) > 0 then 1 else 0 end) as do_unrealized_items')
                 ->selectRaw('sum(case when coalesce(cast(sisa_qtydo as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) < coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as do_started_items')
+                ->selectRaw('sum(coalesce(cast(sisa_qtydo as decimal(18,4)), 0)) as do_remaining_qty')
                 ->groupBy('kode_poin');
 
             $doStats = DB::table('tb_kddo as kdo')
@@ -857,7 +858,8 @@ class PurchaseOrderInController
             ], true);
 
             if ($requiresDs) {
-                $query->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin');
+                $query->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
+                    ->selectRaw('coalesce(ds.do_remaining_qty, 0) as sisa_qtydo');
             }
 
             $query->selectRaw('0 as has_do');

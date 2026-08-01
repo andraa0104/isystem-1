@@ -99,6 +99,9 @@ const getDeliveryUrgency = (value) => {
     return null;
 };
 
+const getRowUrgency = (item) =>
+    Number(item.sisa_qtydo ?? 0) > 0 ? getDeliveryUrgency(item.delivery_date) : null;
+
 const toDate = (value) => {
     const text = String(value ?? '').trim();
     if (!text) {
@@ -1597,7 +1600,7 @@ export default function PurchaseOrderInIndex({
                         )}
                         {purchaseOrderIns.map((item, index) => (
                             (() => {
-                                const urgency = getDeliveryUrgency(item.delivery_date);
+                                const urgency = getRowUrgency(item);
                                 return (
                             <div
                                 key={item.id ?? item.no_poin}
@@ -1752,7 +1755,7 @@ export default function PurchaseOrderInIndex({
                                 />
                                 {purchaseOrderIns.map((item, index) => (
                                     (() => {
-                                        const urgency = getDeliveryUrgency(item.delivery_date);
+                                        const urgency = getRowUrgency(item);
                                         return (
                                     <tr
                                         key={item.id ?? item.no_poin}
