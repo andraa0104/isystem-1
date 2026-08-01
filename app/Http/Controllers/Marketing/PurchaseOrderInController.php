@@ -15,8 +15,8 @@ class PurchaseOrderInController
 {
     public function export(Request $request)
     {
-        $statusFilter = $request->query('status', 'all');
-        $dateFilter = $request->query('date_filter', 'today');
+        $statusFilter = $request->query('status', 'outstanding_do');
+        $dateFilter = $request->query('date_filter', 'all');
         $startDate = $request->query('start_date', '');
         $endDate = $request->query('end_date', '');
 
@@ -427,7 +427,7 @@ class PurchaseOrderInController
         $search = trim((string) $request->query('search', ''));
         $perPageInput = $request->query('per_page', 5);
         $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
-        $statusFilter = $request->query('status', 'all');
+        $statusFilter = $request->query('status', 'outstanding_do');
         $dateFilter = $request->query('date_filter', 'today');
         $page = max(1, (int) $request->query('page', 1));
 
@@ -473,7 +473,7 @@ class PurchaseOrderInController
         $summaryScope = (string) $request->query('summary_scope', 'all');
         $rowsOnly = $request->boolean('rows_only', false);
         $paginationOnly = $request->boolean('pagination_only', false);
-        $dateFilter = (string) $request->query('date_filter', 'today');
+        $dateFilter = (string) $request->query('date_filter', 'all');
         $startDate = (string) $request->query('start_date', '');
         $endDate = (string) $request->query('end_date', '');
 
@@ -602,8 +602,14 @@ class PurchaseOrderInController
                 $rows = $paginationOnly
                     ? collect()
                     : ($perPage === null
-                        ? (clone $query)->orderByDesc('p.id')->get()
-                        : (clone $query)->orderByDesc('p.id')->forPage($page, $perPage)->get());
+                        ? (clone $query)
+                            ->orderByRaw("case when trim(coalesce(p.delivery_date, '')) = '' then 1 else 0 end")
+                            ->orderByRaw("coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y')) asc")
+                            ->orderByDesc('p.id')->get()
+                        : (clone $query)
+                            ->orderByRaw("case when trim(coalesce(p.delivery_date, '')) = '' then 1 else 0 end")
+                            ->orderByRaw("coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y')) asc")
+                            ->orderByDesc('p.id')->forPage($page, $perPage)->get());
 
                 $pagination = [
                     'total' => $total,
@@ -767,10 +773,12 @@ class PurchaseOrderInController
                 }
             }
 
-            $needsDoDate = in_array($statusFilter, ['sisa_do', 'realized', 'realized_do'], true);
+            // Status tabel ditentukan dari sisa qty pada tb_detailpoin. Jangan
+            // membaca tb_do/tb_kddo di jalur ini karena tabel index harus ringan.
+            $needsDoDate = false;
             $needsPrDate = $statusFilter === 'realized_pr';
 
-            if ($statusFilter === 'realized_do') {
+            if (false && $statusFilter === 'realized_do') {
                 $doDateExpression = "str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')";
                 $query = DB::table('tb_kddo as kdo')
                     ->join('tb_poin as p', function ($join) use ($prefix) {
@@ -852,19 +860,7 @@ class PurchaseOrderInController
                 $query->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin');
             }
 
-            $requiresDos = in_array($statusFilter, ['sisa_do', 'realized', 'realized_do'], true) || $needsDoDate;
-
-            if ($requiresDos) {
-                $query->leftJoinSub($doStats, 'dos', function ($join) {
-                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
-                })->selectRaw('case when coalesce(dos.do_count, 0) > 0 then 1 else 0 end as has_do');
-            } else {
-                $query->selectRaw('0 as has_do');
-            }
-
-            if ($needsDoDate) {
-                $query->selectRaw('dos.last_do_date as last_do_date');
-            }
+            $query->selectRaw('0 as has_do');
 
             if ($needsPrDate) {
                 $query->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
@@ -890,11 +886,11 @@ class PurchaseOrderInController
                 $query->whereRaw('coalesce(ds.started_items, 0) > 0')
                     ->whereRaw('coalesce(ds.unrealized_items, 0) > 0');
             } elseif ($statusFilter === 'sisa_do') {
-                $query->whereRaw('coalesce(dos.do_count, 0) > 0')
+                $query->whereRaw('coalesce(ds.do_started_items, 0) > 0')
                     ->whereRaw('coalesce(ds.do_unrealized_items, 0) > 0');
             } elseif ($statusFilter === 'realized' || $statusFilter === 'realized_do') {
-                $query->whereRaw('coalesce(ds.do_unrealized_items, 0) = 0')
-                    ->whereRaw('coalesce(dos.do_count, 0) > 0');
+                $query->whereRaw('coalesce(ds.total_items, 0) > 0')
+                    ->whereRaw('coalesce(ds.do_unrealized_items, 0) = 0');
             } elseif ($statusFilter === 'realized_pr') {
                 $query->whereRaw('coalesce(ds.total_items, 0) > 0')
                     ->whereRaw('coalesce(ds.unrealized_items, 0) = 0')
@@ -949,6 +945,8 @@ class PurchaseOrderInController
                     : ($perPage === null
                         ? (clone $query)->orderByDesc('p.id')->get()
                         : (clone $query)
+                            ->orderByRaw("case when trim(coalesce(p.delivery_date, '')) = '' then 1 else 0 end")
+                            ->orderByRaw("coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y')) asc")
                             ->orderByDesc('p.id')
                             ->forPage($page, $perPage)
                             ->get());

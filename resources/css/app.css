@@ -24,6 +24,54 @@
     }
 }
 
+@keyframes attention-shine {
+    from {
+        transform: translateX(-180%) rotate(25deg);
+    }
+    to {
+        transform: translateX(180%) rotate(25deg);
+    }
+}
+
+@keyframes attention-ring {
+    0%,
+    60%,
+    100% {
+        transform: scale(0.85);
+        opacity: 0;
+    }
+    20% {
+        transform: scale(1.35);
+        opacity: 0.45;
+    }
+}
+
+.animate-attention-glow {
+    position: relative;
+    overflow: visible;
+    transform-origin: center;
+}
+
+.animate-attention-glow::before {
+    position: absolute;
+    inset: 0;
+    width: 45%;
+    border-radius: inherit;
+    background: linear-gradient(110deg, transparent, rgb(255 255 255 / 0.85), transparent);
+    content: '';
+    animation: attention-shine 2.2s ease-in-out infinite;
+}
+
+.animate-attention-glow::after {
+    position: absolute;
+    inset: -3px;
+    border: 1px solid currentColor;
+    border-radius: 9999px;
+    content: '';
+    opacity: 0;
+    animation: attention-ring 2.2s ease-out infinite;
+}
+
 .animate-accordion-down {
     animation: accordion-down 220ms ease-out;
 }

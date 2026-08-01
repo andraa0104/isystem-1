@@ -79,6 +79,26 @@ const formatDateDisplay = (value) => {
     return `${dd}-${mm}-${yyyy}`;
 };
 
+const getDeliveryUrgency = (value) => {
+    const deliveryDate = toDate(value);
+    if (!deliveryDate) return null;
+
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const deliveryStart = new Date(
+        deliveryDate.getFullYear(),
+        deliveryDate.getMonth(),
+        deliveryDate.getDate(),
+    );
+    const daysRemaining = Math.ceil(
+        (deliveryStart.getTime() - todayStart.getTime()) / 86400000,
+    );
+
+    if (daysRemaining <= 0) return 'overdue';
+    if (daysRemaining <= 5) return 'soon';
+    return null;
+};
+
 const toDate = (value) => {
     const text = String(value ?? '').trim();
     if (!text) {
@@ -256,9 +276,11 @@ export default function PurchaseOrderInIndex({
         setIsTrackingModalOpen(true);
     };
     const [perPage, setPerPage] = useState(String(filters.per_page ?? '5'));
-    const [statusFilter, setStatusFilter] = useState(filters.status ?? 'all');
+    const [statusFilter, setStatusFilter] = useState(
+        filters.status ?? 'outstanding_do',
+    );
     const [tableDateFilter, setTableDateFilter] = useState(
-        filters.date_filter ?? 'today',
+        'all',
     );
     const [tableStartDate, setTableStartDate] = useState('');
     const [tableEndDate, setTableEndDate] = useState('');
@@ -1574,9 +1596,19 @@ export default function PurchaseOrderInIndex({
                             </div>
                         )}
                         {purchaseOrderIns.map((item, index) => (
+                            (() => {
+                                const urgency = getDeliveryUrgency(item.delivery_date);
+                                return (
                             <div
                                 key={item.id ?? item.no_poin}
-                                className="rounded-xl border border-sidebar-border/70 p-3 text-sm"
+                                className={cn(
+                                    'rounded-xl border p-3 text-sm',
+                                    urgency === 'overdue'
+                                        ? 'border-red-500/40 bg-red-500/10'
+                                        : urgency === 'soon'
+                                          ? 'border-yellow-500/40 bg-yellow-500/10'
+                                          : 'border-sidebar-border/70',
+                                )}
                             >
                                 <div className="mb-3 flex items-start justify-between gap-3">
                                     <div className="min-w-0">
@@ -1596,6 +1628,9 @@ export default function PurchaseOrderInIndex({
                                                   1}
                                         </p>
                                         <p className="mt-1 font-semibold break-words">
+                                            {urgency && (
+                                                <span className={cn('mr-2 inline-block size-4 rounded-full align-middle animate-attention-glow', urgency === 'overdue' ? 'bg-red-600 text-red-600' : 'bg-yellow-500 text-yellow-500')} title="Segera dikirim" aria-label="Segera dikirim" />
+                                            )}
                                             {item.kode_poin}
                                         </p>
                                         <p className="break-words text-muted-foreground">
@@ -1632,7 +1667,16 @@ export default function PurchaseOrderInIndex({
                                         </p>
                                         <p className="font-medium break-words">
                                             {item.customer_name || '-'}
+                                            {urgency && (
+                                                <span className={cn('ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold', urgency === 'overdue' ? 'border-red-600/40 bg-red-600/15 text-red-700' : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800')}>
+                                                    Segera dikirim
+                                                </span>
+                                            )}
                                         </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground">Delivery Date</p>
+                                        <p className="font-medium">{formatDateDisplay(item.delivery_date || '-')}</p>
                                     </div>
                                     <div>
                                         <p className="text-xs text-muted-foreground">
@@ -1655,6 +1699,8 @@ export default function PurchaseOrderInIndex({
                                     </div>
                                 </div>
                             </div>
+                                );
+                            })()
                         ))}
                     </div>
 
@@ -1670,6 +1716,9 @@ export default function PurchaseOrderInIndex({
                                     </th>
                                     <th className="w-px px-1 py-2 text-left whitespace-nowrap">
                                         Ref PO
+                                    </th>
+                                    <th className="w-px px-1 py-2 text-left whitespace-nowrap">
+                                        Delivery Date
                                     </th>
                                     <th className="w-px px-1 py-2 text-left whitespace-nowrap">
                                         Date Input
@@ -1691,7 +1740,7 @@ export default function PurchaseOrderInIndex({
                                         tableLoading &&
                                         purchaseOrderIns.length === 0
                                     }
-                                    columns={7}
+                                    columns={8}
                                     skeletonRows={
                                         perPage === 'all' ? 5 : Number(perPage)
                                     }
@@ -1702,9 +1751,19 @@ export default function PurchaseOrderInIndex({
                                     emptyTitle="Belum ada data PO In."
                                 />
                                 {purchaseOrderIns.map((item, index) => (
+                                    (() => {
+                                        const urgency = getDeliveryUrgency(item.delivery_date);
+                                        return (
                                     <tr
                                         key={item.id ?? item.no_poin}
-                                        className="border-t border-sidebar-border/70"
+                                        className={cn(
+                                            'border-t',
+                                            urgency === 'overdue'
+                                                ? 'border-red-500/40 bg-red-500/10'
+                                                : urgency === 'soon'
+                                                  ? 'border-yellow-500/40 bg-yellow-500/10'
+                                                  : 'border-sidebar-border/70',
+                                        )}
                                     >
                                         <td className="w-px px-1 py-2 whitespace-nowrap">
                                             {pagination.per_page === 'all'
@@ -1721,10 +1780,16 @@ export default function PurchaseOrderInIndex({
                                                   1}
                                         </td>
                                         <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
+                                            {urgency && (
+                                                <span className={cn('mr-2 inline-block size-4 rounded-full align-middle animate-attention-glow', urgency === 'overdue' ? 'bg-red-600 text-red-600' : 'bg-yellow-500 text-yellow-500')} title="Segera dikirim" aria-label="Segera dikirim" />
+                                            )}
                                             {item.kode_poin}
                                         </td>
                                         <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
                                             {item.no_poin}
+                                        </td>
+                                        <td className="w-px px-1 py-2 whitespace-nowrap">
+                                            {formatDateDisplay(item.delivery_date || '-')}
                                         </td>
                                         <td className="w-px px-1 py-2 whitespace-nowrap">
                                             {formatDateDisplay(
@@ -1734,6 +1799,11 @@ export default function PurchaseOrderInIndex({
                                         </td>
                                         <td className="px-1 py-2">
                                             {item.customer_name}
+                                            {urgency && (
+                                                <span className={cn('ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold', urgency === 'overdue' ? 'border-red-600/40 bg-red-600/15 text-red-700' : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800')}>
+                                                    Segera dikirim
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-2 py-2 text-right whitespace-nowrap">
                                             {formatRupiah(item.grand_total)}
@@ -1765,6 +1835,8 @@ export default function PurchaseOrderInIndex({
                                             </div>
                                         </td>
                                     </tr>
+                                        );
+                                    })()
                                 ))}
                             </tbody>
                         </table>
