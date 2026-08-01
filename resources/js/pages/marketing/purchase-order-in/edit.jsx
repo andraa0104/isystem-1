@@ -1491,8 +1491,10 @@ export default function PurchaseOrderInEdit({
                                                     <Pencil className="size-4" />
                                                 </Button>
                                             )}
-                                            {!item.hasPr &&
-                                                !exhibitsPartialDo && (
+                                            {toNumber(item.sisaQtyPr ?? 0) ===
+                                                toNumber(item.qty ?? 0) &&
+                                                toNumber(item.sisaQtyDo ?? 0) ===
+                                                    toNumber(item.qty ?? 0) && (
                                                     <Button
                                                         type="button"
                                                         variant="outline"
@@ -1650,8 +1652,10 @@ export default function PurchaseOrderInEdit({
                                                             <Pencil className="size-4" />
                                                         </Button>
                                                     )}
-                                                    {!item.hasPr &&
-                                                        !exhibitsPartialDo && (
+                                                    {toNumber(item.sisaQtyPr ?? 0) ===
+                                                        toNumber(item.qty ?? 0) &&
+                                                        toNumber(item.sisaQtyDo ?? 0) ===
+                                                            toNumber(item.qty ?? 0) && (
                                                             <Button
                                                                 type="button"
                                                                 variant="outline"
