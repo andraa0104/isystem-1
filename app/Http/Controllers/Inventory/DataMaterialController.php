@@ -45,6 +45,7 @@ class DataMaterialController
                 'mi' => ['label' => 'Data MI'],
                 'mis' => ['label' => 'Data MIS'],
                 'mib' => ['label' => 'Data MIB'],
+                'mibs' => ['label' => 'Data MIBS'],
             ],
         ]);
     }
@@ -65,7 +66,8 @@ class DataMaterialController
         $map = [
             'mi' => 'tb_mi',
             'mis' => 'tb_mi',
-            'mib' => 'tb_mib',
+            'mib' => 'tb_mi',
+            'mibs' => 'tb_mib',
         ];
 
         if (!isset($map[$key]) || !Schema::hasTable($map[$key])) {
@@ -86,7 +88,7 @@ class DataMaterialController
             $actualDateKey = $now->year;
         }
 
-        $cacheKey = $this->dataMaterialCacheKey('section-rows', [
+        $cacheKey = $this->dataMaterialCacheKey('section-rows-v2', [
             'key' => $key,
             'search' => $search,
             'pageSize' => $pageSizeRaw,
@@ -106,12 +108,14 @@ class DataMaterialController
             } elseif ($key === 'mis') {
                 $base->where('mis', '>', 0);
             } elseif ($key === 'mib') {
-                $base->where('rest_mat', '>', 0);
+                $base->where('mib', '!=', 0);
+            } elseif ($key === 'mibs') {
+                $base->where('rest_mat', '!=', 0);
             }
 
             if ($search !== '') {
                 $base->where(function ($q) use ($key, $search) {
-                    if ($key === 'mib') {
+                    if ($key === 'mib' || $key === 'mibs') {
                         // Search by No MIB (no_doc) or material
                         $q->where('no_doc', 'like', '%' . $search . '%')
                             ->orWhere('material', 'like', '%' . $search . '%');
@@ -175,8 +179,38 @@ class DataMaterialController
                     array_unshift($select, 'id');
                 }
                 $base->select($select)->orderByDesc('no_doc');
-            } else { // mib
-                $select = ['no_doc', 'material', 'qty', 'unit', 'price', DB::raw('(price * qty) as total_price'), DB::raw('rest_mat as mib')];
+            } elseif ($key === 'mib') {
+                $select = [
+                    'no_doc',
+                    'ref_po',
+                    'kd_mat',
+                    'material',
+                    'qty',
+                    'unit',
+                    'price',
+                    DB::raw('(price * qty) as total_price'),
+                    'mib',
+                ];
+                $detailMaterialColumn = Schema::hasColumn('tb_detailpo', 'kd_mat')
+                    ? 'kd_mat'
+                    : (Schema::hasColumn('tb_detailpo', 'no_material') ? 'no_material' : null);
+                if ($detailMaterialColumn && Schema::hasColumn('tb_detailpo', 'no_po') && Schema::hasColumn('tb_detailpo', 'gr_mat')) {
+                    $select[] = DB::raw("(select gr_mat from tb_detailpo where tb_detailpo.no_po = {$table}.ref_po and tb_detailpo.{$detailMaterialColumn} = {$table}.kd_mat limit 1) as gr_mat");
+                }
+                if (Schema::hasColumn($table, 'id')) {
+                    array_unshift($select, 'id');
+                }
+                $base->select($select)->orderByDesc('no_doc');
+            } else { // mibs
+                $select = [
+                    'no_doc',
+                    'material',
+                    'qty',
+                    'unit',
+                    'price',
+                    DB::raw('(price * qty) as total_price'),
+                    DB::raw('rest_mat as mib'),
+                ];
                 if (Schema::hasColumn($table, 'id')) {
                     array_unshift($select, 'id');
                 }
@@ -214,7 +248,8 @@ class DataMaterialController
         $map = [
             'mi' => 'tb_mi',
             'mis' => 'tb_mi',
-            'mib' => 'tb_mib',
+            'mib' => 'tb_mi',
+            'mibs' => 'tb_mib',
         ];
 
         if (!isset($map[$key]) || !Schema::hasTable($map[$key])) {
@@ -317,9 +352,39 @@ class DataMaterialController
                     }
                 }
 
+                if ($key === 'mib') {
+                    $refPo = (string) ($row->ref_po ?? '');
+                    $kdMat = (string) ($row->kd_mat ?? '');
+                    $qty = (float) ($row->qty ?? 0);
+                    $price = (float) ($row->price ?? 0);
+
+                    if ($refPo !== '' && $kdMat !== '' && Schema::hasTable('tb_detailpo')) {
+                        $matCol = Schema::hasColumn('tb_detailpo', 'kd_mat')
+                            ? 'kd_mat'
+                            : (Schema::hasColumn('tb_detailpo', 'no_material') ? 'no_material' : null);
+
+                        if ($matCol && Schema::hasColumn('tb_detailpo', 'gr_mat')) {
+                            $detailPo = DB::table('tb_detailpo')
+                                ->where('no_po', $refPo)
+                                ->where($matCol, $kdMat)
+                                ->lockForUpdate()
+                                ->first(['gr_mat']);
+
+                            if ($detailPo) {
+                                DB::table('tb_detailpo')
+                                    ->where('no_po', $refPo)
+                                    ->where($matCol, $kdMat)
+                                    ->update([
+                                        'gr_mat' => (float) $detailPo->gr_mat + $qty,
+                                    ]);
+                            }
+                        }
+                    }
+                }
+
                 // Cleanup header table when the document no longer exists in detail table.
-                // MI + MIS are stored in tb_mi and header is tb_kdmi.
-                if (($key === 'mi' || $key === 'mis') && Schema::hasTable('tb_kdmi') && Schema::hasColumn('tb_kdmi', 'no_doc')) {
+                // MI, MIS, and MIB are stored in tb_mi and header is tb_kdmi.
+                if (($key === 'mi' || $key === 'mis' || $key === 'mib') && Schema::hasTable('tb_kdmi') && Schema::hasColumn('tb_kdmi', 'no_doc')) {
                     $remaining = (int) DB::table('tb_mi')->where('no_doc', $noDoc)->count();
                     if ($remaining <= 0) {
                         DB::table('tb_kdmi')->where('no_doc', $noDoc)->delete();
@@ -327,13 +392,6 @@ class DataMaterialController
                     return;
                 }
 
-                // MIB stored in tb_mib and header is tb_kdmib.
-                if ($key === 'mib' && Schema::hasTable('tb_kdmib') && Schema::hasColumn('tb_kdmib', 'no_doc')) {
-                    $remaining = (int) DB::table('tb_mib')->where('no_doc', $noDoc)->count();
-                    if ($remaining <= 0) {
-                        DB::table('tb_kdmib')->where('no_doc', $noDoc)->delete();
-                    }
-                }
             });
         } catch (\Throwable $e) {
             throw ValidationException::withMessages(['general' => $e->getMessage()]);

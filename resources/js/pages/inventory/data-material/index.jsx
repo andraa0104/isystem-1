@@ -215,11 +215,11 @@ function SectionCollapse({ id, label }) {
                 title: normalized.summary || 'Gagal menghapus data.',
                 html: normalized.detail
                     ? `<pre style="text-align:left;white-space:pre-wrap;max-height:240px;overflow:auto;margin:0;">${String(
-                          normalized.detail,
-                      )
-                          .replace(/&/g, '&amp;')
-                          .replace(/</g, '&lt;')
-                          .replace(/>/g, '&gt;')}</pre>`
+                        normalized.detail,
+                    )
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')}</pre>`
                     : undefined,
             });
         }
@@ -232,16 +232,16 @@ function SectionCollapse({ id, label }) {
     }, [pageSize, total]);
 
     const columns = useMemo(() => {
-        if (id === 'mib') {
-            return [
+        if (id === 'mib' || id === 'mibs') {
+            const mibColumns = [
                 'No MIB',
                 'Material',
                 'Qty',
                 'Price',
                 'Total Price',
                 'MIB',
-                'Aksi',
             ];
+            return id === 'mib' ? [...mibColumns, 'Aksi'] : mibColumns;
         }
         return [
             'No MI',
@@ -257,7 +257,7 @@ function SectionCollapse({ id, label }) {
     }, [id]);
 
     const searchPlaceholder = useMemo(() => {
-        if (id === 'mib') return 'Cari No MIB atau material...';
+        if (id === 'mib' || id === 'mibs') return 'Cari No MIB atau material...';
         return 'Cari No MI, Ref PO, atau material...';
     }, [id]);
 
@@ -401,15 +401,14 @@ function SectionCollapse({ id, label }) {
                                             {columns.map((col, i, arr) => (
                                                 <th
                                                     key={col}
-                                                    className={`border-b px-3 py-2 font-semibold ${i === 0 ? 'rounded-tl-xl' : ''} ${i === arr.length - 1 ? 'rounded-tr-xl' : ''} ${
-                                                        col === 'Aksi'
+                                                    className={`border-b px-3 py-2 font-semibold ${i === 0 ? 'rounded-tl-xl' : ''} ${i === arr.length - 1 ? 'rounded-tr-xl' : ''} ${col === 'Aksi'
                                                             ? 'sticky right-0 z-[2] w-16 bg-background/95 text-center shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.6)]'
                                                             : numericColumns.has(
-                                                                    col,
-                                                                )
-                                                              ? 'text-right'
-                                                              : 'text-left'
-                                                    }`}
+                                                                col,
+                                                            )
+                                                                ? 'text-right'
+                                                                : 'text-left'
+                                                        }`}
                                                 >
                                                     {col}
                                                 </th>
@@ -441,7 +440,7 @@ function SectionCollapse({ id, label }) {
                                                 key={`${id}-${row.id ?? row.no_doc ?? idx}-${idx}`}
                                                 className="transition-colors odd:bg-muted/20 hover:bg-muted/40"
                                             >
-                                                {id === 'mib' ? (
+                                                {id === 'mib' || id === 'mibs' ? (
                                                     <>
                                                         <td className="border-b px-3 py-2 align-top font-medium whitespace-nowrap">
                                                             {row.no_doc}
@@ -469,26 +468,25 @@ function SectionCollapse({ id, label }) {
                                                                 row.mib,
                                                             )}
                                                         </td>
-                                                        <td className="border-b px-3 py-2 text-center align-top whitespace-nowrap">
-                                                            {Number(row.qty) ===
-                                                                Number(
-                                                                    row.mib,
-                                                                ) && (
-                                                                <Button
-                                                                    type="button"
-                                                                    size="icon"
-                                                                    variant="ghost"
-                                                                    className="h-8 w-8 text-muted-foreground hover:text-red-400"
-                                                                    onClick={() =>
-                                                                        handleDelete(
-                                                                            row,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            )}
-                                                        </td>
+                                                        {id === 'mib' && (
+                                                            <td className="border-b px-3 py-2 text-center align-top whitespace-nowrap">
+                                                                {Number(row.gr_mat ?? 0) > 0 && (
+                                                                    <Button
+                                                                        type="button"
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                                                                        onClick={() =>
+                                                                            handleDelete(
+                                                                                row,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                    </Button>
+                                                                )}
+                                                            </td>
+                                                        )}
                                                     </>
                                                 ) : (
                                                     <>
@@ -529,37 +527,37 @@ function SectionCollapse({ id, label }) {
                                                         <td className="sticky right-0 border-b border-l bg-background/95 px-3 py-2 text-center align-top whitespace-nowrap shadow-[-8px_0_12px_-12px_rgba(0,0,0,0.6)]">
                                                             {id === 'mi'
                                                                 ? Number(
-                                                                      row.inv ??
-                                                                          0,
-                                                                  ) === 0 && (
-                                                                      <ActionIconButton
-                                                                          label="Hapus"
-                                                                          onClick={() =>
-                                                                              handleDelete(
-                                                                                  row,
-                                                                              )
-                                                                          }
-                                                                      >
-                                                                          <Trash2 className="h-4 w-4 text-destructive" />
-                                                                      </ActionIconButton>
-                                                                  )
+                                                                    row.inv ??
+                                                                    0,
+                                                                ) === 0 && (
+                                                                    <ActionIconButton
+                                                                        label="Hapus"
+                                                                        onClick={() =>
+                                                                            handleDelete(
+                                                                                row,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                                    </ActionIconButton>
+                                                                )
                                                                 : Number(
-                                                                      row.qty,
-                                                                  ) ===
-                                                                      Number(
-                                                                          row.mis,
-                                                                      ) && (
-                                                                      <ActionIconButton
-                                                                          label="Hapus"
-                                                                          onClick={() =>
-                                                                              handleDelete(
-                                                                                  row,
-                                                                              )
-                                                                          }
-                                                                      >
-                                                                          <Trash2 className="h-4 w-4 text-destructive" />
-                                                                      </ActionIconButton>
-                                                                  )}
+                                                                    row.qty,
+                                                                ) ===
+                                                                Number(
+                                                                    row.mis,
+                                                                ) && (
+                                                                    <ActionIconButton
+                                                                        label="Hapus"
+                                                                        onClick={() =>
+                                                                            handleDelete(
+                                                                                row,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                                    </ActionIconButton>
+                                                                )}
                                                         </td>
                                                     </>
                                                 )}
@@ -619,14 +617,15 @@ export default function DataMaterialPage() {
                 <div>
                     <h1 className="text-xl font-semibold">Data Material</h1>
                     <p className="text-sm text-muted-foreground">
-                        Ringkasan data material (MI, MIS, MIB)
+                        Ringkasan data material (MI, MIS, MIB, MIBS)
                     </p>
                 </div>
 
                 <div className="space-y-4">
-                    <SectionCollapse id="mi" label="Data MI" />
-                    <SectionCollapse id="mis" label="Data MIS" />
-                    <SectionCollapse id="mib" label="Data MIB" />
+                    <SectionCollapse id="mi" label="Data MI (Material In)" />
+                    <SectionCollapse id="mis" label="Data MIS (Material In Stock)" />
+                    <SectionCollapse id="mib" label="Data MIB (Material In Balance)" />
+                    <SectionCollapse id="mibs" label="Data MIBS (Material In Balance Stock)" />
                 </div>
             </div>
         </>
