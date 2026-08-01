@@ -731,7 +731,7 @@ class PurchaseRequirementController
         }
 
         $query = DB::table('tb_poin')
-            ->select('kode_poin', 'no_poin', 'date_poin', 'customer_name', 'note_doc')
+            ->select('kode_poin', 'no_poin', 'date_poin', 'delivery_date', 'customer_name', 'note_doc')
             ->whereExists(function ($subQuery) {
                 $subQuery->select(DB::raw(1))
                     ->from('tb_detailpoin as d')

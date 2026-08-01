@@ -101,8 +101,8 @@ const getDeliveryUrgency = (value) => {
 
 const getRowUrgency = (item) =>
     item.sisa_qtydo !== undefined &&
-    item.sisa_qtydo !== null &&
-    Number(item.sisa_qtydo) !== 0
+        item.sisa_qtydo !== null &&
+        Number(item.sisa_qtydo) !== 0
         ? getDeliveryUrgency(item.delivery_date)
         : null;
 
@@ -204,7 +204,7 @@ const isInPeriod = (value, period, startCustom, endCustom) => {
     return true;
 };
 
-const SummaryMetric = ({ label, value, loading, onClick, icon }) => (
+const SummaryMetric = ({ label, value, loading, onClick, icon, soonCount, overdueCount }) => (
     <button
         type="button"
         className="rounded-lg border border-sidebar-border/70 px-3 py-2 text-left transition hover:border-primary/50 hover:bg-muted/40"
@@ -220,6 +220,22 @@ const SummaryMetric = ({ label, value, loading, onClick, icon }) => (
         <div className="mt-1 text-xl font-bold">
             {loading ? <Skeleton className="h-6 w-10" /> : value}
         </div>
+        {(soonCount !== undefined || overdueCount !== undefined) && (
+            <div className="mt-2 space-y-1 border-t border-sidebar-border/50 pt-2 text-[10px]">
+                {soonCount !== undefined && (
+                    <div className="flex justify-between text-amber-600 dark:text-amber-500">
+                        <span>≤ 5 Hari:</span>
+                        <span className="font-bold">{loading ? '-' : soonCount}</span>
+                    </div>
+                )}
+                {overdueCount !== undefined && (
+                    <div className="flex justify-between text-rose-600 dark:text-rose-500">
+                        <span>Lewat:</span>
+                        <span className="font-bold">{loading ? '-' : overdueCount}</span>
+                    </div>
+                )}
+            </div>
+        )}
     </button>
 );
 
@@ -300,6 +316,7 @@ export default function PurchaseOrderInIndex({
     );
     const [tableStartDate, setTableStartDate] = useState('');
     const [tableEndDate, setTableEndDate] = useState('');
+    const [deadlineFilter, setDeadlineFilter] = useState('all');
     const [realizedPeriod, setRealizedPeriod] = useState('today');
     const [dataPoInPeriod, setDataPoInPeriod] = useState('today');
     const [dataPoInStart, setDataPoInStart] = useState('');
@@ -341,6 +358,11 @@ export default function PurchaseOrderInIndex({
     const [modalPageSize, setModalPageSize] = useState(5);
     const [modalPage, setModalPage] = useState(1);
     const [modalLoading, setModalLoading] = useState(false);
+    const [modalDeadlineFilter, setModalDeadlineFilter] = useState('all');
+
+    useEffect(() => {
+        setModalDeadlineFilter('all');
+    }, [activeModal, activeModalTab]);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailTableLoading, setDetailTableLoading] = useState(false);
@@ -372,6 +394,7 @@ export default function PurchaseOrderInIndex({
             per_page: params.per_page ?? perPage,
             status: params.status ?? statusFilter,
             date_filter: params.dateFilter ?? tableDateFilter,
+            deadline_filter: params.deadlineFilter ?? deadlineFilter,
             page:
                 params.page ??
                 (params.isPartial ? pagination.page : (pagination.page ?? 1)),
@@ -391,10 +414,12 @@ export default function PurchaseOrderInIndex({
         const appliedFilters = data.applied_filters ?? {};
         const expectedDateFilter = params.dateFilter ?? tableDateFilter;
         const expectedStatus = params.status ?? statusFilter;
+        const expectedDeadlineFilter = params.deadlineFilter ?? deadlineFilter;
 
         return (
             appliedFilters.date_filter === expectedDateFilter &&
-            appliedFilters.status === expectedStatus
+            appliedFilters.status === expectedStatus &&
+            appliedFilters.deadline_filter === expectedDeadlineFilter
         );
     };
 
@@ -529,6 +554,7 @@ export default function PurchaseOrderInIndex({
                 dateFilter: tableDateFilter,
                 startDate: tableStartDate,
                 endDate: tableEndDate,
+                deadlineFilter: deadlineFilter,
                 page: 1,
                 isPartial: true,
             });
@@ -554,7 +580,14 @@ export default function PurchaseOrderInIndex({
         tableDateFilter,
         tableStartDate,
         tableEndDate,
+        deadlineFilter,
     ]);
+
+    useEffect(() => {
+        if (statusFilter === 'realized_pr' || statusFilter === 'realized_do') {
+            setDeadlineFilter('all');
+        }
+    }, [statusFilter]);
 
     const realizedPeriodKey = useMemo(() => {
         if (realizedPeriod === 'this_week') return 'week';
@@ -607,8 +640,8 @@ export default function PurchaseOrderInIndex({
                     activeModal === 'all_data'
                         ? dataPoInPeriod
                         : activeModal === 'realized'
-                          ? realizedPeriod
-                          : 'all',
+                            ? realizedPeriod
+                            : 'all',
                 page: '1',
                 is_partial: '1',
             });
@@ -744,31 +777,37 @@ export default function PurchaseOrderInIndex({
                 ? outstandingItems
                 : outstandingDoItems
             : activeModal === 'sisa'
-              ? activeModalTab === 'pr'
-                  ? belumPrItems
-                  : sisaDoItems
-              : activeModal === 'realized'
                 ? activeModalTab === 'pr'
-                    ? realizedItemsByPeriod
-                    : realizedDoItemsByPeriod
-                : activeModal === 'all_data'
-                  ? dataItemsByPeriod
-                  : [];
+                    ? belumPrItems
+                    : sisaDoItems
+                : activeModal === 'realized'
+                    ? activeModalTab === 'pr'
+                        ? realizedItemsByPeriod
+                        : realizedDoItemsByPeriod
+                    : activeModal === 'all_data'
+                        ? dataItemsByPeriod
+                        : [];
 
     const modalFilteredItems = useMemo(() => {
         const term = modalSearch.trim().toLowerCase();
-        const filtered = !term
+        let filtered = !term
             ? modalItems
             : modalItems.filter((item) =>
-            [item.kode_poin, item.no_poin, item.customer_name].some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(term),
-            ),
-        );
+                [item.kode_poin, item.no_poin, item.customer_name].some((value) =>
+                    String(value ?? '')
+                        .toLowerCase()
+                        .includes(term),
+                ),
+            );
 
         if (!['outstanding', 'sisa'].includes(activeModal)) {
             return filtered;
+        }
+
+        if (modalDeadlineFilter === 'overdue') {
+            filtered = filtered.filter((item) => getRowUrgency(item) === 'overdue');
+        } else if (modalDeadlineFilter === 'soon') {
+            filtered = filtered.filter((item) => getRowUrgency(item) === 'soon');
         }
 
         return [...filtered].sort((a, b) => {
@@ -776,7 +815,7 @@ export default function PurchaseOrderInIndex({
             const bDate = toDate(b.delivery_date)?.getTime() ?? Number.POSITIVE_INFINITY;
             return aDate - bDate;
         });
-    }, [activeModal, modalItems, modalSearch]);
+    }, [activeModal, modalItems, modalSearch, modalDeadlineFilter]);
 
     const modalTotalItems = modalFilteredItems.length;
     const modalTotalPages = useMemo(() => {
@@ -892,7 +931,7 @@ export default function PurchaseOrderInIndex({
                     }
                     toastSuccess(
                         page?.props?.flash?.success ||
-                            'Data PO In berhasil dihapus.',
+                        'Data PO In berhasil dihapus.',
                     );
 
                     setActiveModal(null);
@@ -915,8 +954,8 @@ export default function PurchaseOrderInIndex({
                     setIsDeleting(false);
                     toastError(
                         errors?.message ||
-                            errors?.error ||
-                            'Akses delete tidak diizinkan untuk menu ini.',
+                        errors?.error ||
+                        'Akses delete tidak diizinkan untuk menu ini.',
                     );
                 },
                 onFinish: () => {
@@ -1188,6 +1227,8 @@ export default function PurchaseOrderInIndex({
                                 label="Belum PR"
                                 value={summary.outstanding_pr ?? 0}
                                 loading={summaryLoading.outstanding_pr}
+                                soonCount={summary.outstanding_pr_soon}
+                                overdueCount={summary.outstanding_pr_overdue}
                                 onClick={() => {
                                     setActiveModal('outstanding');
                                     setActiveModalTab('pr');
@@ -1200,6 +1241,8 @@ export default function PurchaseOrderInIndex({
                                 label="Belum DO"
                                 value={summary.outstanding_do ?? 0}
                                 loading={summaryLoading.outstanding_do}
+                                soonCount={summary.outstanding_do_soon}
+                                overdueCount={summary.outstanding_do_overdue}
                                 onClick={() => {
                                     setActiveModal('outstanding');
                                     setActiveModalTab('do');
@@ -1259,6 +1302,8 @@ export default function PurchaseOrderInIndex({
                                 label="Sisa PR"
                                 value={summary.sisa_pr ?? 0}
                                 loading={summaryLoading.sisa_pr}
+                                soonCount={summary.sisa_pr_soon}
+                                overdueCount={summary.sisa_pr_overdue}
                                 onClick={() => {
                                     setActiveModal('sisa');
                                     setActiveModalTab('pr');
@@ -1271,6 +1316,8 @@ export default function PurchaseOrderInIndex({
                                 label="Sisa DO"
                                 value={summary.sisa_do ?? 0}
                                 loading={summaryLoading.sisa_do}
+                                soonCount={summary.sisa_do_soon}
+                                overdueCount={summary.sisa_do_overdue}
                                 onClick={() => {
                                     setActiveModal('sisa');
                                     setActiveModalTab('do');
@@ -1556,6 +1603,17 @@ export default function PurchaseOrderInIndex({
                                 <option value="range">Range Tanggal</option>
                                 <option value="all">Semua Data</option>
                             </select>
+                            {!['realized_pr', 'realized_do'].includes(statusFilter) && (
+                                <select
+                                    className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
+                                    value={deadlineFilter}
+                                    onChange={(event) => setDeadlineFilter(event.target.value)}
+                                >
+                                    <option value="all">Semua Deadline</option>
+                                    <option value="soon">5 Hari Sebelum Deadline</option>
+                                    <option value="overdue">Lewat Deadline</option>
+                                </select>
+                            )}
                             {tableDateFilter === 'range' && (
                                 <>
                                     <input
@@ -1624,106 +1682,106 @@ export default function PurchaseOrderInIndex({
                             (() => {
                                 const urgency = getRowUrgency(item);
                                 return (
-                            <div
-                                key={item.id ?? item.no_poin}
-                                className={cn(
-                                    'rounded-xl border p-3 text-sm',
-                                    urgency === 'overdue'
-                                        ? 'border-red-500/40 bg-red-500/10'
-                                        : urgency === 'soon'
-                                          ? 'border-yellow-500/40 bg-yellow-500/10'
-                                          : 'border-sidebar-border/70',
-                                )}
-                            >
-                                <div className="mb-3 flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                        <p className="text-xs text-muted-foreground">
-                                            #
-                                            {pagination.per_page === 'all'
-                                                ? index + 1
-                                                : (Number(
-                                                      pagination.page || 1,
-                                                  ) -
-                                                      1) *
-                                                      Number(
-                                                          pagination.per_page ||
-                                                              5,
-                                                      ) +
-                                                  index +
-                                                  1}
-                                        </p>
-                                        <p className="mt-1 font-semibold break-words">
-                                            {urgency && (
-                                                <span className={cn('mr-2 inline-block size-4 rounded-full align-middle animate-attention-glow', urgency === 'overdue' ? 'bg-red-600 text-red-600' : 'bg-yellow-500 text-yellow-500')} title="Segera dikirim" aria-label="Segera dikirim" />
-                                            )}
-                                            {item.kode_poin}
-                                        </p>
-                                        <p className="break-words text-muted-foreground">
-                                            Ref PO: {item.no_poin || '-'}
-                                        </p>
+                                    <div
+                                        key={item.id ?? item.no_poin}
+                                        className={cn(
+                                            'rounded-xl border p-3 text-sm',
+                                            urgency === 'overdue'
+                                                ? 'border-red-500/40 bg-red-500/10'
+                                                : urgency === 'soon'
+                                                    ? 'border-yellow-500/40 bg-yellow-500/10'
+                                                    : 'border-sidebar-border/70',
+                                        )}
+                                    >
+                                        <div className="mb-3 flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="text-xs text-muted-foreground">
+                                                    #
+                                                    {pagination.per_page === 'all'
+                                                        ? index + 1
+                                                        : (Number(
+                                                            pagination.page || 1,
+                                                        ) -
+                                                            1) *
+                                                        Number(
+                                                            pagination.per_page ||
+                                                            5,
+                                                        ) +
+                                                        index +
+                                                        1}
+                                                </p>
+                                                <p className="mt-1 font-semibold break-words">
+                                                    {urgency && (
+                                                        <span className={cn('mr-2 inline-block size-4 rounded-full align-middle animate-attention-glow', urgency === 'overdue' ? 'bg-red-600 text-red-600' : 'bg-yellow-500 text-yellow-500')} title="Segera dikirim" aria-label="Segera dikirim" />
+                                                    )}
+                                                    {item.kode_poin}
+                                                </p>
+                                                <p className="break-words text-muted-foreground">
+                                                    Ref PO: {item.no_poin || '-'}
+                                                </p>
+                                            </div>
+                                            <div className="flex shrink-0 items-center gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        openDetailModal(item.kode_poin)
+                                                    }
+                                                    title="Lihat"
+                                                >
+                                                    <Eye className="size-4" />
+                                                </Button>
+                                                <a
+                                                    href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                                                    title="Print"
+                                                >
+                                                    <Printer className="size-4" />
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="col-span-2">
+                                                <p className="text-xs text-muted-foreground">
+                                                    Customer
+                                                </p>
+                                                <p className="font-medium break-words">
+                                                    {item.customer_name || '-'}
+                                                    {urgency && (
+                                                        <span className={cn('ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold', urgency === 'overdue' ? 'border-red-600/40 bg-red-600/15 text-red-700' : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800')}>
+                                                            Segera dikirim
+                                                        </span>
+                                                    )}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-muted-foreground">Delivery Date</p>
+                                                <p className="font-medium">{formatDateDisplay(item.delivery_date || '-')}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Date Input
+                                                </p>
+                                                <p className="font-medium">
+                                                    {formatDateDisplay(
+                                                        item.created_at ||
+                                                        item.date_poin,
+                                                    )}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Grand Total
+                                                </p>
+                                                <p className="font-semibold">
+                                                    {formatRupiah(item.grand_total)}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="flex shrink-0 items-center gap-2">
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                                openDetailModal(item.kode_poin)
-                                            }
-                                            title="Lihat"
-                                        >
-                                            <Eye className="size-4" />
-                                        </Button>
-                                        <a
-                                            href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                                            title="Print"
-                                        >
-                                            <Printer className="size-4" />
-                                        </a>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div className="col-span-2">
-                                        <p className="text-xs text-muted-foreground">
-                                            Customer
-                                        </p>
-                                        <p className="font-medium break-words">
-                                            {item.customer_name || '-'}
-                                            {urgency && (
-                                                <span className={cn('ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold', urgency === 'overdue' ? 'border-red-600/40 bg-red-600/15 text-red-700' : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800')}>
-                                                    Segera dikirim
-                                                </span>
-                                            )}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">Delivery Date</p>
-                                        <p className="font-medium">{formatDateDisplay(item.delivery_date || '-')}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">
-                                            Date Input
-                                        </p>
-                                        <p className="font-medium">
-                                            {formatDateDisplay(
-                                                item.created_at ||
-                                                    item.date_poin,
-                                            )}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">
-                                            Grand Total
-                                        </p>
-                                        <p className="font-semibold">
-                                            {formatRupiah(item.grand_total)}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
                                 );
                             })()
                         ))}
@@ -1779,87 +1837,87 @@ export default function PurchaseOrderInIndex({
                                     (() => {
                                         const urgency = getRowUrgency(item);
                                         return (
-                                    <tr
-                                        key={item.id ?? item.no_poin}
-                                        className={cn(
-                                            'border-t',
-                                            urgency === 'overdue'
-                                                ? 'border-red-500/40 bg-red-500/10'
-                                                : urgency === 'soon'
-                                                  ? 'border-yellow-500/40 bg-yellow-500/10'
-                                                  : 'border-sidebar-border/70',
-                                        )}
-                                    >
-                                        <td className="w-px px-1 py-2 whitespace-nowrap">
-                                            {pagination.per_page === 'all'
-                                                ? index + 1
-                                                : (Number(
-                                                      pagination.page || 1,
-                                                  ) -
-                                                      1) *
-                                                      Number(
-                                                          pagination.per_page ||
-                                                              5,
-                                                      ) +
-                                                  index +
-                                                  1}
-                                        </td>
-                                        <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
-                                            {urgency && (
-                                                <span className={cn('mr-2 inline-block size-4 rounded-full align-middle animate-attention-glow', urgency === 'overdue' ? 'bg-red-600 text-red-600' : 'bg-yellow-500 text-yellow-500')} title="Segera dikirim" aria-label="Segera dikirim" />
-                                            )}
-                                            {item.kode_poin}
-                                        </td>
-                                        <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
-                                            {item.no_poin}
-                                        </td>
-                                        <td className="w-px px-1 py-2 whitespace-nowrap">
-                                            {formatDateDisplay(item.delivery_date || '-')}
-                                        </td>
-                                        <td className="w-px px-1 py-2 whitespace-nowrap">
-                                            {formatDateDisplay(
-                                                item.created_at ||
-                                                    item.date_poin,
-                                            )}
-                                        </td>
-                                        <td className="px-1 py-2">
-                                            {item.customer_name}
-                                            {urgency && (
-                                                <span className={cn('ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold', urgency === 'overdue' ? 'border-red-600/40 bg-red-600/15 text-red-700' : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800')}>
-                                                    Segera dikirim
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-2 py-2 text-right whitespace-nowrap">
-                                            {formatRupiah(item.grand_total)}
-                                        </td>
-                                        <td className="px-2 py-2">
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        openDetailModal(
-                                                            item.kode_poin,
-                                                        )
-                                                    }
-                                                    title="Lihat"
-                                                >
-                                                    <Eye className="size-4" />
-                                                </Button>
-                                                <a
-                                                    href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                                                    title="Print"
-                                                >
-                                                    <Printer className="size-4" />
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                            <tr
+                                                key={item.id ?? item.no_poin}
+                                                className={cn(
+                                                    'border-t',
+                                                    urgency === 'overdue'
+                                                        ? 'border-red-500/40 bg-red-500/10'
+                                                        : urgency === 'soon'
+                                                            ? 'border-yellow-500/40 bg-yellow-500/10'
+                                                            : 'border-sidebar-border/70',
+                                                )}
+                                            >
+                                                <td className="w-px px-1 py-2 whitespace-nowrap">
+                                                    {pagination.per_page === 'all'
+                                                        ? index + 1
+                                                        : (Number(
+                                                            pagination.page || 1,
+                                                        ) -
+                                                            1) *
+                                                        Number(
+                                                            pagination.per_page ||
+                                                            5,
+                                                        ) +
+                                                        index +
+                                                        1}
+                                                </td>
+                                                <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
+                                                    {urgency && (
+                                                        <span className={cn('mr-2 inline-block size-4 rounded-full align-middle animate-attention-glow', urgency === 'overdue' ? 'bg-red-600 text-red-600' : 'bg-yellow-500 text-yellow-500')} title="Segera dikirim" aria-label="Segera dikirim" />
+                                                    )}
+                                                    {item.kode_poin}
+                                                </td>
+                                                <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
+                                                    {item.no_poin}
+                                                </td>
+                                                <td className="w-px px-1 py-2 whitespace-nowrap">
+                                                    {formatDateDisplay(item.delivery_date || '-')}
+                                                </td>
+                                                <td className="w-px px-1 py-2 whitespace-nowrap">
+                                                    {formatDateDisplay(
+                                                        item.created_at ||
+                                                        item.date_poin,
+                                                    )}
+                                                </td>
+                                                <td className="px-1 py-2">
+                                                    {item.customer_name}
+                                                    {urgency && (
+                                                        <span className={cn('ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold', urgency === 'overdue' ? 'border-red-600/40 bg-red-600/15 text-red-700' : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800')}>
+                                                            Segera dikirim
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-2 py-2 text-right whitespace-nowrap">
+                                                    {formatRupiah(item.grand_total)}
+                                                </td>
+                                                <td className="px-2 py-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                openDetailModal(
+                                                                    item.kode_poin,
+                                                                )
+                                                            }
+                                                            title="Lihat"
+                                                        >
+                                                            <Eye className="size-4" />
+                                                        </Button>
+                                                        <a
+                                                            href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                                                            title="Print"
+                                                        >
+                                                            <Printer className="size-4" />
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
                                         );
                                     })()
                                 ))}
@@ -1877,18 +1935,18 @@ export default function PurchaseOrderInIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (Number(pagination.page || 1) - 1) *
-                                                Number(
-                                                    pagination.per_page || 5,
-                                                ) +
-                                                1,
+                                            Number(
+                                                pagination.per_page || 5,
+                                            ) +
+                                            1,
                                             Number(pagination.total || 0),
                                         )}
                                         -
                                         {Math.min(
                                             Number(pagination.page || 1) *
-                                                Number(
-                                                    pagination.per_page || 5,
-                                                ),
+                                            Number(
+                                                pagination.per_page || 5,
+                                            ),
                                             Number(pagination.total || 0),
                                         )}{' '}
                                         dari {pagination.total} data
@@ -1932,16 +1990,16 @@ export default function PurchaseOrderInIndex({
                                         disabled={
                                             paginationLoading ||
                                             Number(pagination.page || 1) >=
-                                                Number(
-                                                    pagination.total_pages || 1,
-                                                )
+                                            Number(
+                                                pagination.total_pages || 1,
+                                            )
                                         }
                                         onClick={() =>
                                             fetchPoInData({
                                                 page: Math.min(
                                                     Number(
                                                         pagination.total_pages ||
-                                                            1,
+                                                        1,
                                                     ),
                                                     Number(
                                                         pagination.page || 1,
@@ -2037,14 +2095,14 @@ export default function PurchaseOrderInIndex({
                                                 value={
                                                     detailHeader.created_at
                                                         ? detailHeader.created_at.split(
-                                                              /[\sT]/,
-                                                          )[0]
+                                                            /[\sT]/,
+                                                        )[0]
                                                         : detailHeader.date_poin &&
                                                             detailHeader.date_poin.includes(
                                                                 '-',
                                                             )
-                                                          ? detailHeader.date_poin
-                                                          : ''
+                                                            ? detailHeader.date_poin
+                                                            : ''
                                                 }
                                                 readOnly
                                             />
@@ -2239,20 +2297,20 @@ export default function PurchaseOrderInIndex({
                                                             >
                                                                 <td className="w-px px-1 py-2 whitespace-nowrap">
                                                                     {detailPagination.per_page ===
-                                                                    'all'
+                                                                        'all'
                                                                         ? index +
-                                                                          1
+                                                                        1
                                                                         : (Number(
-                                                                              detailPagination.page ||
-                                                                                  1,
-                                                                          ) -
-                                                                              1) *
-                                                                              Number(
-                                                                                  detailPagination.per_page ||
-                                                                                      5,
-                                                                              ) +
-                                                                          index +
-                                                                          1}
+                                                                            detailPagination.page ||
+                                                                            1,
+                                                                        ) -
+                                                                            1) *
+                                                                        Number(
+                                                                            detailPagination.per_page ||
+                                                                            5,
+                                                                        ) +
+                                                                        index +
+                                                                        1}
                                                                 </td>
                                                                 <td className="px-1 py-2">
                                                                     {row.material ??
@@ -2264,13 +2322,13 @@ export default function PurchaseOrderInIndex({
                                                                 <td className="w-px px-1 py-2 text-right whitespace-nowrap">
                                                                     {formatRupiah(
                                                                         row.price_po_in ??
-                                                                            0,
+                                                                        0,
                                                                     )}
                                                                 </td>
                                                                 <td className="w-px px-1 py-2 text-right whitespace-nowrap">
                                                                     {formatRupiah(
                                                                         row.total_price_po_in ??
-                                                                            0,
+                                                                        0,
                                                                     )}
                                                                 </td>
                                                                 <td className="w-px px-1 py-2 text-right whitespace-nowrap">
@@ -2297,63 +2355,63 @@ export default function PurchaseOrderInIndex({
                                         </p>
                                         {String(detailPagination.per_page) !==
                                             'all' && (
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    disabled={
-                                                        Number(
-                                                            detailPagination.page ||
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        disabled={
+                                                            Number(
+                                                                detailPagination.page ||
                                                                 1,
-                                                        ) <= 1
-                                                    }
-                                                    onClick={() =>
-                                                        setDetailPage((prev) =>
-                                                            Math.max(
-                                                                1,
-                                                                prev - 1,
-                                                            ),
-                                                        )
-                                                    }
-                                                >
-                                                    Sebelumnya
-                                                </Button>
-                                                <span className="text-muted-foreground">
-                                                    Halaman{' '}
-                                                    {detailPagination.page} /{' '}
-                                                    {
-                                                        detailPagination.total_pages
-                                                    }
-                                                </span>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    disabled={
-                                                        Number(
-                                                            detailPagination.page,
-                                                        ) >=
-                                                        Number(
-                                                            detailPagination.total_pages,
-                                                        )
-                                                    }
-                                                    onClick={() =>
-                                                        setDetailPage((prev) =>
-                                                            Math.min(
-                                                                Number(
-                                                                    detailPagination.total_pages ||
-                                                                        1,
+                                                            ) <= 1
+                                                        }
+                                                        onClick={() =>
+                                                            setDetailPage((prev) =>
+                                                                Math.max(
+                                                                    1,
+                                                                    prev - 1,
                                                                 ),
-                                                                prev + 1,
-                                                            ),
-                                                        )
-                                                    }
-                                                >
-                                                    Berikutnya
-                                                </Button>
-                                            </div>
-                                        )}
+                                                            )
+                                                        }
+                                                    >
+                                                        Sebelumnya
+                                                    </Button>
+                                                    <span className="text-muted-foreground">
+                                                        Halaman{' '}
+                                                        {detailPagination.page} /{' '}
+                                                        {
+                                                            detailPagination.total_pages
+                                                        }
+                                                    </span>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        disabled={
+                                                            Number(
+                                                                detailPagination.page,
+                                                            ) >=
+                                                            Number(
+                                                                detailPagination.total_pages,
+                                                            )
+                                                        }
+                                                        onClick={() =>
+                                                            setDetailPage((prev) =>
+                                                                Math.min(
+                                                                    Number(
+                                                                        detailPagination.total_pages ||
+                                                                        1,
+                                                                    ),
+                                                                    prev + 1,
+                                                                ),
+                                                            )
+                                                        }
+                                                    >
+                                                        Berikutnya
+                                                    </Button>
+                                                </div>
+                                            )}
                                     </div>
 
                                     <div className="grid gap-2 md:grid-cols-4">
@@ -2364,7 +2422,7 @@ export default function PurchaseOrderInIndex({
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     detailHeader.total_price ??
-                                                        0,
+                                                    0,
                                                 )}
                                             </p>
                                         </div>
@@ -2385,7 +2443,7 @@ export default function PurchaseOrderInIndex({
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     detailHeader.ppn_amount ??
-                                                        0,
+                                                    0,
                                                 )}
                                             </p>
                                         </div>
@@ -2396,7 +2454,7 @@ export default function PurchaseOrderInIndex({
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     detailHeader.grand_total ??
-                                                        0,
+                                                    0,
                                                 )}
                                             </p>
                                         </div>
@@ -2421,10 +2479,10 @@ export default function PurchaseOrderInIndex({
                                 {activeModal === 'all_data'
                                     ? 'Data PO IN'
                                     : activeModal === 'outstanding'
-                                      ? 'Data PO IN Outstanding'
-                                      : activeModal === 'sisa'
-                                        ? 'Data PO IN Sisa'
-                                        : `Data PO IN Terealisasi (${periodLabelMap[realizedPeriod]})`}
+                                        ? 'Data PO IN Outstanding'
+                                        : activeModal === 'sisa'
+                                            ? 'Data PO IN Sisa'
+                                            : `Data PO IN Terealisasi (${periodLabelMap[realizedPeriod]})`}
                             </DialogTitle>
                         </DialogHeader>
 
@@ -2447,8 +2505,8 @@ export default function PurchaseOrderInIndex({
                                     {activeModal === 'outstanding'
                                         ? 'Outstanding PR'
                                         : activeModal === 'sisa'
-                                          ? 'Sisa PR'
-                                          : 'PR Selesai'}
+                                            ? 'Sisa PR'
+                                            : 'PR Selesai'}
                                 </button>
                                 <button
                                     type="button"
@@ -2467,8 +2525,8 @@ export default function PurchaseOrderInIndex({
                                     {activeModal === 'outstanding'
                                         ? 'Outstanding DO'
                                         : activeModal === 'sisa'
-                                          ? 'Sisa DO'
-                                          : 'DO Selesai'}
+                                            ? 'Sisa DO'
+                                            : 'DO Selesai'}
                                 </button>
                             </div>
                         )}
@@ -2487,33 +2545,49 @@ export default function PurchaseOrderInIndex({
                                     }}
                                 />
                             </div>
-                            <label className="text-sm text-muted-foreground">
-                                Tampilkan
-                                <select
-                                    className="ml-2 h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
-                                    value={
-                                        modalPageSize === Infinity
-                                            ? 'all'
-                                            : String(modalPageSize)
-                                    }
-                                    onChange={(event) => {
-                                        const value = event.target.value;
-                                        setModalPageSize(
-                                            value === 'all'
-                                                ? Infinity
-                                                : Number(value),
-                                        );
-                                        setModalPage(1);
-                                    }}
-                                >
-                                    <option value="5">5</option>
-                                    <option value="10">10</option>
-                                    <option value="25">25</option>
-                                    <option value="50">50</option>
-                                    <option value="100">100</option>
-                                    <option value="all">Semua</option>
-                                </select>
-                            </label>
+                            <div className="flex flex-wrap items-center gap-4">
+                                {['outstanding', 'sisa'].includes(activeModal) && (
+                                    <select
+                                        className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
+                                        value={modalDeadlineFilter}
+                                        onChange={(event) => {
+                                            setModalDeadlineFilter(event.target.value);
+                                            setModalPage(1);
+                                        }}
+                                    >
+                                        <option value="all">Semua Deadline</option>
+                                        <option value="soon">≤ 5 Hari</option>
+                                        <option value="overdue">Lewat Deadline</option>
+                                    </select>
+                                )}
+                                <label className="text-sm text-muted-foreground">
+                                    Tampilkan
+                                    <select
+                                        className="ml-2 h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
+                                        value={
+                                            modalPageSize === Infinity
+                                                ? 'all'
+                                                : String(modalPageSize)
+                                        }
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            setModalPageSize(
+                                                value === 'all'
+                                                    ? Infinity
+                                                    : Number(value),
+                                            );
+                                            setModalPage(1);
+                                        }}
+                                    >
+                                        <option value="5">5</option>
+                                        <option value="10">10</option>
+                                        <option value="25">25</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                        <option value="all">Semua</option>
+                                    </select>
+                                </label>
+                            </div>
                         </div>
 
                         <div className="max-h-[78vh] overflow-x-auto rounded-xl border border-sidebar-border/70">
@@ -2531,12 +2605,12 @@ export default function PurchaseOrderInIndex({
                                         </th>
                                         <th className="w-32 px-2 py-2 text-left">
                                             {activeModal === 'realized' &&
-                                            activeModalTab === 'do'
+                                                activeModalTab === 'do'
                                                 ? 'Tgl DO Terakhir'
                                                 : activeModal === 'realized' &&
                                                     activeModalTab === 'pr'
-                                                  ? 'Tgl PR Terakhir'
-                                                  : 'Date Input'}
+                                                    ? 'Tgl PR Terakhir'
+                                                    : 'Date Input'}
                                         </th>
                                         <th className="px-2 py-2 text-left">
                                             Customer
@@ -2569,21 +2643,21 @@ export default function PurchaseOrderInIndex({
                                                 getRowUrgency(item) === 'overdue'
                                                     ? 'border-red-500/40 bg-red-500/10'
                                                     : getRowUrgency(item) === 'soon'
-                                                      ? 'border-yellow-500/40 bg-yellow-500/10'
-                                                      : 'border-sidebar-border/70',
+                                                        ? 'border-yellow-500/40 bg-yellow-500/10'
+                                                        : 'border-sidebar-border/70',
                                             )}
                                         >
                                             <td className="px-2 py-2 whitespace-nowrap">
                                                 {modalPageSize === Infinity
                                                     ? index + 1
                                                     : (modalPage - 1) *
-                                                          modalPageSize +
-                                                      index +
-                                                      1}
+                                                    modalPageSize +
+                                                    index +
+                                                    1}
                                             </td>
                                             <td className="px-2 py-2 font-semibold whitespace-nowrap">
                                                 {activeModal === 'realized' &&
-                                                activeModalTab === 'do'
+                                                    activeModalTab === 'do'
                                                     ? item.no_do
                                                     : item.kode_poin}
                                             </td>
@@ -2597,11 +2671,11 @@ export default function PurchaseOrderInIndex({
                                                         activeModalTab === 'do'
                                                         ? item.last_do_date
                                                         : activeModal ===
-                                                                'realized' &&
+                                                            'realized' &&
                                                             activeModalTab ===
-                                                                'pr'
-                                                          ? item.last_pr_date
-                                                          : item.created_at ||
+                                                            'pr'
+                                                            ? item.last_pr_date
+                                                            : item.created_at ||
                                                             item.date_poin,
                                                 )}
                                             </td>
@@ -2624,72 +2698,72 @@ export default function PurchaseOrderInIndex({
                                             <td className="px-2 py-2">
                                                 {activeModal ===
                                                     'outstanding' ||
-                                                activeModal === 'sisa' ? (
+                                                    activeModal === 'sisa' ? (
                                                     <div className="flex items-center gap-2">
                                                         {((activeModal ===
                                                             'outstanding' &&
                                                             activeModalTab ===
-                                                                'pr') ||
+                                                            'pr') ||
                                                             !Number(
                                                                 item.has_do ??
-                                                                    0,
+                                                                0,
                                                             ) ||
                                                             activeModal ===
-                                                                'sisa') && (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() => {
-                                                                    if (
-                                                                        !canUpdate
-                                                                    ) {
-                                                                        toastError(
-                                                                            'Akses edit tidak diizinkan untuk menu ini.',
-                                                                        );
-                                                                        return;
-                                                                    }
+                                                            'sisa') && (
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        if (
+                                                                            !canUpdate
+                                                                        ) {
+                                                                            toastError(
+                                                                                'Akses edit tidak diizinkan untuk menu ini.',
+                                                                            );
+                                                                            return;
+                                                                        }
 
-                                                                    setActiveModal(
-                                                                        null,
-                                                                    );
-                                                                    router.visit(
-                                                                        `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
-                                                                    );
-                                                                }}
-                                                                title="Edit"
-                                                            >
-                                                                <Pencil className="size-4" />
-                                                            </Button>
-                                                        )}
+                                                                        setActiveModal(
+                                                                            null,
+                                                                        );
+                                                                        router.visit(
+                                                                            `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
+                                                                        );
+                                                                    }}
+                                                                    title="Edit"
+                                                                >
+                                                                    <Pencil className="size-4" />
+                                                                </Button>
+                                                            )}
                                                         {activeModal ===
                                                             'outstanding' && (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                title="Hapus"
-                                                                onClick={() => {
-                                                                    if (
-                                                                        !canDelete
-                                                                    ) {
-                                                                        toastError(
-                                                                            'Akses delete tidak diizinkan untuk menu ini.',
-                                                                        );
-                                                                        return;
-                                                                    }
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    title="Hapus"
+                                                                    onClick={() => {
+                                                                        if (
+                                                                            !canDelete
+                                                                        ) {
+                                                                            toastError(
+                                                                                'Akses delete tidak diizinkan untuk menu ini.',
+                                                                            );
+                                                                            return;
+                                                                        }
 
-                                                                    setConfirmDeleteKode(
-                                                                        item.kode_poin,
-                                                                    );
-                                                                    setIsConfirmDeleteOpen(
-                                                                        true,
-                                                                    );
-                                                                }}
-                                                            >
-                                                                <Trash2 className="size-4" />
-                                                            </Button>
-                                                        )}
+                                                                        setConfirmDeleteKode(
+                                                                            item.kode_poin,
+                                                                        );
+                                                                        setIsConfirmDeleteOpen(
+                                                                            true,
+                                                                        );
+                                                                    }}
+                                                                >
+                                                                    <Trash2 className="size-4" />
+                                                                </Button>
+                                                            )}
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-center gap-2">
