@@ -702,14 +702,14 @@ class PurchaseOrderInController
                 ->groupBy('pr_p.no_poin');
 
             $now = now();
-            $startToday = $now->copy()->startOfDay()->toDateTimeString();
-            $endToday = $now->copy()->endOfDay()->toDateTimeString();
-            $startWeek = $now->copy()->startOfWeek()->toDateTimeString();
-            $endWeek = $now->copy()->endOfWeek()->toDateTimeString();
-            $startMonth = $now->copy()->startOfMonth()->toDateTimeString();
-            $endMonth = $now->copy()->endOfMonth()->toDateTimeString();
-            $startYear = $now->copy()->startOfYear()->toDateTimeString();
-            $endYear = $now->copy()->endOfYear()->toDateTimeString();
+            $startToday = $now->copy()->toDateString();
+            $endToday = $now->copy()->toDateString();
+            $startWeek = $now->copy()->startOfWeek()->toDateString();
+            $endWeek = $now->copy()->endOfWeek()->toDateString();
+            $startMonth = $now->copy()->startOfMonth()->toDateString();
+            $endMonth = $now->copy()->endOfMonth()->toDateString();
+            $startYear = $now->copy()->startOfYear()->toDateString();
+            $endYear = $now->copy()->endOfYear()->toDateString();
 
             if ($summaryOnly && $summaryScope !== 'all') {
                 if ($summaryScope === 'outstanding' || $summaryScope === 'outstanding_pr' || $summaryScope === 'outstanding_do') {
