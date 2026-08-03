@@ -162,7 +162,7 @@ export default function MutasiKasIndex({
             setRows(Array.isArray(json?.rows) ? json.rows : []);
             setTotal(Number(json?.total ?? 0));
         } catch (e) {
-            setError(readApiError(e));
+            setError(await readApiError(e));
             setRows([]);
             setTotal(0);
         } finally {

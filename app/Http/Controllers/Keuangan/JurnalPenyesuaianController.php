@@ -623,12 +623,23 @@ class JurnalPenyesuaianController
             }
 
             $base = rtrim((string) env('KAS_DSS_PYTHON_URL', 'http://127.0.0.1:8000'), '/');
-            $resp = Http::timeout(8)->acceptJson()->post($base . '/predict-jurnal-penyesuaian', [
-                'remark' => $remark,
-                'seedAkun' => $kodeAkun,
-                'nominal' => $nominal,
-                'seedJenis' => $jenis,
-            ]);
+            try {
+                $resp = Http::timeout(60)->acceptJson()->post($base . '/predict-jurnal-penyesuaian', [
+                    'remark' => $remark,
+                    'seedAkun' => $kodeAkun,
+                    'nominal' => $nominal,
+                    'seedJenis' => $jenis,
+                ]);
+            } catch (\Illuminate\Http\Client\ConnectionException $e) {
+                return response()->json([
+                    'error' => 'AI Python timeout atau tidak bisa dihubungi (proses LLM terlalu lama).',
+                    'lines' => [],
+                    'remark_suggest' => '',
+                    'confidence' => ['overall' => 0.0],
+                    'evidence' => [],
+                    'source' => 'python',
+                ], 503);
+            }
 
             if (!$resp->ok()) {
                 return response()->json([
@@ -661,7 +672,7 @@ class JurnalPenyesuaianController
                 'source' => 'python',
             ]);
         } catch (\Throwable $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            \Illuminate\Support\Facades\Log::error('suggest 500 error: ' . $e->getMessage()); return response()->json(['error' => $e->getMessage()], 500);
         }
     }
 

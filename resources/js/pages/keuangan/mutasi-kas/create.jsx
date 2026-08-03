@@ -363,7 +363,7 @@ export default function MutasiKasCreate({
             setHistRows(Array.isArray(json?.rows) ? json.rows : []);
             setHistTotal(Number(json?.total ?? 0));
         } catch (e) {
-            setHistError(readApiError(e));
+            setHistError(await readApiError(e));
             setHistRows([]);
             setHistTotal(0);
         } filll: {
@@ -521,7 +521,7 @@ export default function MutasiKasCreate({
                 });
             }
         } catch (e) {
-            setAiError(readApiError(e));
+            setAiError(await readApiError(e));
         } finally {
             setSuggestLoading(false);
         }

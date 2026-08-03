@@ -723,7 +723,7 @@ class InputPembelianController
 
         try {
             $base = rtrim((string) env('KAS_DSS_PYTHON_URL', 'http://127.0.0.1:8000'), '/');
-            $resp = Http::timeout(8)->acceptJson()->post($base . '/predict-input-pembelian', [
+            $resp = Http::timeout(15)->acceptJson()->post($base . '/predict-input-pembelian', [
                 'no_doc' => (string) ($fi->no_doc ?? ''),
                 'vendor' => (string) ($fi->nm_vdr ?? ''),
                 'ref_po' => (string) ($fi->ref_po ?? ''),
