@@ -354,7 +354,7 @@ class PurchaseOrderInController
 
         $refPoMatches = function ($query) use ($oldRefPo) {
             $query->whereRaw('lower(trim(ref_po)) = lower(trim(?))', [$oldRefPo])
-                ->orWhereRaw("find_in_set(lower(trim(?)), replace(lower(coalesce(ref_po, '')), ' ', '')) > 0", [$oldRefPo]);
+                ->orWhereRaw("find_in_set(replace(lower(trim(?)), ' ', ''), replace(lower(coalesce(ref_po, '')), ' ', '')) > 0", [$oldRefPo]);
         };
 
         DB::table('tb_pr')
@@ -694,11 +694,13 @@ class PurchaseOrderInController
                 ->groupByRaw('lower(trim(kdo.ref_po))');
 
             $prStats = DB::table('tb_poin as pr_p')->where('pr_p.kode_poin', 'like', $prefix . '.POIN-%')
-                ->join('tb_pr as pr', function ($join) {
-                    $join->whereRaw("find_in_set(lower(trim(pr_p.no_poin)), replace(lower(coalesce(pr.ref_po, '')), ' ', '')) > 0");
+                ->join('tb_detailpoin as dp', 'dp.kode_poin', '=', 'pr_p.kode_poin')
+                ->join('tb_detailpr as dpr', function ($join) {
+                    $join->on('dpr.ref_po', '=', 'dp.no_poin');
+                    $join->on('dpr.kd_material', '=', 'dp.kd_material');
                 })
                 ->selectRaw('pr_p.no_poin as ref_po')
-                ->selectRaw("max(coalesce(date(pr.date), str_to_date(pr.date, '%Y-%m-%d'), str_to_date(pr.date, '%Y/%m/%d'), str_to_date(pr.date, '%d.%m.%Y'), str_to_date(pr.date, '%d/%m/%Y'), str_to_date(pr.date, '%d-%m-%Y'))) as last_pr_date")
+                ->selectRaw("max(coalesce(date(dpr.date), str_to_date(dpr.date, '%Y-%m-%d'), str_to_date(dpr.date, '%Y/%m/%d'), str_to_date(dpr.date, '%d.%m.%Y'), str_to_date(dpr.date, '%d/%m/%Y'), str_to_date(dpr.date, '%d-%m-%Y'))) as last_pr_date")
                 ->groupBy('pr_p.no_poin');
 
             $now = now();
