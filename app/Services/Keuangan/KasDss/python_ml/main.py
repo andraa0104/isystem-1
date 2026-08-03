@@ -692,7 +692,7 @@ def suggest_from_history(mode, cleaned_input, dpp, max_lines):
         for idx in ranked:
             idx   = int(idx)
             score = float(scores[idx])
-            if score < 0.12:
+            if score < 0.40:
                 break
             row   = df.iloc[idx]
             lines = build_history_lines(row, dpp, max_lines, mode, cleaned_input)
@@ -754,9 +754,13 @@ def train_models():
         
         df_cash = df[df['Kode_Akun'].str.strip() != '']
         if len(df_cash) > 5:
-            pipe_cash = make_pipeline(TfidfVectorizer(ngram_range=(1,2), max_features=5000), SGDClassifier(loss='log_loss', class_weight='balanced'))
-            pipe_cash.fit(df_cash['X'], df_cash['Kode_Akun'])
-            models[f"cash_{mode}"] = pipe_cash
+            from sklearn.preprocessing import LabelEncoder
+            from lightgbm import LGBMClassifier
+            le_cash = LabelEncoder()
+            y_cash = le_cash.fit_transform(df_cash['Kode_Akun'])
+            pipe_cash = make_pipeline(TfidfVectorizer(ngram_range=(1,2), max_features=5000), LGBMClassifier(verbose=-1, class_weight='balanced', n_estimators=100))
+            pipe_cash.fit(df_cash['X'], y_cash)
+            models[f"cash_{mode}"] = {"pipe": pipe_cash, "le": le_cash}
             
         lawan_data = []
         for _, row in df.iterrows():
@@ -770,9 +774,13 @@ def train_models():
                     
         if len(lawan_data) > 5:
             df_lawan = pd.DataFrame(lawan_data)
-            pipe_lawan = make_pipeline(TfidfVectorizer(ngram_range=(1,2), max_features=5000), SGDClassifier(loss='log_loss', class_weight='balanced'))
-            pipe_lawan.fit(df_lawan['X'], df_lawan['y'])
-            models[f"lawan_{mode}"] = pipe_lawan
+            from sklearn.preprocessing import LabelEncoder
+            from lightgbm import LGBMClassifier
+            le_lawan = LabelEncoder()
+            y_lawan = le_lawan.fit_transform(df_lawan['y'])
+            pipe_lawan = make_pipeline(TfidfVectorizer(ngram_range=(1,2), max_features=5000), LGBMClassifier(verbose=-1, class_weight='balanced', n_estimators=100))
+            pipe_lawan.fit(df_lawan['X'], y_lawan)
+            models[f"lawan_{mode}"] = {"pipe": pipe_lawan, "le": le_lawan}
 
 
 def preload_ollama():
@@ -821,29 +829,31 @@ def predict(req: SuggestRequest):
     cleaned_input = clean_text(req.keterangan)
     
     # Predict Cash
-    model_cash = models.get(f"cash_{mode}")
-    if model_cash:
+    model_cash_dict = models.get(f"cash_{mode}")
+    if model_cash_dict:
         try:
-            probs = model_cash.predict_proba([cleaned_input])[0]
-            classes = model_cash.classes_
+            pipe = model_cash_dict["pipe"]
+            le = model_cash_dict["le"]
+            probs = pipe.predict_proba([cleaned_input])[0]
             top_c = probs.argsort()[-1]
-            resp["kode_akun"] = str(classes[top_c])
+            resp["kode_akun"] = str(le.inverse_transform([pipe.classes_[top_c]])[0])
             resp["confidence"]["cash"] = float(probs[top_c])
-        except:
+        except Exception:
             pass
         
     # Predict Lawan
-    model_lawan = models.get(f"lawan_{mode}")
+    model_lawan_dict = models.get(f"lawan_{mode}")
     best_lawan = []
-    if model_lawan:
+    if model_lawan_dict:
         try:
-            probs = model_lawan.predict_proba([cleaned_input])[0]
-            classes = model_lawan.classes_
+            pipe = model_lawan_dict["pipe"]
+            le = model_lawan_dict["le"]
+            probs = pipe.predict_proba([cleaned_input])[0]
             top_indices = probs.argsort()[-3:][::-1]
-            best_lawan = [(classes[i], probs[i]) for i in top_indices]
+            best_lawan = [(str(le.inverse_transform([pipe.classes_[i]])[0]), float(probs[i])) for i in top_indices]
             if best_lawan:
                 resp["confidence"]["lawan"] = float(best_lawan[0][1])
-        except:
+        except Exception:
             pass
             
     max_lines = 2 if (req.hasPpn and req.ppnNominal > 0) else 3
@@ -958,6 +968,8 @@ def predict_input_pembelian(req: PurchaseSuggestRequest):
     for idx in ranked:
         idx = int(idx)
         score = float(scores[idx])
+        if score < 0.40:
+            break
         row = df.iloc[idx]
         lines = build_purchase_lines(row, dpp, has_ppn)
         if not lines:
@@ -965,16 +977,33 @@ def predict_input_pembelian(req: PurchaseSuggestRequest):
         best = (row, lines, score)
         break
 
+    # Removed blind fallback to head(200) to prevent hallucinated suggestions that are unrelated
     if not best:
-        for idx, row in df.head(200).iterrows():
-            lines = build_purchase_lines(row, dpp, has_ppn)
-            if not lines:
-                continue
-            score = float(scores[int(idx)]) if int(idx) < len(scores) else 0.0
-            best = (row, lines, max(score, 0.01))
-            break
-
-    if not best:
+        model_cash = models.get("cash_out")
+        model_lawan = models.get("lawan_out")
+        if model_cash and model_lawan:
+            try:
+                c_probs = model_cash["pipe"].predict_proba([query])[0]
+                c_c = c_probs.argsort()[-1]
+                pred_cash = str(model_cash["le"].inverse_transform([model_cash["pipe"].classes_[c_c]])[0])
+                c_score = float(c_probs[c_c])
+                
+                l_probs = model_lawan["pipe"].predict_proba([query])[0]
+                l_c = l_probs.argsort()[-1]
+                pred_lawan = str(model_lawan["le"].inverse_transform([model_lawan["pipe"].classes_[l_c]])[0])
+                
+                ppn_akun = fetch_purchase_ppn_account() if has_ppn else ""
+                lines = [{"akun": pred_lawan, "jenis": "Debit", "nominal": dpp}]
+                
+                resp["kode_akun"] = pred_cash
+                resp["voucher_type"] = voucher_type_for_account(pred_cash)
+                resp["ppn_akun"] = ppn_akun
+                resp["beban_lines"] = lines
+                resp["confidence"] = {"overall": c_score, "purchase": c_score}
+                resp["evidence"] = [{"source": "lgbm_purchase_fallback", "Kode_Voucher": "", "Keterangan": query, "score": round(c_score, 4)}]
+                return resp
+            except Exception:
+                pass
         return resp
 
     row, lines, score = best
@@ -1069,23 +1098,51 @@ def predict_input_penjualan(req: SalesSuggestRequest):
     best = None
     for idx in ranked:
         idx = int(idx)
+        score = float(scores[idx])
+        if score < 0.40:
+            break
         row = df.iloc[idx]
         lines = build_sales_lines(row, dpp, has_ppn)
         if not lines:
             continue
-        best = (row, lines, float(scores[idx]))
+        best = (row, lines, score)
         break
 
+    # Removed blind fallback for unrelated history
     if not best:
-        for idx, row in df.head(200).iterrows():
-            lines = build_sales_lines(row, dpp, has_ppn)
-            if not lines:
-                continue
-            score = float(scores[int(idx)]) if int(idx) < len(scores) else 0.0
-            best = (row, lines, max(score, 0.01))
-            break
-
-    if not best:
+        model_cash = models.get("cash_in")
+        model_lawan = models.get("lawan_in")
+        if model_cash and model_lawan:
+            try:
+                c_probs = model_cash["pipe"].predict_proba([query])[0]
+                c_c = c_probs.argsort()[-1]
+                pred_cash = str(model_cash["le"].inverse_transform([model_cash["pipe"].classes_[c_c]])[0])
+                c_score = float(c_probs[c_c])
+                
+                l_probs = model_lawan["pipe"].predict_proba([query])[0]
+                l_c = l_probs.argsort()[-1]
+                pred_lawan = str(model_lawan["le"].inverse_transform([model_lawan["pipe"].classes_[l_c]])[0])
+                
+                lines = []
+                if already_journaled:
+                    lines.append({"akun": "1109AD", "jenis": "Kredit", "nominal": safe_float(req.cashNominal, dpp)})
+                    ppn_akun = ""
+                else:
+                    lines.append({"akun": pred_lawan, "jenis": "Kredit", "nominal": dpp})
+                    ppn_akun = fetch_sales_ppn_account() if has_ppn else ""
+                    if has_ppn and not ppn_akun:
+                        ppn_akun = "2107AK"
+                
+                resp["kode_akun"] = pred_cash
+                resp["voucher_type"] = voucher_type_for_account(pred_cash)
+                resp["ppn_akun"] = ppn_akun
+                resp["beban_lines"] = lines
+                resp["keterangan"] = query
+                resp["confidence"] = {"overall": c_score, "sales": c_score}
+                resp["evidence"] = [{"source": "lgbm_sales_fallback", "Kode_Voucher": "", "Keterangan": query, "score": round(c_score, 4)}]
+                return resp
+            except Exception:
+                pass
         return sales_default_response(0.25)
 
     row, lines, score = best
@@ -1138,6 +1195,68 @@ def predict_input_penjualan(req: SalesSuggestRequest):
     }]
     return resp
 
+def ask_qwen_jurnal_penyesuaian(remark, history_context, coa_str, nominal, seed_akun, seed_jenis):
+    import urllib.request, json, re
+    
+    context_str = ""
+    for idx, hc in enumerate(history_context):
+        context_str += f"Referensi {idx+1}:\nKeterangan: {hc['remark']}\nJurnal:\n"
+        for _, row in hc['group'].iterrows():
+            d = safe_float(row.get('Debit'), 0)
+            k = safe_float(row.get('Kredit'), 0)
+            akun = row.get('Kode_Akun', '')
+            nama = row.get('Nama_Akun', '')
+            if d > 0: context_str += f"- Debit {akun} {nama} {d}\n"
+            if k > 0: context_str += f"- Kredit {akun} {nama} {k}\n"
+        context_str += "\n"
+
+    base_info = ""
+    if nominal > 0:
+        base_info = f"Nilai/Nominal transaksi saat ini adalah: {nominal}. Gunakan nilai ini. "
+    if seed_akun:
+        jenis_text = "Debit" if seed_jenis.lower() == "debit" else "Kredit"
+        base_info += f"Wajib masukkan {seed_akun} di posisi {jenis_text} senilai {nominal}. "
+    
+    prompt = f"""Anda adalah Akuntan Publik Senior pencetak JSON.
+Transaksi: "{remark}"
+{base_info}
+
+Bagan Akun (CoA):
+{coa_str}
+
+Contoh Jurnal Historis:
+{context_str}
+
+ATURAN:
+1. Total Debit HARUS = Total Kredit.
+2. HARUS memakai akun dari Bagan Akun atau Jurnal Historis.
+3. OUTPUT HARUS FULL JSON ARRAY MURNI tanpa teks pembuka/penutup. Format JSON Array:
+[
+  {{"akun": "KODE_AKUN", "jenis": "Debit", "nominal": 1500000}},
+  {{"akun": "KODE_AKUN", "jenis": "Kredit", "nominal": 1500000}}
+]"""
+
+    data = {
+        "model": "qwen2.5:3b",
+        "prompt": prompt,
+        "stream": False,
+        "options": {"temperature": 0.0}
+    }
+    
+    try:
+        req = urllib.request.Request("http://127.0.0.1:11434/api/generate", data=json.dumps(data).encode('utf-8'))
+        req.add_header('Content-Type', 'application/json')
+        with urllib.request.urlopen(req, timeout=45) as response:
+            res = json.loads(response.read().decode('utf-8'))
+            ans = res.get('response', '').strip()
+            json_match = re.search(r'\[.*\]', ans, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(0))
+            return json.loads(ans)
+    except Exception as e:
+        print("Qwen Jurnal Error:", e)
+        return []
+
 @app.post("/predict-jurnal-penyesuaian")
 def predict_jurnal_penyesuaian(req: AdjustmentSuggestRequest):
     resp = {
@@ -1177,28 +1296,49 @@ def predict_jurnal_penyesuaian(req: AdjustmentSuggestRequest):
     ranked, scores = st_rank_indices(clean_text(remark), corpus, top_k=30)
 
     best = None
-    for idx in ranked:
-        idx  = int(idx)
-        lines = build_adjustment_lines(grouped[idx]["group"], req)
-        if not lines:
-            continue
-        best = (grouped[idx], lines, float(scores[idx]))
-        break
+    fallback_history = []
+    
+    for i, idx in enumerate(ranked):
+        idx = int(idx)
+        score = float(scores[idx])
+        
+        if i < 3:
+            fallback_history.append(grouped[idx])
+            
+        if score < 0.65 and not best:
+            pass
+        elif not best:
+            lines = build_adjustment_lines(grouped[idx]["group"], req)
+            if lines:
+                best = (grouped[idx], lines, score)
 
-    if not best:
+    if best:
+        hit, lines, score = best
+        resp["lines"] = lines
+        resp["remark_suggest"] = remark
+        resp["confidence"] = {"overall": score, "adjustment": score}
+        resp["evidence"] = [{
+            "source": "jurnal_penyesuaian_history",
+            "Kode_Jurnal": hit["kode"],
+            "Remark": hit["remark"],
+            "Posting_Date": hit["posting_date"],
+            "score": round(score, 4)
+        }]
+        return resp
+        
+    all_accounts = models.get('account_names', {})
+    coa_list = [f"[{k}] {v}" for k, v in all_accounts.items() if str(k).strip() != '']
+    coa_str = ", ".join(coa_list[:500])
+    
+    qwen_lines = ask_qwen_jurnal_penyesuaian(remark, fallback_history, coa_str, safe_float(req.nominal, 0.0), str(req.seedAkun or "").strip(), str(req.seedJenis or "").strip())
+    
+    if qwen_lines:
+        resp["lines"] = qwen_lines
+        resp["remark_suggest"] = remark
+        resp["confidence"] = {"overall": 0.88, "adjustment": 0.88}
+        resp["evidence"] = [{"source": "qwen2.5_rag", "score": 0.88}]
         return resp
 
-    hit, lines, score = best
-    resp["lines"] = lines
-    resp["remark_suggest"] = remark
-    resp["confidence"] = {"overall": score, "adjustment": score}
-    resp["evidence"] = [{
-        "source": "jurnal_penyesuaian_history",
-        "Kode_Jurnal": hit["kode"],
-        "Remark": hit["remark"],
-        "Posting_Date": hit["posting_date"],
-        "score": round(score, 4)
-    }]
     return resp
 
 
