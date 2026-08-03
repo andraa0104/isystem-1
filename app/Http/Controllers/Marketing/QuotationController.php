@@ -503,8 +503,8 @@ class QuotationController
         ];
 
         return Inertia::render('marketing/quotation/print', [
-            'quotation' => $data['quotation'],
-            'quotationDetails' => $data['quotationDetails'],
+            'quotation' => $quotation,
+            'quotationDetails' => $quotationDetails,
             'company' => $company,
         ]);
     }

@@ -970,7 +970,7 @@ export default function QuotationEdit({
                             <h2 className="text-base font-semibold">
                                 Step 3 - Data Material
                             </h2>
-                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[12rem_12rem_minmax(14rem,1fr)_minmax(14rem,1fr)_12rem]">
+                            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                                 <div className="grid gap-2 md:col-span-2 xl:col-span-5">
                                     <Label htmlFor="nama_material">
                                         Nama Material
