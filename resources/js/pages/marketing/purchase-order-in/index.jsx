@@ -331,7 +331,7 @@ export default function PurchaseOrderInIndex({
     const [tableStartDate, setTableStartDate] = useState('');
     const [tableEndDate, setTableEndDate] = useState('');
     const [deadlineFilter, setDeadlineFilter] = useState('all');
-    const [realizedPeriod, setRealizedPeriod] = useState('all');
+    const [realizedPeriod, setRealizedPeriod] = useState('today');
     const [dataPoInPeriod, setDataPoInPeriod] = useState('today');
     const [dataPoInStart, setDataPoInStart] = useState('');
     const [dataPoInEnd, setDataPoInEnd] = useState('');
