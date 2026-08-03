@@ -863,6 +863,7 @@ def predict(req: SuggestRequest):
         lines.append({"akun": req.seedAkun, "jenis": "Debit" if req.mode == "out" else "Kredit", "nominal": 0.0})
         
     for a, p in best_lawan:
+        if p < 0.40: continue
         if len(lines) >= max_lines: break
         if a not in [l['akun'] for l in lines] and account_allowed_for_text(a, cleaned_input, allow_liability=is_valid_account_seed(req.seedAkun)):
             lines.append({"akun": a, "jenis": "Debit" if req.mode == "out" else "Kredit", "nominal": 0.0})
