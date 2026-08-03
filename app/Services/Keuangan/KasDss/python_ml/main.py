@@ -675,8 +675,9 @@ def st_rank_indices(query: str, corpus: list, top_k: int = 30):
         return ranked, scores
     except Exception:
         import numpy as np
-        scores = np.zeros(len(corpus))
-        return list(range(min(top_k, len(corpus)))), scores
+        scores = np.array(smart_local_match(query, corpus))
+        ranked = scores.argsort()[::-1][:top_k]
+        return ranked, scores
 
 
 def suggest_from_history(mode, cleaned_input, dpp, max_lines):
@@ -868,11 +869,6 @@ def predict(req: SuggestRequest):
         if a not in [l['akun'] for l in lines] and account_allowed_for_text(a, cleaned_input, allow_liability=is_valid_account_seed(req.seedAkun)):
             lines.append({"akun": a, "jenis": "Debit" if req.mode == "out" else "Kredit", "nominal": 0.0})
             
-    if not lines and best_lawan:
-        for a, p in best_lawan:
-            if account_allowed_for_text(a, cleaned_input, allow_liability=is_valid_account_seed(req.seedAkun)):
-                lines.append({"akun": a, "jenis": "Debit" if req.mode == "out" else "Kredit", "nominal": 0.0})
-                break
             
     dpp = req_nominal - (req_ppn_nominal if req.hasPpn else 0.0)
     dpp = max(0.0, dpp)
