@@ -405,13 +405,13 @@ export default function InputPembelianCreate({
                 },
             );
             if (!res.ok) {
-                throw await normalizeApiError(res);
+                throw await readApiError(res);
             }
             const json = await res.json();
             setRows(Array.isArray(json?.rows) ? json.rows : []);
             setTotal(Number(json?.total ?? 0));
         } catch (e) {
-            setError(await readApiError(e));
+            setError(normalizeApiError(e));
             setRows([]);
             setTotal(0);
         } finally {
@@ -462,7 +462,7 @@ export default function InputPembelianCreate({
                     headers: { Accept: 'application/json' },
                 },
             );
-            if (!res.ok) throw await normalizeApiError(res);
+            if (!res.ok) throw await readApiError(res);
             const json = await res.json();
             setSelectedDetail({
                 ...json?.header,
@@ -488,7 +488,7 @@ export default function InputPembelianCreate({
                     headers: { Accept: 'application/json' },
                 },
             );
-            if (!res.ok) throw await normalizeApiError(res);
+            if (!res.ok) throw await readApiError(res);
             const json = await res.json();
             const warning = String(json?.warning ?? '').trim();
             if (warning) setError(warning);
@@ -541,7 +541,7 @@ export default function InputPembelianCreate({
                 else setPpnAkun('');
             }
         } catch (e) {
-            setError(await readApiError(e));
+            setError(normalizeApiError(e));
         } finally {
             setSuggestLoading(false);
         }
