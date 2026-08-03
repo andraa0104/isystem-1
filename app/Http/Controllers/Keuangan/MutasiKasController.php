@@ -659,7 +659,8 @@ class MutasiKasController
                 ]);
             }
 
-            $pythonOut = $this->suggestFromPython([
+            $kasDss = new \App\Services\Keuangan\KasDss\KasDss();
+            $dssOut = $kasDss->suggest([
                 'mode' => $mode,
                 'keterangan' => $keterangan,
                 'nominal' => $nominal,
@@ -668,33 +669,13 @@ class MutasiKasController
                 'seedAkun' => $seedAkun,
             ]);
 
-            if (!$pythonOut) {
-                return response()->json([
-                    'error' => 'AI Python tidak memberi saran. Pastikan service Python aktif dan histori mutasi kas tersedia.',
-                    'source' => 'python',
-                    'confidence' => ['overall' => 0.0],
-                    'evidence' => [],
-                ], 503);
+            // Ensure voucherType has a fallback if blank
+            if (($dssOut['voucher_type'] ?? '') === '') {
+                $vAkun = ($dssOut['kode_akun'] ?? '') !== '' ? $dssOut['kode_akun'] : $kodeAkun;
+                $dssOut['voucher_type'] = $this->guessVoucherType($vAkun);
             }
 
-            $suggestedKodeAkun = (string) ($pythonOut['kode_akun'] ?? '');
-            $voucherAkun = $suggestedKodeAkun !== '' ? $suggestedKodeAkun : $kodeAkun;
-            $voucherType = trim((string) ($pythonOut['voucher_type'] ?? ''));
-            if ($voucherType === '') {
-                $voucherType = $this->guessVoucherType($voucherAkun);
-            }
-
-            return response()->json([
-                'kode_akun' => $suggestedKodeAkun,
-                'voucher_type' => $voucherType,
-                'keterangan' => (string) ($pythonOut['keterangan'] ?? ''),
-                'ppn_akun' => (string) ($pythonOut['ppn_akun'] ?? ''),
-                'ppn_jenis' => (string) (($pythonOut['ppn_jenis'] ?? '') ?: $ppnJenis),
-                'lines' => $pythonOut['lines'] ?? [],
-                'confidence' => $pythonOut['confidence'] ?? ['overall' => 0.0],
-                'evidence' => $pythonOut['evidence'] ?? [],
-                'source' => 'python',
-            ]);
+            return response()->json($dssOut);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
