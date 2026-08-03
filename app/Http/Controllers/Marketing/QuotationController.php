@@ -130,8 +130,22 @@ class QuotationController
 
     private function getPenawaranQuery($period, string $search = '')
     {
+        // Dialihkan read, filter, dan search ke ClickHouse untuk VPS
+        // Digabungkan try-catch sebagai fallback ke default (MySQL) di komputer lokal yang belum diinstall ClickHouse
+        try {
+            $connection = DB::connection('clickhouse');
+            // Pastikan driver didukung, jika di local belum ada package akan melempar InvalidArgumentException
+            if (!$connection->getConfig('driver')) {
+                throw new \Exception("Driver not set");
+            }
+        } catch (\Exception $e) {
+            $connection = DB::connection();
+        } catch (\InvalidArgumentException $e) {
+            $connection = DB::connection();
+        }
+
         // Gunakan nama kolom yang sudah dipastikan ada (hardcode)
-        $query = DB::table('tb_penawaran as p')
+        $query = $connection->table('tb_penawaran as p')
             ->select(
                 'p.No_penawaran',
                 'p.Tgl_Penawaran',
