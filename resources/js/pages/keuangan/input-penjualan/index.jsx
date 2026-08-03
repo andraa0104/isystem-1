@@ -157,12 +157,12 @@ export default function InputPenjualanIndex({
                     headers: { Accept: 'application/json' },
                 },
             );
-            if (!res.ok) throw await normalizeApiError(res);
+            if (!res.ok) throw await readApiError(res);
             const json = await res.json();
             setRows(Array.isArray(json?.rows) ? json.rows : []);
             setTotal(Number(json?.total ?? 0));
         } catch (e) {
-            setError(await readApiError(e));
+            setError(normalizeApiError(e));
             setRows([]);
             setTotal(0);
         } finally {

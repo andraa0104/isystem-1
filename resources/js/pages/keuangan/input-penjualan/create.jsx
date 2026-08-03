@@ -384,7 +384,9 @@ export default function InputPenjualanCreate({
             const currentNominal =
                 Math.round(Number(current?.nominal ?? 0) * 100) / 100;
             const target = Math.round(Number(calc.dppCash ?? 0) * 100) / 100;
-            const currentAkun = String(current?.akun ?? '').trim().toUpperCase();
+            const currentAkun = String(current?.akun ?? '')
+                .trim()
+                .toUpperCase();
             const currentJenis = String(current?.jenis ?? '').trim();
 
             if (
@@ -421,11 +423,16 @@ export default function InputPenjualanCreate({
             const dpp = Math.round(Number(calc.dppCash ?? 0) * 100) / 100;
             if (dpp <= 0 || current === dpp) return prev;
 
-            const akun = String(first?.akun ?? '').trim().toUpperCase();
+            const akun = String(first?.akun ?? '')
+                .trim()
+                .toUpperCase();
             return [
                 {
                     ...first,
-                    akun: akun === '' || akun === '1109AD' ? '4101AK' : first.akun,
+                    akun:
+                        akun === '' || akun === '1109AD'
+                            ? '4101AK'
+                            : first.akun,
                     jenis: 'Kredit',
                     nominal: dpp,
                 },
@@ -471,12 +478,12 @@ export default function InputPenjualanCreate({
                     headers: { Accept: 'application/json' },
                 },
             );
-            if (!res.ok) throw await normalizeApiError(res);
+            if (!res.ok) throw await readApiError(res);
             const json = await res.json();
             setRows(Array.isArray(json?.rows) ? json.rows : []);
             setTotal(Number(json?.total ?? 0));
         } catch (e) {
-            setError(await readApiError(e));
+            setError(normalizeApiError(e));
             setRows([]);
             setTotal(0);
         } finally {
@@ -494,7 +501,7 @@ export default function InputPenjualanCreate({
                     headers: { Accept: 'application/json' },
                 },
             );
-            if (!res.ok) throw await normalizeApiError(res);
+            if (!res.ok) throw await readApiError(res);
             const json = await res.json();
             setSelectedDetail(json?.header ?? null);
         } catch {
@@ -517,7 +524,7 @@ export default function InputPenjualanCreate({
                     headers: { Accept: 'application/json' },
                 },
             );
-            if (!res.ok) throw await normalizeApiError(res);
+            if (!res.ok) throw await readApiError(res);
             const json = await res.json();
 
             const suggestedKet = String(json?.keterangan ?? '').trim();
