@@ -661,7 +661,7 @@ export default function QuotationEdit({
             },
             {
                 onStart: () => setIsSubmitting(true),
-onSuccess: (page) => {
+                onSuccess: (page) => {
                     if (page?.props?.flash?.error) {
                         showToast(page.props.flash.error, 'error');
                         setIsSubmitting(false);
@@ -687,7 +687,7 @@ onSuccess: (page) => {
                 },
                 onCancel: () => setIsSubmitting(false),
                 onFinish: () => setIsSubmitting(false),
-},
+            },
         );
     };
 
@@ -1149,7 +1149,7 @@ onSuccess: (page) => {
                             </div>
 
                             <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                                <table className="w-full text-sm">
+                                <table className="w-full min-w-[800px] text-sm">
                                     <thead className="bg-muted/50 text-muted-foreground">
                                         <tr>
                                             <th className="px-4 py-3 text-left">
@@ -1211,7 +1211,7 @@ onSuccess: (page) => {
                                                     <td className="px-4 py-3">
                                                         {index + 1}
                                                     </td>
-                                                    <td className="max-w-xs whitespace-normal break-words px-4 py-3">
+                                                    <td className="max-w-xs px-4 py-3 break-words whitespace-normal">
                                                         {item.nama}
                                                     </td>
                                                     <td className="px-4 py-3">
@@ -1243,7 +1243,8 @@ onSuccess: (page) => {
                                                             {isEditing ? (
                                                                 <>
                                                                     <span className="text-xs text-muted-foreground">
-                                                                        Sedang diedit
+                                                                        Sedang
+                                                                        diedit
                                                                     </span>
                                                                     <Button
                                                                         type="button"
@@ -1418,7 +1419,7 @@ onSuccess: (page) => {
                     </div>
 
                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                        <table className="w-full text-sm">
+                        <table className="w-full min-w-[800px] text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
                                     <th className="px-4 py-3 text-left">No</th>
