@@ -18,6 +18,21 @@ class QuotationController
         private QuotationService $quotationService
     ) {}
 
+    private function getClickhouseOrFallbackConnection()
+    {
+        try {
+            $connection = DB::connection('clickhouse');
+            if (!$connection->getConfig('driver')) {
+                throw new \Exception("Driver not set");
+            }
+            return $connection;
+        } catch (\Exception $e) {
+            return DB::connection();
+        } catch (\InvalidArgumentException $e) {
+            return DB::connection();
+        }
+    }
+
     private function valueOrSpace(mixed $value): string
     {
         if ($value === null) {
@@ -130,22 +145,8 @@ class QuotationController
 
     private function getPenawaranQuery($period, string $search = '')
     {
-        // Dialihkan read, filter, dan search ke ClickHouse untuk VPS
-        // Digabungkan try-catch sebagai fallback ke default (MySQL) di komputer lokal yang belum diinstall ClickHouse
-        try {
-            $connection = DB::connection('clickhouse');
-            // Pastikan driver didukung, jika di local belum ada package akan melempar InvalidArgumentException
-            if (!$connection->getConfig('driver')) {
-                throw new \Exception("Driver not set");
-            }
-        } catch (\Exception $e) {
-            $connection = DB::connection();
-        } catch (\InvalidArgumentException $e) {
-            $connection = DB::connection();
-        }
-
         // Gunakan nama kolom yang sudah dipastikan ada (hardcode)
-        $query = $connection->table('tb_penawaran as p')
+        $query = $this->getClickhouseOrFallbackConnection()->table('tb_penawaran as p')
             ->select(
                 'p.No_penawaran',
                 'p.Tgl_Penawaran',
@@ -302,7 +303,7 @@ class QuotationController
         ]));
 
         $data = Cache::tags(['customer_data'])->remember($cacheKey, 86400, function () use ($search, $page, $pageSize) {
-            $query = DB::table('tb_cs')
+            $query = $this->getClickhouseOrFallbackConnection()->table('tb_cs')
                 ->select(
                     'kd_cs as kd_cs',
                     'nm_cs as nm_cs',
@@ -356,7 +357,7 @@ class QuotationController
             $nameColumn = $this->resolveColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
             $unitColumn = $this->resolveColumn('tb_barang', ['unit', 'satuan'], 'unit');
 
-            $query = DB::table('tb_barang')->selectRaw("
+            $query = $this->getClickhouseOrFallbackConnection()->table('tb_barang')->selectRaw("
                 {$codeColumn} as kd_material,
                 {$nameColumn} as material,
                 {$unitColumn} as unit,

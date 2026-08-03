@@ -108,6 +108,21 @@ class PurchaseOrderInController
         ]);
     }
 
+    private function getClickhouseOrFallbackConnection()
+    {
+        try {
+            $connection = DB::connection('clickhouse');
+            if (!$connection->getConfig('driver')) {
+                throw new \Exception("Driver not set");
+            }
+            return $connection;
+        } catch (\Exception $e) {
+            return DB::connection();
+        } catch (\InvalidArgumentException $e) {
+            return DB::connection();
+        }
+    }
+
     private function formatFailureMessage(string $action, Throwable $e): string
     {
         $type = $e instanceof QueryException ? 'Error SQL/database' : 'Error sistem';
@@ -1411,7 +1426,7 @@ class PurchaseOrderInController
         $unitColumn = $this->firstExistingColumn('tb_barang', ['unit', 'satuan'], 'unit');
         $stockTotal = $this->barangStockTotalExpression();
 
-        $query = DB::table('tb_barang')->selectRaw("
+        $query = $this->getClickhouseOrFallbackConnection()->table('tb_barang')->selectRaw("
             tb_barang.*,
             {$codeColumn} as kd_material,
             {$nameColumn} as material,
@@ -1476,7 +1491,7 @@ class PurchaseOrderInController
         $codeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
         $nameColumn = $this->firstExistingColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
         $unitColumn = $this->firstExistingColumn('tb_barang', ['unit', 'satuan'], 'unit');
-        $lastKdMaterial = DB::table('tb_barang')->max($codeColumn);
+        $lastKdMaterial = $this->getClickhouseOrFallbackConnection()->table('tb_barang')->max($codeColumn);
         $nextKdMaterial = $lastKdMaterial
             ? (string) (((int) $lastKdMaterial) + 1)
             : '1000000001';
@@ -1506,7 +1521,7 @@ class PurchaseOrderInController
                 }
             }
 
-            DB::table('tb_barang')->insert($insertData);
+            $this->getClickhouseOrFallbackConnection()->table('tb_barang')->insert($insertData);
 
         } catch (Throwable $exception) {
             return response()->json(['message' => $exception->getMessage()], 500);
@@ -1542,7 +1557,7 @@ class PurchaseOrderInController
             $perPage = 5;
         }
 
-        $query = DB::table('tb_cs')->select('kd_cs', 'nm_cs', 'kota_cs');
+        $query = $this->getClickhouseOrFallbackConnection()->table('tb_cs')->select('kd_cs', 'nm_cs', 'kota_cs');
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $like = '%'.strtolower($search).'%';
@@ -1583,7 +1598,7 @@ class PurchaseOrderInController
             'Attnd' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $lastCode = DB::table('tb_cs')
+        $lastCode = $this->getClickhouseOrFallbackConnection()->table('tb_cs')
             ->where('kd_cs', 'like', 'CST%')
             ->orderBy('kd_cs', 'desc')
             ->value('kd_cs');
@@ -1592,7 +1607,7 @@ class PurchaseOrderInController
         $validated['kd_cs'] = $nextCode;
 
         try {
-            DB::table('tb_cs')->insert($validated);
+            $this->getClickhouseOrFallbackConnection()->table('tb_cs')->insert($validated);
 
         } catch (Throwable $exception) {
             return response()->json(['message' => $exception->getMessage()], 500);
