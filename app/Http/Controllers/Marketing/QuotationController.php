@@ -406,6 +406,10 @@ class QuotationController
                 ->with('error', 'Data quotation tidak ditemukan.');
         }
 
+        $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
+        $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
+        $hargaColumn = $this->resolveColumn('tb_penawarandetail', ['Harga', 'harga'], 'Harga');
+
         $quotationDetails = DB::table('tb_penawarandetail')
             ->selectRaw(
                 'ID, ID as id, ' .
