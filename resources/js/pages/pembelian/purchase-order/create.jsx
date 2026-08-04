@@ -32,9 +32,14 @@ const withRequiredSpace = (value) => {
 };
 
 const parseNumber = (value) => {
-    const normalized = String(value ?? '')
-        .replace(/,/g, '')
-        .trim();
+    let normalized = String(value ?? '').trim();
+    const commaCount = (normalized.match(/,/g) || []).length;
+    const hasDot = normalized.includes('.');
+    if (commaCount === 1 && !hasDot) {
+        normalized = normalized.replace(',', '.');
+    } else {
+        normalized = normalized.replace(/,/g, '');
+    }
     const parsed = Number(normalized);
     return Number.isNaN(parsed) ? 0 : parsed;
 };
@@ -713,8 +718,8 @@ export default function PurchaseOrderCreate({
     const postPurchaseOrder = (payload) => {
         router.post('/pembelian/purchase-order', payload, {
             onStart: () => setIsSubmitting(true),
-                onFinish: () => setIsSubmitting(false),
-onError: () => setIsSubmitting(false),
+            onFinish: () => setIsSubmitting(false),
+            onError: () => setIsSubmitting(false),
             onSuccess: (page) => {
                 if (page?.props?.flash?.error) {
                     setIsSubmitting(false);
@@ -1241,20 +1246,39 @@ onError: () => setIsSubmitting(false),
                                         value={
                                             includePpn
                                                 ? priceWithPpn
-                                                    ? `Rp. ${new Intl.NumberFormat('id-ID').format(priceWithPpn)}`
+                                                    ? `Rp. ${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 10 }).format(priceWithPpn)}`
                                                     : 'Rp. 0'
                                                 : materialForm.basePrice
-                                                  ? `Rp. ${new Intl.NumberFormat('id-ID').format(materialForm.basePrice)}`
+                                                  ? (() => {
+                                                        const parts = String(
+                                                            materialForm.basePrice,
+                                                        ).split(',');
+                                                        const formattedInt =
+                                                            new Intl.NumberFormat(
+                                                                'id-ID',
+                                                            ).format(
+                                                                parts[0] || 0,
+                                                            );
+                                                        return parts.length > 1
+                                                            ? `Rp. ${formattedInt},${parts[1]}`
+                                                            : `Rp. ${formattedInt}`;
+                                                    })()
                                                   : ''
                                         }
                                         readOnly={includePpn}
                                         onChange={(event) => {
-                                            // Hanya simpan angka murni ke state agar kalkulasi tidak error
-                                            const rawValue =
+                                            let rawValue =
                                                 event.target.value.replace(
-                                                    /[^0-9]/g,
+                                                    /[^0-9,]/g,
                                                     '',
                                                 );
+                                            const parts = rawValue.split(',');
+                                            if (parts.length > 2) {
+                                                rawValue =
+                                                    parts[0] +
+                                                    ',' +
+                                                    parts.slice(1).join('');
+                                            }
                                             setMaterialForm((prev) => ({
                                                 ...prev,
                                                 basePrice: rawValue,

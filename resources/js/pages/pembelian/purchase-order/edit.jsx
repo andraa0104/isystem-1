@@ -26,10 +26,15 @@ const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
 const parseNumber = (value) => {
-    const normalized = String(value ?? '')
-        .replace(/,/g, '')
-        .replace(/[^\d.-]/g, '')
-        .trim();
+    let normalized = String(value ?? '').trim();
+    const commaCount = (normalized.match(/,/g) || []).length;
+    const hasDot = normalized.includes('.');
+    if (commaCount === 1 && !hasDot) {
+        normalized = normalized.replace(',', '.');
+    } else {
+        normalized = normalized.replace(/,/g, '');
+    }
+    normalized = normalized.replace(/[^\d.-]/g, '');
     const parsed = Number(normalized);
     return Number.isNaN(parsed) ? 0 : parsed;
 };
@@ -652,7 +657,9 @@ export default function PurchaseOrderEdit({
             const defaultShares = sourceLines.map((source) => {
                 const availableQty = parseNumber(source.available_qty);
                 return totalAvailable > 0
-                    ? Math.round((availableQty / totalAvailable) * Math.abs(delta))
+                    ? Math.round(
+                          (availableQty / totalAvailable) * Math.abs(delta),
+                      )
                     : 0;
             });
             const roundedLastIndex = sourceLines.length - 1;
@@ -807,20 +814,19 @@ export default function PurchaseOrderEdit({
         if (currentItem?.isNewFromPr) {
             setMaterialItems((prev) =>
                 prev.some((item) => item.id === editingMaterialId)
-                        ? prev.map((item) =>
-                              item.id === editingMaterialId
-                                  ? {
-                                        ...item,
-                                        price: payload.price,
-                                        ppn: payload.ppn,
-                                        totalPrice: payload.total_price,
-                                        qty: materialForm.qty,
-                                        maxQty: materialForm.maxQty,
-                                        originalQty:
-                                            item.originalQty ?? item.qty,
-                                        inEx: includePpn ? 'IN' : 'EX',
-                                    }
-                                  : item,
+                    ? prev.map((item) =>
+                          item.id === editingMaterialId
+                              ? {
+                                    ...item,
+                                    price: payload.price,
+                                    ppn: payload.ppn,
+                                    totalPrice: payload.total_price,
+                                    qty: materialForm.qty,
+                                    maxQty: materialForm.maxQty,
+                                    originalQty: item.originalQty ?? item.qty,
+                                    inEx: includePpn ? 'IN' : 'EX',
+                                }
+                              : item,
                       )
                     : [
                           ...prev,
@@ -831,7 +837,8 @@ export default function PurchaseOrderEdit({
                               totalPrice: payload.total_price,
                               qty: materialForm.qty,
                               maxQty: materialForm.maxQty,
-                              originalQty: currentItem.originalQty ?? currentItem.qty,
+                              originalQty:
+                                  currentItem.originalQty ?? currentItem.qty,
                               inEx: includePpn ? 'IN' : 'EX',
                           },
                       ],
@@ -860,14 +867,15 @@ export default function PurchaseOrderEdit({
         setSavingMaterialId(null);
         handleCancelEditMaterial();
 
-        const editedAllocations = buildQtyAllocationPayload(updatedItems).filter(
+        const editedAllocations = buildQtyAllocationPayload(
+            updatedItems,
+        ).filter(
             (group) =>
                 String(group.kd_material) === String(currentItem?.kodeMaterial),
         );
         const needsAllocationModal = editedAllocations.some(
             (group) =>
-                group.qty_delta !== 0 &&
-                (group.sources?.length ?? 0) > 1,
+                group.qty_delta !== 0 && (group.sources?.length ?? 0) > 1,
         );
 
         if (needsAllocationModal) {
@@ -1057,8 +1065,7 @@ export default function PurchaseOrderEdit({
         const prAllocations = buildQtyAllocationPayload();
         const needsAllocationModal = prAllocations.some(
             (group) =>
-                group.qty_delta !== 0 &&
-                (group.sources?.length ?? 0) > 1,
+                group.qty_delta !== 0 && (group.sources?.length ?? 0) > 1,
         );
         const payload = buildSubmitPayload();
 
@@ -1076,7 +1083,7 @@ export default function PurchaseOrderEdit({
             {
                 onStart: () => setIsSubmitting(true),
                 onFinish: () => setIsSubmitting(false),
-onError: () => setIsSubmitting(false),
+                onError: () => setIsSubmitting(false),
                 onSuccess: (page) => {
                     if (page?.props?.flash?.error) {
                         setIsSubmitting(false);
@@ -1105,7 +1112,7 @@ onError: () => setIsSubmitting(false),
             {
                 onStart: () => setIsSubmitting(true),
                 onFinish: () => setIsSubmitting(false),
-onError: () => setIsSubmitting(false),
+                onError: () => setIsSubmitting(false),
                 onSuccess: (page) => {
                     if (page?.props?.flash?.error) {
                         setIsSubmitting(false);
@@ -1116,7 +1123,10 @@ onError: () => setIsSubmitting(false),
     };
 
     const handleConfirmClearRealization = () => {
-        if (!pendingClearRealization?.item || !pendingClearRealization?.payload) {
+        if (
+            !pendingClearRealization?.item ||
+            !pendingClearRealization?.payload
+        ) {
             return;
         }
 
@@ -1165,7 +1175,7 @@ onError: () => setIsSubmitting(false),
                                                   parseNumber(row.qty) -
                                                       parseNumber(row.grMat),
                                               ),
-                                    ),
+                                      ),
                                   }
                                 : row,
                         ),
@@ -1546,19 +1556,38 @@ onError: () => setIsSubmitting(false),
                                         value={
                                             includePpn
                                                 ? netPrice
-                                                    ? `Rp. ${new Intl.NumberFormat('id-ID').format(netPrice)}`
+                                                    ? `Rp. ${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 10 }).format(netPrice)}`
                                                     : 'Rp. 0'
                                                 : materialForm.price
-                                                  ? `Rp. ${new Intl.NumberFormat('id-ID').format(materialForm.price)}`
+                                                  ? (() => {
+                                                        const parts = String(
+                                                            materialForm.price,
+                                                        ).split(',');
+                                                        const formattedInt =
+                                                            new Intl.NumberFormat(
+                                                                'id-ID',
+                                                            ).format(
+                                                                parts[0] || 0,
+                                                            );
+                                                        return parts.length > 1
+                                                            ? `Rp. ${formattedInt},${parts[1]}`
+                                                            : `Rp. ${formattedInt}`;
+                                                    })()
                                                   : ''
                                         }
                                         onChange={(event) => {
-                                            // Hanya simpan angka murni ke state
-                                            const rawValue =
+                                            let rawValue =
                                                 event.target.value.replace(
-                                                    /[^0-9]/g,
+                                                    /[^0-9,]/g,
                                                     '',
                                                 );
+                                            const parts = rawValue.split(',');
+                                            if (parts.length > 2) {
+                                                rawValue =
+                                                    parts[0] +
+                                                    ',' +
+                                                    parts.slice(1).join('');
+                                            }
                                             setMaterialForm((prev) => ({
                                                 ...prev,
                                                 price: rawValue,
@@ -1847,8 +1876,7 @@ onError: () => setIsSubmitting(false),
                                                                     detail.customers,
                                                                 ) &&
                                                                 detail.customers
-                                                                    .length >
-                                                                    0
+                                                                    .length > 0
                                                                     ? detail.customers
                                                                           .map(
                                                                               (
@@ -2141,94 +2169,98 @@ onError: () => setIsSubmitting(false),
                                 menerima penyesuaian sisa qty.
                             </p>
                             <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
-                                {(pendingSubmitPayload?.pr_allocations ?? []).map(
-                                    (group) => (
-                                        <div
-                                            key={group.pr_group_key}
-                                            className="rounded-xl border border-sidebar-border/70 p-4"
-                                        >
-                                            <div className="mb-3">
-                                                <p className="font-semibold">
-                                                    {group.material}
-                                                </p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {group.kd_material} • Qty
-                                                    awal {renderValue(group.old_qty)} • Qty baru{' '}
-                                                    {renderValue(group.new_qty)} • Max qty{' '}
-                                                    {renderValue(group.max_qty)}
-                                                </p>
-                                            </div>
-                                            <div className="grid gap-3">
-                                                {(group.sources ?? []).map(
-                                                    (source) => {
-                                                        const sourceKey = `${source.for_customer ?? ''}||${source.ref_po ?? ''}`;
-                                                        const allocationKey = `${group.pr_group_key}||${sourceKey}`;
-                                                        const defaultValue = Math.abs(
-                                                            source.qty_change ?? 0,
-                                                        );
-                                                        return (
-                                                            <div
-                                                                key={allocationKey}
-                                                                className="grid gap-2 rounded-lg bg-muted/30 p-3 md:grid-cols-[minmax(0,1fr)_180px]"
-                                                            >
-                                                                <div className="min-w-0">
-                                                                    <p className="text-sm font-medium">
-                                                                        {source.for_customer ||
-                                                                            '-'}
-                                                                    </p>
-                                                                    <p className="text-xs text-muted-foreground">
-                                                                        Ref PO:{' '}
-                                                                        {source.ref_po ||
-                                                                            '-'}{' '}
-                                                                        • Sisa:{' '}
-                                                                        {renderValue(
-                                                                            source.available_qty,
-                                                                        )}
-                                                                    </p>
-                                                                </div>
-                                                                <div className="grid gap-1">
-                                                                    <Label className="text-xs">
-                                                                        Qty
-                                                                        penyesuaian
-                                                                    </Label>
-                                                                    <Input
-                                                                        type="number"
-                                                                        min="0"
-                                                                        max={String(
-                                                                            group.qty_delta >
-                                                                                0
-                                                                                ? source.available_qty
-                                                                                : Math.abs(
-                                                                                      group.qty_delta,
-                                                                                  ),
-                                                                        )}
-                                                                        value={
-                                                                            pendingQtyAllocations[
-                                                                                allocationKey
-                                                                            ] ??
-                                                                            defaultValue
-                                                                        }
-                                                                        onChange={(
-                                                                            event,
-                                                                        ) =>
-                                                                            updateQtyAllocation(
-                                                                                group.pr_group_key,
-                                                                                sourceKey,
-                                                                                event
-                                                                                    .target
-                                                                                    .value,
-                                                                            )
-                                                                        }
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    },
-                                                )}
-                                            </div>
+                                {(
+                                    pendingSubmitPayload?.pr_allocations ?? []
+                                ).map((group) => (
+                                    <div
+                                        key={group.pr_group_key}
+                                        className="rounded-xl border border-sidebar-border/70 p-4"
+                                    >
+                                        <div className="mb-3">
+                                            <p className="font-semibold">
+                                                {group.material}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {group.kd_material} • Qty awal{' '}
+                                                {renderValue(group.old_qty)} •
+                                                Qty baru{' '}
+                                                {renderValue(group.new_qty)} •
+                                                Max qty{' '}
+                                                {renderValue(group.max_qty)}
+                                            </p>
                                         </div>
-                                    ),
-                                )}
+                                        <div className="grid gap-3">
+                                            {(group.sources ?? []).map(
+                                                (source) => {
+                                                    const sourceKey = `${source.for_customer ?? ''}||${source.ref_po ?? ''}`;
+                                                    const allocationKey = `${group.pr_group_key}||${sourceKey}`;
+                                                    const defaultValue =
+                                                        Math.abs(
+                                                            source.qty_change ??
+                                                                0,
+                                                        );
+                                                    return (
+                                                        <div
+                                                            key={allocationKey}
+                                                            className="grid gap-2 rounded-lg bg-muted/30 p-3 md:grid-cols-[minmax(0,1fr)_180px]"
+                                                        >
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-medium">
+                                                                    {source.for_customer ||
+                                                                        '-'}
+                                                                </p>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    Ref PO:{' '}
+                                                                    {source.ref_po ||
+                                                                        '-'}{' '}
+                                                                    • Sisa:{' '}
+                                                                    {renderValue(
+                                                                        source.available_qty,
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                            <div className="grid gap-1">
+                                                                <Label className="text-xs">
+                                                                    Qty
+                                                                    penyesuaian
+                                                                </Label>
+                                                                <Input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    max={String(
+                                                                        group.qty_delta >
+                                                                            0
+                                                                            ? source.available_qty
+                                                                            : Math.abs(
+                                                                                  group.qty_delta,
+                                                                              ),
+                                                                    )}
+                                                                    value={
+                                                                        pendingQtyAllocations[
+                                                                            allocationKey
+                                                                        ] ??
+                                                                        defaultValue
+                                                                    }
+                                                                    onChange={(
+                                                                        event,
+                                                                    ) =>
+                                                                        updateQtyAllocation(
+                                                                            group.pr_group_key,
+                                                                            sourceKey,
+                                                                            event
+                                                                                .target
+                                                                                .value,
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                },
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                                 <Button
@@ -2278,17 +2310,25 @@ onError: () => setIsSubmitting(false),
                                     <div className="rounded-xl border border-sidebar-border/70 p-4">
                                         <div className="mb-3">
                                             <p className="font-semibold">
-                                                {pendingClearRealization.item.material}
+                                                {
+                                                    pendingClearRealization.item
+                                                        .material
+                                                }
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                                {pendingClearRealization.item.kodeMaterial}{' '}
+                                                {
+                                                    pendingClearRealization.item
+                                                        .kodeMaterial
+                                                }{' '}
                                                 • Qty PO{' '}
                                                 {renderValue(
-                                                    pendingClearRealization.item.qty,
+                                                    pendingClearRealization.item
+                                                        .qty,
                                                 )}{' '}
                                                 • GR Qty{' '}
                                                 {renderValue(
-                                                    pendingClearRealization.item.grMat,
+                                                    pendingClearRealization.item
+                                                        .grMat,
                                                 )}
                                             </p>
                                         </div>
@@ -2310,7 +2350,8 @@ onError: () => setIsSubmitting(false),
                                                             </p>
                                                             <p className="text-xs text-muted-foreground">
                                                                 Ref PO:{' '}
-                                                                {source.ref_po || '-'}
+                                                                {source.ref_po ||
+                                                                    '-'}
                                                             </p>
                                                         </div>
                                                         <div className="grid gap-1">
@@ -2330,11 +2371,17 @@ onError: () => setIsSubmitting(false),
                                                                     source.returned_qty ??
                                                                     0
                                                                 }
-                                                                onChange={(event) =>
+                                                                onChange={(
+                                                                    event,
+                                                                ) =>
                                                                     updateClearAllocation(
-                                                                        pendingClearRealization.item.prGroupKey,
+                                                                        pendingClearRealization
+                                                                            .item
+                                                                            .prGroupKey,
                                                                         `${source.for_customer ?? ''}||${source.ref_po ?? ''}`,
-                                                                        event.target.value,
+                                                                        event
+                                                                            .target
+                                                                            .value,
                                                                     )
                                                                 }
                                                             />
