@@ -768,12 +768,12 @@ export default function PurchaseOrderEdit({
                 no: item.no ?? index + 1,
                 kd_mat: item.kodeMaterial,
                 material: item.material,
-                qty: item.qty,
-                max_qty: item.maxQty,
+                qty: parseNumber(item.qty),
+                max_qty: parseNumber(item.maxQty),
                 unit: item.satuan,
-                price: item.price,
+                price: parseNumber(item.price),
                 ppn: item.ppn,
-                total_price: item.totalPrice,
+                total_price: parseNumber(item.totalPrice),
             })),
             pr_allocations: buildQtyAllocationPayload(items),
         };
@@ -796,11 +796,7 @@ export default function PurchaseOrderEdit({
         }
 
         const payload = {
-            price: isPriceEmpty
-                ? ''
-                : includePpn
-                  ? netPrice
-                  : materialForm.price,
+            price: isPriceEmpty ? '' : includePpn ? netPrice : basePriceValue,
             ppn: includePpn ? `${formData.ppn ?? 0}%` : materialForm.ppn,
             total_price: isPriceEmpty ? '' : totalPriceValue,
             qty: materialForm.qty,
