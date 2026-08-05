@@ -256,32 +256,32 @@ export default function PurchaseOrderInPrint({
                     </div>
                 </div>
 
-                <div className="mt-5 pb-2">
+                <div className="mt-3 pb-2">
                     <table className="w-full table-auto border-collapse border border-black text-[11px]">
                         <thead>
                             <tr className="bg-gray-100">
                                 <th className="border-r border-b border-black px-1 py-1.5 text-center text-black">
                                     No.
                                 </th>
-                                <th className="border-r border-b border-black px-1 py-1.5 text-left text-black">
+                                <th className="border-r border-b border-black px-1 py-1.5 text-center text-black">
                                     Code Mat.
                                 </th>
-                                <th className="border-r border-b border-black px-2 py-1.5 text-left text-black">
+                                <th className="border-r border-b border-black px-2 py-1.5 text-center text-black">
                                     Material
                                 </th>
-                                <th className="border-r border-b border-black px-1 py-1.5 text-right text-black">
+                                <th className="border-r border-b border-black px-1 py-1.5 text-center text-black">
                                     Qty
                                 </th>
                                 <th className="border-r border-b border-black px-1 py-1.5 text-center text-black">
                                     Unit
                                 </th>
-                                <th className="border-r border-b border-black px-2 py-1.5 text-right text-black">
+                                <th className="border-r border-b border-black px-2 py-1.5 text-center text-black">
                                     Unit Price
                                 </th>
-                                <th className="border-r border-b border-black px-2 py-1.5 text-right text-black">
+                                <th className="border-r border-b border-black px-2 py-1.5 text-center text-black">
                                     Total Price
                                 </th>
-                                <th className="border-b border-black px-2 py-1.5 text-left text-black">
+                                <th className="border-b border-black px-2 py-1.5 text-center text-black">
                                     Remark
                                 </th>
                             </tr>
@@ -292,13 +292,13 @@ export default function PurchaseOrderInPrint({
                                     <td className="border-t border-r border-black px-1 py-1.5 text-center text-black">
                                         {renderValue(index + 1)}
                                     </td>
-                                    <td className="border-t border-r border-black px-1 py-1.5 text-black">
+                                    <td className="border-t border-r border-black px-1 py-1.5 text-black text-center">
                                         {renderValue(item?.kd_material)}
                                     </td>
                                     <td className="border-t border-r border-black px-2 py-1.5 text-black">
                                         {renderValue(item?.material)}
                                     </td>
-                                    <td className="border-t border-r border-black px-1 py-1.5 text-right text-black">
+                                    <td className="border-t border-r border-black px-1 py-1.5 text-center text-black">
                                         {formatNumber(item?.qty)}
                                     </td>
                                     <td className="border-t border-r border-black px-1 py-1.5 text-center text-black">
@@ -332,7 +332,7 @@ export default function PurchaseOrderInPrint({
                     </table>
                 </div>
 
-                <div className="mt-3 flex items-start gap-5">
+                <div className="mt-2 flex items-start gap-5">
                     <div className="flex-1 rounded-md border border-black bg-gray-50 p-3 text-[11px]">
                         <div className="font-bold text-black underline">
                             Terbilang :
@@ -386,7 +386,7 @@ export default function PurchaseOrderInPrint({
                     </div>
                 </div>
 
-                <div className="mt-5 text-[11px]">
+                <div className="mt-3 text-[11px]">
                     <div className="w-full">
                         <div className="min-h-[60px] rounded-md border border-black p-3">
                             <div className="font-bold text-black uppercase underline">
@@ -399,14 +399,14 @@ export default function PurchaseOrderInPrint({
                     </div>
                 </div>
 
-                <div className="mt-12 flex items-start gap-5 text-[11px]">
+                <div className="mt-3 flex items-start gap-5 text-[11px]">
                     <div className="flex-1 text-left text-black">
-                        <div className="mb-14">Dibuat Oleh,</div>
+                        <div className="mb-20">Dibuat Oleh,</div>
                         <div className="w-[30%] border-b border-black"></div>
                         <div className="mt-1 font-bold">Marketing</div>
                     </div>
                     <div className="w-[300px] shrink-0 text-left text-black">
-                        <div className="mb-14">Diketahui Oleh,</div>
+                        <div className="mb-20">Diketahui Oleh,</div>
                         <div className="w-[40%] border-b border-black"></div>
                         <div className="mt-1 font-bold">Head Office</div>
                     </div>
