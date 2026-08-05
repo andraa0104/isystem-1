@@ -263,7 +263,7 @@ export default function PurchaseOrderInPrint({
                                 <th className="border-r border-b border-black px-1 py-1.5 text-center text-black">
                                     No.
                                 </th>
-                                <th className="border-r border-b border-black px-1 py-1.5 text-center text-black">
+                                <th className="w-[9%] border-r border-b border-black px-1 py-1.5 text-center text-black">
                                     Code Mat.
                                 </th>
                                 <th className="border-r border-b border-black px-2 py-1.5 text-center text-black">
@@ -276,10 +276,10 @@ export default function PurchaseOrderInPrint({
                                     Unit
                                 </th>
                                 <th className="border-r border-b border-black px-2 py-1.5 text-center text-black">
-                                    Unit Price
+                                    Unit Price (Rp.)
                                 </th>
                                 <th className="border-r border-b border-black px-2 py-1.5 text-center text-black">
-                                    Total Price
+                                    Total Price (Rp.)
                                 </th>
                                 <th className="border-b border-black px-2 py-1.5 text-center text-black">
                                     Remark
@@ -292,7 +292,7 @@ export default function PurchaseOrderInPrint({
                                     <td className="border-t border-r border-black px-1 py-1.5 text-center text-black">
                                         {renderValue(index + 1)}
                                     </td>
-                                    <td className="border-t border-r border-black px-1 py-1.5 text-black text-center">
+                                    <td className="border-t border-r border-black px-1 py-1.5 text-center text-black">
                                         {renderValue(item?.kd_material)}
                                     </td>
                                     <td className="border-t border-r border-black px-2 py-1.5 text-black">
