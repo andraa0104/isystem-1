@@ -134,7 +134,7 @@ export default function PurchaseOrderInPrint({
             <Head title={`Print PO In ${purchaseOrder?.kode_poin ?? ''}`} />
             <style>{pageStyle}</style>
             <div className="mx-auto flex w-full max-w-[900px] flex-col px-8 py-8 text-[12px] leading-[1.35]">
-                <div className="flex items-start justify-between border-b-[3px] border-black pb-4">
+                <div className="flex items-start justify-between border-b-[2px] border-black pb-1">
                     <div className="w-2/3 pr-4">
                         <div className="text-[18px] font-bold tracking-wider text-black uppercase">
                             {company.name || '-'}
@@ -162,7 +162,7 @@ export default function PurchaseOrderInPrint({
 
                 <div className="mt-5 flex w-full gap-5 text-[11px]">
                     <div className="flex-1 rounded-md border border-black p-3">
-                        <div className="mb-2 font-bold uppercase underline decoration-black underline-offset-2">
+                        <div className="mb-2 font-bold uppercase underline decoration-black underline-offset-1">
                             Customer Information
                         </div>
                         <table className="w-full">
@@ -257,41 +257,31 @@ export default function PurchaseOrderInPrint({
                 </div>
 
                 <div className="mt-5 pb-2">
-                    <table className="w-full table-fixed border-collapse border border-black text-[11px]">
-                        <colgroup>
-                            <col className="w-[4%]" />
-                            <col className="w-[10%]" />
-                            <col className="w-[42%]" />
-                            <col className="w-[4%]" />
-                            <col className="w-[4%]" />
-                            <col className="w-[13%]" />
-                            <col className="w-[13%]" />
-                            <col className="w-[10%]" />
-                        </colgroup>
+                    <table className="w-full table-auto border-collapse border border-black text-[11px]">
                         <thead>
                             <tr className="bg-gray-100">
-                                <th className="border-r border-b-[2px] border-black px-1 py-1.5 text-center text-black">
+                                <th className="border-r border-b border-black px-1 py-1.5 text-center text-black">
                                     No.
                                 </th>
-                                <th className="border-r border-b-[2px] border-black px-1 py-1.5 text-left text-black">
+                                <th className="border-r border-b border-black px-1 py-1.5 text-left text-black">
                                     Code Mat.
                                 </th>
-                                <th className="border-r border-b-[2px] border-black px-2 py-1.5 text-left text-black">
+                                <th className="border-r border-b border-black px-2 py-1.5 text-left text-black">
                                     Material
                                 </th>
-                                <th className="border-r border-b-[2px] border-black px-1 py-1.5 text-right text-black">
+                                <th className="border-r border-b border-black px-1 py-1.5 text-right text-black">
                                     Qty
                                 </th>
-                                <th className="border-r border-b-[2px] border-black px-1 py-1.5 text-center text-black">
+                                <th className="border-r border-b border-black px-1 py-1.5 text-center text-black">
                                     Unit
                                 </th>
-                                <th className="border-r border-b-[2px] border-black px-2 py-1.5 text-right text-black">
+                                <th className="border-r border-b border-black px-2 py-1.5 text-right text-black">
                                     Unit Price
                                 </th>
-                                <th className="border-r border-b-[2px] border-black px-2 py-1.5 text-right text-black">
+                                <th className="border-r border-b border-black px-2 py-1.5 text-right text-black">
                                     Total Price
                                 </th>
-                                <th className="border-b-[2px] border-black px-2 py-1.5 text-left text-black">
+                                <th className="border-b border-black px-2 py-1.5 text-left text-black">
                                     Remark
                                 </th>
                             </tr>
@@ -408,18 +398,18 @@ export default function PurchaseOrderInPrint({
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div className="mt-12 flex gap-4 px-8 text-[11px]">
-                <div className="w-1/2 text-center text-black">
-                    <div className="mb-14">Dibuat Oleh,</div>
-                    <div className="mx-auto w-3/5 border-b border-black"></div>
-                    <div className="mt-1 font-bold">Marketing</div>
-                </div>
-                <div className="w-1/2 text-center text-black">
-                    <div className="mb-14">Disetujui Oleh,</div>
-                    <div className="mx-auto w-3/5 border-b border-black"></div>
-                    <div className="mt-1 font-bold">Head Office</div>
+                <div className="mt-12 flex items-start gap-5 text-[11px]">
+                    <div className="flex-1 text-left text-black">
+                        <div className="mb-14">Dibuat Oleh,</div>
+                        <div className="w-[30%] border-b border-black"></div>
+                        <div className="mt-1 font-bold">Marketing</div>
+                    </div>
+                    <div className="w-[300px] shrink-0 text-left text-black">
+                        <div className="mb-14">Diketahui Oleh,</div>
+                        <div className="w-[40%] border-b border-black"></div>
+                        <div className="mt-1 font-bold">Head Office</div>
+                    </div>
                 </div>
             </div>
         </div>
