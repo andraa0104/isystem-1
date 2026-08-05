@@ -18,6 +18,17 @@ const formatDate = (value) => {
     return `${day}.${month}.${date.getFullYear()}`;
 };
 
+const formatDateTime = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${day}.${month}.${date.getFullYear()} ${hours}:${minutes}`;
+};
+
 const formatNumber = (value) => {
     const number = Number(value);
     if (Number.isNaN(number)) return '-';
@@ -98,6 +109,10 @@ export default function PurchaseOrderInPrint({
             size: auto;
             margin: 4mm 3mm 8mm 3mm !important;
         }
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
     }`;
 
     const ppnInputPercent = Number(purchaseOrder?.ppn_input_percent ?? 0);
@@ -118,108 +133,130 @@ export default function PurchaseOrderInPrint({
         <div className="min-h-screen bg-white text-black">
             <Head title={`Print PO In ${purchaseOrder?.kode_poin ?? ''}`} />
             <style>{pageStyle}</style>
-            <div className="mx-auto flex min-h-screen w-full max-w-[900px] flex-col px-8 py-8 text-[12px] leading-[1.35]">
-                <div className="text-[16px] font-semibold uppercase">
-                    {company.name || '-'}
-                </div>
-                {companyLines.map((line, index) => (
-                    <div key={`${line}-${index}`} className="text-[12px]">
-                        {line}
+            <div className="mx-auto flex w-full max-w-[900px] flex-col px-8 py-8 text-[12px] leading-[1.35]">
+                <div className="flex items-start justify-between border-b-[3px] border-black pb-4">
+                    <div className="w-2/3 pr-4">
+                        <div className="text-[18px] font-bold tracking-wider text-black uppercase">
+                            {company.name || '-'}
+                        </div>
+                        <div className="mt-1 space-y-0.5">
+                            {companyLines.map((line, index) => (
+                                <div
+                                    key={`${line}-${index}`}
+                                    className="text-[11px] text-black"
+                                >
+                                    {line}
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                ))}
-
-                <div className="mt-6 text-center text-[18px] font-semibold">
-                    PURCHASE ORDER IN
+                    <div className="w-1/2 text-right">
+                        <div className="text-[22px] font-black tracking-widest text-black uppercase">
+                            PURCHASE ORDER IN
+                        </div>
+                        <div className="mt-1 text-[13px] font-semibold text-black">
+                            {renderValue(purchaseOrder?.kode_poin)}
+                        </div>
+                    </div>
                 </div>
 
-                <table className="mt-4 w-full text-[11px]">
-                    <tbody>
-                        <tr>
-                            <td className="w-1/2 pr-6 align-top">
-                                <table className="w-full">
-                                    <tbody>
-                                        <tr>
-                                            <td className="w-[70px]">
-                                                Customer
-                                            </td>
-                                            <td className="w-[12px]">:</td>
-                                            <td className="font-semibold">
-                                                {renderValue(
-                                                    purchaseOrder?.customer_name,
-                                                )}
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Alamat</td>
-                                            <td>:</td>
-                                            <td>
-                                                {renderValue(
-                                                    customer?.alamat_cs,
-                                                )}
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Tlp</td>
-                                            <td>:</td>
-                                            <td>
-                                                {renderValue(customer?.telp_cs)}
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Attnd.</td>
-                                            <td>:</td>
-                                            <td>
-                                                {renderValue(customer?.Attnd)}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </td>
-                            <td className="w-1/2 pl-6 align-top">
-                                <table className="w-full">
-                                    <tbody>
-                                        <tr>
-                                            <td className="w-[90px]">
-                                                Kode PO In
-                                            </td>
-                                            <td className="w-[12px]">:</td>
-                                            <td className="font-semibold">
-                                                {renderValue(
-                                                    purchaseOrder?.kode_poin,
-                                                )}
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Date</td>
-                                            <td>:</td>
-                                            <td>
-                                                {formatDate(
-                                                    purchaseOrder?.date_poin,
-                                                )}
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>No. PO In</td>
-                                            <td>:</td>
-                                            <td>
-                                                {renderValue(
-                                                    purchaseOrder?.no_poin,
-                                                )}
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>Print Date</td>
-                                            <td>:</td>
-                                            <td>{formatDate(new Date())}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div className="mt-5 flex w-full gap-5 text-[11px]">
+                    <div className="flex-1 rounded-md border border-black p-3">
+                        <div className="mb-2 font-bold uppercase underline decoration-black underline-offset-2">
+                            Customer Information
+                        </div>
+                        <table className="w-full">
+                            <tbody>
+                                <tr>
+                                    <td className="w-[90px] align-top text-black">
+                                        Name
+                                    </td>
+                                    <td className="w-[12px] align-top text-black">
+                                        :
+                                    </td>
+                                    <td className="align-top font-semibold text-black">
+                                        {renderValue(
+                                            purchaseOrder?.customer_name,
+                                        )}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="align-top text-black">
+                                        Payment Term
+                                    </td>
+                                    <td className="align-top text-black">:</td>
+                                    <td className="align-top text-black">
+                                        {renderValue(
+                                            purchaseOrder?.payment_term,
+                                        )}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="align-top text-black">
+                                        Delivery Time
+                                    </td>
+                                    <td className="align-top text-black">:</td>
+                                    <td className="align-top text-black">
+                                        {formatDate(
+                                            purchaseOrder?.delivery_date,
+                                        )}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="align-top text-black">
+                                        Franco Loco
+                                    </td>
+                                    <td className="align-top text-black">:</td>
+                                    <td className="align-top text-black">
+                                        {renderValue(
+                                            purchaseOrder?.franco_loco,
+                                        )}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="w-[300px] shrink-0 rounded-md border border-black p-3">
+                        <div className="mb-2 font-bold uppercase underline decoration-black underline-offset-2">
+                            Document Detail
+                        </div>
+                        <table className="w-full">
+                            <tbody>
+                                <tr>
+                                    <td className="w-[90px] align-top text-black">
+                                        Date PO
+                                    </td>
+                                    <td className="w-[12px] align-top text-black">
+                                        :
+                                    </td>
+                                    <td className="align-top font-medium text-black">
+                                        {formatDate(purchaseOrder?.date_poin)}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="align-top text-black">
+                                        Customer PO
+                                    </td>
+                                    <td className="align-top text-black">:</td>
+                                    <td className="align-top font-medium text-black">
+                                        {renderValue(purchaseOrder?.no_poin)}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="align-top text-black">
+                                        Print Date
+                                    </td>
+                                    <td className="align-top text-black">:</td>
+                                    <td className="align-top font-medium text-black">
+                                        {formatDateTime(new Date())} WITA
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
 
-                <div className="mt-6 pb-2">
+                <div className="mt-5 pb-2">
                     <table className="w-full table-fixed border-collapse border border-black text-[11px]">
                         <colgroup>
                             <col className="w-[4%]" />
@@ -232,59 +269,61 @@ export default function PurchaseOrderInPrint({
                             <col className="w-[10%]" />
                         </colgroup>
                         <thead>
-                            <tr>
-                                <th className="border-r border-black px-1 py-2 text-left">
+                            <tr className="bg-gray-100">
+                                <th className="border-r border-b-[2px] border-black px-1 py-1.5 text-center text-black">
                                     No.
                                 </th>
-                                <th className="border-r border-black px-1 py-2 text-left">
+                                <th className="border-r border-b-[2px] border-black px-1 py-1.5 text-left text-black">
                                     Code Mat.
                                 </th>
-                                <th className="border-r border-black px-2 py-2 text-left">
+                                <th className="border-r border-b-[2px] border-black px-2 py-1.5 text-left text-black">
                                     Material
                                 </th>
-                                <th className="border-r border-black px-1 py-2 text-right">
+                                <th className="border-r border-b-[2px] border-black px-1 py-1.5 text-right text-black">
                                     Qty
                                 </th>
-                                <th className="border-r border-black px-1 py-2 text-left">
+                                <th className="border-r border-b-[2px] border-black px-1 py-1.5 text-center text-black">
                                     Unit
                                 </th>
-                                <th className="border-r border-black px-2 py-2 text-right">
+                                <th className="border-r border-b-[2px] border-black px-2 py-1.5 text-right text-black">
                                     Unit Price
                                 </th>
-                                <th className="border-r border-black px-2 py-2 text-right">
+                                <th className="border-r border-b-[2px] border-black px-2 py-1.5 text-right text-black">
                                     Total Price
                                 </th>
-                                <th className="px-2 py-2 text-left">Remark</th>
+                                <th className="border-b-[2px] border-black px-2 py-1.5 text-left text-black">
+                                    Remark
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
                             {purchaseOrderDetails.map((item, index) => (
                                 <tr key={item.id ?? index}>
-                                    <td className="border-t border-r border-black px-1 py-2">
+                                    <td className="border-t border-r border-black px-1 py-1.5 text-center text-black">
                                         {renderValue(index + 1)}
                                     </td>
-                                    <td className="border-t border-r border-black px-1 py-2">
+                                    <td className="border-t border-r border-black px-1 py-1.5 text-black">
                                         {renderValue(item?.kd_material)}
                                     </td>
-                                    <td className="border-t border-r border-black px-2 py-2">
+                                    <td className="border-t border-r border-black px-2 py-1.5 text-black">
                                         {renderValue(item?.material)}
                                     </td>
-                                    <td className="border-t border-r border-black px-1 py-2 text-right">
+                                    <td className="border-t border-r border-black px-1 py-1.5 text-right text-black">
                                         {formatNumber(item?.qty)}
                                     </td>
-                                    <td className="border-t border-r border-black px-1 py-2">
+                                    <td className="border-t border-r border-black px-1 py-1.5 text-center text-black">
                                         {renderValue(item?.satuan)}
                                     </td>
-                                    <td className="border-t border-r border-black px-2 py-2 text-right">
+                                    <td className="border-t border-r border-black px-2 py-1.5 text-right text-black">
                                         {formatNumber(item?.price_po_in)}
                                     </td>
-                                    <td className="border-t border-r border-black px-2 py-2 text-right">
+                                    <td className="border-t border-r border-black px-2 py-1.5 text-right text-black">
                                         {formatNumber(item?.total_price_po_in)}
                                     </td>
-                                    <td className="border-t border-black px-2 py-2">
+                                    <td className="border-t border-black px-2 py-1.5 text-black">
                                         {renderValue(
                                             item?.tb_detailpoin_remark ??
-                                            item?.remark,
+                                                item?.remark,
                                         )}
                                     </td>
                                 </tr>
@@ -292,7 +331,7 @@ export default function PurchaseOrderInPrint({
                             {purchaseOrderDetails.length === 0 && (
                                 <tr>
                                     <td
-                                        className="border-t border-black px-2 py-2 text-center"
+                                        className="border-t border-black px-2 py-3 text-center text-black"
                                         colSpan={8}
                                     >
                                         Tidak ada data material
@@ -303,136 +342,84 @@ export default function PurchaseOrderInPrint({
                     </table>
                 </div>
 
-                <div className="mt-2 flex items-start justify-between gap-8">
-                    <div className="flex-1 text-[11px]">
-                        <div className="mb-1 font-semibold underline">
+                <div className="mt-3 flex items-start gap-5">
+                    <div className="flex-1 rounded-md border border-black bg-gray-50 p-3 text-[11px]">
+                        <div className="font-bold text-black underline">
                             Terbilang :
                         </div>
-                        <div className="capitalize">
-                            {formatTerbilang(grandTotal)}
+                        <div className="mt-1 font-medium text-black capitalize italic">
+                            # {formatTerbilang(grandTotal)} #
                         </div>
                     </div>
-                    <table className="w-[320px] text-[11px]">
-                        <tbody>
-                            <tr>
-                                <td>Sub Total</td>
-                                <td className="w-[12px]">:</td>
-                                <td className="text-right">
-                                    {formatNumber(subtotal)}
-                                </td>
-                            </tr>
-                            {showDpp && (
+                    <div className="w-[300px] shrink-0 rounded-md border border-black p-3 text-[11px]">
+                        <table className="w-full">
+                            <tbody>
                                 <tr>
-                                    <td>DPP</td>
-                                    <td>:</td>
-                                    <td className="text-right">
-                                        {formatNumber(dpp)}
+                                    <td className="text-black">Sub Total</td>
+                                    <td className="w-[12px] text-black">:</td>
+                                    <td className="text-right font-medium text-black">
+                                        {formatNumber(subtotal)}
                                     </td>
                                 </tr>
-                            )}
-                            <tr>
-                                <td>PPN {ppnLabel}</td>
-                                <td>:</td>
-                                <td className="text-right">
-                                    {formatNumber(ppnAmount)}
-                                </td>
-                            </tr>
-                            <tr className="font-semibold">
-                                <td>Grand Total</td>
-                                <td>:</td>
-                                <td className="text-right">
-                                    {formatNumber(grandTotal)}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <div className="mt-4 border-t border-black pt-2 text-[11px]">
-                    <table className="w-full">
-                        <tbody>
-                            <tr>
-                                <td className="w-1/2 pr-4 align-top">
-                                    <div className="font-semibold underline">
-                                        Note :
-                                    </div>
-                                    <div>
-                                        {renderValue(purchaseOrder?.note_doc)}
-                                    </div>
-                                </td>
-                                <td className="w-1/2 pl-4 align-top">
-                                    <table className="w-full">
-                                        <tbody>
-                                            <tr>
-                                                <td className="w-[100px]">
-                                                    Mata Uang
-                                                </td>
-                                                <td className="w-[12px]">:</td>
-                                                <td>IDR</td>
-                                            </tr>
-                                            <tr>
-                                                <td>NPWP</td>
-                                                <td>:</td>
-                                                <td>
-                                                    {renderValue(
-                                                        customer?.npwp_cs,
-                                                    )}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td>Alamat NPWP</td>
-                                                <td>:</td>
-                                                <td>
-                                                    {renderValue(
-                                                        customer?.npwp1_cs,
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                                {showDpp && (
+                                    <tr>
+                                        <td className="text-black">DPP</td>
+                                        <td className="text-black">:</td>
+                                        <td className="text-right font-medium text-black">
+                                            {formatNumber(dpp)}
+                                        </td>
+                                    </tr>
+                                )}
+                                <tr>
+                                    <td className="text-black">
+                                        PPN {ppnLabel}
+                                    </td>
+                                    <td className="text-black">:</td>
+                                    <td className="text-right font-medium text-black">
+                                        {formatNumber(ppnAmount)}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colSpan={3} className="py-1">
+                                        <div className="border-t border-black"></div>
+                                    </td>
+                                </tr>
+                                <tr className="text-[12px] font-bold text-black">
+                                    <td>Grand Total</td>
+                                    <td>:</td>
+                                    <td className="text-right">
+                                        {formatNumber(grandTotal)}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
                 <div className="mt-5 text-[11px]">
-                    <table className="w-full">
-                        <tbody>
-                            <tr>
-                                <td className="w-[100px]">Payment</td>
-                                <td className="w-[12px]">:</td>
-                                <td>
-                                    {renderValue(purchaseOrder?.payment_term)}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>Delivery Time</td>
-                                <td>:</td>
-                                <td>
-                                    {formatDate(purchaseOrder?.delivery_date)}
-                                </td>
-                            </tr>
-                            <tr>
-                                <td>Franco Loco</td>
-                                <td>:</td>
-                                <td>
-                                    {renderValue(purchaseOrder?.franco_loco)}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div className="w-full">
+                        <div className="min-h-[60px] rounded-md border border-black p-3">
+                            <div className="font-bold text-black uppercase underline">
+                                Note :
+                            </div>
+                            <div className="mt-1 whitespace-pre-wrap text-black">
+                                {renderValue(purchaseOrder?.note_doc)}
+                            </div>
+                        </div>
+                    </div>
                 </div>
+            </div>
 
-                <div className="mt-12 flex text-[11px]">
-                    <div className="w-1/2 space-y-12">
-                        <div>Dibuat Oleh,</div>
-                        <div className="font-semibold">Marketing</div>
-                    </div>
-                    <div className="w-1/2 space-y-12 pl-4">
-                        <div>Disetujui Oleh,</div>
-                        <div className="font-semibold">Head Office</div>
-                    </div>
+            <div className="mt-12 flex gap-4 px-8 text-[11px]">
+                <div className="w-1/2 text-center text-black">
+                    <div className="mb-14">Dibuat Oleh,</div>
+                    <div className="mx-auto w-3/5 border-b border-black"></div>
+                    <div className="mt-1 font-bold">Marketing</div>
+                </div>
+                <div className="w-1/2 text-center text-black">
+                    <div className="mb-14">Disetujui Oleh,</div>
+                    <div className="mx-auto w-3/5 border-b border-black"></div>
+                    <div className="mt-1 font-bold">Head Office</div>
                 </div>
             </div>
         </div>
