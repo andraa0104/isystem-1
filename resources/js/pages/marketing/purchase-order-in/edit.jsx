@@ -194,6 +194,7 @@ export default function PurchaseOrderInEdit({
                 ? String(purchaseOrderIn.ppn_input_percent)
                 : '',
         francoLoco: purchaseOrderIn?.franco_loco ?? '',
+        senderName: purchaseOrderIn?.sender_name ?? '',
         note: purchaseOrderIn?.note_doc ?? '',
     });
 
@@ -526,6 +527,9 @@ export default function PurchaseOrderInEdit({
         if (!String(form.francoLoco ?? '').trim()) {
             errors.francoLoco = 'Franco/Loco wajib diisi.';
         }
+        if (!String(form.senderName ?? '').trim()) {
+            errors.senderName = 'PIC PO Customer wajib diisi.';
+        }
         setValidationErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -544,6 +548,7 @@ export default function PurchaseOrderInEdit({
             payment_term: form.paymentTerm,
             ppn_percent: toNumber(form.ppnPercent),
             franco_loco: form.francoLoco,
+            sender_name: form.senderName,
             note: form.note,
             total_price: totalPrice,
             dpp,
@@ -1205,6 +1210,36 @@ export default function PurchaseOrderInEdit({
                                         </p>
                                     )}
                                 </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="sender_name">
+                                        PIC PO Customer
+                                    </Label>
+                                    <Input
+                                        id="sender_name"
+                                        disabled={exhibitsPartialDo}
+                                        className={
+                                            validationErrors.senderName
+                                                ? 'border-red-500 focus-visible:ring-red-500'
+                                                : ''
+                                        }
+                                        value={form.senderName}
+                                        onChange={(event) => {
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                senderName: event.target.value,
+                                            }));
+                                            setValidationErrors((prev) => ({
+                                                ...prev,
+                                                senderName: '',
+                                            }));
+                                        }}
+                                    />
+                                    {validationErrors.senderName && (
+                                        <p className="text-xs text-red-500">
+                                            {validationErrors.senderName}
+                                        </p>
+                                    )}
+                                </div>
                                 <div className="grid gap-2 sm:col-span-2 lg:col-span-3">
                                     <Label htmlFor="doc_note">
                                         Catatan Dokumen
@@ -1493,7 +1528,9 @@ export default function PurchaseOrderInEdit({
                                             )}
                                             {toNumber(item.sisaQtyPr ?? 0) ===
                                                 toNumber(item.qty ?? 0) &&
-                                                toNumber(item.sisaQtyDo ?? 0) ===
+                                                toNumber(
+                                                    item.sisaQtyDo ?? 0,
+                                                ) ===
                                                     toNumber(item.qty ?? 0) && (
                                                     <Button
                                                         type="button"
@@ -1652,10 +1689,18 @@ export default function PurchaseOrderInEdit({
                                                             <Pencil className="size-4" />
                                                         </Button>
                                                     )}
-                                                    {toNumber(item.sisaQtyPr ?? 0) ===
-                                                        toNumber(item.qty ?? 0) &&
-                                                        toNumber(item.sisaQtyDo ?? 0) ===
-                                                            toNumber(item.qty ?? 0) && (
+                                                    {toNumber(
+                                                        item.sisaQtyPr ?? 0,
+                                                    ) ===
+                                                        toNumber(
+                                                            item.qty ?? 0,
+                                                        ) &&
+                                                        toNumber(
+                                                            item.sisaQtyDo ?? 0,
+                                                        ) ===
+                                                            toNumber(
+                                                                item.qty ?? 0,
+                                                            ) && (
                                                             <Button
                                                                 type="button"
                                                                 variant="outline"

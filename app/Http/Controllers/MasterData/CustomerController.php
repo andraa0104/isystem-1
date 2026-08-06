@@ -60,9 +60,31 @@ class CustomerController
     public function show(string $kdCustomer)
     {
         $customer = Cache::tags(self::CUSTOMER_CACHE_TAGS)->remember($this->customerCacheKey('show.customer', [$kdCustomer]), self::CUSTOMER_CACHE_TTL, function () use ($kdCustomer) {
-            return DB::table('tb_cs')
+            $customer = DB::table('tb_cs')
                 ->where('kd_cs', $kdCustomer)
                 ->first();
+            
+            if ($customer) {
+                // Attach multiple PICs
+                $pics = DB::table('tb_cspic')
+                    ->where('kd_cs', $kdCustomer)
+                    ->pluck('pic_name')
+                    ->toArray();
+                
+                if (!empty($pics)) {
+                    $customer->Attnd = $pics;
+                } else {
+                    if ($customer->Attnd) {
+                        $customer->Attnd = array_values(array_filter(array_map('trim', explode(',', $customer->Attnd))));
+                        if (empty($customer->Attnd)) {
+                            $customer->Attnd = [''];
+                        }
+                    } else {
+                        $customer->Attnd = [''];
+                    }
+                }
+            }
+            return $customer;
         });
 
         if (!$customer) {
@@ -77,6 +99,10 @@ class CustomerController
                 ->orderBy('no_do', 'desc')
                 ->get();
         });
+
+        if (is_array($customer->Attnd) && count($customer->Attnd) === 1 && str_contains($customer->Attnd[0] ?? '', ',')) {
+            $customer->Attnd = array_values(array_filter(array_map('trim', explode(',', $customer->Attnd[0]))));
+        }
 
         return response()->json([
             'customer' => $customer,
@@ -95,7 +121,8 @@ class CustomerController
             'npwp_cs' => ['nullable', 'string', 'max:255'],
             'npwp1_cs' => ['nullable', 'string', 'max:255'],
             'npwp2_cs' => ['nullable', 'string', 'max:255'],
-            'Attnd' => ['nullable', 'string', 'max:255'],
+            'Attnd' => ['nullable', 'array'],
+            'Attnd.*' => ['nullable', 'string', 'max:255'],
         ]);
 
         $lastCode = DB::table('tb_cs')
@@ -107,11 +134,41 @@ class CustomerController
         $validated['kd_cs'] = $nextCode;
 
         try {
-            DB::table('tb_cs')->insert($validated);
+            DB::transaction(function () use ($validated, $nextCode) {
+                $attndArray = $validated['Attnd'] ?? [];
+                $attndString = '';
+                if (is_array($attndArray)) {
+                    $attndArray = array_filter($attndArray);
+                    $attndString = !empty($attndArray) ? implode(', ', $attndArray) : '';
+                } else {
+                    $attndString = $attndArray;
+                }
+                
+                $validatedCs = $validated;
+                $validatedCs['Attnd'] = $attndString;
+                
+                DB::table('tb_cs')->insert($validatedCs);
+                
+                if (is_array($validated['Attnd'] ?? [])) {
+                    $picData = [];
+                    foreach (array_filter($validated['Attnd']) as $pic) {
+                        $picData[] = [
+                            'kd_cs' => $nextCode,
+                            'customer_name' => $validated['nm_cs'] ?? '',
+                            'pic_name' => $pic,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
+                    }
+                    if (!empty($picData)) {
+                        DB::table('tb_cspic')->insert($picData);
+                    }
+                }
+            });
         } catch (Throwable $exception) {
             report($exception);
 
-            return back()->with('error', 'Gagal menyimpan data customer.');
+            return back()->with('error', 'Gagal menyimpan data customer: ' . $exception->getMessage());
         }
 
         $this->flushCustomerCache();
@@ -132,17 +189,50 @@ class CustomerController
             'npwp_cs' => ['nullable', 'string', 'max:255'],
             'npwp1_cs' => ['nullable', 'string', 'max:255'],
             'npwp2_cs' => ['nullable', 'string', 'max:255'],
-            'Attnd' => ['nullable', 'string', 'max:255'],
+            'Attnd' => ['nullable', 'array'],
+            'Attnd.*' => ['nullable', 'string', 'max:255'],
         ]);
 
         try {
-            DB::table('tb_cs')
-                ->where('kd_cs', $kdCustomer)
-                ->update($validated);
+            DB::transaction(function () use ($validated, $kdCustomer) {
+                $attndArray = $validated['Attnd'] ?? [];
+                $attndString = '';
+                if (is_array($attndArray)) {
+                    $attndArray = array_filter($attndArray);
+                    $attndString = !empty($attndArray) ? implode(', ', $attndArray) : '';
+                } else {
+                    $attndString = $attndArray;
+                }
+                
+                $validatedCs = $validated;
+                $validatedCs['Attnd'] = $attndString;
+                
+                DB::table('tb_cs')
+                    ->where('kd_cs', $kdCustomer)
+                    ->update($validatedCs);
+
+                DB::table('tb_cspic')->where('kd_cs', $kdCustomer)->delete();
+
+                if (is_array($validated['Attnd'] ?? [])) {
+                    $picData = [];
+                    foreach (array_filter($validated['Attnd']) as $pic) {
+                        $picData[] = [
+                            'kd_cs' => $kdCustomer,
+                            'customer_name' => $validated['nm_cs'] ?? '',
+                            'pic_name' => $pic,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
+                    }
+                    if (!empty($picData)) {
+                        DB::table('tb_cspic')->insert($picData);
+                    }
+                }
+            });
         } catch (Throwable $exception) {
             report($exception);
 
-            return back()->with('error', 'Gagal memperbarui data customer.');
+            return back()->with('error', 'Gagal memperbarui data customer: ' . $exception->getMessage());
         }
 
         $this->flushCustomerCache();
@@ -155,13 +245,14 @@ class CustomerController
     public function destroy(string $kdCustomer)
     {
         try {
-            DB::table('tb_cs')
-                ->where('kd_cs', $kdCustomer)
-                ->delete();
+            DB::transaction(function () use ($kdCustomer) {
+                DB::table('tb_cspic')->where('kd_cs', $kdCustomer)->delete();
+                DB::table('tb_cs')->where('kd_cs', $kdCustomer)->delete();
+            });
         } catch (Throwable $exception) {
             report($exception);
 
-            return back()->with('error', 'Gagal menghapus data customer.');
+            return back()->with('error', 'Gagal menghapus data customer: ' . $exception->getMessage());
         }
 
         $this->flushCustomerCache();

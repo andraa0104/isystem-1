@@ -10,9 +10,13 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Throwable;
+use App\Services\Marketing\PurchaseOrderInService;
 
 class PurchaseOrderInController
 {
+    public function __construct(
+        private PurchaseOrderInService $purchaseOrderInService
+    ) {}
     public function export(Request $request)
     {
         $statusFilter = $request->query('status', 'outstanding_do');
@@ -116,9 +120,7 @@ class PurchaseOrderInController
                 throw new \Exception("Driver not set");
             }
             return $connection;
-        } catch (\Exception $e) {
-            return DB::connection();
-        } catch (\InvalidArgumentException $e) {
+        } catch (\Throwable $e) {
             return DB::connection();
         }
     }
@@ -432,7 +434,7 @@ class PurchaseOrderInController
             \Illuminate\Support\Facades\Log::error('OCR ML API error: status=' . $httpCode . ' body=' . $result);
             return response()->json(['error' => $errorMsg], 500);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('OCR Error: ' . $e->getMessage());
             return response()->json(['error' => 'Error: ' . $e->getMessage()], 500);
         }
@@ -1636,6 +1638,7 @@ class PurchaseOrderInController
             'payment_term' => ['nullable', 'string', 'max:100'],
             'ppn_percent' => ['required', 'numeric', 'min:0'],
             'franco_loco' => ['required', 'string', 'max:255'],
+            'sender_name' => ['required', 'string', 'max:255'],
             'note' => ['nullable', 'string'],
             'total_price' => ['nullable', 'numeric', 'min:0'],
             'dpp' => ['nullable', 'numeric', 'min:0'],
@@ -1711,6 +1714,7 @@ class PurchaseOrderInController
                     'customer_name' => trim((string) $resolvedCustomer->nm_cs),
                     'payment_term' => trim((string) ($validated['payment_term'] ?? '')),
                     'franco_loco' => trim((string) $validated['franco_loco']),
+                    'sender_name' => trim((string) $validated['sender_name']),
                     'note_doc' => trim((string) ($validated['note'] ?? '')),
                     'ppn_input_percent' => $ppnPercentInputValue,
                     'ppn_percent_used' => $ppnPercentUsed,
@@ -1815,6 +1819,7 @@ class PurchaseOrderInController
             'payment_term' => ['nullable', 'string', 'max:100'],
             'ppn_percent' => ['required', 'numeric', 'min:0'],
             'franco_loco' => ['required', 'string', 'max:255'],
+            'sender_name' => ['required', 'string', 'max:255'],
             'note' => ['nullable', 'string'],
             'total_price' => ['nullable', 'numeric', 'min:0'],
             'dpp' => ['nullable', 'numeric', 'min:0'],
@@ -1846,6 +1851,7 @@ class PurchaseOrderInController
                             trim((string)$validated['customer_name']) !== trim((string)($current->customer_name ?? '')) ||
                             trim((string)($validated['payment_term'] ?? '')) !== trim((string)($current->payment_term ?? '')) ||
                             trim((string)$validated['franco_loco']) !== trim((string)($current->franco_loco ?? '')) ||
+                            trim((string)$validated['sender_name']) !== trim((string)($current->sender_name ?? '')) ||
                             trim((string)($validated['note'] ?? '')) !== trim((string)($current->note_doc ?? '')) ||
                             (float)($validated['ppn_percent'] ?? 0) !== (float)($current->ppn_input_percent ?? 0);
 
@@ -1900,6 +1906,7 @@ class PurchaseOrderInController
                         'customer_name' => trim((string) $resolvedCustomer->nm_cs),
                         'payment_term' => trim((string) ($validated['payment_term'] ?? '')),
                         'franco_loco' => trim((string) $validated['franco_loco']),
+                        'sender_name' => trim((string) $validated['sender_name']),
                         'note_doc' => trim((string) ($validated['note'] ?? '')),
                         'ppn_input_percent' => $ppnPercentInputValue,
                         'ppn_percent_used' => $ppnPercentUsed,
@@ -1948,29 +1955,8 @@ class PurchaseOrderInController
 
     public function destroy(Request $request, $kodePoin)
     {
-        $header = DB::table('tb_poin')
-            ->where('kode_poin', $kodePoin)
-            ->first();
-
-        if (!$header) {
-            if ($request->expectsJson()) {
-                return response()->json(['message' => 'Data PO In tidak ditemukan.'], 404);
-            }
-            return redirect()
-                ->route('marketing.purchase-order-in.index')
-                ->with('error', 'Data PO In tidak ditemukan.');
-        }
-
         try {
-            DB::transaction(function () use ($kodePoin) {
-                DB::table('tb_detailpoin')
-                    ->where('kode_poin', $kodePoin)
-                    ->delete();
-
-                DB::table('tb_poin')
-                    ->where('kode_poin', $kodePoin)
-                    ->delete();
-            });
+            $this->purchaseOrderInService->deletePurchaseOrderIn($kodePoin);
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'PO In berhasil dihapus.');
@@ -1981,8 +1967,14 @@ class PurchaseOrderInController
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil dihapus.');
         } catch (\Throwable $e) {
+            $status = $e->getCode() === 404 ? 404 : 500;
             if ($request->expectsJson()) {
-                return response()->json(['message' => $e->getMessage()], 500);
+                return response()->json(['message' => $e->getMessage()], $status);
+            }
+            if ($status === 404) {
+                return redirect()
+                    ->route('marketing.purchase-order-in.index')
+                    ->with('error', $e->getMessage());
             }
             return back()->with('error', 'Gagal menghapus data: ' . $e->getMessage());
         }

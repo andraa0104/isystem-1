@@ -989,7 +989,7 @@ export default function PurchaseOrderInIndex({
 
                         fetchPoInSummary();
                         fetchPoInData({
-                            period: periodFilter,
+                            period: tableDateFilter,
                             startDate: tableStartDate,
                             endDate: tableEndDate,
                             page: pagination.page || 1,

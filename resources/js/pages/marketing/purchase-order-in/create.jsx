@@ -190,6 +190,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         paymentTerm: defaults.payment_term ?? '30 Hari',
         ppnPercent: '',
         francoLoco: '',
+        senderName: '',
         note: '',
     });
 
@@ -310,7 +311,10 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 setOcrProgress(0);
                 setIsOcrScanning(false);
 
-                const errMsg = err.response?.data?.error || err.message || 'Gagal memproses OCR Dokumen.';
+                const errMsg =
+                    err.response?.data?.error ||
+                    err.message ||
+                    'Gagal memproses OCR Dokumen.';
                 dispatchGlobalToast(`Gagal: ${errMsg}`, 'error');
             })
             .finally(() => {
@@ -401,6 +405,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         if (!String(form.francoLoco ?? '').trim()) {
             errors.francoLoco = 'Franco/Loco wajib diisi.';
         }
+        if (!String(form.senderName ?? '').trim()) {
+            errors.senderName = 'PIC PO Customer wajib diisi.';
+        }
         if (!Array.isArray(items) || items.length === 0) {
             errors.materials = 'Data material wajib diisi.';
         }
@@ -428,6 +435,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
             payment_term: form.paymentTerm,
             ppn_percent: toNumber(form.ppnPercent),
             franco_loco: form.francoLoco,
+            sender_name: form.senderName,
             note: form.note,
             total_price: totalPrice,
             dpp,
@@ -723,9 +731,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
                 throw new Error(
                     data?.message ||
-                    (data?.errors &&
-                        Object.values(data.errors).flat()[0]) ||
-                    'Gagal menyimpan customer.',
+                        (data?.errors &&
+                            Object.values(data.errors).flat()[0]) ||
+                        'Gagal menyimpan customer.',
                 );
             }
 
@@ -837,9 +845,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
                 throw new Error(
                     data?.message ||
-                    (data?.errors &&
-                        Object.values(data.errors).flat()[0]) ||
-                    'Gagal menyimpan material.',
+                        (data?.errors &&
+                            Object.values(data.errors).flat()[0]) ||
+                        'Gagal menyimpan material.',
                 );
             }
 
@@ -1397,6 +1405,35 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         </p>
                                     )}
                                 </div>
+                                <div className="grid gap-2 sm:col-span-2">
+                                    <Label htmlFor="sender_name">
+                                        PIC PO Customer
+                                    </Label>
+                                    <Input
+                                        id="sender_name"
+                                        className={
+                                            validationErrors.senderName
+                                                ? 'border-red-500 focus-visible:ring-red-500'
+                                                : ''
+                                        }
+                                        value={form.senderName}
+                                        onChange={(event) => {
+                                            setForm((prev) => ({
+                                                ...prev,
+                                                senderName: event.target.value,
+                                            }));
+                                            setValidationErrors((prev) => ({
+                                                ...prev,
+                                                senderName: '',
+                                            }));
+                                        }}
+                                    />
+                                    {validationErrors.senderName && (
+                                        <p className="text-xs text-red-500">
+                                            {validationErrors.senderName}
+                                        </p>
+                                    )}
+                                </div>
                                 <div className="grid gap-2 sm:col-span-2 lg:col-span-4">
                                     <Label htmlFor="doc_note">
                                         Catatan Dokumen
@@ -1702,9 +1739,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                    toNumber(
-                                                        item.unitPrice,
-                                                    ),
+                                                        toNumber(
+                                                            item.unitPrice,
+                                                        ),
                                                 )}
                                             </p>
                                         </div>
@@ -1791,9 +1828,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             <td className="px-4 py-3">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                    toNumber(
-                                                        item.unitPrice,
-                                                    ),
+                                                        toNumber(
+                                                            item.unitPrice,
+                                                        ),
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -1970,7 +2007,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             {materialLoading
                                                 ? 'Memuat data material...'
                                                 : materialError ||
-                                                'Tidak ada data material.'}
+                                                  'Tidak ada data material.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2027,8 +2064,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (materialCurrentPage - 1) *
-                                        materialPageSize +
-                                        1,
+                                            materialPageSize +
+                                            1,
                                         materialTotalItems,
                                     )}
                                     -
@@ -2171,7 +2208,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             {customerLoading
                                                 ? 'Memuat data customer...'
                                                 : customerError ||
-                                                'Tidak ada data customer.'}
+                                                  'Tidak ada data customer.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2228,8 +2265,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 Menampilkan{' '}
                                 {Math.min(
                                     (customerCurrentPage - 1) *
-                                    customerPageSize +
-                                    1,
+                                        customerPageSize +
+                                        1,
                                     customerTotal,
                                 )}
                                 -
@@ -2270,7 +2307,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     disabled={
                                         customerTotalPages
                                             ? customerCurrentPage >=
-                                            customerTotalPages
+                                              customerTotalPages
                                             : true
                                     }
                                 >

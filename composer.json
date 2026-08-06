@@ -87,7 +87,9 @@
                 "laravel/mcp",
                 "laravel/roster",
                 "laravel/boost",
-                "laravel/pail"
+                "laravel/pail",
+                "glushkovds/clickhouse-builder",
+                "glushkovds/phpclickhouse-laravel"
             ]
         }
     },

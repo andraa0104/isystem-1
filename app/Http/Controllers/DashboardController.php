@@ -156,7 +156,7 @@ class DashboardController
             }
         }
 
-        return DB::table('tb_kas as k')
+        return $this->getDbConnection()->table('tb_kas as k')
             ->whereRaw("TRIM(COALESCE(k.Kode_Akun1,'')) LIKE '51%'")
             ->whereRaw("UPPER(TRIM(COALESCE(k.Jenis_Beban1,''))) = 'DEBIT'");
     }
@@ -172,10 +172,10 @@ class DashboardController
 
         $queries = [];
         if ($hasDo) {
-            $queries[] = DB::table('tb_do')->select('pos_tgl', 'total');
+            $queries[] = $this->getDbConnection()->table('tb_do')->select('pos_tgl', 'total');
         }
         if ($hasDob) {
-            $queries[] = DB::table('tb_dob')->select('pos_tgl', 'total');
+            $queries[] = $this->getDbConnection()->table('tb_dob')->select('pos_tgl', 'total');
         }
 
         $first = array_shift($queries);
@@ -183,7 +183,7 @@ class DashboardController
             $first->unionAll($q);
         }
 
-        return DB::table(DB::raw("({$first->toSql()}) as d"));
+        return $this->getDbConnection()->table(DB::raw("({$first->toSql()}) as d"));
     }
 
     private function normalizedDateSql(string $column): string
@@ -193,6 +193,43 @@ class DashboardController
             STR_TO_DATE(NULLIF(TRIM($column), ''), '%d.%m.%Y'),
             STR_TO_DATE(NULLIF(TRIM($column), ''), '%d-%m-%Y')
         )";
+    }
+
+    
+    private function getDbConnection()
+    {
+        try {
+            $connection = \Illuminate\Support\Facades\DB::connection('clickhouse');
+            if (!$connection->getConfig('driver')) {
+                throw new \Exception("Driver not set");
+            }
+            return $connection;
+        } catch (\Exception $e) {
+            return \Illuminate\Support\Facades\DB::connection();
+        } catch (\InvalidArgumentException $e) {
+            return \Illuminate\Support\Facades\DB::connection();
+        }
+    }
+
+    private function sqlYw(string $col): string {
+        return $this->getDbConnection()->getConfig('driver') === 'clickhouse'
+            ? "toYearWeek(toDateTimeOrNull(toString($col)), 1)"
+            : "YEARWEEK($col, 1)";
+    }
+
+    private function sqlDf(string $col, string $fmt): string {
+        if ($this->getDbConnection()->getConfig('driver') === 'clickhouse') {
+            $fmt = str_replace('%Y-%m-%d', '%Y-%m-%d', $fmt);
+            return "formatDateTime(toDateTimeOrNull(toString($col)), '$fmt')";
+        }
+        return "DATE_FORMAT($col, '$fmt')";
+    }
+
+    private function sqlStd(string $col, string $fmt): string {
+        if ($this->getDbConnection()->getConfig('driver') === 'clickhouse') {
+            return "parseDateTimeBestEffortOrNull(toString($col))";
+        }
+        return "STR_TO_DATE($col, '$fmt')";
     }
 
     public function index(Request $request)
@@ -327,8 +364,8 @@ class DashboardController
             $end = Carbon::now()->startOfMonth();
             $start = $end->copy()->subMonths($months - 1);
 
-            $rawStats = DB::table('tb_penawaran')
-                ->selectRaw("DATE_FORMAT(Tgl_penawaran, '%Y-%m') as period, COUNT(*) as total")
+            $rawStats = $this->getDbConnection()->table('tb_penawaran')
+                ->selectRaw("". $this->sqlDf('Tgl_penawaran', '%Y-%m') ." as period, COUNT(*) as total")
                 ->whereNotNull('Tgl_penawaran')
                 ->where('Tgl_penawaran', '>=', $start->toDateString())
                 ->groupBy('period')
@@ -358,8 +395,8 @@ class DashboardController
             ->subMonths($months - 1)
             ->startOfWeek(Carbon::MONDAY);
 
-        $rawStats = DB::table('tb_penawaran')
-            ->selectRaw('YEARWEEK(Tgl_penawaran, 1) as week_key, COUNT(*) as total')
+        $rawStats = $this->getDbConnection()->table('tb_penawaran')
+            ->selectRaw("". $this->sqlYw('Tgl_penawaran') ." as week_key, COUNT(*) as total")
             ->whereNotNull('Tgl_penawaran')
             ->where('Tgl_penawaran', '>=', $startWeekStart->toDateString())
             ->where('Tgl_penawaran', '<=', Carbon::now()->toDateString())
@@ -396,8 +433,8 @@ class DashboardController
             $end = Carbon::now()->startOfDay();
             $start = $end->copy()->subDays(6);
 
-            $raw = DB::table('tb_penawaran')
-                ->selectRaw("DATE_FORMAT(Tgl_penawaran, '%Y-%m-%d') as period, COUNT(*) as total")
+            $raw = $this->getDbConnection()->table('tb_penawaran')
+                ->selectRaw("". $this->sqlDf('Tgl_penawaran', '%Y-%m-%d') ." as period, COUNT(*) as total")
                 ->whereNotNull('Tgl_penawaran')
                 ->where('Tgl_penawaran', '>=', $start->toDateString())
                 ->where('Tgl_penawaran', '<=', $end->copy()->endOfDay()->toDateTimeString())
@@ -424,8 +461,8 @@ class DashboardController
             $endWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
             $startWeek = $endWeek->copy()->subWeeks(3);
 
-            $raw = DB::table('tb_penawaran')
-                ->selectRaw('YEARWEEK(Tgl_penawaran, 1) as week_key, COUNT(*) as total')
+            $raw = $this->getDbConnection()->table('tb_penawaran')
+                ->selectRaw("". $this->sqlYw('Tgl_penawaran') ." as week_key, COUNT(*) as total")
                 ->whereNotNull('Tgl_penawaran')
                 ->where('Tgl_penawaran', '>=', $startWeek->toDateString())
                 ->where('Tgl_penawaran', '<=', Carbon::now()->endOfDay()->toDateTimeString())
@@ -478,7 +515,7 @@ class DashboardController
             $codes = array_keys($accountMap);
             $query = null;
             foreach ($codes as $code) {
-                $q = DB::table('tb_kas')
+                $q = $this->getDbConnection()->table('tb_kas')
                     ->where('Kode_Akun', $code)
                     ->orderByDesc('Tgl_Voucher')
                     ->orderByDesc('Kode_Voucher')
@@ -547,8 +584,8 @@ class DashboardController
                     : 'Kode_Akun';
 
                 foreach ($accountCodes as $key => $code) {
-                    $row = DB::table('tb_nabbrekap')
-                        ->whereRaw('LOWER(TRIM(Kode_Akun)) = ?', [strtolower($code)])
+                    $row = $this->getDbConnection()->table('tb_nabbrekap')
+                        ->whereRaw("LOWER(TRIM(Kode_Akun)) = ?", [strtolower($code)])
                         ->select('Saldo')
                         ->when(in_array('End_Date', $rekapCols, true), fn ($query) => $query->addSelect('End_Date'))
                         ->when(in_array('Posting_Date', $rekapCols, true), fn ($query) => $query->addSelect('Posting_Date'))
@@ -598,7 +635,7 @@ class DashboardController
             return $result;
         }
 
-        $stats = DB::table('tb_nabb')
+        $stats = $this->getDbConnection()->table('tb_nabb')
             ->whereIn('Kode_Akun', ['1109AD', '2101AK'])
             ->selectRaw("SUM(CASE WHEN LOWER(TRIM(Kode_Akun)) = '1109ad' THEN COALESCE(Saldo, 0) ELSE 0 END) as piutang_total")
             ->selectRaw("SUM(CASE WHEN LOWER(TRIM(Kode_Akun)) = '2101ak' THEN COALESCE(Saldo, 0) ELSE 0 END) as hutang_total")
@@ -612,7 +649,7 @@ class DashboardController
                 return null;
             }
 
-            $lastUpdate = DB::table('tb_kas')
+            $lastUpdate = $this->getDbConnection()->table('tb_kas')
                 ->where(function ($query) use ($lastUpdateAccountColumns, $accountCodes) {
                     foreach ($lastUpdateAccountColumns as $index => $col) {
                         if ($index === 0) {
@@ -659,7 +696,7 @@ class DashboardController
 
         // Single query: sum, count, and max date in one pass
         $dateSql = $this->normalizedDateSql('Tgl_Posting');
-        $row = DB::table('tb_kdpdb')
+        $row = $this->getDbConnection()->table('tb_kdpdb')
             ->where('Sisa', '>', 0)
             ->selectRaw("SUM(Sisa) as total, COUNT(*) as cnt, MAX($dateSql) as last_update")
             ->first();
@@ -679,7 +716,7 @@ class DashboardController
 
         // Single query: sum, count, and max date in one pass
         $dateSql = $this->normalizedDateSql('posting_date');
-        $row = DB::table('tb_kdpdo')
+        $row = $this->getDbConnection()->table('tb_kdpdo')
             ->where('sisa_pdo', '>', 0)
             ->selectRaw("SUM(sisa_pdo) as total, COUNT(*) as cnt, MAX($dateSql) as last_update")
             ->first();
@@ -763,15 +800,15 @@ class DashboardController
             // Sales grouped by week
             $salesData = [];
             if (Schema::hasTable('tb_kdfakturpenjualan')) {
-                $salesData = DB::table('tb_kdfakturpenjualan')
-                    ->selectRaw('YEARWEEK(tgl_doc, 1) as week_key, SUM(harga) as total')
+                $salesData = $this->getDbConnection()->table('tb_kdfakturpenjualan')
+                    ->selectRaw("". $this->sqlYw('tgl_doc') ." as week_key, SUM(harga) as total")
                     ->where('tgl_doc', '>=', $startWeekStart->toDateString())
                     ->where('tgl_doc', '<=', Carbon::now()->toDateString())
                     ->groupBy('week_key')
                     ->pluck('total', 'week_key');
 
-                $salesLastUpdate = DB::table('tb_kdfakturpenjualan')
-                    ->selectRaw('MAX(tgl_doc) as last_update')
+                $salesLastUpdate = $this->getDbConnection()->table('tb_kdfakturpenjualan')
+                    ->selectRaw("MAX(tgl_doc) as last_update")
                     ->where('tgl_doc', '>=', $startWeekStart->toDateString())
                     ->value('last_update');
             }
@@ -781,15 +818,15 @@ class DashboardController
             $hppQuery = $this->tbDoHppQuery();
             if ($hppQuery) {
                 $hppData = $hppQuery
-                    ->selectRaw("YEARWEEK(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), 1) as week_key, SUM(COALESCE(d.total,0)) as total")
-                    ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeekStart->toDateString()])
-                    ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [Carbon::now()->toDateString()])
+                    ->selectRaw("YEARWEEK(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .", 1) as week_key, SUM(COALESCE(d.total,0)) as total")
+                    ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$startWeekStart->toDateString()])
+                    ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." <= ?", [Carbon::now()->toDateString()])
                     ->groupBy('week_key')
                     ->pluck('total', 'week_key');
 
                 $hppLastUpdateRaw = $this->tbDoHppQuery()
-                    ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
-                    ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeekStart->toDateString()])
+                    ->selectRaw("MAX(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .") as last_update")
+                    ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$startWeekStart->toDateString()])
                     ->value('last_update');
                 $hppLastUpdate = $hppLastUpdateRaw;
             }
@@ -799,14 +836,14 @@ class DashboardController
             $biayaQuery = $this->tbKasBiayaQuery();
             if ($biayaQuery) {
                 $biayaData = $biayaQuery
-                    ->selectRaw("YEARWEEK(k.Tgl_Voucher, 1) as week_key, SUM(COALESCE(k.Nominal1,0)) as total")
+                    ->selectRaw("". $this->sqlYw('k.Tgl_Voucher') ." as week_key, SUM(COALESCE(k.Nominal1,0)) as total")
                     ->where('k.Tgl_Voucher', '>=', $startWeekStart->toDateString())
                     ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
                     ->groupBy('week_key')
                     ->pluck('total', 'week_key');
 
                 $biayaLastUpdate = $this->tbKasBiayaQuery()
-                    ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
+                    ->selectRaw("MAX(k.Tgl_Voucher) as last_update")
                     ->where('k.Tgl_Voucher', '>=', $startWeekStart->toDateString())
                     ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
                     ->value('last_update');
@@ -855,14 +892,14 @@ class DashboardController
         // Sales: tgl_doc is DATE type (YYYY-MM-DD)
         $salesData = [];
         if (Schema::hasTable('tb_kdfakturpenjualan')) {
-            $salesData = DB::table('tb_kdfakturpenjualan')
-                ->selectRaw("DATE_FORMAT(tgl_doc, '%Y-%m') as month_key, SUM(harga) as total")
+            $salesData = $this->getDbConnection()->table('tb_kdfakturpenjualan')
+                ->selectRaw("". $this->sqlDf('tgl_doc', '%Y-%m') ." as month_key, SUM(harga) as total")
                 ->where('tgl_doc', '>=', $start->toDateString())
                 ->where('tgl_doc', '<=', $now->toDateString())
                 ->groupBy('month_key')
                 ->pluck('total', 'month_key');
             
-             $salesLastUpdate = DB::table('tb_kdfakturpenjualan')
+             $salesLastUpdate = $this->getDbConnection()->table('tb_kdfakturpenjualan')
                 ->selectRaw("MAX(tgl_doc) as last_update")
                 ->where('tgl_doc', '>=', $start->toDateString())
                 ->value('last_update');
@@ -872,15 +909,15 @@ class DashboardController
         $hppQuery = $this->tbDoHppQuery();
         if ($hppQuery) {
             $hppData = $hppQuery
-                ->selectRaw("DATE_FORMAT(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), '%Y-%m') as month_key, SUM(COALESCE(d.total,0)) as total")
-                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
-                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [$now->toDateString()])
+                ->selectRaw("". $this->sqlDf('STR_TO_DATE(d.pos_tgl', '%d.%m.%Y') .", '%Y-%m') as month_key, SUM(COALESCE(d.total,0)) as total")
+                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$start->toDateString()])
+                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." <= ?", [$now->toDateString()])
                 ->groupBy('month_key')
                 ->pluck('total', 'month_key');
 
             $hppLastUpdateRaw = $this->tbDoHppQuery()
-                 ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
-                 ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
+                 ->selectRaw("MAX(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .") as last_update")
+                 ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$start->toDateString()])
                  ->value('last_update');
             $hppLastUpdate = $hppLastUpdateRaw;
         }
@@ -890,14 +927,14 @@ class DashboardController
         $biayaQuery = $this->tbKasBiayaQuery();
         if ($biayaQuery) {
             $biayaData = $biayaQuery
-                ->selectRaw("DATE_FORMAT(k.Tgl_Voucher, '%Y-%m') as month_key, SUM(COALESCE(k.Nominal1,0)) as total")
+                ->selectRaw("". $this->sqlDf('k.Tgl_Voucher', '%Y-%m') ." as month_key, SUM(COALESCE(k.Nominal1,0)) as total")
                 ->where('k.Tgl_Voucher', '>=', $start->toDateString())
                 ->where('k.Tgl_Voucher', '<=', $now->toDateString())
                 ->groupBy('month_key')
                 ->pluck('total', 'month_key');
 
             $biayaLastUpdate = $this->tbKasBiayaQuery()
-                ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
+                ->selectRaw("MAX(k.Tgl_Voucher) as last_update")
                 ->where('k.Tgl_Voucher', '>=', $start->toDateString())
                 ->where('k.Tgl_Voucher', '<=', $now->toDateString())
                 ->value('last_update');
@@ -956,15 +993,15 @@ class DashboardController
         $salesData = [];
         $salesLastUpdate = null;
         if (Schema::hasTable('tb_kdfakturpenjualan')) {
-            $salesData = DB::table('tb_kdfakturpenjualan')
-                ->selectRaw("DATE_FORMAT(tgl_doc, '%Y-%m-%d') as day_key, SUM(harga) as total")
+            $salesData = $this->getDbConnection()->table('tb_kdfakturpenjualan')
+                ->selectRaw("". $this->sqlDf('tgl_doc', '%Y-%m-%d') ." as day_key, SUM(harga) as total")
                 ->where('tgl_doc', '>=', $start->toDateString())
                 ->where('tgl_doc', '<=', $end->toDateString())
                 ->groupBy('day_key')
                 ->pluck('total', 'day_key');
 
-            $salesLastUpdate = DB::table('tb_kdfakturpenjualan')
-                ->selectRaw('MAX(tgl_doc) as last_update')
+            $salesLastUpdate = $this->getDbConnection()->table('tb_kdfakturpenjualan')
+                ->selectRaw("MAX(tgl_doc) as last_update")
                 ->where('tgl_doc', '>=', $start->toDateString())
                 ->value('last_update');
         }
@@ -974,15 +1011,15 @@ class DashboardController
         $hppQuery = $this->tbDoHppQuery();
         if ($hppQuery) {
             $hppData = $hppQuery
-                ->selectRaw("DATE_FORMAT(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), '%Y-%m-%d') as day_key, SUM(COALESCE(d.total,0)) as total")
-                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
-                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [$end->toDateString()])
+                ->selectRaw("". $this->sqlDf('STR_TO_DATE(d.pos_tgl', '%d.%m.%Y') .", '%Y-%m-%d') as day_key, SUM(COALESCE(d.total,0)) as total")
+                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$start->toDateString()])
+                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." <= ?", [$end->toDateString()])
                 ->groupBy('day_key')
                 ->pluck('total', 'day_key');
 
             $hppLastUpdate = $this->tbDoHppQuery()
-                ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
-                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$start->toDateString()])
+                ->selectRaw("MAX(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .") as last_update")
+                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$start->toDateString()])
                 ->value('last_update');
         }
 
@@ -991,14 +1028,14 @@ class DashboardController
         $biayaQuery = $this->tbKasBiayaQuery();
         if ($biayaQuery) {
             $biayaData = $biayaQuery
-                ->selectRaw("DATE_FORMAT(k.Tgl_Voucher, '%Y-%m-%d') as day_key, SUM(COALESCE(k.Nominal1,0)) as total")
+                ->selectRaw("". $this->sqlDf('k.Tgl_Voucher', '%Y-%m-%d') ." as day_key, SUM(COALESCE(k.Nominal1,0)) as total")
                 ->where('k.Tgl_Voucher', '>=', $start->toDateString())
                 ->where('k.Tgl_Voucher', '<=', $end->toDateString())
                 ->groupBy('day_key')
                 ->pluck('total', 'day_key');
 
             $biayaLastUpdate = $this->tbKasBiayaQuery()
-                ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
+                ->selectRaw("MAX(k.Tgl_Voucher) as last_update")
                 ->where('k.Tgl_Voucher', '>=', $start->toDateString())
                 ->where('k.Tgl_Voucher', '<=', $end->toDateString())
                 ->value('last_update');
@@ -1064,7 +1101,7 @@ class DashboardController
             }
 
             // Ambil saldo buku dari baris terakhir akun 1105AD
-            $lastKasRow = DB::table('tb_kas')
+            $lastKasRow = $this->getDbConnection()->table('tb_kas')
                 ->where($accountField, '1105AD')
                 ->orderByDesc(in_array('tgl_voucher', $kasColsLower, true) ? 'Tgl_Voucher' : 'id')
                 ->orderByDesc(in_array('kode_voucher', $kasColsLower, true) ? 'Kode_Voucher' : 'id')
@@ -1078,7 +1115,7 @@ class DashboardController
 
             // Ambil nilai MAX dari kolom tanggal buat khusus untuk Last Update Stok Buku
             $bookDateSql = $this->normalizedDateSql($tglBuatField);
-            $maxBookDate = DB::table('tb_kas')
+            $maxBookDate = $this->getDbConnection()->table('tb_kas')
                 ->where($accountField, '1105AD')
                 ->selectRaw("MAX($bookDateSql) as last_update")
                 ->value('last_update');
@@ -1093,39 +1130,39 @@ class DashboardController
 
         if (Schema::hasTable('tb_mi')) {
             $hasAnyPhysicalTable = true;
-            $rowMi = DB::table('tb_mi')->selectRaw('SUM(harga_mis) as mis, SUM(harga_mib) as mib')->first();
+            $rowMi = $this->getDbConnection()->table('tb_mi')->selectRaw("SUM(harga_mis) as mis, SUM(harga_mib) as mib")->first();
             $hmis = (float) ($rowMi->mis ?? 0);
             $hmib = (float) ($rowMi->mib ?? 0);
         }
 
         if (Schema::hasTable('tb_mib')) {
             $hasAnyPhysicalTable = true;
-            $hmibs = (float) DB::table('tb_mib')->sum('total_price');
+            $hmibs = (float) $this->getDbConnection()->table('tb_mib')->sum('total_price');
         }
 
         if (Schema::hasTable('tb_barang')) {
             $hasAnyPhysicalTable = true;
-            $hmi = (float) DB::table('tb_barang')->selectRaw('SUM(
+            $hmi = (float) $this->getDbConnection()->table('tb_barang')->selectRaw("SUM(
                 (coalesce(cast(stok_g1 as decimal(18,4)), 0) * coalesce(cast(harga_stokg1 as decimal(18,4)), 0)) +
                 (coalesce(cast(stok_g2 as decimal(18,4)), 0) * coalesce(cast(harga_stokg2 as decimal(18,4)), 0)) +
                 (coalesce(cast(stok_g3 as decimal(18,4)), 0) * coalesce(cast(harga_stokg3 as decimal(18,4)), 0)) +
                 (coalesce(cast(stok_g4 as decimal(18,4)), 0) * coalesce(cast(harga_stokg4 as decimal(18,4)), 0))
-            ) as total_value')->value('total_value');
+            ) as total_value")->value('total_value');
         }
 
         if (Schema::hasTable('tb_do')) {
             $hasAnyPhysicalTable = true;
-            $hdo = (float) DB::table('tb_do')->where('Val_inv', '<>', 1)->orWhereNull('Val_inv')->sum('total');
+            $hdo = (float) $this->getDbConnection()->table('tb_do')->where('Val_inv', '<>', 1)->orWhereNull('Val_inv')->sum('total');
         }
 
         if (Schema::hasTable('tb_dobi')) {
             $hasAnyPhysicalTable = true;
-            $hdob = (float) DB::table('tb_dobi')->where('status', 0)->sum('total');
+            $hdob = (float) $this->getDbConnection()->table('tb_dobi')->where('status', 0)->sum('total');
         }
 
         if (Schema::hasTable('tb_dob')) {
             $hasAnyPhysicalTable = true;
-            $hdot = (float) DB::table('tb_dob')->where('status', 0)->sum('total');
+            $hdot = (float) $this->getDbConnection()->table('tb_dob')->where('status', 0)->sum('total');
         }
 
         if ($hasAnyPhysicalTable) {
@@ -1137,7 +1174,7 @@ class DashboardController
 
         if (Schema::hasTable('tb_mi')) {
             $postingTglSql = $this->normalizedDateSql('posting_tgl');
-            $lastUpdateMi = DB::table('tb_mi')
+            $lastUpdateMi = $this->getDbConnection()->table('tb_mi')
                 ->selectRaw("MAX($postingTglSql) as last_update")
                 ->value('last_update');
             if ($lastUpdateMi) {
@@ -1147,7 +1184,7 @@ class DashboardController
 
         if (Schema::hasTable('tb_barang') && Schema::hasColumn('tb_barang', 'tgl_buat')) {
             $tglBuatSql = $this->normalizedDateSql('tgl_buat');
-            $lastUpdateMaterial = DB::table('tb_barang')
+            $lastUpdateMaterial = $this->getDbConnection()->table('tb_barang')
                 ->selectRaw("MAX($tglBuatSql) as last_update")
                 ->value('last_update');
             if ($lastUpdateMaterial) {
@@ -1157,7 +1194,7 @@ class DashboardController
 
         if (Schema::hasTable('tb_do') && Schema::hasColumn('tb_do', 'pos_tgl')) {
             $posTglSql = $this->normalizedDateSql('pos_tgl');
-            $lastUpdateDo = DB::table('tb_do')
+            $lastUpdateDo = $this->getDbConnection()->table('tb_do')
                 ->where(function ($query) {
                     $query->where('Val_inv', '<>', 1)->orWhereNull('Val_inv');
                 })
@@ -1170,7 +1207,7 @@ class DashboardController
 
         if (Schema::hasTable('tb_dobi') && Schema::hasColumn('tb_dobi', 'pos_tgl')) {
             $posTglSql = $this->normalizedDateSql('pos_tgl');
-            $lastUpdateDobi = DB::table('tb_dobi')
+            $lastUpdateDobi = $this->getDbConnection()->table('tb_dobi')
                 ->where('status', 0)
                 ->selectRaw("MAX($posTglSql) as last_update")
                 ->value('last_update');
@@ -1181,7 +1218,7 @@ class DashboardController
 
         if (Schema::hasTable('tb_dob') && Schema::hasColumn('tb_dob', 'pos_tgl')) {
             $posTglSql = $this->normalizedDateSql('pos_tgl');
-            $lastUpdateDob = DB::table('tb_dob')
+            $lastUpdateDob = $this->getDbConnection()->table('tb_dob')
                 ->where('status', 0)
                 ->selectRaw("MAX($posTglSql) as last_update")
                 ->value('last_update');
@@ -1261,15 +1298,15 @@ class DashboardController
         $salesData = [];
         $salesLastUpdate = null;
         if (Schema::hasTable('tb_kdfakturpenjualan')) {
-            $salesData = DB::table('tb_kdfakturpenjualan')
-                ->selectRaw('YEARWEEK(tgl_doc, 1) as week_key, SUM(harga) as total')
+            $salesData = $this->getDbConnection()->table('tb_kdfakturpenjualan')
+                ->selectRaw("". $this->sqlYw('tgl_doc') ." as week_key, SUM(harga) as total")
                 ->where('tgl_doc', '>=', $startWeek->toDateString())
                 ->where('tgl_doc', '<=', Carbon::now()->toDateString())
                 ->groupBy('week_key')
                 ->pluck('total', 'week_key');
 
-            $salesLastUpdate = DB::table('tb_kdfakturpenjualan')
-                ->selectRaw('MAX(tgl_doc) as last_update')
+            $salesLastUpdate = $this->getDbConnection()->table('tb_kdfakturpenjualan')
+                ->selectRaw("MAX(tgl_doc) as last_update")
                 ->where('tgl_doc', '>=', $startWeek->toDateString())
                 ->value('last_update');
         }
@@ -1279,15 +1316,15 @@ class DashboardController
         $hppQuery = $this->tbDoHppQuery();
         if ($hppQuery) {
             $hppData = $hppQuery
-                ->selectRaw("YEARWEEK(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y'), 1) as week_key, SUM(COALESCE(d.total,0)) as total")
-                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeek->toDateString()])
-                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') <= ?", [Carbon::now()->toDateString()])
+                ->selectRaw("YEARWEEK(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .", 1) as week_key, SUM(COALESCE(d.total,0)) as total")
+                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$startWeek->toDateString()])
+                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." <= ?", [Carbon::now()->toDateString()])
                 ->groupBy('week_key')
                 ->pluck('total', 'week_key');
 
             $hppLastUpdate = $this->tbDoHppQuery()
-                ->selectRaw("MAX(STR_TO_DATE(d.pos_tgl, '%d.%m.%Y')) as last_update")
-                ->whereRaw("STR_TO_DATE(d.pos_tgl, '%d.%m.%Y') >= ?", [$startWeek->toDateString()])
+                ->selectRaw("MAX(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .") as last_update")
+                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$startWeek->toDateString()])
                 ->value('last_update');
         }
 
@@ -1296,14 +1333,14 @@ class DashboardController
         $biayaQuery = $this->tbKasBiayaQuery();
         if ($biayaQuery) {
             $biayaData = $biayaQuery
-                ->selectRaw("YEARWEEK(k.Tgl_Voucher, 1) as week_key, SUM(COALESCE(k.Nominal1,0)) as total")
+                ->selectRaw("". $this->sqlYw('k.Tgl_Voucher') ." as week_key, SUM(COALESCE(k.Nominal1,0)) as total")
                 ->where('k.Tgl_Voucher', '>=', $startWeek->toDateString())
                 ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
                 ->groupBy('week_key')
                 ->pluck('total', 'week_key');
 
             $biayaLastUpdate = $this->tbKasBiayaQuery()
-                ->selectRaw('MAX(k.Tgl_Voucher) as last_update')
+                ->selectRaw("MAX(k.Tgl_Voucher) as last_update")
                 ->where('k.Tgl_Voucher', '>=', $startWeek->toDateString())
                 ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
                 ->value('last_update');

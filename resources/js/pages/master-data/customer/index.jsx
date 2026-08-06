@@ -22,7 +22,7 @@ import AppLayout from '@/layouts/app-layout';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { formatDateId } from '@/lib/formatters';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { Eye, Pencil, Plus, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
@@ -51,7 +51,7 @@ const initialFormState = {
     npwp_cs: '',
     npwp1_cs: '',
     npwp2_cs: '',
-    Attnd: '',
+    Attnd: [''],
 };
 
 // Global cache untuk menyimpan data modal customer
@@ -104,6 +104,11 @@ export default function CustomerIndex({ customers }) {
         reset: resetEdit,
         errors: editErrors,
     } = useForm(initialFormState);
+
+    
+    const { flash, errors } = usePage().props;
+
+    
 
     // --- Pemisahan Frontend & Backend (Initial Fetch) ---
     useEffect(() => {
@@ -271,9 +276,15 @@ export default function CustomerIndex({ customers }) {
         // Gunakan cache jika sudah pernah diload
         if (customerDetailCache[customer.kd_cs]) {
             const payload = customerDetailCache[customer.kd_cs];
+            let fixedAttnd = payload.customer?.Attnd || [''];
+            if (typeof fixedAttnd === 'string') {
+                fixedAttnd = fixedAttnd.split(',').map(s => s.trim()).filter(Boolean);
+                if (fixedAttnd.length === 0) fixedAttnd = [''];
+            }
             setEditData({
                 ...initialFormState,
                 ...payload.customer,
+                Attnd: fixedAttnd,
             });
             setEditLoading(false);
             return;
@@ -283,9 +294,15 @@ export default function CustomerIndex({ customers }) {
         try {
             const payload = await fetchCustomerDetail(customer.kd_cs);
             customerDetailCache[customer.kd_cs] = payload; // Simpan ke cache
+            let fixedAttnd = payload.customer?.Attnd || [''];
+            if (typeof fixedAttnd === 'string') {
+                fixedAttnd = fixedAttnd.split(',').map(s => s.trim()).filter(Boolean);
+                if (fixedAttnd.length === 0) fixedAttnd = [''];
+            }
             setEditData({
                 ...initialFormState,
                 ...payload.customer,
+                Attnd: fixedAttnd,
             });
         } catch (error) {
             setEditError(
@@ -349,10 +366,39 @@ export default function CustomerIndex({ customers }) {
             `/master-data/customer/${encodeURIComponent(customer.kd_cs)}`,
             {
                 preserveScroll: true,
-                onSuccess: () => {
-                    delete customerDetailCache[customer.kd_cs]; // Bersihkan cache
+                onSuccess: (page) => {
+                    const flashError = page?.props?.flash?.error;
+                    const Toast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3000,
+                        timerProgressBar: true,
+                    });
+                    
+                    if (flashError) {
+                        Toast.fire({
+                            icon: 'error',
+                            title: flashError
+                        });
+                        return; // Stop on error
+                    }
+                    
+                    delete customerDetailCache[customer.kd_cs];
+                    
+                    Toast.fire({
+                        icon: 'success',
+                        title: page?.props?.flash?.success || 'Customer berhasil dihapus.'
+                    });
+                    
+                    router.reload({
+                        only: ['customers', 'customerCount'],
+                        onSuccess: (pg) => {
+                            if (pg.props.customers) setCustomersList(pg.props.customers);
+                        }
+                    });
                 }
-            },
+            }
         );
     };
 
@@ -360,10 +406,53 @@ export default function CustomerIndex({ customers }) {
         event.preventDefault();
         post('/master-data/customer', {
             preserveScroll: true,
-            onSuccess: () => {
+            onSuccess: (page) => {
+                const flashError = page.props?.flash?.error;
+                const flashSuccess = page.props?.flash?.success;
+                
+                if (flashError) {
+                    const ErrToast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 4000,
+                        timerProgressBar: true,
+                    });
+                    ErrToast.fire({
+                        icon: 'error',
+                        title: flashError
+                    });
+                    return;
+                }
+                
+                                setTimeout(() => {
+                    const Toast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3000,
+                        timerProgressBar: true,
+                    });
+                    Toast.fire({
+                        icon: 'success',
+                        title: typeof page !== 'undefined' && page?.props?.flash?.success ? page.props.flash.success : 'Berhasil disimpan.'
+                    });
+                }, 500);
+
                 resetCreate();
                 setIsCreateModalOpen(false);
+                router.reload({
+                    only: ['customers', 'customerCount'],
+                    onSuccess: (pg) => {
+                        if (pg.props.customers) setCustomersList(pg.props.customers);
+                    }
+                });
             },
+            onError: (errs) => {
+                Swal.fire({
+                    toast: true, position: 'top-end', icon: 'error', title: 'Periksa kembali isian form.', timer: 3000, showConfirmButton: false
+                });
+            }
         });
     };
 
@@ -373,15 +462,52 @@ export default function CustomerIndex({ customers }) {
         
         put(`/master-data/customer/${encodeURIComponent(editCustomerId)}`, {
             preserveScroll: true,
-            onSuccess: () => {
-                // Update Cache dengan data yang baru
+            onSuccess: (page) => {
+                const flashError = page.props?.flash?.error;
+                const flashSuccess = page.props?.flash?.success;
+                
+                if (flashError) {
+                    Swal.fire({
+                        title: 'Gagal',
+                        text: flashError,
+                        icon: 'error'
+                    });
+                    return; // Stop here, do not close modal or reset if it failed!
+                }
+                
                 if (customerDetailCache[editCustomerId]) {
                     customerDetailCache[editCustomerId].customer = { ...editData };
                 }
+                
+                                setTimeout(() => {
+                    const Toast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3000,
+                        timerProgressBar: true,
+                    });
+                    Toast.fire({
+                        icon: 'success',
+                        title: typeof page !== 'undefined' && page?.props?.flash?.success ? page.props.flash.success : 'Berhasil disimpan.'
+                    });
+                }, 500);
+                
                 resetEdit();
                 setEditCustomerId(null);
                 setIsEditModalOpen(false);
+                router.reload({
+                    only: ['customers', 'customerCount'],
+                    onSuccess: (pg) => {
+                        if (pg.props.customers) setCustomersList(pg.props.customers);
+                    }
+                });
             },
+            onError: (errs) => {
+                Swal.fire({
+                    toast: true, position: 'top-end', icon: 'error', title: 'Periksa kembali isian form.', timer: 3000, showConfirmButton: false
+                });
+            }
         });
     };
 
@@ -758,18 +884,48 @@ export default function CustomerIndex({ customers }) {
                                         }
                                     />
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="Attnd">Attended</Label>
-                                    <Input
-                                        id="Attnd"
-                                        value={createData.Attnd}
-                                        onChange={(event) =>
-                                            setCreateData(
-                                                'Attnd',
-                                                event.target.value,
-                                            )
-                                        }
-                                    />
+                                <div className="space-y-4 md:col-span-2">
+                                    <div className="flex items-center justify-between">
+                                        <Label>Attended (PIC PO)</Label>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setCreateData('Attnd', [...(Array.isArray(createData.Attnd) ? createData.Attnd : []), ''])}
+                                        >
+                                            <Plus className="mr-2 h-3 w-3" /> Tambah PIC
+                                        </Button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {(Array.isArray(createData.Attnd) ? createData.Attnd : ['']).map((pic, index) => (
+                                            <div key={index} className="flex items-center gap-2">
+                                                <Input
+                                                    value={pic}
+                                                    placeholder="Nama PIC"
+                                                    onChange={(e) => {
+                                                        const newAttnd = [...(Array.isArray(createData.Attnd) ? createData.Attnd : [''])];
+                                                        newAttnd[index] = e.target.value;
+                                                        setCreateData('Attnd', newAttnd);
+                                                    }}
+                                                />
+                                                {index > 0 && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                                        onClick={() => {
+                                                            const newAttnd = [...(Array.isArray(createData.Attnd) ? createData.Attnd : [])];
+                                                            newAttnd.splice(index, 1);
+                                                            setCreateData('Attnd', newAttnd);
+                                                        }}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                                 <div className="space-y-2 md:col-span-2">
                                     <Label htmlFor="npwp1_cs">
@@ -1318,20 +1474,48 @@ export default function CustomerIndex({ customers }) {
                                             }
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="edit-Attnd">
-                                            Attended
-                                        </Label>
-                                        <Input
-                                            id="edit-Attnd"
-                                            value={editData.Attnd}
-                                            onChange={(event) =>
-                                                setEditData(
-                                                    'Attnd',
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
+                                    <div className="space-y-4 md:col-span-2">
+                                        <div className="flex items-center justify-between">
+                                            <Label>Attended (PIC PO)</Label>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setEditData('Attnd', [...(Array.isArray(editData.Attnd) ? editData.Attnd : []), ''])}
+                                            >
+                                                <Plus className="mr-2 h-3 w-3" /> Tambah PIC
+                                            </Button>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {(Array.isArray(editData.Attnd) ? editData.Attnd : ['']).map((pic, index) => (
+                                                <div key={index} className="flex items-center gap-2">
+                                                    <Input
+                                                        value={pic}
+                                                        placeholder="Nama PIC"
+                                                        onChange={(e) => {
+                                                            const newAttnd = [...(Array.isArray(editData.Attnd) ? editData.Attnd : [''])];
+                                                            newAttnd[index] = e.target.value;
+                                                            setEditData('Attnd', newAttnd);
+                                                        }}
+                                                    />
+                                                    {index > 0 && (
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                                            onClick={() => {
+                                                                const newAttnd = [...(Array.isArray(editData.Attnd) ? editData.Attnd : [])];
+                                                                newAttnd.splice(index, 1);
+                                                                setEditData('Attnd', newAttnd);
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                     <div className="space-y-2 md:col-span-2">
                                         <Label htmlFor="edit-npwp1_cs">

@@ -25,7 +25,22 @@ class AppServiceProvider extends ServiceProvider
         // Dynamic APP_URL to support both IPv4 and IPv6 on custom ports (e.g. 8083)
         if (isset($_SERVER['HTTP_HOST'])) {
             $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https://' : 'http://';
-            config(['app.url' => $protocol . $_SERVER['HTTP_HOST']]);
+            $host = $_SERVER['HTTP_HOST'];
+            
+            // Auto-append port if missing (Fix for Docker Nginx omitting port in HTTP_HOST)
+            if (strpos($host, ':') === false) {
+                // Infer from env files to force inject missing port
+                $envUrl = env('APP_URL', '');
+                if (!empty($envUrl)) {
+                    $parsedEnv = parse_url($envUrl);
+                    if (isset($parsedEnv['port'])) {
+                        $host .= ':' . $parsedEnv['port'];
+                    }
+                }
+            }
+
+            config(['app.url' => $protocol . $host]);
+            \Illuminate\Support\Facades\URL::forceRootUrl($protocol . $host);
         }
 
         Event::listen(Logout::class, function (Logout $event): void {
