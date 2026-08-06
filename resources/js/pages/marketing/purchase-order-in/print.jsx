@@ -182,6 +182,17 @@ export default function PurchaseOrderInPrint({
                                 </tr>
                                 <tr>
                                     <td className="align-top text-black">
+                                        PIC PO Customer
+                                    </td>
+                                    <td className="align-top text-black">:</td>
+                                    <td className="align-top font-semibold text-black">
+                                        {renderValue(
+                                            purchaseOrder?.sender_name,
+                                        )}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="align-top text-black">
                                         Payment Term
                                     </td>
                                     <td className="align-top text-black">:</td>

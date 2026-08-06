@@ -2171,6 +2171,15 @@ export default function PurchaseOrderInIndex({
                                                     '-'}
                                             </p>
                                         </div>
+                                        <div className="min-w-40 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
+                                            <p className="text-xs text-muted-foreground">
+                                                PIC PO Customer
+                                            </p>
+                                            <p className="text-sm font-semibold">
+                                                {detailHeader.sender_name ??
+                                                    '-'}
+                                            </p>
+                                        </div>
                                         <div className="min-w-32 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
                                             <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
                                                 Tgl Buat
