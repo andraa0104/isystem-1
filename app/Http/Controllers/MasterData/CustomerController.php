@@ -10,31 +10,7 @@ use Throwable;
 
 class CustomerController
 {
-    private const CUSTOMER_CACHE_TAGS = ['customer_data'];
-    private const CUSTOMER_CACHE_TTL = 86400;
 
-    private function tenantCachePrefix(?Request $request = null): string
-    {
-        $request ??= request();
-        $database = (string) (
-            $request->session()->get('tenant.database')
-            ?? $request->cookie('tenant_database')
-            ?? config('database.connections.'.config('database.default').'.database')
-            ?? ''
-        );
-
-        return preg_replace('/[^A-Za-z0-9_.:-]/', '_', strtolower($database)) ?: 'default';
-    }
-
-    private function customerCacheKey(string $scope, array $parts = [], ?Request $request = null): string
-    {
-        return 'customer:' . $this->tenantCachePrefix($request) . ':' . $scope . ':' . md5(json_encode($parts));
-    }
-
-    private function flushCustomerCache(): void
-    {
-        Cache::tags(self::CUSTOMER_CACHE_TAGS)->flush();
-    }
 
     public function index()
     {
@@ -42,63 +18,54 @@ class CustomerController
         // Hal ini mempercepat pemuatan halaman (UI render instan).
         return Inertia::render('master-data/customer/index', [
             'customers' => Inertia::lazy(function () {
-                return Cache::tags(self::CUSTOMER_CACHE_TAGS)->remember($this->customerCacheKey('index.customers'), self::CUSTOMER_CACHE_TTL, function () {
-                    return DB::table('tb_cs')
-                        ->select('kd_cs', 'nm_cs', 'alamat_cs')
-                        ->orderBy('kd_cs')
-                        ->get();
-                });
+                return DB::table('tb_cs')
+                    ->select('kd_cs', 'nm_cs', 'alamat_cs')
+                    ->orderBy('kd_cs')
+                    ->get();
             }),
             'customerCount' => Inertia::lazy(function () {
-                return Cache::tags(self::CUSTOMER_CACHE_TAGS)->remember($this->customerCacheKey('index.count'), self::CUSTOMER_CACHE_TTL, function () {
-                    return DB::table('tb_cs')->count();
-                });
+                return DB::table('tb_cs')->count();
             }),
         ]);
     }
 
     public function show(string $kdCustomer)
     {
-        $customer = Cache::tags(self::CUSTOMER_CACHE_TAGS)->remember($this->customerCacheKey('show.customer', [$kdCustomer]), self::CUSTOMER_CACHE_TTL, function () use ($kdCustomer) {
-            $customer = DB::table('tb_cs')
+        $customer = DB::table('tb_cs')
+            ->where('kd_cs', $kdCustomer)
+            ->first();
+        
+        if ($customer) {
+            // Attach multiple PICs
+            $pics = DB::table('tb_cspic')
                 ->where('kd_cs', $kdCustomer)
-                ->first();
+                ->pluck('pic_name')
+                ->toArray();
             
-            if ($customer) {
-                // Attach multiple PICs
-                $pics = DB::table('tb_cspic')
-                    ->where('kd_cs', $kdCustomer)
-                    ->pluck('pic_name')
-                    ->toArray();
-                
-                if (!empty($pics)) {
-                    $customer->Attnd = $pics;
-                } else {
-                    if ($customer->Attnd) {
-                        $customer->Attnd = array_values(array_filter(array_map('trim', explode(',', $customer->Attnd))));
-                        if (empty($customer->Attnd)) {
-                            $customer->Attnd = [''];
-                        }
-                    } else {
+            if (!empty($pics)) {
+                $customer->Attnd = $pics;
+            } else {
+                if ($customer->Attnd) {
+                    $customer->Attnd = array_values(array_filter(array_map('trim', explode(',', $customer->Attnd))));
+                    if (empty($customer->Attnd)) {
                         $customer->Attnd = [''];
                     }
+                } else {
+                    $customer->Attnd = [''];
                 }
             }
-            return $customer;
-        });
+        }
 
         if (!$customer) {
             return response()->json(['message' => 'Customer tidak ditemukan.'], 404);
         }
 
-        $deliveryOrders = Cache::tags(self::CUSTOMER_CACHE_TAGS)->remember($this->customerCacheKey('show.delivery-orders', [$kdCustomer]), self::CUSTOMER_CACHE_TTL, function () use ($kdCustomer) {
-            return DB::table('tb_do')
-                ->select('no_do', 'date', 'ref_po')
-                ->where('kd_cs', $kdCustomer)
-                ->groupBy('no_do', 'date', 'ref_po')
-                ->orderBy('no_do', 'desc')
-                ->get();
-        });
+        $deliveryOrders = DB::table('tb_do')
+            ->select('no_do', 'date', 'ref_po')
+            ->where('kd_cs', $kdCustomer)
+            ->groupBy('no_do', 'date', 'ref_po')
+            ->orderBy('no_do', 'desc')
+            ->get();
 
         if (is_array($customer->Attnd) && count($customer->Attnd) === 1 && str_contains($customer->Attnd[0] ?? '', ',')) {
             $customer->Attnd = array_values(array_filter(array_map('trim', explode(',', $customer->Attnd[0]))));
@@ -134,7 +101,7 @@ class CustomerController
         $validated['kd_cs'] = $nextCode;
 
         try {
-            DB::transaction(function () use ($validated, $nextCode) {
+            DB::transaction(function () use ($validated, $nextCode, $request) {
                 $attndArray = $validated['Attnd'] ?? [];
                 $attndString = '';
                 if (is_array($attndArray)) {
@@ -149,9 +116,10 @@ class CustomerController
                 
                 DB::table('tb_cs')->insert($validatedCs);
                 
-                if (is_array($validated['Attnd'] ?? [])) {
+                $attndInput = $request->input('Attnd', []);
+                if (is_array($attndInput)) {
                     $picData = [];
-                    foreach (array_filter($validated['Attnd']) as $pic) {
+                    foreach (array_filter($attndInput) as $pic) {
                         $picData[] = [
                             'kd_cs' => $nextCode,
                             'customer_name' => $validated['nm_cs'] ?? '',
@@ -171,7 +139,6 @@ class CustomerController
             return back()->with('error', 'Gagal menyimpan data customer: ' . $exception->getMessage());
         }
 
-        $this->flushCustomerCache();
 
         return redirect()
             ->route('master-data.customer.index')
@@ -194,8 +161,8 @@ class CustomerController
         ]);
 
         try {
-            DB::transaction(function () use ($validated, $kdCustomer) {
-                $attndArray = $validated['Attnd'] ?? [];
+            DB::transaction(function () use ($validated, $kdCustomer, $request) {
+                $attndArray = $request->input('Attnd', []);
                 $attndString = '';
                 if (is_array($attndArray)) {
                     $attndArray = array_filter($attndArray);
@@ -213,9 +180,10 @@ class CustomerController
 
                 DB::table('tb_cspic')->where('kd_cs', $kdCustomer)->delete();
 
-                if (is_array($validated['Attnd'] ?? [])) {
+                $attndInput = $request->input('Attnd', []);
+                if (is_array($attndInput)) {
                     $picData = [];
-                    foreach (array_filter($validated['Attnd']) as $pic) {
+                    foreach (array_filter($attndInput) as $pic) {
                         $picData[] = [
                             'kd_cs' => $kdCustomer,
                             'customer_name' => $validated['nm_cs'] ?? '',
@@ -235,11 +203,53 @@ class CustomerController
             return back()->with('error', 'Gagal memperbarui data customer: ' . $exception->getMessage());
         }
 
-        $this->flushCustomerCache();
 
         return redirect()
             ->route('master-data.customer.index')
             ->with('success', 'Data customer berhasil diperbarui.');
+    }
+
+    public function export(Request $request)
+    {
+        // Ambil semua customer dari tb_cs
+        $customers = DB::table('tb_cs')
+            ->select(
+                'kd_cs', 'nm_cs', 'alamat_cs', 'kota_cs',
+                'telp_cs', 'fax_cs', 'npwp_cs', 'npwp1_cs', 'npwp2_cs'
+            )
+            ->orderBy('kd_cs')
+            ->get();
+
+        // Ambil semua PIC dari tb_cspic, group by kd_cs
+        $picsRaw = DB::table('tb_cspic')
+            ->select('kd_cs', 'pic_name')
+            ->whereNotNull('pic_name')
+            ->where('pic_name', '<>', '')
+            ->orderBy('kd_cs')
+            ->orderBy('pic_name')
+            ->get()
+            ->groupBy('kd_cs');
+
+        // Merge: tiap customer dapat array pic_names dari tb_cspic
+        $data = $customers->map(function ($cs) use ($picsRaw) {
+            $pics = $picsRaw->get($cs->kd_cs, collect())->pluck('pic_name')->toArray();
+            return [
+                'kd_cs'     => $cs->kd_cs,
+                'nm_cs'     => $cs->nm_cs,
+                'alamat_cs' => $cs->alamat_cs,
+                'kota_cs'   => $cs->kota_cs,
+                'telp_cs'   => $cs->telp_cs,
+                'fax_cs'    => $cs->fax_cs,
+                'npwp_cs'   => $cs->npwp_cs,
+                'npwp1_cs'  => $cs->npwp1_cs,
+                'npwp2_cs'  => $cs->npwp2_cs,
+                'pics'      => $pics,
+            ];
+        })->values()->toArray();
+
+        return Inertia::render('master-data/customer/export', [
+            'customers' => $data,
+        ]);
     }
 
     public function destroy(string $kdCustomer)
@@ -255,7 +265,6 @@ class CustomerController
             return back()->with('error', 'Gagal menghapus data customer: ' . $exception->getMessage());
         }
 
-        $this->flushCustomerCache();
 
         return redirect()
             ->route('master-data.customer.index')

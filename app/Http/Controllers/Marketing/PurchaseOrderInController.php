@@ -1588,8 +1588,32 @@ class PurchaseOrderInController
         return response()->json($data);
     }
 
+    public function customerPics(Request $request)
+    {
+        $kdCs = trim((string) $request->query('kd_cs', ''));
+        $search = trim((string) $request->query('search', ''));
+
+        if (empty($kdCs)) {
+            return response()->json(['pics' => []]);
+        }
+
+        $query = DB::table('tb_cspic')
+            ->where('kd_cs', $kdCs)
+            ->select('pic_name');
+
+        if ($search !== '') {
+            $like = '%' . strtolower($search) . '%';
+            $query->whereRaw('lower(pic_name) like ?', [$like]);
+        }
+
+        $pics = $query->orderBy('pic_name')->pluck('pic_name');
+
+        return response()->json(['pics' => $pics]);
+    }
+
     public function storeCustomer(Request $request)
     {
+
         $validated = $request->validate([
             'nm_cs' => ['required', 'string', 'max:255'],
             'alamat_cs' => ['nullable', 'string', 'max:255'],
@@ -1653,6 +1677,21 @@ class PurchaseOrderInController
             'materials.*.total_price_po_in' => ['nullable', 'numeric', 'min:0'],
             'materials.*.remark' => ['nullable', 'string'],
         ]);
+
+        // Validasi: sender_name harus ada di tb_cspic untuk customer yang dipilih
+        $kdCustomer = trim((string) ($validated['kd_customer'] ?? ''));
+        $senderName = trim((string) ($validated['sender_name'] ?? ''));
+        if ($kdCustomer !== '') {
+            $picExists = DB::table('tb_cspic')
+                ->where('kd_cs', $kdCustomer)
+                ->whereRaw('lower(trim(pic_name)) = lower(trim(?))', [$senderName])
+                ->exists();
+            if (!$picExists) {
+                throw ValidationException::withMessages([
+                    'sender_name' => 'PIC PO Customer tidak ditemukan. Pilih PIC dari daftar yang tersedia.',
+                ]);
+            }
+        }
 
         $noPoin = trim((string) $validated['no_poin']);
         $duplicateExists = DB::table('tb_poin')
@@ -1826,6 +1865,26 @@ class PurchaseOrderInController
             'ppn_value' => ['nullable', 'numeric', 'min:0'],
             'grand_total' => ['nullable', 'numeric', 'min:0'],
         ]);
+
+        // Validasi: sender_name harus ada di tb_cspic untuk customer yang dipilih
+        $kdCustomerUpd = trim((string) ($validated['kd_customer'] ?? ''));
+        if ($kdCustomerUpd === '') {
+            // coba ambil dari DB
+            $existingHeader = DB::table('tb_poin')->where('kode_poin', $kodePoin)->value('kode_customer');
+            $kdCustomerUpd = trim((string) ($existingHeader ?? ''));
+        }
+        $senderNameUpd = trim((string) ($validated['sender_name'] ?? ''));
+        if ($kdCustomerUpd !== '') {
+            $picExistsUpd = DB::table('tb_cspic')
+                ->where('kd_cs', $kdCustomerUpd)
+                ->whereRaw('lower(trim(pic_name)) = lower(trim(?))', [$senderNameUpd])
+                ->exists();
+            if (!$picExistsUpd) {
+                throw ValidationException::withMessages([
+                    'sender_name' => 'PIC PO Customer tidak ditemukan. Pilih PIC dari daftar yang tersedia.',
+                ]);
+            }
+        }
 
         try {
             DB::transaction(function () use ($validated, $kodePoin) {

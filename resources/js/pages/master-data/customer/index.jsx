@@ -23,7 +23,7 @@ import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { formatDateId } from '@/lib/formatters';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { Eye, Pencil, Plus, Printer, Trash2 } from 'lucide-react';
+import { Download, Eye, Pencil, Plus, Printer, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -64,24 +64,24 @@ export default function CustomerIndex({ customers }) {
 
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-    
+
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
     const [codeOrder, setCodeOrder] = useState('asc');
-    
+
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    
+
     const [viewCustomer, setViewCustomer] = useState(null);
     const [viewLoading, setViewLoading] = useState(false);
     const [viewError, setViewError] = useState(null);
     const [viewTab, setViewTab] = useState('profil'); // profil | riwayat
-    
+
     const [editLoading, setEditLoading] = useState(false);
     const [editError, setEditError] = useState(null);
     const [editCustomerId, setEditCustomerId] = useState(null);
-    
+
     const [doHistory, setDoHistory] = useState([]);
     const [doSearchTerm, setDoSearchTerm] = useState('');
     const [debouncedDoSearchTerm, setDebouncedDoSearchTerm] = useState('');
@@ -105,10 +105,7 @@ export default function CustomerIndex({ customers }) {
         errors: editErrors,
     } = useForm(initialFormState);
 
-    
     const { flash, errors } = usePage().props;
-
-    
 
     // --- Pemisahan Frontend & Backend (Initial Fetch) ---
     useEffect(() => {
@@ -138,7 +135,10 @@ export default function CustomerIndex({ customers }) {
     }, [searchTerm]);
 
     useEffect(() => {
-        const timer = setTimeout(() => setDebouncedDoSearchTerm(doSearchTerm), 300);
+        const timer = setTimeout(
+            () => setDebouncedDoSearchTerm(doSearchTerm),
+            300,
+        );
         return () => clearTimeout(timer);
     }, [doSearchTerm]);
 
@@ -230,7 +230,7 @@ export default function CustomerIndex({ customers }) {
 
     const handleView = async (customer) => {
         if (!customer?.kd_cs) return;
-        
+
         setIsViewModalOpen(true);
         setViewError(null);
         setViewTab('profil');
@@ -238,7 +238,7 @@ export default function CustomerIndex({ customers }) {
         setDebouncedDoSearchTerm('');
         setDoPageSize(5);
         setDoCurrentPage(1);
-        
+
         // Gunakan cache jika sudah ada agar loading instan saat dibuka kembali
         if (customerDetailCache[customer.kd_cs]) {
             const payload = customerDetailCache[customer.kd_cs];
@@ -251,7 +251,7 @@ export default function CustomerIndex({ customers }) {
         setViewLoading(true);
         setViewCustomer(null);
         setDoHistory([]);
-        
+
         try {
             const payload = await fetchCustomerDetail(customer.kd_cs);
             customerDetailCache[customer.kd_cs] = payload; // Simpan ke cache
@@ -268,17 +268,20 @@ export default function CustomerIndex({ customers }) {
 
     const handleEdit = async (customer) => {
         if (!customer?.kd_cs) return;
-        
+
         setIsEditModalOpen(true);
         setEditError(null);
         setEditCustomerId(customer.kd_cs);
-        
+
         // Gunakan cache jika sudah pernah diload
         if (customerDetailCache[customer.kd_cs]) {
             const payload = customerDetailCache[customer.kd_cs];
             let fixedAttnd = payload.customer?.Attnd || [''];
             if (typeof fixedAttnd === 'string') {
-                fixedAttnd = fixedAttnd.split(',').map(s => s.trim()).filter(Boolean);
+                fixedAttnd = fixedAttnd
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
                 if (fixedAttnd.length === 0) fixedAttnd = [''];
             }
             setEditData({
@@ -296,7 +299,10 @@ export default function CustomerIndex({ customers }) {
             customerDetailCache[customer.kd_cs] = payload; // Simpan ke cache
             let fixedAttnd = payload.customer?.Attnd || [''];
             if (typeof fixedAttnd === 'string') {
-                fixedAttnd = fixedAttnd.split(',').map(s => s.trim()).filter(Boolean);
+                fixedAttnd = fixedAttnd
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
                 if (fixedAttnd.length === 0) fixedAttnd = [''];
             }
             setEditData({
@@ -315,7 +321,7 @@ export default function CustomerIndex({ customers }) {
 
     const handleDelete = async (customer) => {
         if (!customer?.kd_cs) return;
-        
+
         try {
             let payload = customerDetailCache[customer.kd_cs];
             if (!payload) {
@@ -375,30 +381,33 @@ export default function CustomerIndex({ customers }) {
                         timer: 3000,
                         timerProgressBar: true,
                     });
-                    
+
                     if (flashError) {
                         Toast.fire({
                             icon: 'error',
-                            title: flashError
+                            title: flashError,
                         });
                         return; // Stop on error
                     }
-                    
+
                     delete customerDetailCache[customer.kd_cs];
-                    
+
                     Toast.fire({
                         icon: 'success',
-                        title: page?.props?.flash?.success || 'Customer berhasil dihapus.'
+                        title:
+                            page?.props?.flash?.success ||
+                            'Customer berhasil dihapus.',
                     });
-                    
+
                     router.reload({
                         only: ['customers', 'customerCount'],
                         onSuccess: (pg) => {
-                            if (pg.props.customers) setCustomersList(pg.props.customers);
-                        }
+                            if (pg.props.customers)
+                                setCustomersList(pg.props.customers);
+                        },
                     });
-                }
-            }
+                },
+            },
         );
     };
 
@@ -409,7 +418,7 @@ export default function CustomerIndex({ customers }) {
             onSuccess: (page) => {
                 const flashError = page.props?.flash?.error;
                 const flashSuccess = page.props?.flash?.success;
-                
+
                 if (flashError) {
                     const ErrToast = Swal.mixin({
                         toast: true,
@@ -420,12 +429,12 @@ export default function CustomerIndex({ customers }) {
                     });
                     ErrToast.fire({
                         icon: 'error',
-                        title: flashError
+                        title: flashError,
                     });
                     return;
                 }
-                
-                                setTimeout(() => {
+
+                setTimeout(() => {
                     const Toast = Swal.mixin({
                         toast: true,
                         position: 'top-end',
@@ -435,7 +444,11 @@ export default function CustomerIndex({ customers }) {
                     });
                     Toast.fire({
                         icon: 'success',
-                        title: typeof page !== 'undefined' && page?.props?.flash?.success ? page.props.flash.success : 'Berhasil disimpan.'
+                        title:
+                            typeof page !== 'undefined' &&
+                            page?.props?.flash?.success
+                                ? page.props.flash.success
+                                : 'Berhasil disimpan.',
                     });
                 }, 500);
 
@@ -444,42 +457,50 @@ export default function CustomerIndex({ customers }) {
                 router.reload({
                     only: ['customers', 'customerCount'],
                     onSuccess: (pg) => {
-                        if (pg.props.customers) setCustomersList(pg.props.customers);
-                    }
+                        if (pg.props.customers)
+                            setCustomersList(pg.props.customers);
+                    },
                 });
             },
             onError: (errs) => {
                 Swal.fire({
-                    toast: true, position: 'top-end', icon: 'error', title: 'Periksa kembali isian form.', timer: 3000, showConfirmButton: false
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'error',
+                    title: 'Periksa kembali isian form.',
+                    timer: 3000,
+                    showConfirmButton: false,
                 });
-            }
+            },
         });
     };
 
     const handleEditSubmit = (event) => {
         event.preventDefault();
         if (!editCustomerId) return;
-        
+
         put(`/master-data/customer/${encodeURIComponent(editCustomerId)}`, {
             preserveScroll: true,
             onSuccess: (page) => {
                 const flashError = page.props?.flash?.error;
                 const flashSuccess = page.props?.flash?.success;
-                
+
                 if (flashError) {
                     Swal.fire({
                         title: 'Gagal',
                         text: flashError,
-                        icon: 'error'
+                        icon: 'error',
                     });
                     return; // Stop here, do not close modal or reset if it failed!
                 }
-                
+
                 if (customerDetailCache[editCustomerId]) {
-                    customerDetailCache[editCustomerId].customer = { ...editData };
+                    customerDetailCache[editCustomerId].customer = {
+                        ...editData,
+                    };
                 }
-                
-                                setTimeout(() => {
+
+                setTimeout(() => {
                     const Toast = Swal.mixin({
                         toast: true,
                         position: 'top-end',
@@ -489,25 +510,35 @@ export default function CustomerIndex({ customers }) {
                     });
                     Toast.fire({
                         icon: 'success',
-                        title: typeof page !== 'undefined' && page?.props?.flash?.success ? page.props.flash.success : 'Berhasil disimpan.'
+                        title:
+                            typeof page !== 'undefined' &&
+                            page?.props?.flash?.success
+                                ? page.props.flash.success
+                                : 'Berhasil disimpan.',
                     });
                 }, 500);
-                
+
                 resetEdit();
                 setEditCustomerId(null);
                 setIsEditModalOpen(false);
                 router.reload({
                     only: ['customers', 'customerCount'],
                     onSuccess: (pg) => {
-                        if (pg.props.customers) setCustomersList(pg.props.customers);
-                    }
+                        if (pg.props.customers)
+                            setCustomersList(pg.props.customers);
+                    },
                 });
             },
             onError: (errs) => {
                 Swal.fire({
-                    toast: true, position: 'top-end', icon: 'error', title: 'Periksa kembali isian form.', timer: 3000, showConfirmButton: false
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'error',
+                    title: 'Periksa kembali isian form.',
+                    timer: 3000,
+                    showConfirmButton: false,
                 });
-            }
+            },
         });
     };
 
@@ -524,10 +555,24 @@ export default function CustomerIndex({ customers }) {
                             Kelola daftar customer.
                         </p>
                     </div>
-                    <Button onClick={() => setIsCreateModalOpen(true)}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Tambah Data
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="secondary"
+                            onClick={() =>
+                                window.open(
+                                    '/master-data/customer/export',
+                                    '_blank',
+                                )
+                            }
+                        >
+                            <Download className="mr-2 h-4 w-4" />
+                            Export Data
+                        </Button>
+                        <Button onClick={() => setIsCreateModalOpen(true)}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Tambah Data
+                        </Button>
+                    </div>
                 </div>
 
                 <Card>
@@ -623,7 +668,10 @@ export default function CustomerIndex({ customers }) {
                                     <tbody>
                                         {tableLoading ? (
                                             <tr>
-                                                <td className="px-4 py-4" colSpan={5}>
+                                                <td
+                                                    className="px-4 py-4"
+                                                    colSpan={5}
+                                                >
                                                     <div className="flex flex-col gap-3">
                                                         <Skeleton className="h-6 w-full opacity-60" />
                                                         <Skeleton className="h-6 w-full opacity-60" />
@@ -639,7 +687,8 @@ export default function CustomerIndex({ customers }) {
                                                 >
                                                     <div>
                                                         Data customer belum
-                                                        tersedia atau tidak ditemukan.
+                                                        tersedia atau tidak
+                                                        ditemukan.
                                                     </div>
                                                     <div className="mt-3">
                                                         <Button
@@ -664,7 +713,8 @@ export default function CustomerIndex({ customers }) {
                                                         className="border-t border-sidebar-border/70"
                                                     >
                                                         <td className="px-4 py-3">
-                                                            {(pageSize === Infinity
+                                                            {(pageSize ===
+                                                            Infinity
                                                                 ? index
                                                                 : (currentPage -
                                                                       1) *
@@ -891,21 +941,47 @@ export default function CustomerIndex({ customers }) {
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => setCreateData('Attnd', [...(Array.isArray(createData.Attnd) ? createData.Attnd : []), ''])}
+                                            onClick={() =>
+                                                setCreateData('Attnd', [
+                                                    ...(Array.isArray(
+                                                        createData.Attnd,
+                                                    )
+                                                        ? createData.Attnd
+                                                        : []),
+                                                    '',
+                                                ])
+                                            }
                                         >
-                                            <Plus className="mr-2 h-3 w-3" /> Tambah PIC
+                                            <Plus className="mr-2 h-3 w-3" />{' '}
+                                            Tambah PIC
                                         </Button>
                                     </div>
                                     <div className="space-y-2">
-                                        {(Array.isArray(createData.Attnd) ? createData.Attnd : ['']).map((pic, index) => (
-                                            <div key={index} className="flex items-center gap-2">
+                                        {(Array.isArray(createData.Attnd)
+                                            ? createData.Attnd
+                                            : ['']
+                                        ).map((pic, index) => (
+                                            <div
+                                                key={index}
+                                                className="flex items-center gap-2"
+                                            >
                                                 <Input
                                                     value={pic}
                                                     placeholder="Nama PIC"
                                                     onChange={(e) => {
-                                                        const newAttnd = [...(Array.isArray(createData.Attnd) ? createData.Attnd : [''])];
-                                                        newAttnd[index] = e.target.value;
-                                                        setCreateData('Attnd', newAttnd);
+                                                        const newAttnd = [
+                                                            ...(Array.isArray(
+                                                                createData.Attnd,
+                                                            )
+                                                                ? createData.Attnd
+                                                                : ['']),
+                                                        ];
+                                                        newAttnd[index] =
+                                                            e.target.value;
+                                                        setCreateData(
+                                                            'Attnd',
+                                                            newAttnd,
+                                                        );
                                                     }}
                                                 />
                                                 {index > 0 && (
@@ -913,11 +989,23 @@ export default function CustomerIndex({ customers }) {
                                                         type="button"
                                                         variant="ghost"
                                                         size="sm"
-                                                        className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                                        className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                                                         onClick={() => {
-                                                            const newAttnd = [...(Array.isArray(createData.Attnd) ? createData.Attnd : [])];
-                                                            newAttnd.splice(index, 1);
-                                                            setCreateData('Attnd', newAttnd);
+                                                            const newAttnd = [
+                                                                ...(Array.isArray(
+                                                                    createData.Attnd,
+                                                                )
+                                                                    ? createData.Attnd
+                                                                    : []),
+                                                            ];
+                                                            newAttnd.splice(
+                                                                index,
+                                                                1,
+                                                            );
+                                                            setCreateData(
+                                                                'Attnd',
+                                                                newAttnd,
+                                                            );
                                                         }}
                                                     >
                                                         <Trash2 className="h-4 w-4" />
@@ -1055,7 +1143,9 @@ export default function CustomerIndex({ customers }) {
                                                 Kode CS
                                             </span>
                                             <div className="font-medium">
-                                                {renderValue(viewCustomer.kd_cs)}
+                                                {renderValue(
+                                                    viewCustomer.kd_cs,
+                                                )}
                                             </div>
                                         </div>
                                         <div>
@@ -1063,7 +1153,9 @@ export default function CustomerIndex({ customers }) {
                                                 Nama CS
                                             </span>
                                             <div className="font-medium">
-                                                {renderValue(viewCustomer.nm_cs)}
+                                                {renderValue(
+                                                    viewCustomer.nm_cs,
+                                                )}
                                             </div>
                                         </div>
                                         <div className="md:col-span-2">
@@ -1081,7 +1173,9 @@ export default function CustomerIndex({ customers }) {
                                                 Kota
                                             </span>
                                             <div className="font-medium">
-                                                {renderValue(viewCustomer.kota_cs)}
+                                                {renderValue(
+                                                    viewCustomer.kota_cs,
+                                                )}
                                             </div>
                                         </div>
                                         <div>
@@ -1089,7 +1183,9 @@ export default function CustomerIndex({ customers }) {
                                                 Telpon
                                             </span>
                                             <div className="font-medium">
-                                                {renderValue(viewCustomer.telp_cs)}
+                                                {renderValue(
+                                                    viewCustomer.telp_cs,
+                                                )}
                                             </div>
                                         </div>
                                         <div>
@@ -1097,7 +1193,9 @@ export default function CustomerIndex({ customers }) {
                                                 Fax
                                             </span>
                                             <div className="font-medium">
-                                                {renderValue(viewCustomer.fax_cs)}
+                                                {renderValue(
+                                                    viewCustomer.fax_cs,
+                                                )}
                                             </div>
                                         </div>
                                         <div>
@@ -1105,7 +1203,9 @@ export default function CustomerIndex({ customers }) {
                                                 NPWP
                                             </span>
                                             <div className="font-medium">
-                                                {renderValue(viewCustomer.npwp_cs)}
+                                                {renderValue(
+                                                    viewCustomer.npwp_cs,
+                                                )}
                                             </div>
                                         </div>
                                         <div>
@@ -1113,7 +1213,9 @@ export default function CustomerIndex({ customers }) {
                                                 Alamat NPWP 1
                                             </span>
                                             <div className="font-medium">
-                                                {renderValue(viewCustomer.npwp1_cs)}
+                                                {renderValue(
+                                                    viewCustomer.npwp1_cs,
+                                                )}
                                             </div>
                                         </div>
                                         <div>
@@ -1121,7 +1223,9 @@ export default function CustomerIndex({ customers }) {
                                                 Alamat NPWP 2
                                             </span>
                                             <div className="font-medium">
-                                                {renderValue(viewCustomer.npwp2_cs)}
+                                                {renderValue(
+                                                    viewCustomer.npwp2_cs,
+                                                )}
                                             </div>
                                         </div>
                                         <div>
@@ -1129,7 +1233,9 @@ export default function CustomerIndex({ customers }) {
                                                 Attended
                                             </span>
                                             <div className="font-medium">
-                                                {renderValue(viewCustomer.Attnd)}
+                                                {renderValue(
+                                                    viewCustomer.Attnd,
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1481,21 +1587,47 @@ export default function CustomerIndex({ customers }) {
                                                 type="button"
                                                 variant="outline"
                                                 size="sm"
-                                                onClick={() => setEditData('Attnd', [...(Array.isArray(editData.Attnd) ? editData.Attnd : []), ''])}
+                                                onClick={() =>
+                                                    setEditData('Attnd', [
+                                                        ...(Array.isArray(
+                                                            editData.Attnd,
+                                                        )
+                                                            ? editData.Attnd
+                                                            : []),
+                                                        '',
+                                                    ])
+                                                }
                                             >
-                                                <Plus className="mr-2 h-3 w-3" /> Tambah PIC
+                                                <Plus className="mr-2 h-3 w-3" />{' '}
+                                                Tambah PIC
                                             </Button>
                                         </div>
                                         <div className="space-y-2">
-                                            {(Array.isArray(editData.Attnd) ? editData.Attnd : ['']).map((pic, index) => (
-                                                <div key={index} className="flex items-center gap-2">
+                                            {(Array.isArray(editData.Attnd)
+                                                ? editData.Attnd
+                                                : ['']
+                                            ).map((pic, index) => (
+                                                <div
+                                                    key={index}
+                                                    className="flex items-center gap-2"
+                                                >
                                                     <Input
                                                         value={pic}
                                                         placeholder="Nama PIC"
                                                         onChange={(e) => {
-                                                            const newAttnd = [...(Array.isArray(editData.Attnd) ? editData.Attnd : [''])];
-                                                            newAttnd[index] = e.target.value;
-                                                            setEditData('Attnd', newAttnd);
+                                                            const newAttnd = [
+                                                                ...(Array.isArray(
+                                                                    editData.Attnd,
+                                                                )
+                                                                    ? editData.Attnd
+                                                                    : ['']),
+                                                            ];
+                                                            newAttnd[index] =
+                                                                e.target.value;
+                                                            setEditData(
+                                                                'Attnd',
+                                                                newAttnd,
+                                                            );
                                                         }}
                                                     />
                                                     {index > 0 && (
@@ -1503,11 +1635,24 @@ export default function CustomerIndex({ customers }) {
                                                             type="button"
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                                                            className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                                                             onClick={() => {
-                                                                const newAttnd = [...(Array.isArray(editData.Attnd) ? editData.Attnd : [])];
-                                                                newAttnd.splice(index, 1);
-                                                                setEditData('Attnd', newAttnd);
+                                                                const newAttnd =
+                                                                    [
+                                                                        ...(Array.isArray(
+                                                                            editData.Attnd,
+                                                                        )
+                                                                            ? editData.Attnd
+                                                                            : []),
+                                                                    ];
+                                                                newAttnd.splice(
+                                                                    index,
+                                                                    1,
+                                                                );
+                                                                setEditData(
+                                                                    'Attnd',
+                                                                    newAttnd,
+                                                                );
                                                             }}
                                                         >
                                                             <Trash2 className="h-4 w-4" />

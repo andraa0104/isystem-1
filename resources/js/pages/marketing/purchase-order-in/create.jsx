@@ -176,6 +176,13 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     const [customerCreateErrors, setCustomerCreateErrors] = useState({});
     const [isCustomerCreating, setIsCustomerCreating] = useState(false);
 
+    // States for PIC PO dropdown
+    const [picList, setPicList] = useState([]);
+    const [picLoading, setPicLoading] = useState(false);
+    const [picSearch, setPicSearch] = useState('');
+    const [showPicDropdown, setShowPicDropdown] = useState(false);
+    const picDropdownRef = useRef(null);
+
     // Other states
     const [isPredicting, setIsPredicting] = useState(false);
     const [validationErrors, setValidationErrors] = useState({});
@@ -354,6 +361,54 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         }, 500);
         return () => clearTimeout(delayDebounceFn);
     }, [customerSearchInput, customerSearchTerm]);
+
+    // Load PICs when customerCode changes
+    useEffect(() => {
+        if (!form.customerCode) {
+            setPicList([]);
+            return;
+        }
+        const loadPics = async () => {
+            setPicLoading(true);
+            try {
+                const params = new URLSearchParams();
+                params.set('kd_cs', form.customerCode);
+                if (picSearch.trim()) params.set('search', picSearch.trim());
+                params.set('_ts', String(Date.now()));
+                const res = await fetch(
+                    `/marketing/purchase-order-in/customer-pics?${params.toString()}`,
+                    {
+                        cache: 'no-store',
+                        headers: { Accept: 'application/json' },
+                    },
+                );
+                if (res.ok) {
+                    const data = await res.json();
+                    setPicList(Array.isArray(data?.pics) ? data.pics : []);
+                }
+            } catch {
+                setPicList([]);
+            } finally {
+                setPicLoading(false);
+            }
+        };
+        loadPics();
+    }, [form.customerCode, picSearch]);
+
+    // Close PIC dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (
+                picDropdownRef.current &&
+                !picDropdownRef.current.contains(e.target)
+            ) {
+                setShowPicDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () =>
+            document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const handleAddItem = () => {
         if (!itemForm.material || !itemForm.qty) {
@@ -1405,29 +1460,97 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         </p>
                                     )}
                                 </div>
-                                <div className="grid gap-2 sm:col-span-2">
+                                <div
+                                    className="grid gap-2 sm:col-span-2"
+                                    ref={picDropdownRef}
+                                >
                                     <Label htmlFor="sender_name">
                                         PIC PO Customer
                                     </Label>
-                                    <Input
-                                        id="sender_name"
-                                        className={
-                                            validationErrors.senderName
-                                                ? 'border-red-500 focus-visible:ring-red-500'
-                                                : ''
-                                        }
-                                        value={form.senderName}
-                                        onChange={(event) => {
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                senderName: event.target.value,
-                                            }));
-                                            setValidationErrors((prev) => ({
-                                                ...prev,
-                                                senderName: '',
-                                            }));
-                                        }}
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            id="sender_name"
+                                            className={
+                                                validationErrors.senderName
+                                                    ? 'border-red-500 focus-visible:ring-red-500'
+                                                    : ''
+                                            }
+                                            value={form.senderName}
+                                            placeholder={
+                                                picLoading
+                                                    ? 'Memuat PIC...'
+                                                    : picList.length > 0
+                                                      ? 'Ketik atau pilih PIC...'
+                                                      : 'Ketik nama PIC'
+                                            }
+                                            autoComplete="off"
+                                            onChange={(event) => {
+                                                const val = event.target.value;
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    senderName: val,
+                                                }));
+                                                setPicSearch(val);
+                                                setShowPicDropdown(true);
+                                                setValidationErrors((prev) => ({
+                                                    ...prev,
+                                                    senderName: '',
+                                                }));
+                                            }}
+                                            onFocus={() => {
+                                                if (picList.length > 0)
+                                                    setShowPicDropdown(true);
+                                            }}
+                                        />
+                                        {showPicDropdown &&
+                                            picList.length > 0 && (
+                                                <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-sidebar-border/70 bg-background text-sm shadow-lg">
+                                                    {picLoading ? (
+                                                        <li className="px-3 py-2 text-muted-foreground">
+                                                            Memuat...
+                                                        </li>
+                                                    ) : (
+                                                        picList.map((pic) => (
+                                                            <li
+                                                                key={pic}
+                                                                className="cursor-pointer px-3 py-2 hover:bg-muted"
+                                                                onMouseDown={(
+                                                                    e,
+                                                                ) => {
+                                                                    e.preventDefault();
+                                                                    setForm(
+                                                                        (
+                                                                            prev,
+                                                                        ) => ({
+                                                                            ...prev,
+                                                                            senderName:
+                                                                                pic,
+                                                                        }),
+                                                                    );
+                                                                    setPicSearch(
+                                                                        '',
+                                                                    );
+                                                                    setShowPicDropdown(
+                                                                        false,
+                                                                    );
+                                                                    setValidationErrors(
+                                                                        (
+                                                                            prev,
+                                                                        ) => ({
+                                                                            ...prev,
+                                                                            senderName:
+                                                                                '',
+                                                                        }),
+                                                                    );
+                                                                }}
+                                                            >
+                                                                {pic}
+                                                            </li>
+                                                        ))
+                                                    )}
+                                                </ul>
+                                            )}
+                                    </div>
                                     {validationErrors.senderName && (
                                         <p className="text-xs text-red-500">
                                             {validationErrors.senderName}

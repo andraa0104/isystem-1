@@ -197,6 +197,8 @@ Route::delete('master-data/vendor/{kdVendor}', [VendorController::class, 'destro
     ->name('master-data.vendor.destroy');
 Route::get('master-data/customer', [CustomerController::class, 'index'])
     ->name('master-data.customer.index');
+Route::get('master-data/customer/export', [CustomerController::class, 'export'])
+    ->name('master-data.customer.export');
 Route::get('master-data/customer/{kdCustomer}', [CustomerController::class, 'show'])
     ->name('master-data.customer.show');
 Route::post('master-data/customer', [CustomerController::class, 'store'])
@@ -264,6 +266,8 @@ Route::get('marketing/purchase-order-in/customers', [PurchaseOrderInController::
     ->name('marketing.purchase-order-in.customers');
 Route::post('marketing/purchase-order-in/customers', [PurchaseOrderInController::class, 'storeCustomer'])
     ->name('marketing.purchase-order-in.customers.store');
+Route::get('marketing/purchase-order-in/customer-pics', [PurchaseOrderInController::class, 'customerPics'])
+    ->name('marketing.purchase-order-in.customer-pics');
 Route::post('marketing/purchase-order-in/predict', [AIPredictionController::class, 'predictPOIn'])
     ->name('marketing.purchase-order-in.predict');
 
