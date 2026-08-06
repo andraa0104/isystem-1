@@ -18,21 +18,7 @@ const COLUMNS = [
 ];
 
 export default function CustomerExport({ customers = [] }) {
-    // Flatten: each PIC = one row, merge header cells with rowSpan
-    const rows = [];
-    customers.forEach((cs, csIdx) => {
-        const pics = cs.pics && cs.pics.length > 0 ? cs.pics : [null];
-        pics.forEach((pic, picIdx) => {
-            rows.push({
-                cs,
-                csIdx,
-                pic,
-                picIdx,
-                picCount: pics.length,
-                globalNo: csIdx + 1,
-            });
-        });
-    });
+    // No need to flatten rows anymore, since PICs will be comma separated in a single td.
 
     return (
         <div className="min-h-screen bg-white p-6 text-slate-950">
@@ -78,7 +64,7 @@ export default function CustomerExport({ customers = [] }) {
                             </tr>
                         </thead>
                         <tbody>
-                            {rows.length === 0 && (
+                            {customers.length === 0 && (
                                 <tr>
                                     <td
                                         colSpan={COLUMNS.length}
@@ -88,76 +74,42 @@ export default function CustomerExport({ customers = [] }) {
                                     </td>
                                 </tr>
                             )}
-                            {rows.map((row, idx) => (
+                            {customers.map((cs, idx) => (
                                 <tr key={idx} className="even:bg-slate-50">
-                                    {/* Merge header cells on first PIC row */}
-                                    {row.picIdx === 0 && (
-                                        <>
-                                            <td
-                                                rowSpan={row.picCount}
-                                                className="border border-slate-300 p-2 text-center align-top whitespace-nowrap"
-                                            >
-                                                {row.globalNo}
-                                            </td>
-                                            <td
-                                                rowSpan={row.picCount}
-                                                className="border border-slate-300 p-2 align-top font-medium whitespace-nowrap"
-                                            >
-                                                {text(row.cs.kd_cs)}
-                                            </td>
-                                            <td
-                                                rowSpan={row.picCount}
-                                                className="border border-slate-300 p-2 align-top"
-                                            >
-                                                {text(row.cs.nm_cs)}
-                                            </td>
-                                            <td
-                                                rowSpan={row.picCount}
-                                                className="border border-slate-300 p-2 align-top"
-                                            >
-                                                {text(row.cs.alamat_cs)}
-                                            </td>
-                                            <td
-                                                rowSpan={row.picCount}
-                                                className="border border-slate-300 p-2 align-top whitespace-nowrap"
-                                            >
-                                                {text(row.cs.kota_cs)}
-                                            </td>
-                                            <td
-                                                rowSpan={row.picCount}
-                                                className="border border-slate-300 p-2 align-top whitespace-nowrap"
-                                            >
-                                                {text(row.cs.telp_cs)}
-                                            </td>
-                                            <td
-                                                rowSpan={row.picCount}
-                                                className="border border-slate-300 p-2 align-top whitespace-nowrap"
-                                            >
-                                                {text(row.cs.fax_cs)}
-                                            </td>
-                                            <td
-                                                rowSpan={row.picCount}
-                                                className="border border-slate-300 p-2 align-top"
-                                            >
-                                                {text(row.cs.npwp_cs)}
-                                            </td>
-                                            <td
-                                                rowSpan={row.picCount}
-                                                className="border border-slate-300 p-2 align-top"
-                                            >
-                                                {text(row.cs.npwp1_cs)}
-                                            </td>
-                                            <td
-                                                rowSpan={row.picCount}
-                                                className="border border-slate-300 p-2 align-top"
-                                            >
-                                                {text(row.cs.npwp2_cs)}
-                                            </td>
-                                        </>
-                                    )}
-                                    {/* PIC column — one row per PIC */}
+                                    <td className="border border-slate-300 p-2 text-center align-top whitespace-nowrap">
+                                        {idx + 1}
+                                    </td>
+                                    <td className="border border-slate-300 p-2 align-top font-medium whitespace-nowrap">
+                                        {text(cs.kd_cs)}
+                                    </td>
                                     <td className="border border-slate-300 p-2 align-top">
-                                        {text(row.pic)}
+                                        {text(cs.nm_cs)}
+                                    </td>
+                                    <td className="border border-slate-300 p-2 align-top">
+                                        {text(cs.alamat_cs)}
+                                    </td>
+                                    <td className="border border-slate-300 p-2 align-top whitespace-nowrap">
+                                        {text(cs.kota_cs)}
+                                    </td>
+                                    <td className="border border-slate-300 p-2 align-top whitespace-nowrap">
+                                        {text(cs.telp_cs)}
+                                    </td>
+                                    <td className="border border-slate-300 p-2 align-top whitespace-nowrap">
+                                        {text(cs.fax_cs)}
+                                    </td>
+                                    <td className="border border-slate-300 p-2 align-top">
+                                        {text(cs.npwp_cs)}
+                                    </td>
+                                    <td className="border border-slate-300 p-2 align-top">
+                                        {text(cs.npwp1_cs)}
+                                    </td>
+                                    <td className="border border-slate-300 p-2 align-top">
+                                        {text(cs.npwp2_cs)}
+                                    </td>
+                                    <td className="border border-slate-300 p-2 align-top">
+                                        {cs.pics && cs.pics.length > 0
+                                            ? cs.pics.join(', ')
+                                            : '-'}
                                     </td>
                                 </tr>
                             ))}

@@ -1233,9 +1233,40 @@ export default function CustomerIndex({ customers }) {
                                                 Attended
                                             </span>
                                             <div className="font-medium">
-                                                {renderValue(
-                                                    viewCustomer.Attnd,
-                                                )}
+                                                {(() => {
+                                                    let attnd =
+                                                        viewCustomer.Attnd ||
+                                                        [];
+                                                    if (
+                                                        typeof attnd ===
+                                                        'string'
+                                                    ) {
+                                                        attnd = attnd
+                                                            .split(',')
+                                                            .map((s) =>
+                                                                s.trim(),
+                                                            )
+                                                            .filter(Boolean);
+                                                    }
+                                                    if (
+                                                        !Array.isArray(attnd) ||
+                                                        attnd.length === 0
+                                                    )
+                                                        return '-';
+                                                    if (attnd.length === 1)
+                                                        return attnd[0];
+                                                    return (
+                                                        <ul className="list-inside list-disc">
+                                                            {attnd.map(
+                                                                (item, i) => (
+                                                                    <li key={i}>
+                                                                        {item}
+                                                                    </li>
+                                                                ),
+                                                            )}
+                                                        </ul>
+                                                    );
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
