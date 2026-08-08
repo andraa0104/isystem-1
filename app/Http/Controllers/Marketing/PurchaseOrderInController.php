@@ -649,9 +649,18 @@ class PurchaseOrderInController
         }
 
         $total = (clone $query)->count();
+        
+        if (in_array($statusFilter, ['outstanding_pr', 'outstanding_do', 'sisa_pr', 'sisa_do'])) {
+            $query->orderByRaw("case when trim(coalesce(p.delivery_date, '')) = '' then 1 else 0 end")
+                  ->orderByRaw("{$deadline} asc")
+                  ->orderByDesc('d.id');
+        } else {
+            $query->orderByDesc('d.id');
+        }
+
         $rows = $perPage === null
-            ? $query->orderByDesc('d.id')->get()
-            : $query->orderByDesc('d.id')->forPage($page, $perPage)->get();
+            ? $query->get()
+            : $query->forPage($page, $perPage)->get();
 
         return [
             'materials' => $rows,
