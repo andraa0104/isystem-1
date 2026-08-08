@@ -179,6 +179,24 @@ export default function PurchaseOrderIndex({
     const [partialTotalRows, setPartialTotalRows] = useState(0);
     const [debouncedPartialSearch, setDebouncedPartialSearch] = useState('');
 
+    // ── Tab state ─────────────────────────────────────────────────────────
+    const [activeTab, setActiveTab] = useState('po');
+
+    // ── Tab 2 – Data By Material state ────────────────────────────────────
+    const [matData, setMatData] = useState([]);
+    const [matLoading, setMatLoading] = useState(false);
+    const [matError, setMatError] = useState(null);
+    const [matSearch, setMatSearch] = useState('');
+    const [matDebouncedSearch, setMatDebouncedSearch] = useState('');
+    const [matPage, setMatPage] = useState(1);
+    const [matPageSize, setMatPageSize] = useState(5);
+    const [matTotalRows, setMatTotalRows] = useState(0);
+    const [matDateFilter, setMatDateFilter] = useState('today');
+    const [matStartDate, setMatStartDate] = useState('');
+    const [matEndDate, setMatEndDate] = useState('');
+    const [matStatusFilter, setMatStatusFilter] = useState('outstanding');
+    const [matHasFetched, setMatHasFetched] = useState(false);
+
     useEffect(() => {
         const handler = setTimeout(() => {
             setDebouncedOutstandingSearch(outstandingSearchTerm);
@@ -199,6 +217,13 @@ export default function PurchaseOrderIndex({
         }, 400);
         return () => clearTimeout(handler);
     }, [searchTerm]);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setMatDebouncedSearch(matSearch);
+        }, 400);
+        return () => clearTimeout(handler);
+    }, [matSearch]);
 
     const totalItems = tableTotalRows;
     const totalPages = useMemo(() => {
@@ -360,6 +385,39 @@ export default function PurchaseOrderIndex({
             })
             .finally(() => {
                 setPoLoading(false);
+            });
+    };
+
+    const fetchDataByMaterial = () => {
+        setMatLoading(true);
+        setMatError(null);
+        const params = new URLSearchParams();
+        params.set('date_filter', matDateFilter);
+        params.set('status', matStatusFilter);
+        params.set('search', matDebouncedSearch);
+        params.set('page', String(matPage));
+        params.set('pageSize', matPageSize === Infinity ? 'all' : String(matPageSize));
+        if (matDateFilter === 'range') {
+            params.set('start_date', matStartDate);
+            params.set('end_date', matEndDate);
+        }
+        fetch(`/pembelian/purchase-order/data-by-material?${params.toString()}`, {
+            headers: { Accept: 'application/json' },
+        })
+            .then(async (response) => {
+                if (!response.ok) throw await readApiError(response);
+                return response.json();
+            })
+            .then((data) => {
+                setMatData(Array.isArray(data?.rows) ? data.rows : []);
+                setMatTotalRows(Number(data?.total ?? 0));
+                setMatHasFetched(true);
+            })
+            .catch((error) => {
+                setMatError(normalizeApiError(error, 'Gagal memuat data material PO.'));
+            })
+            .finally(() => {
+                setMatLoading(false);
             });
     };
 
@@ -746,14 +804,13 @@ export default function PurchaseOrderIndex({
                     const html = `
                         <div style="text-align:left; white-space:pre-wrap; word-break:break-word;">
                             <div>${String(normalized.summary || 'Gagal menghapus PO.')}</div>
-                            ${
-                                detail
-                                    ? `<details style="margin-top:8px;"><summary style="cursor:pointer;">Detail error</summary><pre style="margin-top:8px; max-height:260px; overflow:auto;">${detail.replace(
-                                          /</g,
-                                          '&lt;',
-                                      )}</pre></details>`
-                                    : ''
-                            }
+                            ${detail
+                            ? `<details style="margin-top:8px;"><summary style="cursor:pointer;">Detail error</summary><pre style="margin-top:8px; max-height:260px; overflow:auto;">${detail.replace(
+                                /</g,
+                                '&lt;',
+                            )}</pre></details>`
+                            : ''
+                        }
                         </div>
                     `;
                     Swal.fire({
@@ -821,6 +878,32 @@ export default function PurchaseOrderIndex({
         tableDateFilter,
         tableStartDate,
         tableEndDate,
+    ]);
+
+    useEffect(() => {
+        setMatPage(1);
+    }, [matPageSize, matDebouncedSearch, matStatusFilter, matDateFilter, matStartDate, matEndDate]);
+
+    // Fetch Tab 2 data only when it is the active tab and a relevant filter changes.
+    // Using matHasFetched to also trigger on the first tab-click.
+    useEffect(() => {
+        if (activeTab !== 'material') return;
+        if (matDateFilter === 'range' && (!matStartDate || !matEndDate)) {
+            setMatData([]);
+            setMatTotalRows(0);
+            return;
+        }
+        fetchDataByMaterial();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [
+        activeTab,
+        matDateFilter,
+        matStartDate,
+        matEndDate,
+        matStatusFilter,
+        matDebouncedSearch,
+        matPage,
+        matPageSize,
     ]);
 
     useEffect(() => {
@@ -1044,282 +1127,508 @@ export default function PurchaseOrderIndex({
                     </Card>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                        <label className="text-sm text-muted-foreground">
-                            Tampilkan
-                            <select
-                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                value={pageSize === Infinity ? 'all' : pageSize}
-                                onChange={handlePageSizeChange}
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value="all">Semua</option>
-                            </select>
-                        </label>
-                        <label className="text-sm text-muted-foreground">
-                            Status
-                            <select
-                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                value={statusFilter}
-                                onChange={(event) => {
-                                    const nextStatus = event.target.value;
-                                    setStatusFilter(nextStatus);
-                                    if (
-                                        [
-                                            'outstanding',
-                                            'partial',
-                                            'sisa_ir',
-                                        ].includes(nextStatus)
-                                    ) {
-                                        setTableDateFilter('all');
-                                    }
-                                }}
-                            >
-                                <option value="outstanding">
-                                    PO Outstanding
-                                </option>
-                                <option value="partial">PO Sisa GR</option>
-                                <option value="sisa_ir">PO Sisa IR</option>
-                                <option value="realized">PO Terealisasi</option>
-                                <option value="all">Semua Data</option>
-                            </select>
-                        </label>
-                        <label className="text-sm text-muted-foreground">
-                            Tanggal
-                            <select
-                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                value={tableDateFilter}
-                                onChange={(event) =>
-                                    setTableDateFilter(event.target.value)
-                                }
-                            >
-                                <option value="today">Hari Ini</option>
-                                <option value="this_week">Minggu Ini</option>
-                                <option value="this_month">Bulan Ini</option>
-                                <option value="this_year">Tahun Ini</option>
-                                <option value="range">Range Tanggal</option>
-                                <option value="all">Semua Data</option>
-                            </select>
-                        </label>
-                        {tableDateFilter === 'range' && (
-                            <>
+                {/* ── Tab navigation ───────────────────────────────── */}
+                <div className="flex gap-1 rounded-lg border border-sidebar-border/70 bg-muted/40 p-1 w-fit">
+                    <button
+                        type="button"
+                        className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${activeTab === 'po'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                        onClick={() => setActiveTab('po')}
+                    >
+                        Data By PO
+                    </button>
+                    <button
+                        type="button"
+                        className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${activeTab === 'material'
+                                ? 'bg-background text-foreground shadow-sm'
+                                : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                        onClick={() => setActiveTab('material')}
+                    >
+                        Data By Material
+                    </button>
+                </div>
+
+                {/* ── Tab 1: Data By PO ────────────────────────────── */}
+                {activeTab === 'po' && (
+                    <>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
                                 <label className="text-sm text-muted-foreground">
-                                    Dari
-                                    <input
-                                        type="date"
+                                    Tampilkan
+                                    <select
                                         className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                        value={tableStartDate}
+                                        value={pageSize === Infinity ? 'all' : pageSize}
+                                        onChange={handlePageSizeChange}
+                                    >
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                        <option value="all">Semua</option>
+                                    </select>
+                                </label>
+                                <label className="text-sm text-muted-foreground">
+                                    Status
+                                    <select
+                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
+                                        value={statusFilter}
+                                        onChange={(event) => {
+                                            const nextStatus = event.target.value;
+                                            setStatusFilter(nextStatus);
+                                            if (
+                                                [
+                                                    'outstanding',
+                                                    'partial',
+                                                    'sisa_ir',
+                                                ].includes(nextStatus)
+                                            ) {
+                                                setTableDateFilter('all');
+                                            }
+                                        }}
+                                    >
+                                        <option value="outstanding">
+                                            PO Outstanding
+                                        </option>
+                                        <option value="partial">PO Sisa GR</option>
+                                        <option value="sisa_ir">PO Sisa IR</option>
+                                        <option value="realized">PO Terealisasi</option>
+                                        <option value="all">Semua Data</option>
+                                    </select>
+                                </label>
+                                <label className="text-sm text-muted-foreground">
+                                    Tanggal
+                                    <select
+                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
+                                        value={tableDateFilter}
                                         onChange={(event) =>
-                                            setTableStartDate(
-                                                event.target.value,
+                                            setTableDateFilter(event.target.value)
+                                        }
+                                    >
+                                        <option value="today">Hari Ini</option>
+                                        <option value="this_week">Minggu Ini</option>
+                                        <option value="this_month">Bulan Ini</option>
+                                        <option value="this_year">Tahun Ini</option>
+                                        <option value="range">Range Tanggal</option>
+                                        <option value="all">Semua Data</option>
+                                    </select>
+                                </label>
+                                {tableDateFilter === 'range' && (
+                                    <>
+                                        <label className="text-sm text-muted-foreground">
+                                            Dari
+                                            <input
+                                                type="date"
+                                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
+                                                value={tableStartDate}
+                                                onChange={(event) =>
+                                                    setTableStartDate(
+                                                        event.target.value,
+                                                    )
+                                                }
+                                            />
+                                        </label>
+                                        <label className="text-sm text-muted-foreground">
+                                            Sampai
+                                            <input
+                                                type="date"
+                                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
+                                                value={tableEndDate}
+                                                onChange={(event) =>
+                                                    setTableEndDate(event.target.value)
+                                                }
+                                            />
+                                        </label>
+                                    </>
+                                )}
+                            </div>
+                            <label className="text-sm text-muted-foreground">
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                    placeholder="Cari no PO, ref PO, customer, vendor..."
+                                    value={searchTerm}
+                                    onChange={(event) =>
+                                        setSearchTerm(event.target.value)
+                                    }
+                                />
+                            </label>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr className="sticky top-0 z-10 bg-muted/50">
+                                        <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">
+                                            No PO
+                                        </th>
+                                        <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">
+                                            Date
+                                        </th>
+                                        <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">
+                                            Ref PO
+                                        </th>
+                                        <th className="px-3 py-2 text-left">
+                                            Customer
+                                        </th>
+                                        <th className="px-3 py-2 text-left">
+                                            Nama Vendor
+                                        </th>
+                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">
+                                            Total Price
+                                        </th>
+                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">
+                                            Action
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        columns={7}
+                                        loading={
+                                            poLoading &&
+                                            displayedPurchaseOrders.length === 0
+                                        }
+                                        error={
+                                            displayedPurchaseOrders.length === 0
+                                                ? poError
+                                                : null
+                                        }
+                                        onRetry={fetchPurchaseOrders}
+                                        isEmpty={
+                                            !poLoading &&
+                                            !poError &&
+                                            displayedPurchaseOrders.length === 0
+                                        }
+                                        emptyTitle="Belum ada data PO."
+                                        emptyDescription="Silakan tambah PO baru atau ubah filter/pencarian."
+                                        emptyActionLabel="Tambah PO"
+                                        emptyActionHref="/pembelian/purchase-order/create"
+                                    />
+                                    {displayedPurchaseOrders.map((item) => (
+                                        <tr
+                                            key={item.no_po}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="w-[1%] px-3 py-2 whitespace-nowrap">
+                                                {item.no_po}
+                                            </td>
+                                            <td className="w-[1%] px-3 py-2 whitespace-nowrap">
+                                                {formatDateId(
+                                                    getRawValue(item, [
+                                                        'tgl',
+                                                        'Tgl',
+                                                        'TGL',
+                                                        'date',
+                                                        'Date',
+                                                    ]),
+                                                )}
+                                            </td>
+                                            <td className="w-[1%] px-3 py-2 whitespace-nowrap">
+                                                {renderValue(item.ref_poin)}
+                                            </td>
+                                            <td className="px-3 py-2">
+                                                {getValue(item, [
+                                                    'for_cust',
+                                                    'for_cus',
+                                                    'for_customer',
+                                                ])}
+                                            </td>
+                                            <td className="px-3 py-2">
+                                                {getValue(item, [
+                                                    'nm_vdr',
+                                                    'Nm_vdr',
+                                                    'NM_VDR',
+                                                    'vendor',
+                                                    'Vendor',
+                                                ])}
+                                            </td>
+                                            <td className="w-[1%] px-3 py-2 text-right whitespace-nowrap">
+                                                {formatRupiah(
+                                                    getValue(item, [
+                                                        'g_total',
+                                                        'G_total',
+                                                        'G_TOTAL',
+                                                        'total',
+                                                        'Total',
+                                                    ]),
+                                                )}
+                                            </td>
+                                            <td className="w-[1%] px-3 py-2 whitespace-nowrap">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <ActionIconButton
+                                                        label="Detail"
+                                                        onClick={() =>
+                                                            handleOpenModal(item)
+                                                        }
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </ActionIconButton>
+                                                    <ActionIconButton
+                                                        label="Cetak"
+                                                        asChild
+                                                    >
+                                                        <a
+                                                            href={`/pembelian/purchase-order/${encodeURIComponent(
+                                                                item.no_po,
+                                                            )}/print`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                        >
+                                                            <Printer className="size-4" />
+                                                        </a>
+                                                    </ActionIconButton>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {pageSize !== Infinity && totalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (currentPage - 1) * pageSize + 1,
+                                        totalItems,
+                                    )}
+                                    -{Math.min(currentPage * pageSize, totalItems)} dari{' '}
+                                    {totalItems} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.max(1, page - 1),
                                             )
                                         }
-                                    />
+                                        disabled={currentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {currentPage} dari {totalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.min(totalPages, page + 1),
+                                            )
+                                        }
+                                        disabled={currentPage === totalPages}
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* ── Tab 2: Data By Material ───────────────────────── */}
+                {activeTab === 'material' && (
+                    <>
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <label className="text-sm text-muted-foreground">
+                                    Tampilkan
+                                    <select
+                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
+                                        value={matPageSize === Infinity ? 'all' : matPageSize}
+                                        onChange={(e) => {
+                                            setMatPageSize(e.target.value === 'all' ? Infinity : Number(e.target.value));
+                                            setMatPage(1);
+                                        }}
+                                    >
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                        <option value="all">Semua</option>
+                                    </select>
                                 </label>
                                 <label className="text-sm text-muted-foreground">
-                                    Sampai
-                                    <input
-                                        type="date"
+                                    Status
+                                    <select
                                         className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                        value={tableEndDate}
-                                        onChange={(event) =>
-                                            setTableEndDate(event.target.value)
-                                        }
-                                    />
+                                        value={matStatusFilter}
+                                        onChange={(e) => {
+                                            setMatStatusFilter(e.target.value);
+                                            if (['outstanding', 'partial', 'sisa_ir'].includes(e.target.value)) {
+                                                setMatDateFilter('all');
+                                            }
+                                            setMatPage(1);
+                                        }}
+                                    >
+                                        <option value="outstanding">PO Outstanding</option>
+                                        <option value="partial">PO Sisa GR</option>
+                                        <option value="sisa_ir">PO Sisa IR</option>
+                                        <option value="realized">PO Terealisasi</option>
+                                        <option value="all">Semua Data</option>
+                                    </select>
                                 </label>
-                            </>
-                        )}
-                    </div>
-                    <label className="text-sm text-muted-foreground">
-                        Cari
-                        <input
-                            type="search"
-                            className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                            placeholder="Cari no PO, ref PO, customer, vendor..."
-                            value={searchTerm}
-                            onChange={(event) =>
-                                setSearchTerm(event.target.value)
-                            }
-                        />
-                    </label>
-                </div>
-
-                <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                    <table className="w-full text-sm">
-                        <thead className="bg-muted/50 text-muted-foreground">
-                            <tr className="sticky top-0 z-10 bg-muted/50">
-                                <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">
-                                    No PO
-                                </th>
-                                <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">
-                                    Date
-                                </th>
-                                <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">
-                                    Ref PO
-                                </th>
-                                <th className="px-3 py-2 text-left">
-                                    Customer
-                                </th>
-                                <th className="px-3 py-2 text-left">
-                                    Nama Vendor
-                                </th>
-                                <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">
-                                    Total Price
-                                </th>
-                                <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">
-                                    Action
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <PlainTableStateRows
-                                columns={7}
-                                loading={
-                                    poLoading &&
-                                    displayedPurchaseOrders.length === 0
-                                }
-                                error={
-                                    displayedPurchaseOrders.length === 0
-                                        ? poError
-                                        : null
-                                }
-                                onRetry={fetchPurchaseOrders}
-                                isEmpty={
-                                    !poLoading &&
-                                    !poError &&
-                                    displayedPurchaseOrders.length === 0
-                                }
-                                emptyTitle="Belum ada data PO."
-                                emptyDescription="Silakan tambah PO baru atau ubah filter/pencarian."
-                                emptyActionLabel="Tambah PO"
-                                emptyActionHref="/pembelian/purchase-order/create"
-                            />
-                            {displayedPurchaseOrders.map((item) => (
-                                <tr
-                                    key={item.no_po}
-                                    className="border-t border-sidebar-border/70"
-                                >
-                                    <td className="w-[1%] px-3 py-2 whitespace-nowrap">
-                                        {item.no_po}
-                                    </td>
-                                    <td className="w-[1%] px-3 py-2 whitespace-nowrap">
-                                        {formatDateId(
-                                            getRawValue(item, [
-                                                'tgl',
-                                                'Tgl',
-                                                'TGL',
-                                                'date',
-                                                'Date',
-                                            ]),
-                                        )}
-                                    </td>
-                                    <td className="w-[1%] px-3 py-2 whitespace-nowrap">
-                                        {renderValue(item.ref_poin)}
-                                    </td>
-                                    <td className="px-3 py-2">
-                                        {getValue(item, [
-                                            'for_cust',
-                                            'for_cus',
-                                            'for_customer',
-                                        ])}
-                                    </td>
-                                    <td className="px-3 py-2">
-                                        {getValue(item, [
-                                            'nm_vdr',
-                                            'Nm_vdr',
-                                            'NM_VDR',
-                                            'vendor',
-                                            'Vendor',
-                                        ])}
-                                    </td>
-                                    <td className="w-[1%] px-3 py-2 text-right whitespace-nowrap">
-                                        {formatRupiah(
-                                            getValue(item, [
-                                                'g_total',
-                                                'G_total',
-                                                'G_TOTAL',
-                                                'total',
-                                                'Total',
-                                            ]),
-                                        )}
-                                    </td>
-                                    <td className="w-[1%] px-3 py-2 whitespace-nowrap">
-                                        <div className="flex items-center justify-end gap-2">
-                                            <ActionIconButton
-                                                label="Detail"
-                                                onClick={() =>
-                                                    handleOpenModal(item)
-                                                }
-                                            >
-                                                <Eye className="size-4" />
-                                            </ActionIconButton>
-                                            <ActionIconButton
-                                                label="Cetak"
-                                                asChild
-                                            >
-                                                <a
-                                                    href={`/pembelian/purchase-order/${encodeURIComponent(
-                                                        item.no_po,
-                                                    )}/print`}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                >
-                                                    <Printer className="size-4" />
-                                                </a>
-                                            </ActionIconButton>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {pageSize !== Infinity && totalItems > 0 && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                        <span>
-                            Menampilkan{' '}
-                            {Math.min(
-                                (currentPage - 1) * pageSize + 1,
-                                totalItems,
-                            )}
-                            -{Math.min(currentPage * pageSize, totalItems)} dari{' '}
-                            {totalItems} data
-                        </span>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    setCurrentPage((page) =>
-                                        Math.max(1, page - 1),
-                                    )
-                                }
-                                disabled={currentPage === 1}
-                            >
-                                Sebelumnya
-                            </Button>
-                            <span className="text-sm text-muted-foreground">
-                                Halaman {currentPage} dari {totalPages}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    setCurrentPage((page) =>
-                                        Math.min(totalPages, page + 1),
-                                    )
-                                }
-                                disabled={currentPage === totalPages}
-                            >
-                                Berikutnya
-                            </Button>
+                                <label className="text-sm text-muted-foreground">
+                                    Tanggal
+                                    <select
+                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
+                                        value={matDateFilter}
+                                        onChange={(e) => { setMatDateFilter(e.target.value); setMatPage(1); }}
+                                    >
+                                        <option value="today">Hari Ini</option>
+                                        <option value="this_week">Minggu Ini</option>
+                                        <option value="this_month">Bulan Ini</option>
+                                        <option value="this_year">Tahun Ini</option>
+                                        <option value="range">Range Tanggal</option>
+                                        <option value="all">Semua Data</option>
+                                    </select>
+                                </label>
+                                {matDateFilter === 'range' && (
+                                    <>
+                                        <label className="text-sm text-muted-foreground">
+                                            Dari
+                                            <input
+                                                type="date"
+                                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
+                                                value={matStartDate}
+                                                onChange={(e) => { setMatStartDate(e.target.value); setMatPage(1); }}
+                                            />
+                                        </label>
+                                        <label className="text-sm text-muted-foreground">
+                                            Sampai
+                                            <input
+                                                type="date"
+                                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
+                                                value={matEndDate}
+                                                onChange={(e) => { setMatEndDate(e.target.value); setMatPage(1); }}
+                                            />
+                                        </label>
+                                    </>
+                                )}
+                            </div>
+                            <label className="text-sm text-muted-foreground">
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                    placeholder="Cari no PO atau material..."
+                                    value={matSearch}
+                                    onChange={(e) => setMatSearch(e.target.value)}
+                                />
+                            </label>
                         </div>
-                    </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr className="sticky top-0 z-10 bg-muted/50">
+                                        <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">No PO</th>
+                                        <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">Date</th>
+                                        <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">Ref PO</th>
+                                        <th className="px-3 py-2 text-left">Customer</th>
+                                        <th className="px-3 py-2 text-left">Nama Vendor</th>
+                                        <th className="px-3 py-2 text-left">Material</th>
+                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Qty</th>
+                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Price</th>
+                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Total Price</th>
+                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Sisa GR</th>
+                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Sisa IR</th>
+                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        columns={12}
+                                        loading={matLoading && matData.length === 0}
+                                        error={matData.length === 0 ? matError : null}
+                                        onRetry={fetchDataByMaterial}
+                                        isEmpty={!matLoading && !matError && matData.length === 0}
+                                        emptyTitle={matHasFetched ? 'Tidak ada data material.' : 'Klik tab untuk memuat data.'}
+                                        emptyDescription={matHasFetched ? 'Silakan ubah filter atau pencarian.' : 'Data akan dimuat saat tab ini dipilih.'}
+                                    />
+                                    {matData.map((item, idx) => (
+                                        <tr
+                                            key={`${item.no_po}-${item.kd_mat}-${idx}`}
+                                            className="border-t border-sidebar-border/70"
+                                        >
+                                            <td className="w-[1%] px-3 py-2 whitespace-nowrap">{renderValue(item.no_po)}</td>
+                                            <td className="w-[1%] px-3 py-2 whitespace-nowrap">{renderValue(item.tgl)}</td>
+                                            <td className="w-[1%] px-3 py-2 whitespace-nowrap">{renderValue(item.ref_poin)}</td>
+                                            <td className="px-3 py-2">{renderValue(item.for_cus)}</td>
+                                            <td className="px-3 py-2">{renderValue(item.nm_vdr)}</td>
+                                            <td className="px-3 py-2">{renderValue(item.material)}</td>
+                                            <td className="w-[1%] px-3 py-2 text-right whitespace-nowrap">
+                                                {renderValue(item.qty)}{item.unit ? ` ${item.unit}` : ''}
+                                            </td>
+                                            <td className="w-[1%] px-3 py-2 text-right whitespace-nowrap">{formatRupiah(item.price)}</td>
+                                            <td className="w-[1%] px-3 py-2 text-right whitespace-nowrap">{formatRupiah(item.total_price)}</td>
+                                            <td className="w-[1%] px-3 py-2 text-right whitespace-nowrap">{renderValue(item.gr_mat)}</td>
+                                            <td className="w-[1%] px-3 py-2 text-right whitespace-nowrap">{renderValue(item.ir_mat)}</td>
+                                            <td className="w-[1%] px-3 py-2 whitespace-nowrap">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <ActionIconButton
+                                                        label="Detail"
+                                                        onClick={() => handleOpenModal({ no_po: item.no_po, tgl: item.tgl, ref_poin: item.ref_poin, for_cus: item.for_cus, nm_vdr: item.nm_vdr })}
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </ActionIconButton>
+                                                    <ActionIconButton label="Cetak" asChild>
+                                                        <a
+                                                            href={`/pembelian/purchase-order/${encodeURIComponent(item.no_po)}/print`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                        >
+                                                            <Printer className="size-4" />
+                                                        </a>
+                                                    </ActionIconButton>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {(() => {
+                            const matTotalPages = matPageSize === Infinity ? 1 : Math.max(1, Math.ceil(matTotalRows / matPageSize));
+                            return matPageSize !== Infinity && matTotalRows > 0 ? (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                    <span>
+                                        Menampilkan{' '}
+                                        {Math.min((matPage - 1) * matPageSize + 1, matTotalRows)}-
+                                        {Math.min(matPage * matPageSize, matTotalRows)} dari {matTotalRows} data
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline" size="sm"
+                                            onClick={() => setMatPage((p) => Math.max(1, p - 1))}
+                                            disabled={matPage === 1}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground">
+                                            Halaman {matPage} dari {matTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline" size="sm"
+                                            onClick={() => setMatPage((p) => Math.min(matTotalPages, p + 1))}
+                                            disabled={matPage === matTotalPages}
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : null;
+                        })()}
+                    </>
                 )}
 
                 <Dialog
@@ -1672,7 +1981,7 @@ export default function PurchaseOrderIndex({
                                                         !detailLoading &&
                                                         !detailError &&
                                                         displayedDetailItems.length ===
-                                                            0
+                                                        0
                                                     }
                                                     emptyTitle="Tidak ada detail PO."
                                                 />
@@ -1754,14 +2063,14 @@ export default function PurchaseOrderIndex({
                                                     {Math.min(
                                                         (detailCurrentPage -
                                                             1) *
-                                                            detailPageSize +
-                                                            1,
+                                                        detailPageSize +
+                                                        1,
                                                         detailTotalItems,
                                                     )}
                                                     -
                                                     {Math.min(
                                                         detailCurrentPage *
-                                                            detailPageSize,
+                                                        detailPageSize,
                                                         detailTotalItems,
                                                     )}{' '}
                                                     dari {detailTotalItems}
@@ -1776,7 +2085,7 @@ export default function PurchaseOrderIndex({
                                                                     Math.max(
                                                                         1,
                                                                         page -
-                                                                            1,
+                                                                        1,
                                                                     ),
                                                             )
                                                         }
@@ -1801,7 +2110,7 @@ export default function PurchaseOrderIndex({
                                                                     Math.min(
                                                                         detailTotalPages,
                                                                         page +
-                                                                            1,
+                                                                        1,
                                                                     ),
                                                             )
                                                         }
@@ -1915,11 +2224,11 @@ export default function PurchaseOrderIndex({
                                         loading={
                                             outstandingLoading &&
                                             displayedOutstandingPurchaseOrders.length ===
-                                                0
+                                            0
                                         }
                                         error={
                                             displayedOutstandingPurchaseOrders.length ===
-                                            0
+                                                0
                                                 ? outstandingError
                                                 : null
                                         }
@@ -1928,7 +2237,7 @@ export default function PurchaseOrderIndex({
                                             !outstandingLoading &&
                                             !outstandingError &&
                                             displayedOutstandingPurchaseOrders.length ===
-                                                0
+                                            0
                                         }
                                         emptyTitle="Tidak ada PO outstanding."
                                     />
@@ -1985,29 +2294,29 @@ export default function PurchaseOrderIndex({
                                                         </ActionIconButton>
                                                         {Number(
                                                             item.can_delete ??
-                                                                item.canDelete ??
-                                                                0,
+                                                            item.canDelete ??
+                                                            0,
                                                         ) === 1 && (
-                                                            <ActionIconButton
-                                                                label="Hapus"
-                                                                onClick={() =>
-                                                                    handleDeletePo(
-                                                                        item.no_po,
-                                                                    )
-                                                                }
-                                                                disabled={
-                                                                    deletingId !==
-                                                                    null
-                                                                }
-                                                            >
-                                                                {deletingId ===
-                                                                item.no_po ? (
-                                                                    <Loader2 className="size-4 animate-spin" />
-                                                                ) : (
-                                                                    <Trash2 className="size-4 text-destructive" />
-                                                                )}
-                                                            </ActionIconButton>
-                                                        )}
+                                                                <ActionIconButton
+                                                                    label="Hapus"
+                                                                    onClick={() =>
+                                                                        handleDeletePo(
+                                                                            item.no_po,
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        deletingId !==
+                                                                        null
+                                                                    }
+                                                                >
+                                                                    {deletingId ===
+                                                                        item.no_po ? (
+                                                                        <Loader2 className="size-4 animate-spin" />
+                                                                    ) : (
+                                                                        <Trash2 className="size-4 text-destructive" />
+                                                                    )}
+                                                                </ActionIconButton>
+                                                            )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -2024,14 +2333,14 @@ export default function PurchaseOrderIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (outstandingCurrentPage - 1) *
-                                                outstandingPageSize +
-                                                1,
+                                            outstandingPageSize +
+                                            1,
                                             outstandingTotalRows,
                                         )}
                                         -
                                         {Math.min(
                                             outstandingCurrentPage *
-                                                outstandingPageSize,
+                                            outstandingPageSize,
                                             outstandingTotalRows,
                                         )}{' '}
                                         dari {outstandingTotalRows} data
@@ -2176,11 +2485,11 @@ export default function PurchaseOrderIndex({
                                         loading={
                                             realizedLoading &&
                                             displayedRealizedPurchaseOrders.length ===
-                                                0
+                                            0
                                         }
                                         error={
                                             displayedRealizedPurchaseOrders.length ===
-                                            0
+                                                0
                                                 ? realizedError
                                                 : null
                                         }
@@ -2191,7 +2500,7 @@ export default function PurchaseOrderIndex({
                                             !realizedLoading &&
                                             !realizedError &&
                                             displayedRealizedPurchaseOrders.length ===
-                                                0
+                                            0
                                         }
                                         emptyTitle="Tidak ada PO terealisasi."
                                     />
@@ -2262,14 +2571,14 @@ export default function PurchaseOrderIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (realizedCurrentPage - 1) *
-                                                realizedPageSize +
-                                                1,
+                                            realizedPageSize +
+                                            1,
                                             realizedTotalItems,
                                         )}
                                         -
                                         {Math.min(
                                             realizedCurrentPage *
-                                                realizedPageSize,
+                                            realizedPageSize,
                                             realizedTotalItems,
                                         )}{' '}
                                         dari {realizedTotalItems} data
@@ -2408,11 +2717,11 @@ export default function PurchaseOrderIndex({
                                         loading={
                                             partialLoading &&
                                             displayedPartialPurchaseOrders.length ===
-                                                0
+                                            0
                                         }
                                         error={
                                             displayedPartialPurchaseOrders.length ===
-                                            0
+                                                0
                                                 ? partialError
                                                 : null
                                         }
@@ -2421,7 +2730,7 @@ export default function PurchaseOrderIndex({
                                             !partialLoading &&
                                             !partialError &&
                                             displayedPartialPurchaseOrders.length ===
-                                                0
+                                            0
                                         }
                                         emptyTitle="Tidak ada PO sisa GR."
                                     />
@@ -2493,14 +2802,14 @@ export default function PurchaseOrderIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (partialCurrentPage - 1) *
-                                                partialPageSize +
-                                                1,
+                                            partialPageSize +
+                                            1,
                                             partialTotalRows,
                                         )}
                                         -
                                         {Math.min(
                                             partialCurrentPage *
-                                                partialPageSize,
+                                            partialPageSize,
                                             partialTotalRows,
                                         )}{' '}
                                         dari {partialTotalRows} data
@@ -2721,14 +3030,14 @@ export default function PurchaseOrderIndex({
                                         Menampilkan{' '}
                                         {Math.min(
                                             (partialIrCurrentPage - 1) *
-                                                partialIrPageSize +
-                                                1,
+                                            partialIrPageSize +
+                                            1,
                                             partialIrTotalRows,
                                         )}
                                         -
                                         {Math.min(
                                             partialIrCurrentPage *
-                                                partialIrPageSize,
+                                            partialIrPageSize,
                                             partialIrTotalRows,
                                         )}{' '}
                                         dari {partialIrTotalRows} data

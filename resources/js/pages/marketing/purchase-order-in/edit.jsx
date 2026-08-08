@@ -197,7 +197,7 @@ export default function PurchaseOrderInEdit({
             purchaseOrderIn?.payment_term ?? defaults.payment_term ?? '30 Hari',
         ppnPercent:
             purchaseOrderIn?.ppn_input_percent !== undefined &&
-            purchaseOrderIn?.ppn_input_percent !== null
+                purchaseOrderIn?.ppn_input_percent !== null
                 ? String(purchaseOrderIn.ppn_input_percent)
                 : '',
         francoLoco: purchaseOrderIn?.franco_loco ?? '',
@@ -217,20 +217,20 @@ export default function PurchaseOrderInEdit({
     const [items, setItems] = useState(
         Array.isArray(purchaseOrderInItems)
             ? purchaseOrderInItems.map((item, index) => ({
-                  id: `db-${item.id ?? index}`,
-                  dbId: item.id ?? null,
-                  kodeMaterial: item.kd_material ?? '',
-                  material: item.material ?? '',
-                  qty: String(item.qty ?? ''),
-                  unit: item.satuan ?? '',
-                  unitPrice: String(toNumber(item.price_po_in ?? 0)),
-                  totalPricePoIn: String(toNumber(item.total_price_po_in ?? 0)),
-                  note: item.remark ?? '',
-                  hasPr: !!(item.has_pr && toNumber(item.has_pr) > 0),
-                  originalQty: toNumber(item.qty ?? 0),
-                  sisaQtyPr: toNumber(item.sisa_qtypr ?? 0),
-                  sisaQtyDo: toNumber(item.sisa_qtydo ?? 0),
-              }))
+                id: `db-${item.id ?? index}`,
+                dbId: item.id ?? null,
+                kodeMaterial: item.kd_material ?? '',
+                material: item.material ?? '',
+                qty: String(item.qty ?? ''),
+                unit: item.satuan ?? '',
+                unitPrice: String(toNumber(item.price_po_in ?? 0)),
+                totalPricePoIn: String(toNumber(item.total_price_po_in ?? 0)),
+                note: item.remark ?? '',
+                hasPr: !!(item.has_pr && toNumber(item.has_pr) > 0),
+                originalQty: toNumber(item.qty ?? 0),
+                sisaQtyPr: toNumber(item.sisa_qtypr ?? 0),
+                sisaQtyDo: toNumber(item.sisa_qtydo ?? 0),
+            }))
             : [],
     );
     const [editingItemId, setEditingItemId] = useState(null);
@@ -395,8 +395,8 @@ export default function PurchaseOrderInEdit({
                             : null;
                         throw new Error(
                             firstError ||
-                                data?.message ||
-                                'Gagal menyimpan perubahan material.',
+                            data?.message ||
+                            'Gagal menyimpan perubahan material.',
                         );
                     }
 
@@ -404,40 +404,40 @@ export default function PurchaseOrderInEdit({
                         prev.map((item) =>
                             item.id === editingItemId
                                 ? (() => {
-                                      const originalQty = toNumber(
-                                          item.originalQty ?? item.qty ?? 0,
-                                      );
-                                      const sisaQtyDoBefore = toNumber(
-                                          item.sisaQtyDo ?? 0,
-                                      );
-                                      const usedQtyPr = Math.max(
-                                          0,
-                                          originalQty -
-                                              toNumber(item.sisaQtyPr ?? 0),
-                                      );
-                                      const newQty = toNumber(itemForm.qty);
+                                    const originalQty = toNumber(
+                                        item.originalQty ?? item.qty ?? 0,
+                                    );
+                                    const sisaQtyDoBefore = toNumber(
+                                        item.sisaQtyDo ?? 0,
+                                    );
+                                    const usedQtyPr = Math.max(
+                                        0,
+                                        originalQty -
+                                        toNumber(item.sisaQtyPr ?? 0),
+                                    );
+                                    const newQty = toNumber(itemForm.qty);
 
-                                      return {
-                                          ...item,
-                                          ...itemForm,
-                                          originalQty: newQty,
-                                          sisaQtyDo: Math.max(
-                                              0,
-                                              sisaQtyDoBefore +
-                                                  (newQty - originalQty),
-                                          ),
-                                          sisaQtyPr: Math.max(
-                                              0,
-                                              newQty - usedQtyPr,
-                                          ),
-                                      };
-                                  })()
+                                    return {
+                                        ...item,
+                                        ...itemForm,
+                                        originalQty: newQty,
+                                        sisaQtyDo: Math.max(
+                                            0,
+                                            sisaQtyDoBefore +
+                                            (newQty - originalQty),
+                                        ),
+                                        sisaQtyPr: Math.max(
+                                            0,
+                                            newQty - usedQtyPr,
+                                        ),
+                                    };
+                                })()
                                 : item,
                         ),
                     );
                     toastSuccess(
                         data?.message ||
-                            'Perubahan material berhasil disimpan.',
+                        'Perubahan material berhasil disimpan.',
                     );
                 } catch (error) {
                     toastError(
@@ -458,34 +458,34 @@ export default function PurchaseOrderInEdit({
                     prev.map((item) =>
                         item.id === editingItemId
                             ? (() => {
-                                  const originalQty = toNumber(
-                                      item.originalQty ?? item.qty ?? 0,
-                                  );
-                                  const sisaQtyDoBefore = toNumber(
-                                      item.sisaQtyDo ?? 0,
-                                  );
-                                  const usedQtyPr = Math.max(
-                                      0,
-                                      originalQty -
-                                          toNumber(item.sisaQtyPr ?? 0),
-                                  );
-                                  const newQty = toNumber(itemForm.qty);
+                                const originalQty = toNumber(
+                                    item.originalQty ?? item.qty ?? 0,
+                                );
+                                const sisaQtyDoBefore = toNumber(
+                                    item.sisaQtyDo ?? 0,
+                                );
+                                const usedQtyPr = Math.max(
+                                    0,
+                                    originalQty -
+                                    toNumber(item.sisaQtyPr ?? 0),
+                                );
+                                const newQty = toNumber(itemForm.qty);
 
-                                  return {
-                                      ...item,
-                                      ...itemForm,
-                                      originalQty: newQty,
-                                      sisaQtyDo: Math.max(
-                                          0,
-                                          sisaQtyDoBefore +
-                                              (newQty - originalQty),
-                                      ),
-                                      sisaQtyPr: Math.max(
-                                          0,
-                                          newQty - usedQtyPr,
-                                      ),
-                                  };
-                              })()
+                                return {
+                                    ...item,
+                                    ...itemForm,
+                                    originalQty: newQty,
+                                    sisaQtyDo: Math.max(
+                                        0,
+                                        sisaQtyDoBefore +
+                                        (newQty - originalQty),
+                                    ),
+                                    sisaQtyPr: Math.max(
+                                        0,
+                                        newQty - usedQtyPr,
+                                    ),
+                                };
+                            })()
                             : item,
                     ),
                 );
@@ -528,8 +528,8 @@ export default function PurchaseOrderInEdit({
                         : null;
                     throw new Error(
                         firstError ||
-                            data?.message ||
-                            'Gagal menambahkan material.',
+                        data?.message ||
+                        'Gagal menambahkan material.',
                     );
                 }
 
@@ -714,8 +714,8 @@ export default function PurchaseOrderInEdit({
                         : null;
                     throw new Error(
                         firstError ||
-                            data?.message ||
-                            'Gagal menghapus material.',
+                        data?.message ||
+                        'Gagal menghapus material.',
                     );
                 }
 
@@ -955,199 +955,250 @@ export default function PurchaseOrderInEdit({
                                     Informasi Header
                                 </h2>
                             </div>
-                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                                <div className="grid gap-2">
-                                    <Label htmlFor="no_poin">
-                                        No PO Customer/Ref PO
-                                    </Label>
-                                    <Input
-                                        id="no_poin"
-                                        disabled={exhibitsPartialDo}
-                                        className={
-                                            validationErrors.noPoin
-                                                ? 'border-red-500 focus-visible:ring-red-500'
-                                                : ''
-                                        }
-                                        placeholder="Auto / manual"
-                                        autoComplete="off"
-                                        value={form.noPoin}
-                                        onChange={(event) => {
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                noPoin: event.target.value,
-                                            }));
-                                            setValidationErrors((prev) => ({
-                                                ...prev,
-                                                noPoin: '',
-                                            }));
-                                        }}
-                                    />
-                                    {validationErrors.noPoin && (
-                                        <p className="text-xs text-red-500">
-                                            {validationErrors.noPoin}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="tanggal">Date PO In</Label>
-                                    <div className="relative flex gap-2">
+                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                                <div className="grid gap-4 sm:col-span-2 lg:col-span-4 sm:grid-cols-2 lg:grid-cols-12">
+                                    <div className="grid gap-2 sm:col-span-2 lg:col-span-5">
+                                        <Label htmlFor="no_poin">
+                                            No PO Customer/Ref PO
+                                        </Label>
                                         <Input
-                                            id="tanggal"
+                                            id="no_poin"
                                             disabled={exhibitsPartialDo}
                                             className={
-                                                validationErrors.date
+                                                validationErrors.noPoin
                                                     ? 'border-red-500 focus-visible:ring-red-500'
                                                     : ''
                                             }
-                                            value={form.date}
-                                            placeholder="dd/mm/yyyy"
-                                            onChange={(event) =>
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    date: normalizeDateInput(
-                                                        event.target.value,
-                                                    ),
-                                                }))
-                                            }
-                                            onBlur={(event) => {
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    date: clampDmyValue(
-                                                        event.target.value,
-                                                    ),
-                                                }));
-                                                setValidationErrors((prev) => ({
-                                                    ...prev,
-                                                    date: '',
-                                                }));
-                                            }}
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            className="shrink-0 px-3"
-                                            disabled={exhibitsPartialDo}
-                                            onClick={() => {
-                                                if (
-                                                    datePickerRef.current
-                                                        ?.showPicker
-                                                ) {
-                                                    datePickerRef.current.showPicker();
-                                                    return;
-                                                }
-                                                datePickerRef.current?.click();
-                                            }}
-                                            title="Pilih tanggal"
-                                        >
-                                            <CalendarDays className="size-4" />
-                                        </Button>
-                                        <input
-                                            ref={datePickerRef}
-                                            type="date"
-                                            className="pointer-events-none absolute h-0 w-0 opacity-0"
-                                            value={toIsoDate(form.date)}
+                                            placeholder="Auto / manual"
+                                            autoComplete="off"
+                                            value={form.noPoin}
                                             onChange={(event) => {
                                                 setForm((prev) => ({
                                                     ...prev,
-                                                    date: toDisplayDate(
-                                                        event.target.value,
-                                                    ),
+                                                    noPoin: event.target.value,
                                                 }));
                                                 setValidationErrors((prev) => ({
                                                     ...prev,
-                                                    date: '',
+                                                    noPoin: '',
                                                 }));
                                             }}
                                         />
+                                        {validationErrors.noPoin && (
+                                            <p className="text-xs text-red-500">
+                                                {validationErrors.noPoin}
+                                            </p>
+                                        )}
                                     </div>
-                                    {validationErrors.date && (
-                                        <p className="text-xs text-red-500">
-                                            {validationErrors.date}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="delivery_date">
-                                        Delivery Date
-                                    </Label>
-                                    <div className="relative flex gap-2">
-                                        <Input
-                                            id="delivery_date"
-                                            disabled={exhibitsPartialDo}
-                                            className={
-                                                validationErrors.deliveryDate
-                                                    ? 'border-red-500 focus-visible:ring-red-500'
-                                                    : ''
-                                            }
-                                            value={form.deliveryDate}
-                                            placeholder="dd/mm/yyyy"
-                                            onChange={(event) =>
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    deliveryDate:
-                                                        normalizeDateInput(
+                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
+                                        <Label htmlFor="tanggal">Date PO In</Label>
+                                        <div className="relative flex gap-2">
+                                            <Input
+                                                id="tanggal"
+                                                disabled={exhibitsPartialDo}
+                                                className={
+                                                    validationErrors.date
+                                                        ? 'border-red-500 focus-visible:ring-red-500'
+                                                        : ''
+                                                }
+                                                value={form.date}
+                                                placeholder="dd/mm/yyyy"
+                                                onChange={(event) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        date: normalizeDateInput(
                                                             event.target.value,
                                                         ),
-                                                }))
-                                            }
-                                            onBlur={(event) => {
+                                                    }))
+                                                }
+                                                onBlur={(event) => {
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        date: clampDmyValue(
+                                                            event.target.value,
+                                                        ),
+                                                    }));
+                                                    setValidationErrors((prev) => ({
+                                                        ...prev,
+                                                        date: '',
+                                                    }));
+                                                }}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="shrink-0 px-3"
+                                                disabled={exhibitsPartialDo}
+                                                onClick={() => {
+                                                    if (
+                                                        datePickerRef.current
+                                                            ?.showPicker
+                                                    ) {
+                                                        datePickerRef.current.showPicker();
+                                                        return;
+                                                    }
+                                                    datePickerRef.current?.click();
+                                                }}
+                                                title="Pilih tanggal"
+                                            >
+                                                <CalendarDays className="size-4" />
+                                            </Button>
+                                            <input
+                                                ref={datePickerRef}
+                                                type="date"
+                                                className="pointer-events-none absolute h-0 w-0 opacity-0"
+                                                value={toIsoDate(form.date)}
+                                                onChange={(event) => {
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        date: toDisplayDate(
+                                                            event.target.value,
+                                                        ),
+                                                    }));
+                                                    setValidationErrors((prev) => ({
+                                                        ...prev,
+                                                        date: '',
+                                                    }));
+                                                }}
+                                            />
+                                        </div>
+                                        {validationErrors.date && (
+                                            <p className="text-xs text-red-500">
+                                                {validationErrors.date}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
+                                        <Label htmlFor="delivery_date">
+                                            Delivery Date
+                                        </Label>
+                                        <div className="relative flex gap-2">
+                                            <Input
+                                                id="delivery_date"
+                                                disabled={exhibitsPartialDo}
+                                                className={
+                                                    validationErrors.deliveryDate
+                                                        ? 'border-red-500 focus-visible:ring-red-500'
+                                                        : ''
+                                                }
+                                                value={form.deliveryDate}
+                                                placeholder="dd/mm/yyyy"
+                                                onChange={(event) =>
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        deliveryDate:
+                                                            normalizeDateInput(
+                                                                event.target.value,
+                                                            ),
+                                                    }))
+                                                }
+                                                onBlur={(event) => {
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        deliveryDate: clampDmyValue(
+                                                            event.target.value,
+                                                        ),
+                                                    }));
+                                                    setValidationErrors((prev) => ({
+                                                        ...prev,
+                                                        deliveryDate: '',
+                                                    }));
+                                                }}
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="shrink-0 px-3"
+                                                disabled={exhibitsPartialDo}
+                                                onClick={() => {
+                                                    if (
+                                                        deliveryDatePickerRef
+                                                            .current?.showPicker
+                                                    ) {
+                                                        deliveryDatePickerRef.current.showPicker();
+                                                        return;
+                                                    }
+                                                    deliveryDatePickerRef.current?.click();
+                                                }}
+                                                title="Pilih tanggal"
+                                            >
+                                                <CalendarDays className="size-4" />
+                                            </Button>
+                                            <input
+                                                ref={deliveryDatePickerRef}
+                                                type="date"
+                                                className="pointer-events-none absolute h-0 w-0 opacity-0"
+                                                value={toIsoDate(form.deliveryDate)}
+                                                onChange={(event) => {
+                                                    setForm((prev) => ({
+                                                        ...prev,
+                                                        deliveryDate: toDisplayDate(
+                                                            event.target.value,
+                                                        ),
+                                                    }));
+                                                    setValidationErrors((prev) => ({
+                                                        ...prev,
+                                                        deliveryDate: '',
+                                                    }));
+                                                }}
+                                            />
+                                        </div>
+                                        {validationErrors.deliveryDate && (
+                                            <p className="text-xs text-red-500">
+                                                {validationErrors.deliveryDate}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
+                                        <Label htmlFor="payment_term">
+                                            Payment Term
+                                        </Label>
+                                        <Input
+                                            id="payment_term"
+                                            disabled={exhibitsPartialDo}
+                                            value={form.paymentTerm}
+                                            onChange={(event) =>
                                                 setForm((prev) => ({
                                                     ...prev,
-                                                    deliveryDate: clampDmyValue(
-                                                        event.target.value,
-                                                    ),
-                                                }));
-                                                setValidationErrors((prev) => ({
-                                                    ...prev,
-                                                    deliveryDate: '',
-                                                }));
-                                            }}
+                                                    paymentTerm: event.target.value,
+                                                }))
+                                            }
                                         />
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            className="shrink-0 px-3"
+                                    </div>
+                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-1">
+                                        <Label htmlFor="ppn_percent">PPN (%)</Label>
+                                        <Input
+                                            id="ppn_percent"
                                             disabled={exhibitsPartialDo}
-                                            onClick={() => {
-                                                if (
-                                                    deliveryDatePickerRef
-                                                        .current?.showPicker
-                                                ) {
-                                                    deliveryDatePickerRef.current.showPicker();
-                                                    return;
-                                                }
-                                                deliveryDatePickerRef.current?.click();
-                                            }}
-                                            title="Pilih tanggal"
-                                        >
-                                            <CalendarDays className="size-4" />
-                                        </Button>
-                                        <input
-                                            ref={deliveryDatePickerRef}
-                                            type="date"
-                                            className="pointer-events-none absolute h-0 w-0 opacity-0"
-                                            value={toIsoDate(form.deliveryDate)}
+                                            className={
+                                                validationErrors.ppnPercent
+                                                    ? 'border-red-500 focus-visible:ring-red-500'
+                                                    : ''
+                                            }
+                                            inputMode="decimal"
+                                            value={form.ppnPercent}
                                             onChange={(event) => {
                                                 setForm((prev) => ({
                                                     ...prev,
-                                                    deliveryDate: toDisplayDate(
-                                                        event.target.value,
-                                                    ),
+                                                    ppnPercent:
+                                                        event.target.value.replace(
+                                                            /[^\d.]/g,
+                                                            '',
+                                                        ),
                                                 }));
                                                 setValidationErrors((prev) => ({
                                                     ...prev,
-                                                    deliveryDate: '',
+                                                    ppnPercent: '',
                                                 }));
                                             }}
                                         />
+                                        {validationErrors.ppnPercent && (
+                                            <p className="text-xs text-red-500">
+                                                {validationErrors.ppnPercent}
+                                            </p>
+                                        )}
                                     </div>
-                                    {validationErrors.deliveryDate && (
-                                        <p className="text-xs text-red-500">
-                                            {validationErrors.deliveryDate}
-                                        </p>
-                                    )}
                                 </div>
-                                <div className="grid gap-2 sm:col-span-2">
+                                <div className="grid gap-2 sm:col-span-2 lg:col-span-4">
                                     <Label htmlFor="customer_name">
                                         Nama Customer
                                     </Label>
@@ -1186,56 +1237,7 @@ export default function PurchaseOrderInEdit({
                                         </p>
                                     )}
                                 </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="payment_term">
-                                        Payment Term
-                                    </Label>
-                                    <Input
-                                        id="payment_term"
-                                        disabled={exhibitsPartialDo}
-                                        value={form.paymentTerm}
-                                        onChange={(event) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                paymentTerm: event.target.value,
-                                            }))
-                                        }
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="ppn_percent">PPN (%)</Label>
-                                    <Input
-                                        id="ppn_percent"
-                                        disabled={exhibitsPartialDo}
-                                        className={
-                                            validationErrors.ppnPercent
-                                                ? 'border-red-500 focus-visible:ring-red-500'
-                                                : ''
-                                        }
-                                        inputMode="decimal"
-                                        value={form.ppnPercent}
-                                        onChange={(event) => {
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                ppnPercent:
-                                                    event.target.value.replace(
-                                                        /[^\d.]/g,
-                                                        '',
-                                                    ),
-                                            }));
-                                            setValidationErrors((prev) => ({
-                                                ...prev,
-                                                ppnPercent: '',
-                                            }));
-                                        }}
-                                    />
-                                    {validationErrors.ppnPercent && (
-                                        <p className="text-xs text-red-500">
-                                            {validationErrors.ppnPercent}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="grid gap-2">
+                                <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
                                     <Label htmlFor="franco_loco">
                                         Franco/Loco
                                     </Label>
@@ -1248,6 +1250,7 @@ export default function PurchaseOrderInEdit({
                                                 : ''
                                         }
                                         value={form.francoLoco}
+                                        placeholder="Isi tempat pengiriman barang"
                                         onChange={(event) => {
                                             setForm((prev) => ({
                                                 ...prev,
@@ -1266,7 +1269,7 @@ export default function PurchaseOrderInEdit({
                                     )}
                                 </div>
                                 <div
-                                    className="grid gap-2"
+                                    className="grid gap-2 sm:col-span-1 lg:col-span-2"
                                     ref={picDropdownRef}
                                 >
                                     <Label htmlFor="sender_name">
@@ -1286,8 +1289,8 @@ export default function PurchaseOrderInEdit({
                                                 picLoading
                                                     ? 'Memuat PIC...'
                                                     : picList.length > 0
-                                                      ? 'Ketik atau pilih PIC...'
-                                                      : 'Ketik nama PIC'
+                                                        ? 'Ketik atau pilih PIC...'
+                                                        : 'Ketik nama PIC'
                                             }
                                             autoComplete="off"
                                             onChange={(event) => {
@@ -1364,7 +1367,7 @@ export default function PurchaseOrderInEdit({
                                         </p>
                                     )}
                                 </div>
-                                <div className="grid gap-2 sm:col-span-2 lg:col-span-3">
+                                <div className="grid gap-2 sm:col-span-2 lg:col-span-4">
                                     <Label htmlFor="doc_note">
                                         Catatan Dokumen
                                     </Label>
@@ -1597,8 +1600,8 @@ export default function PurchaseOrderInEdit({
                                 {isSavingItem
                                     ? 'Menyimpan...'
                                     : editingItemId
-                                      ? 'Simpan Perubahan'
-                                      : 'Tambah Item'}
+                                        ? 'Simpan Perubahan'
+                                        : 'Tambah Item'}
                             </Button>
                             {editingItemId && (
                                 <Button
@@ -1638,24 +1641,24 @@ export default function PurchaseOrderInEdit({
                                                 toNumber(
                                                     item.sisaQtyDo ?? 0,
                                                 ) !== 0) && (
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        handleEditItem(item)
-                                                    }
-                                                    title="Edit"
-                                                >
-                                                    <Pencil className="size-4" />
-                                                </Button>
-                                            )}
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            handleEditItem(item)
+                                                        }
+                                                        title="Edit"
+                                                    >
+                                                        <Pencil className="size-4" />
+                                                    </Button>
+                                                )}
                                             {toNumber(item.sisaQtyPr ?? 0) ===
                                                 toNumber(item.qty ?? 0) &&
                                                 toNumber(
                                                     item.sisaQtyDo ?? 0,
                                                 ) ===
-                                                    toNumber(item.qty ?? 0) && (
+                                                toNumber(item.qty ?? 0) && (
                                                     <Button
                                                         type="button"
                                                         variant="outline"
@@ -1696,9 +1699,9 @@ export default function PurchaseOrderInEdit({
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                        toNumber(
-                                                            item.unitPrice,
-                                                        ),
+                                                    toNumber(
+                                                        item.unitPrice,
+                                                    ),
                                                 )}
                                             </p>
                                         </div>
@@ -1785,9 +1788,9 @@ export default function PurchaseOrderInEdit({
                                             <td className="px-4 py-3">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                        toNumber(
-                                                            item.unitPrice,
-                                                        ),
+                                                    toNumber(
+                                                        item.unitPrice,
+                                                    ),
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -1799,20 +1802,20 @@ export default function PurchaseOrderInEdit({
                                                         toNumber(
                                                             item.sisaQtyDo ?? 0,
                                                         ) !== 0) && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() =>
-                                                                handleEditItem(
-                                                                    item,
-                                                                )
-                                                            }
-                                                            title="Edit"
-                                                        >
-                                                            <Pencil className="size-4" />
-                                                        </Button>
-                                                    )}
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    handleEditItem(
+                                                                        item,
+                                                                    )
+                                                                }
+                                                                title="Edit"
+                                                            >
+                                                                <Pencil className="size-4" />
+                                                            </Button>
+                                                        )}
                                                     {toNumber(
                                                         item.sisaQtyPr ?? 0,
                                                     ) ===
@@ -1822,9 +1825,9 @@ export default function PurchaseOrderInEdit({
                                                         toNumber(
                                                             item.sisaQtyDo ?? 0,
                                                         ) ===
-                                                            toNumber(
-                                                                item.qty ?? 0,
-                                                            ) && (
+                                                        toNumber(
+                                                            item.qty ?? 0,
+                                                        ) && (
                                                             <Button
                                                                 type="button"
                                                                 variant="outline"
@@ -1979,7 +1982,7 @@ export default function PurchaseOrderInEdit({
                                             {materialLoading
                                                 ? 'Memuat data material...'
                                                 : materialError ||
-                                                  'Tidak ada data material.'}
+                                                'Tidak ada data material.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2036,8 +2039,8 @@ export default function PurchaseOrderInEdit({
                                     Menampilkan{' '}
                                     {Math.min(
                                         (materialCurrentPage - 1) *
-                                            materialPageSize +
-                                            1,
+                                        materialPageSize +
+                                        1,
                                         materialTotalItems,
                                     )}
                                     -
@@ -2176,7 +2179,7 @@ export default function PurchaseOrderInEdit({
                                             {customerLoading
                                                 ? 'Memuat data customer...'
                                                 : customerError ||
-                                                  'Tidak ada data customer.'}
+                                                'Tidak ada data customer.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2232,8 +2235,8 @@ export default function PurchaseOrderInEdit({
                                 Menampilkan{' '}
                                 {Math.min(
                                     (customerCurrentPage - 1) *
-                                        customerPageSize +
-                                        1,
+                                    customerPageSize +
+                                    1,
                                     customerTotal,
                                 )}
                                 -
@@ -2274,7 +2277,7 @@ export default function PurchaseOrderInEdit({
                                     disabled={
                                         customerTotalPages
                                             ? customerCurrentPage >=
-                                              customerTotalPages
+                                            customerTotalPages
                                             : true
                                     }
                                 >

@@ -303,7 +303,7 @@ class DashboardController
         $this->authorizeDashboardCard($request, 'delivery');
 
         $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('delivery', [
-            'date_parser' => 2,
+            'source' => 'tb_counter',
         ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildDeliveryStats());
 
         return response()->json($stats);
@@ -690,42 +690,28 @@ class DashboardController
 
     private function getPdbStats()
     {
-        if (!Schema::hasTable('tb_kdpdb')) {
-            return ['total' => 0, 'count' => 0, 'last_update' => null];
+        if (!Schema::hasTable('tb_counter')) {
+            return ['total' => 0];
         }
 
-        // Single query: sum, count, and max date in one pass
-        $dateSql = $this->normalizedDateSql('Tgl_Posting');
-        $row = $this->getDbConnection()->table('tb_kdpdb')
-            ->where('Sisa', '>', 0)
-            ->selectRaw("SUM(Sisa) as total, COUNT(*) as cnt, MAX($dateSql) as last_update")
-            ->first();
+        $value = $this->getDbConnection()->table('tb_counter')
+            ->where('nama_tabel', 'saldo_pdb')
+            ->value('nomor_terakhir');
 
-        return [
-            'total'       => (float) ($row->total ?? 0),
-            'count'       => (int)   ($row->cnt ?? 0),
-            'last_update' => $row->last_update ?? null,
-        ];
+        return ['total' => (float) ($value ?? 0)];
     }
 
     private function getPdoStats()
     {
-        if (!Schema::hasTable('tb_kdpdo')) {
-            return ['total' => 0, 'count' => 0, 'last_update' => null];
+        if (!Schema::hasTable('tb_counter')) {
+            return ['total' => 0];
         }
 
-        // Single query: sum, count, and max date in one pass
-        $dateSql = $this->normalizedDateSql('posting_date');
-        $row = $this->getDbConnection()->table('tb_kdpdo')
-            ->where('sisa_pdo', '>', 0)
-            ->selectRaw("SUM(sisa_pdo) as total, COUNT(*) as cnt, MAX($dateSql) as last_update")
-            ->first();
+        $value = $this->getDbConnection()->table('tb_counter')
+            ->where('nama_tabel', 'saldo_pdo')
+            ->value('nomor_terakhir');
 
-        return [
-            'total'       => (float) ($row->total ?? 0),
-            'count'       => (int)   ($row->cnt ?? 0),
-            'last_update' => $row->last_update ?? null,
-        ];
+        return ['total' => (float) ($value ?? 0)];
     }
 
     public function getSalesHppStats(Request $request, $period = null) {

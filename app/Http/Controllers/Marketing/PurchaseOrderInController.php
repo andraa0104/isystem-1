@@ -532,6 +532,138 @@ class PurchaseOrderInController
         ]);
     }
 
+    public function materialData(Request $request)
+    {
+        $search = trim((string) $request->query('search', ''));
+        $perPageInput = $request->query('per_page', 5);
+        $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
+        $statusFilter = (string) $request->query('status', 'all');
+        $dateFilter = (string) $request->query('date_filter', 'all');
+        $startDate = (string) $request->query('start_date', '');
+        $endDate = (string) $request->query('end_date', '');
+        $deadlineFilter = (string) $request->query('deadline_filter', 'all');
+        $page = max(1, (int) $request->query('page', 1));
+
+        $data = $this->getPurchaseOrderInMaterialData(
+            $search,
+            $perPage,
+            $statusFilter,
+            $page,
+            $dateFilter,
+            $startDate,
+            $endDate,
+            $this->resolveDatabasePrefix($request),
+            $deadlineFilter,
+        );
+        $data['applied_filters'] = [
+            'search' => $search,
+            'status' => $statusFilter,
+            'date_filter' => $dateFilter,
+            'deadline_filter' => $deadlineFilter,
+        ];
+
+        return response()->json($data)->withHeaders([
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ]);
+    }
+
+    private function getPurchaseOrderInMaterialData(
+        string $search,
+        ?int $perPage,
+        string $statusFilter,
+        int $page,
+        string $dateFilter,
+        string $startDate,
+        string $endDate,
+        string $prefix,
+        string $deadlineFilter,
+    ): array {
+        $qty = "coalesce(cast(nullif(trim(d.qty), '') as decimal(18,4)), 0)";
+        $sisaPr = "coalesce(cast(nullif(trim(d.sisa_qtypr), '') as decimal(18,4)), {$qty})";
+        $sisaDo = "coalesce(cast(nullif(trim(d.sisa_qtydo), '') as decimal(18,4)), {$qty})";
+        $query = DB::table('tb_detailpoin as d')
+            ->join('tb_poin as p', 'p.kode_poin', '=', 'd.kode_poin')
+            ->where(function ($q) use ($prefix) {
+                $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                    ->orWhere('p.kode_poin', 'like', '%.POIN-%')
+                    ->orWhere('p.kode_poin', 'like', 'POIN-%');
+            })
+            ->select(
+                'd.id',
+                'd.kode_poin',
+                'd.no_poin',
+                'p.customer_name',
+                'd.material',
+                'd.qty',
+                'd.sisa_qtypr',
+                'd.sisa_qtydo',
+                'p.created_at',
+                'p.delivery_date',
+            );
+
+        if ($search !== '') {
+            $like = '%' . strtolower($search) . '%';
+            $query->where(function ($q) use ($like) {
+                $q->whereRaw('lower(d.no_poin) like ?', [$like])
+                    ->orWhereRaw('lower(d.material) like ?', [$like]);
+            });
+        }
+
+        if ($statusFilter === 'outstanding_pr') {
+            $query->whereRaw("{$sisaPr} = {$qty}");
+        } elseif ($statusFilter === 'outstanding_do') {
+            $query->whereRaw("{$sisaDo} = {$qty}");
+        } elseif ($statusFilter === 'sisa_pr') {
+            $query->whereRaw("{$sisaPr} > 0 and {$sisaPr} <> {$qty}");
+        } elseif ($statusFilter === 'sisa_do') {
+            $query->whereRaw("{$sisaDo} > 0 and {$sisaDo} <> {$qty}");
+        } elseif ($statusFilter === 'realized_pr') {
+            $query->whereRaw("{$sisaPr} = 0");
+        } elseif ($statusFilter === 'realized_do') {
+            $query->whereRaw("{$sisaDo} = 0");
+        }
+
+        $now = now();
+        if ($dateFilter === 'today') {
+            $query->whereDate('p.created_at', $now->toDateString());
+        } elseif ($dateFilter === 'this_week') {
+            $query->whereBetween('p.created_at', [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()]);
+        } elseif ($dateFilter === 'this_month') {
+            $query->whereYear('p.created_at', $now->year)->whereMonth('p.created_at', $now->month);
+        } elseif ($dateFilter === 'this_year') {
+            $query->whereYear('p.created_at', $now->year);
+        } elseif ($dateFilter === 'range') {
+            if ($startDate !== '' && $endDate !== '') {
+                $query->whereDate('p.created_at', '>=', $startDate)->whereDate('p.created_at', '<=', $endDate);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        $deadline = "coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y'))";
+        if ($deadlineFilter === 'overdue') {
+            $query->whereRaw("{$deadline} <= current_date()");
+        } elseif ($deadlineFilter === 'soon') {
+            $query->whereRaw("{$deadline} > current_date() and {$deadline} <= date_add(current_date(), interval 5 day)");
+        }
+
+        $total = (clone $query)->count();
+        $rows = $perPage === null
+            ? $query->orderByDesc('d.id')->get()
+            : $query->orderByDesc('d.id')->forPage($page, $perPage)->get();
+
+        return [
+            'materials' => $rows,
+            'pagination' => [
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage === null ? 'all' : $perPage,
+                'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
+            ],
+        ];
+    }
+
     private function getPurchaseOrderInData(
         $search,
         $perPage,

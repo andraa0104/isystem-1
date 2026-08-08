@@ -286,6 +286,8 @@ export default function PurchaseOrderInIndex({
     const canDelete = isAdmin || (hasPrivileges && menuAccess.delete === true);
 
     const [search, setSearch] = useState(filters.search ?? '');
+    const [activeDataTab, setActiveDataTab] = useState('customer');
+    const [materialSearch, setMaterialSearch] = useState('');
     // Tracking PO Customer State
     const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
     const [trackingSearchKeyword, setTrackingSearchKeyword] = useState('');
@@ -324,13 +326,21 @@ export default function PurchaseOrderInIndex({
         setIsTrackingModalOpen(true);
     };
     const [perPage, setPerPage] = useState(String(filters.per_page ?? '5'));
+    const [materialPerPage, setMaterialPerPage] = useState('5');
     const [statusFilter, setStatusFilter] = useState(
         filters.status ?? 'outstanding_do',
     );
+    const [materialStatusFilter, setMaterialStatusFilter] =
+        useState('outstanding_do');
     const [tableDateFilter, setTableDateFilter] = useState('all');
+    const [materialDateFilter, setMaterialDateFilter] = useState('all');
     const [tableStartDate, setTableStartDate] = useState('');
     const [tableEndDate, setTableEndDate] = useState('');
+    const [materialStartDate, setMaterialStartDate] = useState('');
+    const [materialEndDate, setMaterialEndDate] = useState('');
     const [deadlineFilter, setDeadlineFilter] = useState('all');
+    const [materialDeadlineFilter, setMaterialDeadlineFilter] =
+        useState('all');
     const [realizedPeriod, setRealizedPeriod] = useState('today');
     const [dataPoInPeriod, setDataPoInPeriod] = useState('today');
     const [dataPoInStart, setDataPoInStart] = useState('');
@@ -341,6 +351,14 @@ export default function PurchaseOrderInIndex({
     const [purchaseOrderIns, setPurchaseOrderIns] = useState(
         initialPurchaseOrderIns,
     );
+    const [materialRows, setMaterialRows] = useState([]);
+    const [materialPagination, setMaterialPagination] = useState({
+        total: 0,
+        page: 1,
+        per_page: 5,
+        total_pages: 1,
+    });
+    const [materialLoading, setMaterialLoading] = useState(false);
     const [tableLoading, setTableLoading] = useState(false);
     const [paginationLoading, setPaginationLoading] = useState(false);
     const [summary, setSummary] = useState(initialSummary);
@@ -399,6 +417,7 @@ export default function PurchaseOrderInIndex({
 
     const rowsRequestId = useRef(0);
     const paginationRequestId = useRef(0);
+    const materialRequestId = useRef(0);
     const isInitialTableLoad = useRef(true);
     const isInitialRealizedSummaryLoad = useRef(true);
 
@@ -506,6 +525,50 @@ export default function PurchaseOrderInIndex({
         fetchPoInPagination(params);
     };
 
+    const fetchMaterialData = async (params = {}) => {
+        const requestId = ++materialRequestId.current;
+        setMaterialLoading(true);
+
+        try {
+            const queryParams = new URLSearchParams({
+                search: params.search ?? materialSearch,
+                per_page: params.per_page ?? materialPerPage,
+                status: params.status ?? materialStatusFilter,
+                date_filter: params.dateFilter ?? materialDateFilter,
+                deadline_filter:
+                    params.deadlineFilter ?? materialDeadlineFilter,
+                page: params.page ?? 1,
+                _request: `${Date.now()}-${Math.random()}`,
+            });
+            if ((params.dateFilter ?? materialDateFilter) === 'range') {
+                queryParams.set(
+                    'start_date',
+                    params.startDate ?? materialStartDate,
+                );
+                queryParams.set('end_date', params.endDate ?? materialEndDate);
+            }
+
+            const response = await fetch(
+                `/marketing/purchase-order-in/material-data?${queryParams.toString()}`,
+                { cache: 'no-store', headers: { Accept: 'application/json' } },
+            );
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error('Gagal memuat data material PO In.');
+            }
+            if (requestId === materialRequestId.current) {
+                setMaterialRows(data.materials || []);
+                setMaterialPagination(data.pagination || {});
+            }
+        } catch (error) {
+            console.error('Error fetching PO In material rows:', error);
+        } finally {
+            if (requestId === materialRequestId.current) {
+                setMaterialLoading(false);
+            }
+        }
+    };
+
     const fetchPoInSummaryScope = async (scope, dateFilterVal = 'all') => {
         setSummaryLoading((prev) => ({ ...prev, [scope]: true }));
         try {
@@ -561,17 +624,27 @@ export default function PurchaseOrderInIndex({
 
     useEffect(() => {
         const loadTable = () => {
-            fetchPoInData({
-                search,
-                per_page: perPage,
-                status: statusFilter,
-                dateFilter: tableDateFilter,
-                startDate: tableStartDate,
-                endDate: tableEndDate,
-                deadlineFilter: deadlineFilter,
+            const isMaterialTab = activeDataTab === 'material';
+            const params = {
+                search: isMaterialTab ? materialSearch : search,
+                per_page: isMaterialTab ? materialPerPage : perPage,
+                status: isMaterialTab ? materialStatusFilter : statusFilter,
+                dateFilter: isMaterialTab
+                    ? materialDateFilter
+                    : tableDateFilter,
+                startDate: isMaterialTab ? materialStartDate : tableStartDate,
+                endDate: isMaterialTab ? materialEndDate : tableEndDate,
+                deadlineFilter: isMaterialTab
+                    ? materialDeadlineFilter
+                    : deadlineFilter,
                 page: 1,
                 isPartial: true,
-            });
+            };
+            if (activeDataTab === 'material') {
+                fetchMaterialData(params);
+            } else {
+                fetchPoInData(params);
+            }
         };
 
         // Muat tabel langsung saat halaman dibuka. Perubahan filter berikutnya
@@ -589,12 +662,20 @@ export default function PurchaseOrderInIndex({
         return () => clearTimeout(timer);
     }, [
         search,
+        materialSearch,
         perPage,
+        materialPerPage,
         statusFilter,
+        materialStatusFilter,
         tableDateFilter,
+        materialDateFilter,
         tableStartDate,
         tableEndDate,
+        materialStartDate,
+        materialEndDate,
         deadlineFilter,
+        materialDeadlineFilter,
+        activeDataTab,
     ]);
 
     useEffect(() => {
@@ -602,6 +683,15 @@ export default function PurchaseOrderInIndex({
             setDeadlineFilter('all');
         }
     }, [statusFilter]);
+
+    useEffect(() => {
+        if (
+            materialStatusFilter === 'realized_pr' ||
+            materialStatusFilter === 'realized_do'
+        ) {
+            setMaterialDeadlineFilter('all');
+        }
+    }, [materialStatusFilter]);
 
     const realizedPeriodKey = useMemo(() => {
         if (realizedPeriod === 'this_week') return 'week';
@@ -1580,25 +1670,69 @@ export default function PurchaseOrderInIndex({
                 </section>
 
                 <section className="min-w-0 rounded-xl border border-sidebar-border/70 bg-background p-3 shadow-sm sm:rounded-2xl sm:p-4">
+                    <div className="mb-4 flex gap-2 border-b border-sidebar-border/70">
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant={
+                                activeDataTab === 'customer'
+                                    ? 'default'
+                                    : 'ghost'
+                            }
+                            onClick={() => setActiveDataTab('customer')}
+                        >
+                            Data By Customer
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant={
+                                activeDataTab === 'material'
+                                    ? 'default'
+                                    : 'ghost'
+                            }
+                            onClick={() => setActiveDataTab('material')}
+                        >
+                            Data By Material
+                        </Button>
+                    </div>
                     <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(260px,1fr)_auto] lg:items-start">
                         <div className="relative min-w-0">
                             <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                             <input
                                 type="search"
                                 className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background pr-3 pl-9 text-sm"
-                                placeholder="Cari Nomor Document, Ref PO, atau nama customer..."
-                                value={search}
+                                placeholder={
+                                    activeDataTab === 'material'
+                                        ? 'Cari Ref PO atau material...'
+                                        : 'Cari Nomor Document, Ref PO, atau nama customer...'
+                                }
+                                value={
+                                    activeDataTab === 'material'
+                                        ? materialSearch
+                                        : search
+                                }
                                 onChange={(event) =>
-                                    setSearch(event.target.value)
+                                    activeDataTab === 'material'
+                                        ? setMaterialSearch(event.target.value)
+                                        : setSearch(event.target.value)
                                 }
                             />
                         </div>
                         <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">
                             <select
                                 className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
-                                value={statusFilter}
+                                value={
+                                    activeDataTab === 'material'
+                                        ? materialStatusFilter
+                                        : statusFilter
+                                }
                                 onChange={(event) => {
-                                    setStatusFilter(event.target.value);
+                                    if (activeDataTab === 'material') {
+                                        setMaterialStatusFilter(event.target.value);
+                                    } else {
+                                        setStatusFilter(event.target.value);
+                                    }
                                     // The useEffect will handle the partial fetch
                                 }}
                             >
@@ -1612,9 +1746,15 @@ export default function PurchaseOrderInIndex({
                             </select>
                             <select
                                 className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
-                                value={tableDateFilter}
+                                value={
+                                    activeDataTab === 'material'
+                                        ? materialDateFilter
+                                        : tableDateFilter
+                                }
                                 onChange={(event) =>
-                                    setTableDateFilter(event.target.value)
+                                    activeDataTab === 'material'
+                                        ? setMaterialDateFilter(event.target.value)
+                                        : setTableDateFilter(event.target.value)
                                 }
                             >
                                 <option value="today">Hari Ini</option>
@@ -1625,13 +1765,21 @@ export default function PurchaseOrderInIndex({
                                 <option value="all">Semua Data</option>
                             </select>
                             {!['realized_pr', 'realized_do'].includes(
-                                statusFilter,
+                                activeDataTab === 'material'
+                                    ? materialStatusFilter
+                                    : statusFilter,
                             ) && (
                                 <select
                                     className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
-                                    value={deadlineFilter}
+                                    value={
+                                        activeDataTab === 'material'
+                                            ? materialDeadlineFilter
+                                            : deadlineFilter
+                                    }
                                     onChange={(event) =>
-                                        setDeadlineFilter(event.target.value)
+                                        activeDataTab === 'material'
+                                            ? setMaterialDeadlineFilter(event.target.value)
+                                            : setDeadlineFilter(event.target.value)
                                     }
                                 >
                                     <option value="all">Semua Deadline</option>
@@ -1643,34 +1791,54 @@ export default function PurchaseOrderInIndex({
                                     </option>
                                 </select>
                             )}
-                            {tableDateFilter === 'range' && (
+                            {(activeDataTab === 'material'
+                                ? materialDateFilter
+                                : tableDateFilter) === 'range' && (
                                 <>
                                     <input
                                         type="date"
                                         className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
-                                        value={tableStartDate}
+                                        value={
+                                            activeDataTab === 'material'
+                                                ? materialStartDate
+                                                : tableStartDate
+                                        }
                                         onChange={(event) =>
-                                            setTableStartDate(
-                                                event.target.value,
-                                            )
+                                            activeDataTab === 'material'
+                                                ? setMaterialStartDate(event.target.value)
+                                                : setTableStartDate(event.target.value)
                                         }
                                     />
                                     <input
                                         type="date"
                                         className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
-                                        value={tableEndDate}
+                                        value={
+                                            activeDataTab === 'material'
+                                                ? materialEndDate
+                                                : tableEndDate
+                                        }
                                         onChange={(event) =>
-                                            setTableEndDate(event.target.value)
+                                            activeDataTab === 'material'
+                                                ? setMaterialEndDate(event.target.value)
+                                                : setTableEndDate(event.target.value)
                                         }
                                     />
                                 </>
                             )}
                             <select
                                 className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
-                                value={perPage}
+                                value={
+                                    activeDataTab === 'material'
+                                        ? materialPerPage
+                                        : perPage
+                                }
                                 onChange={(event) => {
                                     const value = event.target.value;
-                                    setPerPage(value);
+                                    if (activeDataTab === 'material') {
+                                        setMaterialPerPage(value);
+                                    } else {
+                                        setPerPage(value);
+                                    }
                                     // The useEffect will handle the partial fetch
                                 }}
                             >
@@ -1682,7 +1850,12 @@ export default function PurchaseOrderInIndex({
                             </select>
                         </div>
                     </div>
-                    <div className="grid gap-3 md:hidden">
+                    <div
+                        className={cn(
+                            'grid gap-3 md:hidden',
+                            activeDataTab !== 'customer' && '!hidden',
+                        )}
+                    >
                         {tableLoading && purchaseOrderIns.length === 0 && (
                             <>
                                 {Array.from({
@@ -1848,7 +2021,12 @@ export default function PurchaseOrderInIndex({
                         )}
                     </div>
 
-                    <div className="hidden overflow-x-auto rounded-xl border border-sidebar-border/70 md:block">
+                    <div
+                        className={cn(
+                            'hidden overflow-x-auto rounded-xl border border-sidebar-border/70 md:block',
+                            activeDataTab !== 'customer' && '!hidden',
+                        )}
+                    >
                         <table className="w-full min-w-[720px] table-auto text-sm">
                             <thead className="bg-muted/40 text-muted-foreground">
                                 <tr>
@@ -2010,7 +2188,8 @@ export default function PurchaseOrderInIndex({
                             </tbody>
                         </table>
                     </div>
-                    {String(pagination.per_page) !== 'all' &&
+                    {activeDataTab === 'customer' &&
+                        String(pagination.per_page) !== 'all' &&
                         (paginationLoading ||
                             Number(pagination.total || 0) > 0) && (
                             <div className="mt-3 grid gap-3 text-sm text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
@@ -2100,6 +2279,212 @@ export default function PurchaseOrderInIndex({
                                 </div>
                             </div>
                         )}
+                    {activeDataTab === 'material' && (
+                        <>
+                            <div className="grid gap-3 md:hidden">
+                                {materialLoading && materialRows.length === 0 ? (
+                                    Array.from({
+                                        length:
+                                            materialPerPage === 'all'
+                                                ? 5
+                                                : Number(materialPerPage || 5),
+                                    }).map((_, index) => (
+                                        <div
+                                            key={`material-skeleton-${index}`}
+                                            className="rounded-xl border border-sidebar-border/70 p-3"
+                                        >
+                                            <Skeleton className="h-4 w-36" />
+                                            <Skeleton className="mt-3 h-4 w-full" />
+                                            <Skeleton className="mt-2 h-4 w-28" />
+                                        </div>
+                                    ))
+                                ) : materialRows.length === 0 ? (
+                                    <div className="rounded-xl border border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
+                                        Belum ada data material PO In.
+                                    </div>
+                                ) : (
+                                    materialRows.map((item, index) => {
+                                        const urgency = Number(item.sisa_qtydo ?? 0) === 0
+                                            ? null
+                                            : getRowUrgency(item);
+                                        return (
+                                        <div
+                                            key={item.id ?? `${item.no_poin}-${index}`}
+                                            className={cn(
+                                                'rounded-xl border p-3 text-sm',
+                                                urgency === 'overdue'
+                                                    ? 'border-red-500/40 bg-red-500/10'
+                                                    : urgency === 'soon'
+                                                      ? 'border-yellow-500/40 bg-yellow-500/10'
+                                                      : 'border-sidebar-border/70',
+                                            )}
+                                        >
+                                            <p className="text-xs text-muted-foreground">
+                                                #{(Number(materialPagination.page || 1) - 1) * Number(materialPagination.per_page || 5) + index + 1}
+                                            </p>
+                                            <p className="mt-1 font-semibold break-words">
+                                                {urgency && (
+                                                    <span
+                                                        className={cn(
+                                                            'animate-attention-glow mr-2 inline-block size-4 rounded-full align-middle',
+                                                            urgency === 'overdue'
+                                                                ? 'bg-red-600 text-red-600'
+                                                                : 'bg-yellow-500 text-yellow-500',
+                                                        )}
+                                                    />
+                                                )}
+                                                {item.material || '-'}
+                                            </p>
+                                            <p className="mt-2 break-words text-muted-foreground">
+                                                Ref PO: {item.no_poin || '-'}
+                                            </p>
+                                            <p className="mt-1 break-words text-muted-foreground">
+                                                Customer: {item.customer_name || '-'}
+                                                {urgency && (
+                                                    <span
+                                                        className={cn(
+                                                            'ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold',
+                                                            urgency === 'overdue'
+                                                                ? 'border-red-600/40 bg-red-600/15 text-red-700'
+                                                                : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
+                                                        )}
+                                                    >
+                                                        Segera dikirim
+                                                    </span>
+                                                )}
+                                            </p>
+                                            <div className="mt-3 grid grid-cols-3 gap-2">
+                                                <div><p className="text-xs text-muted-foreground">Qty</p><p className="font-medium">{item.qty ?? 0}</p></div>
+                                                <div><p className="text-xs text-muted-foreground">Sisa PR</p><p className="font-medium">{item.sisa_qtypr ?? item.qty ?? 0}</p></div>
+                                                <div><p className="text-xs text-muted-foreground">Sisa DO</p><p className="font-medium">{item.sisa_qtydo ?? item.qty ?? 0}</p></div>
+                                            </div>
+                                            <div className="mt-3 flex gap-2">
+                                                <Button type="button" variant="outline" size="sm" onClick={() => openDetailModal(item.kode_poin)} title="Lihat">
+                                                    <Eye className="size-4" />
+                                                </Button>
+                                                <a
+                                                    href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                                                    title="Print"
+                                                >
+                                                    <Printer className="size-4" />
+                                                </a>
+                                            </div>
+                                        </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                            <div className="hidden overflow-x-auto rounded-xl border border-sidebar-border/70 md:block">
+                                <table className="w-full min-w-[860px] table-auto text-sm">
+                                    <thead className="bg-muted/40 text-muted-foreground">
+                                        <tr>
+                                            <th className="w-px px-2 py-2 text-left whitespace-nowrap">No</th>
+                                            <th className="px-2 py-2 text-left">Ref PO</th>
+                                            <th className="px-2 py-2 text-left">Customer</th>
+                                            <th className="px-2 py-2 text-left">Material</th>
+                                            <th className="w-28 px-2 py-2 text-right">Qty</th>
+                                            <th className="w-28 px-2 py-2 text-right">Sisa PR</th>
+                                            <th className="w-28 px-2 py-2 text-right">Sisa DO</th>
+                                            <th className="w-24 px-2 py-2 text-left">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <PlainTableStateRows
+                                            loading={materialLoading && materialRows.length === 0}
+                                            columns={8}
+                                            skeletonRows={materialPerPage === 'all' ? 5 : Number(materialPerPage)}
+                                            isEmpty={!materialLoading && materialRows.length === 0}
+                                            emptyTitle="Belum ada data material PO In."
+                                        />
+                                        {materialRows.map((item, index) => {
+                                            const urgency = Number(item.sisa_qtydo ?? 0) === 0
+                                                ? null
+                                                : getRowUrgency(item);
+                                            return (
+                                            <tr
+                                                key={item.id ?? `${item.no_poin}-${index}`}
+                                                className={cn(
+                                                    'border-t',
+                                                    urgency === 'overdue'
+                                                        ? 'border-red-500/40 bg-red-500/10'
+                                                        : urgency === 'soon'
+                                                          ? 'border-yellow-500/40 bg-yellow-500/10'
+                                                          : 'border-sidebar-border/70',
+                                                )}
+                                            >
+                                                <td className="px-2 py-2 whitespace-nowrap">{materialPagination.per_page === 'all' ? index + 1 : (Number(materialPagination.page || 1) - 1) * Number(materialPagination.per_page || 5) + index + 1}</td>
+                                                <td className="px-2 py-2 font-semibold whitespace-nowrap">
+                                                    {urgency && (
+                                                        <span
+                                                            className={cn(
+                                                                'animate-attention-glow mr-2 inline-block size-4 rounded-full align-middle',
+                                                                urgency === 'overdue'
+                                                                    ? 'bg-red-600 text-red-600'
+                                                                    : 'bg-yellow-500 text-yellow-500',
+                                                            )}
+                                                        />
+                                                    )}
+                                                    {item.no_poin || '-'}
+                                                </td>
+                                                <td className="px-2 py-2">
+                                                    {item.customer_name || '-'}
+                                                    {urgency && (
+                                                        <span
+                                                            className={cn(
+                                                                'ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold',
+                                                                urgency === 'overdue'
+                                                                    ? 'border-red-600/40 bg-red-600/15 text-red-700'
+                                                                    : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
+                                                            )}
+                                                        >
+                                                            Segera dikirim
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-2 py-2">{item.material || '-'}</td>
+                                                <td className="px-2 py-2 text-right whitespace-nowrap">{item.qty ?? 0}</td>
+                                                <td className="px-2 py-2 text-right whitespace-nowrap">{item.sisa_qtypr ?? item.qty ?? 0}</td>
+                                                <td className="px-2 py-2 text-right whitespace-nowrap">{item.sisa_qtydo ?? item.qty ?? 0}</td>
+                                                <td className="px-2 py-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <Button type="button" variant="outline" size="sm" onClick={() => openDetailModal(item.kode_poin)} title="Lihat">
+                                                            <Eye className="size-4" />
+                                                        </Button>
+                                                        <a
+                                                            href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                                                            title="Print"
+                                                        >
+                                                            <Printer className="size-4" />
+                                                        </a>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {String(materialPagination.per_page) !== 'all' &&
+                                (materialLoading || Number(materialPagination.total || 0) > 0) && (
+                                    <div className="mt-3 grid gap-3 text-sm text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                                        <span>
+                                            Menampilkan {Math.min((Number(materialPagination.page || 1) - 1) * Number(materialPagination.per_page || 5) + 1, Number(materialPagination.total || 0))}-{Math.min(Number(materialPagination.page || 1) * Number(materialPagination.per_page || 5), Number(materialPagination.total || 0))} dari {materialPagination.total} data
+                                        </span>
+                                        <div className="grid grid-cols-2 items-center gap-2 sm:flex">
+                                            <Button type="button" variant="outline" size="sm" disabled={materialLoading || Number(materialPagination.page || 1) <= 1} onClick={() => fetchMaterialData({ page: Math.max(1, Number(materialPagination.page || 1) - 1) })}>Sebelumnya</Button>
+                                            <span className="col-span-2 text-center sm:col-span-1">Halaman {materialPagination.page || 1} / {materialPagination.total_pages || 1}</span>
+                                            <Button type="button" variant="outline" size="sm" disabled={materialLoading || Number(materialPagination.page || 1) >= Number(materialPagination.total_pages || 1)} onClick={() => fetchMaterialData({ page: Math.min(Number(materialPagination.total_pages || 1), Number(materialPagination.page || 1) + 1) })}>Berikutnya</Button>
+                                        </div>
+                                    </div>
+                                )}
+                        </>
+                    )}
                 </section>
 
                 <Dialog

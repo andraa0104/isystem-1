@@ -1173,12 +1173,6 @@ export default function Dashboard({
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="mt-3 text-xs text-muted-foreground">
-                                                Last update:{' '}
-                                                {formatDate(
-                                                    pdbData?.last_update,
-                                                )}
-                                            </div>
                                         </>
                                     ) : (
                                         <>
@@ -1197,12 +1191,6 @@ export default function Dashboard({
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <div className="mt-3 text-xs text-muted-foreground">
-                                                Last update:{' '}
-                                                {formatDate(
-                                                    pdoData?.last_update,
-                                                )}
                                             </div>
                                         </>
                                     )}

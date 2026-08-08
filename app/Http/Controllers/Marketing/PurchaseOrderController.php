@@ -1360,6 +1360,115 @@ class PurchaseOrderController
             ->with('success', 'Material berhasil dihapus.');
     }
 
+    public function dataByMaterial(Request $request)
+    {
+        $dateFilter  = (string) $request->query('date_filter', 'today');
+        $status      = (string) $request->query('status', 'outstanding');
+        $search      = trim((string) $request->query('search', ''));
+        $pageSizeRaw = $request->query('pageSize', '5');
+        $page        = max(1, (int) $request->query('page', 1));
+
+        $poDateExpr = "coalesce(str_to_date(po.tgl, '%d.%m.%Y'), str_to_date(po.tgl, '%d/%m/%Y'), str_to_date(po.tgl, '%d-%m-%Y'), str_to_date(po.tgl, '%Y-%m-%d'), str_to_date(po.tgl, '%Y/%m/%d'), date(po.tgl))";
+
+        $statusSub = DB::table('tb_detailpo')
+            ->select('no_po')
+            ->selectRaw("
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) != coalesce(end_fl, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized,
+                case when sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 and sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_sisa_ir
+            ")
+            ->groupBy('no_po');
+
+        $query = DB::table('tb_detailpo as d')
+            ->join('tb_po as po', 'po.no_po', '=', 'd.no_po')
+            ->leftJoinSub($statusSub, 's', 'po.no_po', '=', 's.no_po')
+            ->select(
+                'd.no_po',
+                'po.tgl',
+                'po.ref_poin',
+                'po.for_cus',
+                'po.nm_vdr',
+                'd.kd_mat',
+                'd.material',
+                'd.qty',
+                'd.unit',
+                'd.price',
+                'd.total_price',
+                'd.gr_mat',
+                'd.ir_mat'
+            );
+
+        $now = now();
+        if ($dateFilter === 'today') {
+            $query->whereRaw("{$poDateExpr} = ?", [$now->toDateString()]);
+        } elseif ($dateFilter === 'this_week') {
+            $query->whereRaw("{$poDateExpr} between ? and ?", [
+                $now->copy()->startOfWeek()->toDateString(),
+                $now->copy()->endOfWeek()->toDateString(),
+            ]);
+        } elseif ($dateFilter === 'this_month') {
+            $query->whereRaw("year({$poDateExpr}) = ?", [$now->year])
+                ->whereRaw("month({$poDateExpr}) = ?", [$now->month]);
+        } elseif ($dateFilter === 'this_year') {
+            $query->whereRaw("year({$poDateExpr}) = ?", [$now->year]);
+        } elseif ($dateFilter === 'range') {
+            $startDate = (string) $request->query('start_date', '');
+            $endDate   = (string) $request->query('end_date', '');
+            if ($startDate !== '' && $endDate !== '') {
+                $query->whereRaw("{$poDateExpr} between ? and ?", [$startDate, $endDate]);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        if ($status === 'outstanding') {
+            $query->whereRaw('coalesce(s.is_outstanding, 0) = 1');
+        } elseif ($status === 'partial') {
+            $query->whereRaw('coalesce(s.is_partial, 0) = 1');
+        } elseif ($status === 'realized') {
+            $query->whereRaw('coalesce(s.is_fully_realized, 0) = 1');
+        } elseif ($status === 'sisa_ir') {
+            $query->whereRaw('coalesce(s.is_sisa_ir, 0) = 1');
+        }
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('d.no_po', 'like', "%{$search}%")
+                    ->orWhere('d.material', 'like', "%{$search}%")
+                    ->orWhere('d.kd_mat', 'like', "%{$search}%");
+            });
+        }
+
+        $total = (clone $query)->count();
+
+        $query->orderByRaw("{$poDateExpr} desc")
+            ->orderBy('d.no_po', 'desc')
+            ->orderBy('d.no', 'asc');
+
+        if ($pageSizeRaw !== 'all') {
+            $pageSize = max(1, (int) $pageSizeRaw);
+            $query->forPage($page, $pageSize);
+        }
+
+        $rows = $query->get();
+
+        $rows->transform(function ($item) {
+            if ($item->tgl) {
+                try {
+                    $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
+                } catch (\Throwable $e) {
+                }
+            }
+            return $item;
+        });
+
+        return response()->json([
+            'rows'  => $rows,
+            'total' => $total,
+        ]);
+    }
+
     public function index(Request $request)
     {
         $period = $request->query('period', 'today');

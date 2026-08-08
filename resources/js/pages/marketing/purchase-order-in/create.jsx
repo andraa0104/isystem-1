@@ -786,9 +786,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
                 throw new Error(
                     data?.message ||
-                        (data?.errors &&
-                            Object.values(data.errors).flat()[0]) ||
-                        'Gagal menyimpan customer.',
+                    (data?.errors &&
+                        Object.values(data.errors).flat()[0]) ||
+                    'Gagal menyimpan customer.',
                 );
             }
 
@@ -900,9 +900,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
                 throw new Error(
                     data?.message ||
-                        (data?.errors &&
-                            Object.values(data.errors).flat()[0]) ||
-                        'Gagal menyimpan material.',
+                    (data?.errors &&
+                        Object.values(data.errors).flat()[0]) ||
+                    'Gagal menyimpan material.',
                 );
             }
 
@@ -1014,7 +1014,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             </h3>
                             <p className="text-sm font-medium text-slate-300">
                                 Unggah foto atau PDF Purchase Order dari
-                                Kustomer, sistem AI akan otomatis mengenali dan
+                                Customer, sistem AI akan otomatis mengenali dan
                                 mengisi Form secara ajaib.
                             </p>
                         </div>
@@ -1039,7 +1039,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 <span className="relative z-10 flex items-center gap-2">
                                     {isOcrScanning
                                         ? `AI Memproses... ${ocrProgress}%`
-                                        : 'Scan Dokumen PO'}
+                                        : 'Scan PO Customer'}
                                     {isOcrScanning ? (
                                         <svg
                                             className="h-5 w-5 animate-spin text-white"
@@ -1099,8 +1099,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 </h2>
                             </div>
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                                <div className="grid gap-4 sm:col-span-2 lg:col-span-4 lg:grid-cols-3">
-                                    <div className="grid gap-2">
+                                <div className="grid gap-4 sm:col-span-2 lg:col-span-4 sm:grid-cols-2 lg:grid-cols-12">
+                                    <div className="grid gap-2 sm:col-span-2 lg:col-span-5">
                                         <Label htmlFor="no_poin">
                                             No PO Customer/Ref PO
                                         </Label>
@@ -1131,7 +1131,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             </p>
                                         )}
                                     </div>
-                                    <div className="grid gap-2">
+                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
                                         <Label htmlFor="tanggal">
                                             Date PO In
                                         </Label>
@@ -1216,7 +1216,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             </p>
                                         )}
                                     </div>
-                                    <div className="grid gap-2">
+                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
                                         <Label htmlFor="delivery_date">
                                             Delivery Date
                                         </Label>
@@ -1309,6 +1309,68 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             </p>
                                         )}
                                     </div>
+                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
+                                        <div className="flex items-center gap-2">
+                                            <Label htmlFor="payment_term">
+                                                Payment Term
+                                            </Label>
+                                            {isPredicting && (
+                                                <Spinner className="size-3" />
+                                            )}
+                                        </div>
+                                        <Input
+                                            id="payment_term"
+                                            value={form.paymentTerm}
+                                            onFocus={(event) =>
+                                                event.target.select()
+                                            }
+                                            onChange={(event) =>
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    paymentTerm: event.target.value,
+                                                }))
+                                            }
+                                        />
+                                    </div>
+                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-1">
+                                        <div className="flex items-center gap-2">
+                                            <Label htmlFor="ppn_percent">
+                                                PPN (%)
+                                            </Label>
+                                            {isPredicting && (
+                                                <Spinner className="size-3" />
+                                            )}
+                                        </div>
+                                        <Input
+                                            id="ppn_percent"
+                                            className={
+                                                validationErrors.ppnPercent
+                                                    ? 'border-red-500 focus-visible:ring-red-500'
+                                                    : ''
+                                            }
+                                            inputMode="decimal"
+                                            value={form.ppnPercent}
+                                            onChange={(event) => {
+                                                setForm((prev) => ({
+                                                    ...prev,
+                                                    ppnPercent:
+                                                        event.target.value.replace(
+                                                            /[^\d.]/g,
+                                                            '',
+                                                        ),
+                                                }));
+                                                setValidationErrors((prev) => ({
+                                                    ...prev,
+                                                    ppnPercent: '',
+                                                }));
+                                            }}
+                                        />
+                                        {validationErrors.ppnPercent && (
+                                            <p className="text-xs text-red-500">
+                                                {validationErrors.ppnPercent}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
                                     <div className="grid gap-2 lg:col-span-1">
@@ -1364,69 +1426,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         )}
                                     </div>
                                 </div>
-                                <div className="grid gap-2">
-                                    <div className="flex items-center gap-2">
-                                        <Label htmlFor="payment_term">
-                                            Payment Term
-                                        </Label>
-                                        {isPredicting && (
-                                            <Spinner className="size-3" />
-                                        )}
-                                    </div>
-                                    <Input
-                                        id="payment_term"
-                                        value={form.paymentTerm}
-                                        onFocus={(event) =>
-                                            event.target.select()
-                                        }
-                                        onChange={(event) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                paymentTerm: event.target.value,
-                                            }))
-                                        }
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <div className="flex items-center gap-2">
-                                        <Label htmlFor="ppn_percent">
-                                            PPN (%)
-                                        </Label>
-                                        {isPredicting && (
-                                            <Spinner className="size-3" />
-                                        )}
-                                    </div>
-                                    <Input
-                                        id="ppn_percent"
-                                        className={
-                                            validationErrors.ppnPercent
-                                                ? 'border-red-500 focus-visible:ring-red-500'
-                                                : ''
-                                        }
-                                        inputMode="decimal"
-                                        value={form.ppnPercent}
-                                        onChange={(event) => {
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                ppnPercent:
-                                                    event.target.value.replace(
-                                                        /[^\d.]/g,
-                                                        '',
-                                                    ),
-                                            }));
-                                            setValidationErrors((prev) => ({
-                                                ...prev,
-                                                ppnPercent: '',
-                                            }));
-                                        }}
-                                    />
-                                    {validationErrors.ppnPercent && (
-                                        <p className="text-xs text-red-500">
-                                            {validationErrors.ppnPercent}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="grid gap-2 sm:col-span-2">
+                                <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
                                     <div className="flex items-center gap-2">
                                         <Label htmlFor="franco_loco">
                                             Franco/Loco
@@ -1442,6 +1442,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 ? 'border-red-500 focus-visible:ring-red-500'
                                                 : ''
                                         }
+                                        placeholder="Isi tempat pengiriman barang"
                                         value={form.francoLoco}
                                         onChange={(event) => {
                                             setForm((prev) => ({
@@ -1461,7 +1462,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     )}
                                 </div>
                                 <div
-                                    className="grid gap-2 sm:col-span-2"
+                                    className="grid gap-2 sm:col-span-1 lg:col-span-2"
                                     ref={picDropdownRef}
                                 >
                                     <Label htmlFor="sender_name">
@@ -1480,8 +1481,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 picLoading
                                                     ? 'Memuat PIC...'
                                                     : picList.length > 0
-                                                      ? 'Ketik atau pilih PIC...'
-                                                      : 'Ketik nama PIC'
+                                                        ? 'Ketik atau pilih PIC...'
+                                                        : 'Ketik nama PIC'
                                             }
                                             autoComplete="off"
                                             onChange={(event) => {
@@ -1862,9 +1863,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                        toNumber(
-                                                            item.unitPrice,
-                                                        ),
+                                                    toNumber(
+                                                        item.unitPrice,
+                                                    ),
                                                 )}
                                             </p>
                                         </div>
@@ -1951,9 +1952,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             <td className="px-4 py-3">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                        toNumber(
-                                                            item.unitPrice,
-                                                        ),
+                                                    toNumber(
+                                                        item.unitPrice,
+                                                    ),
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -2130,7 +2131,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             {materialLoading
                                                 ? 'Memuat data material...'
                                                 : materialError ||
-                                                  'Tidak ada data material.'}
+                                                'Tidak ada data material.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2187,8 +2188,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (materialCurrentPage - 1) *
-                                            materialPageSize +
-                                            1,
+                                        materialPageSize +
+                                        1,
                                         materialTotalItems,
                                     )}
                                     -
@@ -2331,7 +2332,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             {customerLoading
                                                 ? 'Memuat data customer...'
                                                 : customerError ||
-                                                  'Tidak ada data customer.'}
+                                                'Tidak ada data customer.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2388,8 +2389,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 Menampilkan{' '}
                                 {Math.min(
                                     (customerCurrentPage - 1) *
-                                        customerPageSize +
-                                        1,
+                                    customerPageSize +
+                                    1,
                                     customerTotal,
                                 )}
                                 -
@@ -2430,7 +2431,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     disabled={
                                         customerTotalPages
                                             ? customerCurrentPage >=
-                                              customerTotalPages
+                                            customerTotalPages
                                             : true
                                     }
                                 >

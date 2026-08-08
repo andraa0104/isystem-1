@@ -246,6 +246,8 @@ Route::get('marketing/purchase-order-in', [PurchaseOrderInController::class, 'in
     ->name('marketing.purchase-order-in.index');
 Route::get('marketing/purchase-order-in/data', [PurchaseOrderInController::class, 'data'])
     ->name('marketing.purchase-order-in.data');
+Route::get('marketing/purchase-order-in/material-data', [PurchaseOrderInController::class, 'materialData'])
+    ->name('marketing.purchase-order-in.material-data');
 Route::get('marketing/purchase-order-in/export', [PurchaseOrderInController::class, 'export'])
     ->name('marketing.purchase-order-in.export');
 Route::get('marketing/purchase-order-in/tracking', [PurchaseOrderInController::class, 'track'])
@@ -357,6 +359,8 @@ Route::get('pembelian/purchase-order/partial-ir', [PurchaseOrderController::clas
     ->name('pembelian.purchase-order.partialIr');
 Route::get('pembelian/purchase-order/realized', [PurchaseOrderController::class, 'realized'])
     ->name('pembelian.purchase-order.realized');
+Route::get('pembelian/purchase-order/data-by-material', [PurchaseOrderController::class, 'dataByMaterial'])
+    ->name('pembelian.purchase-order.data-by-material');
 Route::get('pembelian/purchase-order/create', [PurchaseOrderController::class, 'create'])
     ->name('pembelian.purchase-order.create');
 Route::get('pembelian/purchase-order/{noPo}/edit', [PurchaseOrderController::class, 'edit'])
