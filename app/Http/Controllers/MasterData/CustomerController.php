@@ -106,7 +106,7 @@ class CustomerController
                 $attndString = '';
                 if (is_array($attndArray)) {
                     $attndArray = array_filter($attndArray);
-                    $attndString = !empty($attndArray) ? implode(', ', $attndArray) : '';
+                    $attndString = !empty($attndArray) ? (string) array_values($attndArray)[0] : '';
                 } else {
                     $attndString = $attndArray;
                 }
@@ -166,7 +166,7 @@ class CustomerController
                 $attndString = '';
                 if (is_array($attndArray)) {
                     $attndArray = array_filter($attndArray);
-                    $attndString = !empty($attndArray) ? implode(', ', $attndArray) : '';
+                    $attndString = !empty($attndArray) ? (string) array_values($attndArray)[0] : '';
                 } else {
                     $attndString = $attndArray;
                 }
