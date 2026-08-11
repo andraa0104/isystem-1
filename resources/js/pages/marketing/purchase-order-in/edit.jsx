@@ -197,7 +197,7 @@ export default function PurchaseOrderInEdit({
             purchaseOrderIn?.payment_term ?? defaults.payment_term ?? '30 Hari',
         ppnPercent:
             purchaseOrderIn?.ppn_input_percent !== undefined &&
-                purchaseOrderIn?.ppn_input_percent !== null
+            purchaseOrderIn?.ppn_input_percent !== null
                 ? String(purchaseOrderIn.ppn_input_percent)
                 : '',
         francoLoco: purchaseOrderIn?.franco_loco ?? '',
@@ -217,20 +217,20 @@ export default function PurchaseOrderInEdit({
     const [items, setItems] = useState(
         Array.isArray(purchaseOrderInItems)
             ? purchaseOrderInItems.map((item, index) => ({
-                id: `db-${item.id ?? index}`,
-                dbId: item.id ?? null,
-                kodeMaterial: item.kd_material ?? '',
-                material: item.material ?? '',
-                qty: String(item.qty ?? ''),
-                unit: item.satuan ?? '',
-                unitPrice: String(toNumber(item.price_po_in ?? 0)),
-                totalPricePoIn: String(toNumber(item.total_price_po_in ?? 0)),
-                note: item.remark ?? '',
-                hasPr: !!(item.has_pr && toNumber(item.has_pr) > 0),
-                originalQty: toNumber(item.qty ?? 0),
-                sisaQtyPr: toNumber(item.sisa_qtypr ?? 0),
-                sisaQtyDo: toNumber(item.sisa_qtydo ?? 0),
-            }))
+                  id: `db-${item.id ?? index}`,
+                  dbId: item.id ?? null,
+                  kodeMaterial: item.kd_material ?? '',
+                  material: item.material ?? '',
+                  qty: String(item.qty ?? ''),
+                  unit: item.satuan ?? '',
+                  unitPrice: String(toNumber(item.price_po_in ?? 0)),
+                  totalPricePoIn: String(toNumber(item.total_price_po_in ?? 0)),
+                  note: item.remark ?? '',
+                  hasPr: !!(item.has_pr && toNumber(item.has_pr) > 0),
+                  originalQty: toNumber(item.qty ?? 0),
+                  sisaQtyPr: toNumber(item.sisa_qtypr ?? 0),
+                  sisaQtyDo: toNumber(item.sisa_qtydo ?? 0),
+              }))
             : [],
     );
     const [editingItemId, setEditingItemId] = useState(null);
@@ -395,8 +395,8 @@ export default function PurchaseOrderInEdit({
                             : null;
                         throw new Error(
                             firstError ||
-                            data?.message ||
-                            'Gagal menyimpan perubahan material.',
+                                data?.message ||
+                                'Gagal menyimpan perubahan material.',
                         );
                     }
 
@@ -404,40 +404,40 @@ export default function PurchaseOrderInEdit({
                         prev.map((item) =>
                             item.id === editingItemId
                                 ? (() => {
-                                    const originalQty = toNumber(
-                                        item.originalQty ?? item.qty ?? 0,
-                                    );
-                                    const sisaQtyDoBefore = toNumber(
-                                        item.sisaQtyDo ?? 0,
-                                    );
-                                    const usedQtyPr = Math.max(
-                                        0,
-                                        originalQty -
-                                        toNumber(item.sisaQtyPr ?? 0),
-                                    );
-                                    const newQty = toNumber(itemForm.qty);
+                                      const originalQty = toNumber(
+                                          item.originalQty ?? item.qty ?? 0,
+                                      );
+                                      const sisaQtyDoBefore = toNumber(
+                                          item.sisaQtyDo ?? 0,
+                                      );
+                                      const usedQtyPr = Math.max(
+                                          0,
+                                          originalQty -
+                                              toNumber(item.sisaQtyPr ?? 0),
+                                      );
+                                      const newQty = toNumber(itemForm.qty);
 
-                                    return {
-                                        ...item,
-                                        ...itemForm,
-                                        originalQty: newQty,
-                                        sisaQtyDo: Math.max(
-                                            0,
-                                            sisaQtyDoBefore +
-                                            (newQty - originalQty),
-                                        ),
-                                        sisaQtyPr: Math.max(
-                                            0,
-                                            newQty - usedQtyPr,
-                                        ),
-                                    };
-                                })()
+                                      return {
+                                          ...item,
+                                          ...itemForm,
+                                          originalQty: newQty,
+                                          sisaQtyDo: Math.max(
+                                              0,
+                                              sisaQtyDoBefore +
+                                                  (newQty - originalQty),
+                                          ),
+                                          sisaQtyPr: Math.max(
+                                              0,
+                                              newQty - usedQtyPr,
+                                          ),
+                                      };
+                                  })()
                                 : item,
                         ),
                     );
                     toastSuccess(
                         data?.message ||
-                        'Perubahan material berhasil disimpan.',
+                            'Perubahan material berhasil disimpan.',
                     );
                 } catch (error) {
                     toastError(
@@ -458,34 +458,34 @@ export default function PurchaseOrderInEdit({
                     prev.map((item) =>
                         item.id === editingItemId
                             ? (() => {
-                                const originalQty = toNumber(
-                                    item.originalQty ?? item.qty ?? 0,
-                                );
-                                const sisaQtyDoBefore = toNumber(
-                                    item.sisaQtyDo ?? 0,
-                                );
-                                const usedQtyPr = Math.max(
-                                    0,
-                                    originalQty -
-                                    toNumber(item.sisaQtyPr ?? 0),
-                                );
-                                const newQty = toNumber(itemForm.qty);
+                                  const originalQty = toNumber(
+                                      item.originalQty ?? item.qty ?? 0,
+                                  );
+                                  const sisaQtyDoBefore = toNumber(
+                                      item.sisaQtyDo ?? 0,
+                                  );
+                                  const usedQtyPr = Math.max(
+                                      0,
+                                      originalQty -
+                                          toNumber(item.sisaQtyPr ?? 0),
+                                  );
+                                  const newQty = toNumber(itemForm.qty);
 
-                                return {
-                                    ...item,
-                                    ...itemForm,
-                                    originalQty: newQty,
-                                    sisaQtyDo: Math.max(
-                                        0,
-                                        sisaQtyDoBefore +
-                                        (newQty - originalQty),
-                                    ),
-                                    sisaQtyPr: Math.max(
-                                        0,
-                                        newQty - usedQtyPr,
-                                    ),
-                                };
-                            })()
+                                  return {
+                                      ...item,
+                                      ...itemForm,
+                                      originalQty: newQty,
+                                      sisaQtyDo: Math.max(
+                                          0,
+                                          sisaQtyDoBefore +
+                                              (newQty - originalQty),
+                                      ),
+                                      sisaQtyPr: Math.max(
+                                          0,
+                                          newQty - usedQtyPr,
+                                      ),
+                                  };
+                              })()
                             : item,
                     ),
                 );
@@ -528,8 +528,8 @@ export default function PurchaseOrderInEdit({
                         : null;
                     throw new Error(
                         firstError ||
-                        data?.message ||
-                        'Gagal menambahkan material.',
+                            data?.message ||
+                            'Gagal menambahkan material.',
                     );
                 }
 
@@ -714,8 +714,8 @@ export default function PurchaseOrderInEdit({
                         : null;
                     throw new Error(
                         firstError ||
-                        data?.message ||
-                        'Gagal menghapus material.',
+                            data?.message ||
+                            'Gagal menghapus material.',
                     );
                 }
 
@@ -956,7 +956,7 @@ export default function PurchaseOrderInEdit({
                                 </h2>
                             </div>
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                                <div className="grid gap-4 sm:col-span-2 lg:col-span-4 sm:grid-cols-2 lg:grid-cols-12">
+                                <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-12">
                                     <div className="grid gap-2 sm:col-span-2 lg:col-span-5">
                                         <Label htmlFor="no_poin">
                                             No PO Customer/Ref PO
@@ -975,7 +975,7 @@ export default function PurchaseOrderInEdit({
                                             onChange={(event) => {
                                                 setForm((prev) => ({
                                                     ...prev,
-                                                    noPoin: event.target.value,
+                                                    noPoin: event.target.value.toUpperCase(),
                                                 }));
                                                 setValidationErrors((prev) => ({
                                                     ...prev,
@@ -990,7 +990,9 @@ export default function PurchaseOrderInEdit({
                                         )}
                                     </div>
                                     <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
-                                        <Label htmlFor="tanggal">Date PO In</Label>
+                                        <Label htmlFor="tanggal">
+                                            Date PO In
+                                        </Label>
                                         <div className="relative flex gap-2">
                                             <Input
                                                 id="tanggal"
@@ -1017,10 +1019,12 @@ export default function PurchaseOrderInEdit({
                                                             event.target.value,
                                                         ),
                                                     }));
-                                                    setValidationErrors((prev) => ({
-                                                        ...prev,
-                                                        date: '',
-                                                    }));
+                                                    setValidationErrors(
+                                                        (prev) => ({
+                                                            ...prev,
+                                                            date: '',
+                                                        }),
+                                                    );
                                                 }}
                                             />
                                             <Button
@@ -1054,10 +1058,12 @@ export default function PurchaseOrderInEdit({
                                                             event.target.value,
                                                         ),
                                                     }));
-                                                    setValidationErrors((prev) => ({
-                                                        ...prev,
-                                                        date: '',
-                                                    }));
+                                                    setValidationErrors(
+                                                        (prev) => ({
+                                                            ...prev,
+                                                            date: '',
+                                                        }),
+                                                    );
                                                 }}
                                             />
                                         </div>
@@ -1087,21 +1093,26 @@ export default function PurchaseOrderInEdit({
                                                         ...prev,
                                                         deliveryDate:
                                                             normalizeDateInput(
-                                                                event.target.value,
+                                                                event.target
+                                                                    .value,
                                                             ),
                                                     }))
                                                 }
                                                 onBlur={(event) => {
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        deliveryDate: clampDmyValue(
-                                                            event.target.value,
-                                                        ),
+                                                        deliveryDate:
+                                                            clampDmyValue(
+                                                                event.target
+                                                                    .value,
+                                                            ),
                                                     }));
-                                                    setValidationErrors((prev) => ({
-                                                        ...prev,
-                                                        deliveryDate: '',
-                                                    }));
+                                                    setValidationErrors(
+                                                        (prev) => ({
+                                                            ...prev,
+                                                            deliveryDate: '',
+                                                        }),
+                                                    );
                                                 }}
                                             />
                                             <Button
@@ -1127,18 +1138,24 @@ export default function PurchaseOrderInEdit({
                                                 ref={deliveryDatePickerRef}
                                                 type="date"
                                                 className="pointer-events-none absolute h-0 w-0 opacity-0"
-                                                value={toIsoDate(form.deliveryDate)}
+                                                value={toIsoDate(
+                                                    form.deliveryDate,
+                                                )}
                                                 onChange={(event) => {
                                                     setForm((prev) => ({
                                                         ...prev,
-                                                        deliveryDate: toDisplayDate(
-                                                            event.target.value,
-                                                        ),
+                                                        deliveryDate:
+                                                            toDisplayDate(
+                                                                event.target
+                                                                    .value,
+                                                            ),
                                                     }));
-                                                    setValidationErrors((prev) => ({
-                                                        ...prev,
-                                                        deliveryDate: '',
-                                                    }));
+                                                    setValidationErrors(
+                                                        (prev) => ({
+                                                            ...prev,
+                                                            deliveryDate: '',
+                                                        }),
+                                                    );
                                                 }}
                                             />
                                         </div>
@@ -1159,13 +1176,16 @@ export default function PurchaseOrderInEdit({
                                             onChange={(event) =>
                                                 setForm((prev) => ({
                                                     ...prev,
-                                                    paymentTerm: event.target.value,
+                                                    paymentTerm:
+                                                        event.target.value,
                                                 }))
                                             }
                                         />
                                     </div>
                                     <div className="grid gap-2 sm:col-span-1 lg:col-span-1">
-                                        <Label htmlFor="ppn_percent">PPN (%)</Label>
+                                        <Label htmlFor="ppn_percent">
+                                            PPN (%)
+                                        </Label>
                                         <Input
                                             id="ppn_percent"
                                             disabled={exhibitsPartialDo}
@@ -1289,8 +1309,8 @@ export default function PurchaseOrderInEdit({
                                                 picLoading
                                                     ? 'Memuat PIC...'
                                                     : picList.length > 0
-                                                        ? 'Ketik atau pilih PIC...'
-                                                        : 'Ketik nama PIC'
+                                                      ? 'Ketik atau pilih PIC...'
+                                                      : 'Ketik nama PIC'
                                             }
                                             autoComplete="off"
                                             onChange={(event) => {
@@ -1600,8 +1620,8 @@ export default function PurchaseOrderInEdit({
                                 {isSavingItem
                                     ? 'Menyimpan...'
                                     : editingItemId
-                                        ? 'Simpan Perubahan'
-                                        : 'Tambah Item'}
+                                      ? 'Simpan Perubahan'
+                                      : 'Tambah Item'}
                             </Button>
                             {editingItemId && (
                                 <Button
@@ -1641,24 +1661,24 @@ export default function PurchaseOrderInEdit({
                                                 toNumber(
                                                     item.sisaQtyDo ?? 0,
                                                 ) !== 0) && (
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleEditItem(item)
-                                                        }
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Button>
-                                                )}
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        handleEditItem(item)
+                                                    }
+                                                    title="Edit"
+                                                >
+                                                    <Pencil className="size-4" />
+                                                </Button>
+                                            )}
                                             {toNumber(item.sisaQtyPr ?? 0) ===
                                                 toNumber(item.qty ?? 0) &&
                                                 toNumber(
                                                     item.sisaQtyDo ?? 0,
                                                 ) ===
-                                                toNumber(item.qty ?? 0) && (
+                                                    toNumber(item.qty ?? 0) && (
                                                     <Button
                                                         type="button"
                                                         variant="outline"
@@ -1699,9 +1719,9 @@ export default function PurchaseOrderInEdit({
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                    toNumber(
-                                                        item.unitPrice,
-                                                    ),
+                                                        toNumber(
+                                                            item.unitPrice,
+                                                        ),
                                                 )}
                                             </p>
                                         </div>
@@ -1788,9 +1808,9 @@ export default function PurchaseOrderInEdit({
                                             <td className="px-4 py-3">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                    toNumber(
-                                                        item.unitPrice,
-                                                    ),
+                                                        toNumber(
+                                                            item.unitPrice,
+                                                        ),
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -1802,20 +1822,20 @@ export default function PurchaseOrderInEdit({
                                                         toNumber(
                                                             item.sisaQtyDo ?? 0,
                                                         ) !== 0) && (
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() =>
-                                                                    handleEditItem(
-                                                                        item,
-                                                                    )
-                                                                }
-                                                                title="Edit"
-                                                            >
-                                                                <Pencil className="size-4" />
-                                                            </Button>
-                                                        )}
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() =>
+                                                                handleEditItem(
+                                                                    item,
+                                                                )
+                                                            }
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="size-4" />
+                                                        </Button>
+                                                    )}
                                                     {toNumber(
                                                         item.sisaQtyPr ?? 0,
                                                     ) ===
@@ -1825,9 +1845,9 @@ export default function PurchaseOrderInEdit({
                                                         toNumber(
                                                             item.sisaQtyDo ?? 0,
                                                         ) ===
-                                                        toNumber(
-                                                            item.qty ?? 0,
-                                                        ) && (
+                                                            toNumber(
+                                                                item.qty ?? 0,
+                                                            ) && (
                                                             <Button
                                                                 type="button"
                                                                 variant="outline"
@@ -1982,7 +2002,7 @@ export default function PurchaseOrderInEdit({
                                             {materialLoading
                                                 ? 'Memuat data material...'
                                                 : materialError ||
-                                                'Tidak ada data material.'}
+                                                  'Tidak ada data material.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2039,8 +2059,8 @@ export default function PurchaseOrderInEdit({
                                     Menampilkan{' '}
                                     {Math.min(
                                         (materialCurrentPage - 1) *
-                                        materialPageSize +
-                                        1,
+                                            materialPageSize +
+                                            1,
                                         materialTotalItems,
                                     )}
                                     -
@@ -2179,7 +2199,7 @@ export default function PurchaseOrderInEdit({
                                             {customerLoading
                                                 ? 'Memuat data customer...'
                                                 : customerError ||
-                                                'Tidak ada data customer.'}
+                                                  'Tidak ada data customer.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2235,8 +2255,8 @@ export default function PurchaseOrderInEdit({
                                 Menampilkan{' '}
                                 {Math.min(
                                     (customerCurrentPage - 1) *
-                                    customerPageSize +
-                                    1,
+                                        customerPageSize +
+                                        1,
                                     customerTotal,
                                 )}
                                 -
@@ -2277,7 +2297,7 @@ export default function PurchaseOrderInEdit({
                                     disabled={
                                         customerTotalPages
                                             ? customerCurrentPage >=
-                                            customerTotalPages
+                                              customerTotalPages
                                             : true
                                     }
                                 >

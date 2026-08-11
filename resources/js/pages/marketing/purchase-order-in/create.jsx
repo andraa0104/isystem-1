@@ -786,9 +786,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
                 throw new Error(
                     data?.message ||
-                    (data?.errors &&
-                        Object.values(data.errors).flat()[0]) ||
-                    'Gagal menyimpan customer.',
+                        (data?.errors &&
+                            Object.values(data.errors).flat()[0]) ||
+                        'Gagal menyimpan customer.',
                 );
             }
 
@@ -900,9 +900,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
                 throw new Error(
                     data?.message ||
-                    (data?.errors &&
-                        Object.values(data.errors).flat()[0]) ||
-                    'Gagal menyimpan material.',
+                        (data?.errors &&
+                            Object.values(data.errors).flat()[0]) ||
+                        'Gagal menyimpan material.',
                 );
             }
 
@@ -1099,7 +1099,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 </h2>
                             </div>
                             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                                <div className="grid gap-4 sm:col-span-2 lg:col-span-4 sm:grid-cols-2 lg:grid-cols-12">
+                                <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-12">
                                     <div className="grid gap-2 sm:col-span-2 lg:col-span-5">
                                         <Label htmlFor="no_poin">
                                             No PO Customer/Ref PO
@@ -1117,7 +1117,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             onChange={(event) => {
                                                 setForm((prev) => ({
                                                     ...prev,
-                                                    noPoin: event.target.value,
+                                                    noPoin: event.target.value.toUpperCase(),
                                                 }));
                                                 setValidationErrors((prev) => ({
                                                     ...prev,
@@ -1327,7 +1327,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             onChange={(event) =>
                                                 setForm((prev) => ({
                                                     ...prev,
-                                                    paymentTerm: event.target.value,
+                                                    paymentTerm:
+                                                        event.target.value,
                                                 }))
                                             }
                                         />
@@ -1481,8 +1482,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                 picLoading
                                                     ? 'Memuat PIC...'
                                                     : picList.length > 0
-                                                        ? 'Ketik atau pilih PIC...'
-                                                        : 'Ketik nama PIC'
+                                                      ? 'Ketik atau pilih PIC...'
+                                                      : 'Ketik nama PIC'
                                             }
                                             autoComplete="off"
                                             onChange={(event) => {
@@ -1863,9 +1864,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             <p className="font-semibold">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                    toNumber(
-                                                        item.unitPrice,
-                                                    ),
+                                                        toNumber(
+                                                            item.unitPrice,
+                                                        ),
                                                 )}
                                             </p>
                                         </div>
@@ -1952,9 +1953,9 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             <td className="px-4 py-3">
                                                 {formatRupiah(
                                                     toNumber(item.qty) *
-                                                    toNumber(
-                                                        item.unitPrice,
-                                                    ),
+                                                        toNumber(
+                                                            item.unitPrice,
+                                                        ),
                                                 )}
                                             </td>
                                             <td className="px-4 py-3">
@@ -2131,7 +2132,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             {materialLoading
                                                 ? 'Memuat data material...'
                                                 : materialError ||
-                                                'Tidak ada data material.'}
+                                                  'Tidak ada data material.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2188,8 +2189,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     Menampilkan{' '}
                                     {Math.min(
                                         (materialCurrentPage - 1) *
-                                        materialPageSize +
-                                        1,
+                                            materialPageSize +
+                                            1,
                                         materialTotalItems,
                                     )}
                                     -
@@ -2332,7 +2333,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                             {customerLoading
                                                 ? 'Memuat data customer...'
                                                 : customerError ||
-                                                'Tidak ada data customer.'}
+                                                  'Tidak ada data customer.'}
                                         </td>
                                     </tr>
                                 )}
@@ -2389,8 +2390,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                 Menampilkan{' '}
                                 {Math.min(
                                     (customerCurrentPage - 1) *
-                                    customerPageSize +
-                                    1,
+                                        customerPageSize +
+                                        1,
                                     customerTotal,
                                 )}
                                 -
@@ -2431,7 +2432,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     disabled={
                                         customerTotalPages
                                             ? customerCurrentPage >=
-                                            customerTotalPages
+                                              customerTotalPages
                                             : true
                                     }
                                 >
