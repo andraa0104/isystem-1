@@ -18,6 +18,21 @@ class QuotationController
         private QuotationService $quotationService
     ) {}
 
+    /**
+     * Exception codes are not necessarily HTTP status codes. In particular,
+     * SQLSTATE 23000 means an integrity/duplicate-key violation.
+     */
+    private function exceptionHttpStatus(\Throwable $exception, int $fallback = 422): int
+    {
+        $code = (int) $exception->getCode();
+
+        if ($code === 23000) {
+            return 409;
+        }
+
+        return $code >= 100 && $code <= 599 ? $code : $fallback;
+    }
+
     private function getClickhouseOrFallbackConnection()
     {
         try {
@@ -570,7 +585,7 @@ class QuotationController
             $this->quotationService->createQuotation($request->all(), $prefix);
         } catch (\Throwable $exception) {
             if ($request->expectsJson()) {
-                $status = $exception->getCode() ?: 422;
+                $status = $this->exceptionHttpStatus($exception);
                 return response()->json([
                     'message' => $exception->getMessage(),
                 ], $status);

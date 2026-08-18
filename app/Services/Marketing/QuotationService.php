@@ -72,6 +72,8 @@ class QuotationService
                     $counter = DB::table('tb_counter')
                         ->select('nomor_terakhir')
                         ->where('nama_tabel', 'tb_penawaran')
+                        // Serialize number allocation when multiple users save at once.
+                        ->lockForUpdate()
                         ->first();
 
                     if (!$counter) {
@@ -92,8 +94,15 @@ class QuotationService
 
                     $noPenawaran = $prefix . str_pad((string) $newNumber, 7, '0', STR_PAD_LEFT);
 
-                    if (DB::table('tb_penawaran')->where('No_penawaran', $noPenawaran)->exists()) {
-                        throw new \RuntimeException('duplicate_no_penawaran');
+                    // Recover safely if the counter is behind existing production data.
+                    // The counter row is locked, so this loop is also concurrency-safe.
+                    while (DB::table('tb_penawaran')->where('No_penawaran', $noPenawaran)->exists()) {
+                        $newNumber++;
+                        $noPenawaran = $prefix . str_pad((string) $newNumber, 7, '0', STR_PAD_LEFT);
+
+                        DB::table('tb_counter')
+                            ->where('nama_tabel', 'tb_penawaran')
+                            ->update(['nomor_terakhir' => $newNumber]);
                     }
 
                     DB::table('tb_penawaran')->insert([
