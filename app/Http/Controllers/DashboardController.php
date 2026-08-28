@@ -1070,43 +1070,34 @@ class DashboardController
             'difference' => null,
         ];
 
-        // 1. HITUNG STOK BUKU & LAST UPDATE STOK BUKU
-        if (Schema::hasTable('tb_kas')) {
-            $kasCols = Schema::getColumnListing('tb_kas');
-            // Ubah semua kolom menjadi lowercase untuk menghindari kegagalan case-sensitivity
-            $kasColsLower = array_map('strtolower', $kasCols);
-            
-            $accountField = in_array('kode_akun1', $kasColsLower, true) ? 'Kode_Akun1' : 'Kode_Akun';
-            
-            // Cari kolom tanggal buat secara dinamis (case-insensitive)
-            $tglBuatField = 'Tgl_Buat'; 
-            if (in_array('tgl_buat', $kasColsLower, true)) {
-                $tglBuatField = $kasCols[array_search('tgl_buat', $kasColsLower, true)];
-            } elseif (in_array('tgl_voucher', $kasColsLower, true)) {
-                $tglBuatField = $kasCols[array_search('tgl_voucher', $kasColsLower, true)];
-            }
+        // 1. HITUNG STOK BUKU & LAST UPDATE STOK BUKU (Akun 1105AD dari tb_nabb)
+        if (Schema::hasTable('tb_nabb')) {
+            $nabbCols = Schema::getColumnListing('tb_nabb');
+            $nabbColsLower = array_map('strtolower', $nabbCols);
+            $accountField = in_array('kode_akun', $nabbColsLower, true) ? $nabbCols[array_search('kode_akun', $nabbColsLower, true)] : 'Kode_Akun';
+            $saldoField = in_array('saldo', $nabbColsLower, true) ? $nabbCols[array_search('saldo', $nabbColsLower, true)] : 'Saldo';
 
-            // Ambil saldo buku dari baris terakhir akun 1105AD
-            $lastKasRow = $this->getDbConnection()->table('tb_kas')
-                ->where($accountField, '1105AD')
-                ->orderByDesc(in_array('tgl_voucher', $kasColsLower, true) ? 'Tgl_Voucher' : 'id')
-                ->orderByDesc(in_array('kode_voucher', $kasColsLower, true) ? 'Kode_Voucher' : 'id')
+            $rowNabb = $this->getDbConnection()->table('tb_nabb')
+                ->whereRaw("LOWER(TRIM($accountField)) = ?", ['1105ad'])
                 ->first();
 
-            if ($lastKasRow) {
-                $result['book'] = (float) ($lastKasRow->Saldo ?? 0);
+            if ($rowNabb) {
+                $result['book'] = (float) ($rowNabb->$saldoField ?? 0);
             } else {
                 $result['book'] = 0.0;
             }
 
-            // Ambil nilai MAX dari kolom tanggal buat khusus untuk Last Update Stok Buku
-            $bookDateSql = $this->normalizedDateSql($tglBuatField);
-            $maxBookDate = $this->getDbConnection()->table('tb_kas')
-                ->where($accountField, '1105AD')
-                ->selectRaw("MAX($bookDateSql) as last_update")
-                ->value('last_update');
-            if ($maxBookDate) {
-                $result['book_last_update'] = $this->normalizeDate($maxBookDate);
+            // Ambil tanggal update jika tersedia kolom tanggal pada tb_nabb
+            $dateCols = ['tgl_update', 'tgl_buat', 'posting_date', 'end_date', 'tgl'];
+            foreach ($dateCols as $dc) {
+                if (in_array($dc, $nabbColsLower, true)) {
+                    $dateField = $nabbCols[array_search($dc, $nabbColsLower, true)];
+                    $val = $rowNabb->$dateField ?? null;
+                    if ($val) {
+                        $result['book_last_update'] = $this->normalizeDate($val);
+                        break;
+                    }
+                }
             }
         }
 
