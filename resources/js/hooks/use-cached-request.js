@@ -102,7 +102,7 @@ export default function useCachedRequest({
     }, [key, resolvedTtl, initialData]);
 
     const load = useCallback(
-        async (force = false) => {
+        async (force = false, silent = false) => {
             const requestId = ++activeRequestId.current;
 
             if (!force) {
@@ -115,7 +115,9 @@ export default function useCachedRequest({
                 }
             }
 
-            setStatus('loading');
+            if (!silent) {
+                setStatus('loading');
+            }
             setError(null);
 
             try {
@@ -135,8 +137,8 @@ export default function useCachedRequest({
         [fetcher, key, resolvedTtl],
     );
 
-    const retry = useCallback(() => load(true), [load]);
-    const refresh = useCallback((force = false) => load(force), [load]);
+    const retry = useCallback(() => load(true, false), [load]);
+    const refresh = useCallback((force = false, silent = false) => load(force, silent), [load]);
 
     useEffect(() => {
         if (!enabled) return;

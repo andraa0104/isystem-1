@@ -253,10 +253,7 @@ class DashboardController
 
         $range = strtolower((string) $request->query('range', ''));
         if (in_array($range, ['1_week', '1_month', '3_months', '5_months', '1_year'], true)) {
-            $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('quotation.range', [
-                'range' => $range,
-                'today' => Carbon::now()->toDateString(),
-            ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildQuotationStatsRange($range));
+            $stats = $this->buildQuotationStatsRange($range);
 
             return response()->json($stats);
         }
@@ -269,11 +266,7 @@ class DashboardController
             $group = 'week';
         }
 
-        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('quotation', [
-            'months' => $months,
-            'group' => $group,
-            'today' => Carbon::now()->toDateString(),
-        ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildQuotationStats($months, $group));
+        $stats = $this->buildQuotationStats($months, $group);
 
         return response()->json($stats);
     }
@@ -282,7 +275,7 @@ class DashboardController
     {
         $this->authorizeDashboardCard($request, 'saldo');
 
-        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('saldo', [], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildSaldoStats());
+        $stats = $this->buildSaldoStats();
 
         return response()->json($stats);
     }
@@ -291,9 +284,7 @@ class DashboardController
     {
         $this->authorizeDashboardCard($request, 'receivable_payable');
 
-        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('receivable-payable', [
-            'source' => 'latest-nabbrekap-v2',
-        ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildReceivablePayableStats());
+        $stats = $this->buildReceivablePayableStats();
 
         return response()->json($stats);
     }
@@ -302,9 +293,7 @@ class DashboardController
     {
         $this->authorizeDashboardCard($request, 'delivery');
 
-        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('delivery', [
-            'source' => 'tb_counter',
-        ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->buildDeliveryStats());
+        $stats = $this->buildDeliveryStats();
 
         return response()->json($stats);
     }
@@ -727,11 +716,7 @@ class DashboardController
             $group = 'month';
         }
 
-        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember($this->dashboardCacheKey('sales-hpp', [
-            'period' => $period,
-            'group' => $group,
-            'today' => Carbon::now()->toDateString(),
-        ], $request), self::DASHBOARD_CACHE_TTL, fn () => $this->getSalesHppStatsData($period, $group));
+        $stats = $this->getSalesHppStatsData($period, $group);
 
         return response()->json($stats);
     }
@@ -1245,13 +1230,7 @@ class DashboardController
     {
         $this->authorizeDashboardCard($request, 'stock_summary');
 
-        $stats = Cache::tags(self::DASHBOARD_CACHE_TAGS)->remember(
-            $this->dashboardCacheKey('stock-summary', [
-                'date_parser' => 2,
-            ], $request),
-            self::DASHBOARD_CACHE_TTL, 
-            fn () => $this->buildStockSummary()
-        );
+        $stats = $this->buildStockSummary();
 
         return response()->json($stats);
     }

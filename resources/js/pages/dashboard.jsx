@@ -123,6 +123,7 @@ export default function Dashboard({
     const [prefetchPriorityCards, setPrefetchPriorityCards] = useState(false);
     const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
     const [isGlobalRefreshing, setIsGlobalRefreshing] = useState(false);
+    const [autoRefreshInterval, setAutoRefreshInterval] = useState(30); // in seconds, 0 = off
 
     // Sales HPP State
     const [salesHppRange, setSalesHppRange] = useState('1_week'); // 1_week|1_month|3_months|5_months|1_year
@@ -148,7 +149,7 @@ export default function Dashboard({
         enabled:
             canViewCard('quotation') &&
             (quotationView.inView || prefetchPriorityCards),
-        ttlMs: 120_000,
+        ttlMs: 0,
         initialData:
             Array.isArray(quotationStats) && quotationStats.length > 0
                 ? quotationStats
@@ -165,7 +166,7 @@ export default function Dashboard({
         key: 'saldo',
         enabled:
             canViewCard('saldo') && (saldoView.inView || prefetchPriorityCards),
-        ttlMs: 120_000,
+        ttlMs: 0,
         initialData:
             Array.isArray(saldoStats) && saldoStats.length > 0
                 ? saldoStats
@@ -179,7 +180,7 @@ export default function Dashboard({
     const deliveryRequest = useCachedRequest({
         key: 'delivery:v2',
         enabled: canViewCard('delivery') && deliveryView.inView,
-        ttlMs: 120_000,
+        ttlMs: 0,
         initialData:
             (pdbStats && Object.keys(pdbStats).length > 0) ||
             (pdoStats && Object.keys(pdoStats).length > 0)
@@ -195,7 +196,7 @@ export default function Dashboard({
         key: 'receivablePayable',
         enabled:
             canViewCard('receivable_payable') && receivablePayableView.inView,
-        ttlMs: 120_000,
+        ttlMs: 0,
         fetcher: async () => {
             const response = await axios.get(
                 '/dashboard/receivable-payable-stats',
@@ -204,11 +205,10 @@ export default function Dashboard({
         },
     });
 
-    // === TAMBAHKAN BLOK INI ===
     const stockSummaryRequest = useCachedRequest({
         key: 'stockSummary:v2',
         enabled: canViewCard('stock_summary'),
-        ttlMs: 120_000,
+        ttlMs: 0,
         fetcher: async () => {
             const response = await axios.get('/dashboard/stock-summary-stats');
             return response.data;
@@ -220,7 +220,7 @@ export default function Dashboard({
         enabled:
             canViewCard('sales_hpp') &&
             (salesHppView.inView || prefetchPriorityCards),
-        ttlMs: 120_000,
+        ttlMs: 0,
         initialData:
             salesHppRange === '3_months' &&
             Array.isArray(initialSalesHppStats?.series) &&
@@ -257,9 +257,9 @@ export default function Dashboard({
     };
     const stockSummary = stockSummaryRequest.data ?? {
         physical: null,
-        physical_last_update: null, // Berpasangan dengan backend
+        physical_last_update: null,
         book: null,
-        book_last_update: null, // Berpasangan dengan backend
+        book_last_update: null,
         difference: null,
     };
 
@@ -314,31 +314,52 @@ export default function Dashboard({
         canViewCard,
     ]);
 
-    const handleGlobalRefresh = async () => {
-        setIsGlobalRefreshing(true);
+    const handleGlobalRefresh = useCallback(async (silent = false) => {
+        if (!silent) setIsGlobalRefreshing(true);
         await Promise.allSettled([
             canViewCard('quotation')
-                ? quotationRequest.refresh(true)
+                ? quotationRequest.refresh(true, silent)
                 : Promise.resolve(),
             canViewCard('saldo')
-                ? saldoRequest.refresh(true)
+                ? saldoRequest.refresh(true, silent)
                 : Promise.resolve(),
             canViewCard('delivery')
-                ? deliveryRequest.refresh(true)
+                ? deliveryRequest.refresh(true, silent)
                 : Promise.resolve(),
             canViewCard('receivable_payable')
-                ? receivablePayableRequest.refresh(true)
+                ? receivablePayableRequest.refresh(true, silent)
                 : Promise.resolve(),
             canViewCard('sales_hpp')
-                ? salesHppRequest.refresh(true)
+                ? salesHppRequest.refresh(true, silent)
                 : Promise.resolve(),
             canViewCard('stock_summary')
-                ? stockSummaryRequest.refresh(true)
+                ? stockSummaryRequest.refresh(true, silent)
                 : Promise.resolve(),
         ]);
         setLastRefreshedAt(new Date());
-        setIsGlobalRefreshing(false);
-    };
+        if (!silent) setIsGlobalRefreshing(false);
+    }, [
+        canViewCard,
+        quotationRequest,
+        saldoRequest,
+        deliveryRequest,
+        receivablePayableRequest,
+        salesHppRequest,
+        stockSummaryRequest,
+    ]);
+
+    // Polling / Auto-refresh interval effect
+    useEffect(() => {
+        if (!autoRefreshInterval || autoRefreshInterval <= 0) return;
+
+        const intervalId = setInterval(() => {
+            // Hanya fetch jika window/tab aktif agar menghemat resource
+            if (typeof document !== 'undefined' && document.hidden) return;
+            handleGlobalRefresh(true);
+        }, autoRefreshInterval * 1000);
+
+        return () => clearInterval(intervalId);
+    }, [autoRefreshInterval, handleGlobalRefresh]);
 
     const handleSalesHppRangeChange = (nextRange) => {
         setSalesHppHover(null);
@@ -458,27 +479,55 @@ export default function Dashboard({
             <Head title="Dashboard" />
             <div className="flex min-w-0 flex-1 flex-col gap-4 p-3 sm:p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="text-sm text-muted-foreground">
-                        Last refreshed:{' '}
-                        <span className="font-medium text-foreground">
-                            {formatDateTime(lastRefreshedAt)}
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        {autoRefreshInterval > 0 && (
+                            <span className="relative flex h-2 w-2">
+                                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                            </span>
+                        )}
+                        <span>
+                            Last refreshed:{' '}
+                            <span className="font-medium text-foreground">
+                                {formatDateTime(lastRefreshedAt)}
+                            </span>
                         </span>
                     </div>
-                    <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={handleGlobalRefresh}
-                        disabled={isGlobalRefreshing}
-                        className="gap-2"
-                    >
-                        <RefreshCw
-                            className={`h-4 w-4 ${
-                                isGlobalRefreshing ? 'animate-spin' : ''
-                            }`}
-                        />
-                        Refresh
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span>Auto Refresh:</span>
+                            <select
+                                className="w-auto rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-xs text-foreground shadow-sm focus:outline-none"
+                                value={autoRefreshInterval}
+                                onChange={(e) =>
+                                    setAutoRefreshInterval(
+                                        Number(e.target.value),
+                                    )
+                                }
+                            >
+                                <option value={0}>Off</option>
+                                <option value={10}>Setiap 10 dtk</option>
+                                <option value={30}>Setiap 30 dtk</option>
+                                <option value={60}>Setiap 1 mnt</option>
+                                <option value={300}>Setiap 5 mnt</option>
+                            </select>
+                        </div>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleGlobalRefresh(false)}
+                            disabled={isGlobalRefreshing}
+                            className="gap-2"
+                        >
+                            <RefreshCw
+                                className={`h-4 w-4 ${
+                                    isGlobalRefreshing ? 'animate-spin' : ''
+                                }`}
+                            />
+                            Refresh
+                        </Button>
+                    </div>
                 </div>
                 {!hasAnyDashboardCard && (
                     <div className="rounded-lg border border-sidebar-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
