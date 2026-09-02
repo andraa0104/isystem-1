@@ -2770,7 +2770,7 @@ export default function PurchaseRequirementIndex({
                                 <tbody>
                                     <PlainTableStateRows
                                         loading={realizedLoading}
-                                        columns={5}
+                                        columns={6}
                                         rows={5}
                                         isEmpty={
                                             !realizedLoading &&

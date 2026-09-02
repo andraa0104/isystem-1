@@ -545,6 +545,7 @@ class PurchaseRequirementController
                 DB::raw('po.latest_po_date as date'),
                 'pr.for_customer',
                 'pr.ref_po',
+                'pr.jenis_pr',
                 'pr.payment as payment',
                 DB::raw('0 as outstanding_count'),
                 DB::raw('1 as realized_count'),
